@@ -26,6 +26,7 @@
 | 1.0 | April 2026 | Version milestone — all Phase 1–3 backend specs complete and committed |
 | 1.1 | April 2026 | Added invitation system spec (§4.4, §6.10, §9.5 updates) and password requirements spec (§4.5, §6.11, §9.6 updates) |
 | 2.0 | April 2026 | Major update: notifications multi-channel system, version info and update detection, empty box and archive behavior, expanded search and filter spec, dashboard scope selector and getting started guide, error handling standards, DB indexes, reporting integrity rules and leaf box concept, expenditure log types (expend/split/adjust), split box feature with full and partial modes, restock/add same, add X copies, label printing with QR code and mobile expend flow, release process and CHANGELOG.md format. PRD v2.0 represents a complete and comprehensive specification ready for full frontend and remaining backend development. |
+| 2.1 | April 2026 | Updated backup section to dual format strategy — SQLite file for scheduled backups, JSON export for migrations. Added version detection on startup docs, pre-import backup, and restore playbooks. |
 
 ---
 
@@ -1280,91 +1281,123 @@ Quick preset buttons support range use with gloves or in poor lighting condition
 
 ## 11. Database Backup
 
-### 11.1 Design Goal
+### 11.1 Backup Formats
 
-Backups must be re-importable into a clean installation. This enables a migration path for breaking schema changes: dump → wipe → upgrade → import. Format is portable JSON, not a raw SQLite binary.
+#### Format A — SQLite File Backup (scheduled/quick)
 
-### 11.2 Backup Format
+- Direct copy of `ammoledger.db` file
+- Filename: `ammoledger_YYYY-MM-DD_HH-MM.db`
+- Stored in `/data/backups/`
+- Used for: daily safety net, quick restore to same version
+- Restore: stop app, replace `ammoledger.db`, restart — Alembic detects version and migrates automatically if needed
+- Cannot be used to restore across major breaking schema changes
+
+#### Format B — JSON Export (on-demand/migration)
 
 - Structured JSON with one array per table
-- Version-tagged with the AmmoLedger schema version that produced it
-- Filename: `ammoledger_backup_YYYY-MM-DD_HH-MM.json`
-- Stored in `/data/backups/` — this path is a mounted Docker volume so files survive container restarts and rebuilds
+- Version-tagged with AmmoLedger version and Alembic migration number
+- Filename: `ammoledger_export_YYYY-MM-DD_HH-MM.json`
+- Used for: cross-version migration, moving to new server, pre-import safety backup, human-readable data inspection
+- IDs preserved exactly on reimport — box #47 stays box #47, labels do not need reprinting
+- SQLite autoincrement sequence reset after import to continue from highest imported ID
 
-### 11.3 Manual Backup
+#### JSON Export Format
 
-- Admin panel has a **Backup Now** button
-- Triggers immediately, shows progress, then offers a download link
-- Admin can download any previous backup file from the backup history list
-
-### 11.4 Scheduled Backup
-
-- Configured in `config.yaml`
-- Runs as an internal async task — no external cron required
-- Default: nightly at 3:00 AM, retain 30 days
-
-```yaml
-# config.yaml
-backup:
-  enabled: true
-  schedule: "03:00"
-  retention_days: 30
-  path: /data/backups
+```json
+{
+  "ammologger_version": "1.0.0",
+  "schema_migration": "0009",
+  "exported_at": "2026-04-25T03:00:00",
+  "tables": {
+    "users": ["..."],
+    "ammo_box": ["..."],
+    "expenditure_log": ["..."],
+    "calibers": ["..."],
+    "...": "all tables"
+  }
+}
 ```
 
-Old backups beyond `retention_days` are automatically pruned.
+### 11.2 Scheduled Backup (automatic)
 
-### 11.5 Restore / Re-import
+- Runs nightly at configured time (default 03:00)
+- Format: SQLite file copy (Format A)
+- Retention: configurable days (default 30)
+- Stored in `/data/backups/`
+- Old backups beyond retention pruned automatically
+- Runs as internal async task — no external cron
 
-- Admin panel **Import Backup** — upload a backup JSON file
-- Preview shows record counts per table before committing
-- Two modes:
-  - **Full restore** — wipe existing data and replace with backup contents
-  - **Additive** — merge backup into existing data, skipping duplicates
-- Backup version tag is validated — incompatible versions are rejected with a clear error message
+### 11.3 Manual Backup (Admin UI)
+
+Admin panel shows both options:
+
+**Quick Backup (SQLite):**
+
+- Copies current DB file immediately
+- Download link provided after completion
+- Good for: before making changes, quick safety net
+
+**Data Export (JSON):**
+
+- Full structured export of all data
+- Download link provided after completion
+- Good for: migrations, moving servers, reading your own data
+
+Last backup and last export timestamps shown.
+
+### 11.4 Version Detection on Startup
+
+The database tracks its own version via two mechanisms:
+
+**`alembic_version` table (managed by Alembic):**
+
+- Contains current migration number e.g. `"0009"`
+- Alembic compares this to codebase migrations
+- Automatically runs any missing migrations on startup
+- Startup log shows: `"Applying migrations: 0007, 0008, 0009... done"`
+
+**`app_settings` table (managed by AmmoLedger):**
+
+- key: `"current_version"` → `"1.0.0"`
+- key: `"schema_migration"` → `"0009"`
+- On startup: compare stored version to running version
+- If different: log upgrade path clearly: `"Previous version: 1.0.0 → Current: 1.1.0"`
+- Update stored version after successful startup
+
+This means any SQLite backup (`.db` file) carries its own version information. Copying an old backup into a new installation is safe — Alembic detects the version gap and migrates automatically.
+
+### 11.5 Pre-Import Backup
+
+Before any CSV import:
+
+- System automatically runs a Quick Backup (SQLite)
+- Labeled: `ammoledger_pre-import_YYYY-MM-DD.db`
+- Import blocked if backup fails to write
+- Ensures safe rollback point before data changes
 
 ### 11.6 Breaking Migration Playbook
 
-```
-1. Admin → Backup Now → download the JSON file
-2. Stop the container
-3. Delete (or rename) ammoledger.db
-4. Pull new image: docker compose pull
-5. Start: docker compose up -d
-   → Alembic creates the new schema from scratch
-6. Admin → Import Backup → upload the saved JSON
-   → Importer transforms data to the new schema shape
-```
+For rare cases where migration cannot be done in-place:
 
-### 11.7 Data Directory Structure
+1. On old version: Admin → Data Export (JSON)
+2. Download and save the JSON file
+3. `docker compose down`
+4. Delete or rename `ammoledger.db`
+5. `docker compose pull && docker compose up -d`
+   → Alembic creates fresh schema from scratch
+6. Admin → Import Backup → upload JSON file
+   → Importer transforms data to new schema shape
+   → IDs preserved throughout
 
-All runtime data lives under the `/data` Docker volume. Nothing in this directory is committed to git except `defaults.yaml`.
+### 11.7 Restore Playbook (SQLite backup)
 
-```
-/data/
-├── ammoledger.db        # SQLite database (git-ignored)
-├── config.yaml          # App settings and secrets (git-ignored; auto-created on first start)
-├── defaults.yaml        # Editable seed data (copied from bundled backend/defaults.yaml if missing)
-├── backups/             # Nightly and manual backup JSON files (auto-created; git-ignored)
-└── uploads/             # Target photo uploads — v2.0 (auto-created; git-ignored)
-```
+For restoring from a SQLite backup:
 
-**config.yaml** is auto-generated on first startup from a bundled template. Edit it to configure:
-- `app.session_timeout_hours` — session lifetime (default: 8 hours)
-- `security.reset_token` — one-time token to enable `/reset` password recovery; clear after use
-- `backup.enabled`, `backup.schedule`, `backup.retention_days` — nightly backup settings
-- `smtp.*` — optional SMTP settings for scheduled report delivery (v2.0)
-
-**Environment variables** take precedence over config.yaml for path configuration:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `DATABASE_URL` | `sqlite:////data/ammoledger.db` | SQLite connection string |
-| `SESSION_SECRET` | *(required in production)* | Signs session cookies — set a strong random value |
-| `CONFIG_PATH` | `/data/config.yaml` | Path to config.yaml |
-| `DEFAULTS_PATH` | `/data/defaults.yaml` | Path to defaults.yaml seed file |
-| `BACKUP_PATH` | `/data/backups` | Backup output directory |
-| `UPLOADS_PATH` | `/data/uploads` | Photo upload directory (v2.0) |
+1. `docker compose down`
+2. Replace `/data/ammoledger.db` with backup file
+3. `docker compose up -d`
+   → Alembic detects version, runs any needed migrations automatically
+   → App starts normally
 
 ---
 

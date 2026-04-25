@@ -36,6 +36,7 @@
 - Config validation: COMPLETE
 - PRD v1.1 — invitation system and password requirements: COMPLETE
 - PRD v2.0 — comprehensive spec complete: COMPLETE
+- PRD v2.1 — dual backup strategy documented: COMPLETE
 - CHANGELOG.md created: COMPLETE
 - Schema catchup — migrations 0004-0009: COMPLETE
 - Config and version catchup: COMPLETE
