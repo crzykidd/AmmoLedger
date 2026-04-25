@@ -12,11 +12,25 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 
 
 
+## What's Built
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 | ✅ Complete | Alembic migrations, full database schema |
+| Phase 2 | ✅ Complete | Auth (login/logout/setup), RBAC, YAML seed data |
+| Phase 3 | 🔲 Not started | Ammo CRUD API |
+| Phase 4 | 🔲 Not started | Frontend basics |
+| Phase 5 | 🔲 Not started | Dashboard |
+| Phase 6 | 🔲 Not started | Backup system |
+
 ## Features
 
-- Track ammo by caliber, brand, and grain weight
-- Log usage from range sessions
-- View current inventory at a glance
+- First-run setup creates the initial admin account
+- Login/logout with signed session cookies
+- Role-based access control: `admin`, `member`, `readonly`
+- Lookup tables (calibers, manufacturers, ammo types, categories, dealers) pre-seeded from `defaults.yaml` on every startup
+- Full database schema: users, ammo boxes, expenditure log, storage locations and containers
+- Schema migrations run automatically on container start (Alembic)
 - Runs entirely in Docker — no cloud, no subscriptions, your data stays yours
 
 ## Tech Stack

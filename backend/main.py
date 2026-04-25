@@ -1,10 +1,18 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from database import run_migrations
+from utils.seeds import sync_yaml_seeds
+from routers import auth
+
+SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
 
 app = FastAPI(title="AmmoLedger API", version="0.1.0")
 
+# CORSMiddleware added first → outermost → handles preflight before session processing
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -12,13 +20,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
+
+app.include_router(auth.router)
 
 
 @app.on_event("startup")
 def on_startup():
     run_migrations()
-    # sync_yaml_seeds()  — Phase 2
-    # check_first_run()  — Phase 2 (auth)
+    sync_yaml_seeds()
 
 
 @app.get("/health")
