@@ -8,6 +8,12 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed unused `require_auth` import in `expenditure.py` that caused ruff lint failure in CI
+- Replaced `alembic check` in CI with `alembic heads` + `alembic current` to avoid SQLite/SQLModel TEXT vs AutoString false positives
+- Updated `actions/setup-python` from v5 to v6 in CI workflow
+
 ### Added
 
 - `legacy_id` field on ammo boxes for import compatibility with existing tracking systems

@@ -7,7 +7,7 @@ from database import get_session
 from models import ExpenditureLog, User
 from routers.ammo import _get_visible_box
 from schemas import ExpenditureRead, ExpendRequest, ExpendResponse
-from utils.rbac import require_auth, require_role
+from utils.rbac import require_role
 
 router = APIRouter(prefix="/ammo", tags=["expenditure"])
 
