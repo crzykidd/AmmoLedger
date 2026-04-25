@@ -7,7 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from database import run_migrations
 from utils.config import load_config
 from utils.seeds import sync_yaml_seeds
-from routers import auth
+from routers import auth, ammo, expenditure, lookups
 
 SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
 
@@ -24,6 +24,9 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 
 app.include_router(auth.router)
+app.include_router(ammo.router)
+app.include_router(expenditure.router)
+app.include_router(lookups.router)
 
 
 @app.on_event("startup")

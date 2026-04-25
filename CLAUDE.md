@@ -28,7 +28,7 @@
 - Pre-Phase 2 — Data directory structure: COMPLETE
 - Pre-Phase 2 — CI/CD and licensing: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
-- Phase 3 — Ammo CRUD API: NOT STARTED
+- Phase 3 — Ammo CRUD API: COMPLETE
 - Phase 4 — Frontend basics: NOT STARTED
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
@@ -49,3 +49,10 @@
 - /api/ → FastAPI backend  
 - /api/docs → Swagger UI (FastAPI auto-generated)
 - Reverse proxy handles routing — Nginx or Cloudflare Tunnel
+
+## Documentation Updates
+- Always update docs/PRD.md when architecture or features change
+- Always update the Revision History table in docs/PRD.md 
+  with the current date and a brief description of what changed
+- Always update README.md when setup or usage changes
+- Include doc updates in the same commit as the code changes
