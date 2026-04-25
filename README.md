@@ -2,6 +2,12 @@
 
 This app is very early and still in development
 
+> **⚠️ Disclaimer**
+>
+> This project is primarily *vibe coded* — optimized for momentum over perfection.
+>
+> Code may prioritize “it works” over “it’s elegant.” Refactors welcome.
+
 A self-hosted web application to track your ammunition inventory. Keep your ammo counts accurate on and off the range.
 
 
