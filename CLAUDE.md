@@ -26,12 +26,23 @@
 ## Build Status
 - Phase 1 — Alembic + schema: COMPLETE
 - Pre-Phase 2 — Data directory structure: COMPLETE
+- Pre-Phase 2 — CI/CD and licensing: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
 - Phase 3 — Ammo CRUD API: NOT STARTED
 - Phase 4 — Frontend basics: NOT STARTED
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
 - Phase 7 — User management UI: NOT STARTED
+
+## Release Process
+
+- Commit and push freely to `main` — GitHub Actions automatically builds and pushes
+  `:dev` and `:sha-<short>` images to GHCR
+- When the build is stable and ready to ship:
+  1. GitHub → Releases → Draft new release
+  2. Create a new tag in `v1.0.0` format
+  3. Publish the release
+  4. GitHub Actions builds and pushes `:latest`, `:1.0.0`, and `:1` to GHCR
 
 ## URL Structure (Production Target)
 - / → React frontend

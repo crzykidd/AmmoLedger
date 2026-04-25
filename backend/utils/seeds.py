@@ -1,5 +1,3 @@
-import os
-
 import yaml
 from sqlmodel import Session, select
 

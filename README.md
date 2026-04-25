@@ -1,5 +1,7 @@
 # AmmoLedger
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 This app is very early and still in development
 
 > **⚠️ Disclaimer**
@@ -64,6 +66,28 @@ docker compose up --build
 
 - **App:** http://localhost:5173
 - **API docs:** http://localhost:8000/docs
+
+## Container Images
+
+Pre-built images are published to [GitHub Container Registry (GHCR)](https://ghcr.io). Replace `OWNER` with the repository owner's GitHub username.
+
+| Tag | Updated | Use for |
+|-----|---------|---------|
+| `:latest` | Official GitHub Releases only | Production deployments |
+| `:dev` | Every push to `main` | Testing the latest work-in-progress |
+| `:sha-abc1234` | Every push to `main` | Pinning to a specific commit |
+
+```bash
+# Stable release
+docker pull ghcr.io/OWNER/ammologger-backend:latest
+docker pull ghcr.io/OWNER/ammologger-frontend:latest
+
+# Latest development build (may not be stable)
+docker pull ghcr.io/OWNER/ammologger-backend:dev
+docker pull ghcr.io/OWNER/ammologger-frontend:dev
+```
+
+> **Note:** `:latest` only advances when an official release is published on GitHub. `:dev` tracks the tip of `main` and may include incomplete or in-progress changes.
 
 ## Development
 

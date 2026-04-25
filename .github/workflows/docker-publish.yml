@@ -1,14 +1,20 @@
 name: Build and publish Docker images
 
+# Trigger matrix:
+#   push → main          builds :dev and :sha-<short> (development, may not be stable)
+#   release published    builds :latest, :<semver>, :<major> (production-ready)
+#   pull_request → main  build only — no push (catches Dockerfile errors before merge)
+
 on:
   push:
     branches: [main]
+  release:
+    types: [published]
   pull_request:
     branches: [main]
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-backend:
@@ -21,7 +27,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
+      - name: Set image name
+        id: image_name
+        run: echo "value=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Compute tags — backend
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}-backend
+          flavor: latest=false
+          tags: |
+            # Push to main — development build
+            type=raw,value=dev,enable=${{ github.event_name == 'push' }}
+            type=sha,prefix=sha-,format=short,enable=${{ github.event_name == 'push' }}
+            # Release published — stable build
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            # Pull request — build-only label (never pushed)
+            type=ref,event=pr
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -34,7 +62,8 @@ jobs:
           context: ./backend
           file: ./Dockerfile.backend
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -46,7 +75,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
+      - name: Set image name
+        id: image_name
+        run: echo "value=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Compute tags — frontend
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}-frontend
+          flavor: latest=false
+          tags: |
+            # Push to main — development build
+            type=raw,value=dev,enable=${{ github.event_name == 'push' }}
+            type=sha,prefix=sha-,format=short,enable=${{ github.event_name == 'push' }}
+            # Release published — stable build
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            # Pull request — build-only label (never pushed)
+            type=ref,event=pr
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -59,4 +110,5 @@ jobs:
           context: ./frontend
           file: ./Dockerfile.frontend
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

@@ -1,0 +1,6 @@
+line-length = 100
+
+[lint]
+# Explicit rule set — E4/E7/E9 (pycodestyle errors) + F (pyflakes).
+# Keeps CI stable across ruff version upgrades; expand as the project matures.
+select = ["E4", "E7", "E9", "F"]

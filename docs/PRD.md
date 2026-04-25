@@ -796,7 +796,7 @@ services:
 | Config | YAML | Human-editable seed data and app settings |
 | Backup | JSON export/import | Re-importable; version-tagged; survives schema migrations |
 | External Access | Tailscale or Cloudflare | SSL + secondary auth without managing certificates |
-| CI/CD | GitHub Actions | Auto-build and publish container images on push to `main` |
+| CI/CD | GitHub Actions + GHCR | Lint (ruff) and compose validation on every push and PR; images published to `ghcr.io` with three-tier tags: `:dev` + `:sha-<hash>` on every push to `main`; `:latest`, full semver, and major-only on GitHub Release; PR builds only (no push) |
 
 ---
 
