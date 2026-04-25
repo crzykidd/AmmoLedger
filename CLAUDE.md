@@ -35,6 +35,8 @@
 - PRD update — label printing expanded, product_name on form: COMPLETE
 - Config validation: COMPLETE
 - PRD v1.1 — invitation system and password requirements: COMPLETE
+- PRD v2.0 — comprehensive spec complete: COMPLETE
+- CHANGELOG.md created: COMPLETE
 - Phase 4 — Frontend basics: NOT STARTED
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
@@ -63,10 +65,13 @@
 - Always update README.md when setup or usage changes
 - Include doc updates in the same commit as the code changes
 
-## Changelog
+## Changelog Process
+
 - CHANGELOG.md lives at repo root
-- Follow Keep a Changelog format
-- Add entries to [Unreleased] section as features are built
-- On release: move [Unreleased] to new version section with date
-- One line per change, user-facing language
-- Categories: Added, Changed, Fixed, Security
+- Follow Keep a Changelog format (keepachangelog.com)
+- Add entries to [Unreleased] section as features are built during each phase
+- User-facing language only — describe what changed for the user
+- Categories: Added, Changed, Fixed, Security, Deprecated, Removed
+- On release: move [Unreleased] to new version section with today's date
+- GitHub release body = that version's CHANGELOG section (single source of truth)
+- In-app About page fetches release notes from GitHub Releases API

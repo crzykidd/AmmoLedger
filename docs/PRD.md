@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 1.1 — Working Draft  
+**Version:** 2.0 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -25,6 +25,7 @@
 | 0.9 | April 2026 | Added config.yaml validation spec — presence, type, value, and warning checks; dev vs production mode behavior; missing config first-run flow |
 | 1.0 | April 2026 | Version milestone — all Phase 1–3 backend specs complete and committed |
 | 1.1 | April 2026 | Added invitation system spec (§4.4, §6.10, §9.5 updates) and password requirements spec (§4.5, §6.11, §9.6 updates) |
+| 2.0 | April 2026 | Major update: notifications multi-channel system, version info and update detection, empty box and archive behavior, expanded search and filter spec, dashboard scope selector and getting started guide, error handling standards, DB indexes, reporting integrity rules and leaf box concept, expenditure log types (expend/split/adjust), split box feature with full and partial modes, restock/add same, add X copies, label printing with QR code and mobile expend flow, release process and CHANGELOG.md format. PRD v2.0 represents a complete and comprehensive specification ready for full frontend and remaining backend development. |
 
 ---
 
@@ -43,8 +44,9 @@
 11. [Database Backup](#11-database-backup)
 12. [Reverse Proxy, SSL & External Access](#12-reverse-proxy-ssl--external-access)
 13. [Technical Stack](#13-technical-stack)
-14. [Non-Functional Requirements](#14-non-functional-requirements)
-15. [Open Questions](#15-open-questions)
+14. [Release Process](#14-release-process)
+15. [Non-Functional Requirements](#15-non-functional-requirements)
+16. [Open Questions](#16-open-questions)
 
 ---
 
@@ -330,7 +332,11 @@ ammo_box
 ├── cost_per_round   DECIMAL    Cost per round; box total derived in UI
 ├── dealer_id        INTEGER    FK → dealers; nullable
 ├── container_id     INTEGER    FK → containers; nullable
+├── legacy_id        TEXT       Optional user-supplied ID from a prior tracking system; nullable
 ├── notes            TEXT       Free text; nullable
+├── split_from_id    INTEGER    FK → ammo_box.id; nullable — set when box was created by a split
+├── is_archived      BOOLEAN    Default false — true when fully split, manually archived, or empty+archived
+├── archive_reason   TEXT       "split" | "empty" | "manual"; nullable
 ├── created_at       DATETIME
 └── updated_at       DATETIME
 ```
@@ -344,11 +350,19 @@ expenditure_log
 ├── id               INTEGER    Primary key
 ├── ammo_box_id      INTEGER    FK → ammo_box
 ├── logged_by        INTEGER    FK → users.id — who pulled the rounds
-├── rounds_used      INTEGER    Number of rounds expended
+├── rounds_used      INTEGER    Rounds expended; negative allowed for adjust entries
 ├── date             DATE       Date rounds were used
+├── log_type         TEXT       "expend" | "split" | "adjust" — see §6.13 for semantics
+├── related_ids      TEXT       JSON array of related box IDs; nullable — used by split entries
 ├── notes            TEXT       Optional: range name, purpose, etc.
 └── created_at       DATETIME
 ```
+
+Log types:
+
+- **expend** — real rounds used; counted in usage reports (default)
+- **split** — audit record created when a box is split; `rounds_used` = total rounds split out; never counted in usage reports
+- **adjust** — Admin correction; `rounds_used` can be negative to restore rounds; never counted in usage reports
 
 ### 6.4 Storage
 
@@ -456,6 +470,22 @@ accessories
 └── notes            TEXT       Optional
 ```
 
+### 6.9 Database Indexes
+
+Indexes required for search and filter performance targets (sub-200ms at 10,000 box records):
+
+**ammo_box:** `caliber_id`, `manufacturer_id`, `type_id`, `category_id`, `owner_id`, `is_shared`, `qty_remaining`, `is_archived`, `created_at`, `legacy_id`, `split_from_id`
+
+**expenditure_log:** `ammo_box_id`, `logged_by`, `date`, `log_type`
+
+**users:** `username`, `email`
+
+**app_settings:** `key`
+
+**invitations:** `token`, `expires_at`, `is_revoked`
+
+**notifications:** `user_id`, `is_read`, `created_at`
+
 ### 6.10 Invitations
 
 ```
@@ -483,6 +513,58 @@ password_history
 ```
 
 Only the most recent N hashes are retained per user (N = `security.password_history_count`). Older rows are pruned on every password change.
+
+### 6.12 Notifications
+
+```
+notifications
+├── id            INTEGER    Primary key
+├── user_id       INTEGER    FK → users.id; nullable (null = system-wide notification)
+├── type          TEXT       low_stock | backup_failure | backup_success |
+│                            import_complete | new_user | update_available
+├── title         TEXT       Short notification title
+├── message       TEXT       Full notification message
+├── is_read       BOOLEAN    Default false
+├── created_at    DATETIME
+└── read_at       DATETIME   Nullable; set when the user marks it read
+```
+
+### 6.13 Reporting Integrity Rules
+
+#### The Leaf Box Problem
+
+When a box is split the original becomes a parent record in the audit trail. Counting both parent and children would double-count rounds. All inventory and purchase reports must only count **leaf boxes**.
+
+#### Leaf Box Definition
+
+A box is a leaf if no other box has `split_from_id` pointing to it:
+
+```sql
+is_leaf = NOT EXISTS (
+  SELECT 1 FROM ammo_box child
+  WHERE child.split_from_id = this_box.id
+)
+```
+
+Computed at query time — not stored as a column — to ensure it is always accurate. The index on `split_from_id` keeps this fast.
+
+#### Reporting Query Rules
+
+| Report | Filter |
+| ------ | ------ |
+| Total rounds purchased | `SUM(qty_original)` WHERE `is_leaf = true` |
+| Total rounds on hand | `SUM(qty_remaining)` WHERE `is_leaf = true AND is_archived = false` |
+| Total inventory value | `SUM(qty_remaining × cost_per_round)` WHERE `is_leaf = true AND is_archived = false` |
+| Total rounds expended | `SUM(rounds_used)` FROM `expenditure_log` WHERE `log_type = 'expend'` only |
+
+Split and adjust entries are **never** counted as rounds used in reports.
+
+#### Adjustment Entries
+
+- Admin-only: create an `adjust` entry with a negative `rounds_used` to restore rounds after a logging mistake
+- Example: logged 50 expended, only shot 30 — Admin creates adjust with `rounds_used = -20`; `qty_remaining` is restored
+- No expenditure_log entries can ever be deleted
+- `expend` and `split` entries are immutable after creation
 
 ---
 
@@ -653,34 +735,143 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 
 ### 9.1 Overview Dashboard
 
-- Total rounds on hand across all visible inventory
-- Breakdown by caliber: round count and estimated value
-- Total inventory value (qty_remaining × cost_per_round) across all visible boxes
-- Low stock alerts per caliber at configurable thresholds
-- Recently added boxes
-- Recent expenditure activity (who used what, when)
+#### Scope Selector
+
+Toggle at the top of the dashboard — controls which inventory all stats and widgets reflect:
+
+```text
+[ My Ammo ]  [ Shared ]  [ All ]   ← All visible to Admin only
+```
+
+Default: **My Ammo**. Device remembers last selected scope via `localStorage`.
+
+#### Stats Cards (row of 4)
+
+| Card | Value |
+| ---- | ----- |
+| Total Rounds | Sum of `qty_remaining` for leaf, non-archived boxes in scope |
+| Total Value | Sum of `qty_remaining × cost_per_round` for leaf, non-archived boxes in scope |
+| Calibers Tracked | Distinct caliber count for boxes in scope |
+| Running Low | Count of calibers below configured threshold in scope |
+
+All stats respect the leaf box definition from §6.13.
+
+#### Caliber Breakdown Table
+
+Per caliber in scope: caliber name, rounds on hand, number of boxes, estimated value, status indicator (healthy / low / empty).
+
+#### Recent Activity
+
+Last 10 `expenditure_log` entries where `log_type = 'expend'` — showing date, who logged it, Box ID, caliber, and rounds used.
+
+#### Low Stock Alerts
+
+List of calibers below configured threshold. Threshold is configurable per caliber in Settings; global default in `config.yaml`.
+
+#### Getting Started Guide
+
+Shown as an overlay on first login after account creation:
+
+```text
+Checklist:
+  □ Add your first ammo box
+  □ Set up storage locations
+  □ Configure backup schedule
+  □ Invite family members  (Admin only)
+```
+
+"Don't show again" checkbox saved to `localStorage`. Reopenable from the nav bar help icon or the About page.
 
 ### 9.2 Ammo Inventory
 
 #### Add Ammo Box
+
 - Form with all fields from Section 6.2
 - `is_shared` toggle — defaults to `false` (private)
 - Caliber, manufacturer, type, category, dealer dropdowns all support inline **Add New**
-- **Product Name** — free-text field positioned directly below Manufacturer; not a dropdown (product lines too varied to maintain a list); carries through to the Add X Copies feature
+- **Product Name** — free-text field positioned directly below Manufacturer; not a dropdown (product lines too varied to maintain a list); carries through to the Add X Copies and Restock features
 - Cost entered per round; calculated box total shown alongside for reference
 - Container and location are optional — a **None** option is always available
 
+#### Add X Copies
+
+- **Number of boxes** field on the add form; defaults to 1
+- If quantity > 1: creates N identical `ammo_box` records in a single DB transaction
+- Each box gets a unique auto-incremented ID; all field values are identical across copies
+- API response returns all created box IDs
+- Success message: "Added N boxes (#X–#Y)"
+- Use case: buying a case that contains multiple identical boxes
+
 #### Inventory List
+
 - Columns: Box ID, Caliber, Brand, Gr/Oz, Type, Qty Remaining, Location, Cost/rd, Owner
-- Sortable columns
+- Sortable columns — click header to sort ascending, click again for descending
 - Color indicator for partially used and nearly-empty boxes
-- Members see: all shared boxes + their own private boxes
-- Admin sees: all boxes
+- Empty boxes hidden by default; toggle above list: **Show empty boxes**
+- Members see: all shared boxes + their own private boxes; Admin sees: all boxes
+- Context menu `⋮` per row: Edit, Expend, Split, Restock, Archive
 
 #### Box Detail
+
 - All fields displayed and editable (based on role)
 - Expenditure history for that box (with user attribution)
 - Quick-log rounds button
+- **Split from Box #N** link shown if `split_from_id` is set
+- **Split into boxes #N–#M** links shown if this box was split
+
+### 9.2.4 Split Box
+
+#### Use Case
+
+A user purchases a case as one entry. Later opens it and needs to track individual boxes separately.
+
+#### Split Types
+
+| Type | Behaviour |
+| ---- | --------- |
+| **Full Split** | All rounds in parent accounted for in new boxes; original archived (`archive_reason = "split"`); `is_leaf` becomes false on parent |
+| **Partial Split** | Splits off some boxes; original `qty_remaining` reduced by split amount; original stays active as a leaf |
+
+#### Split Modes
+
+**Equal Split (Mode A):** Specify the number of boxes; rounds per box auto-calculated from `qty_remaining`; user can override rounds per box; total must equal `qty_remaining` for a full split.
+
+**Custom Split (Mode B):** Specify rounds per box individually; add as many boxes as needed; running total vs available rounds shown; `[ + Add another box ]` button.
+
+#### Fields Inherited by New Boxes
+
+Inherited from parent: caliber, manufacturer, product_name, type, category, grain, weight_unit, purchase_date, cost_per_round, dealer, is_shared, owner_id.
+
+Reset on new boxes: container, location, notes, legacy_id — each gets a unique auto-incremented ID; `split_from_id` set to parent box ID.
+
+#### Audit Trail
+
+An `expenditure_log` entry is written on the parent box: `log_type = "split"`, `rounds_used` = total rounds split out, `related_ids` = JSON array of new child box IDs. Split entries are never counted in usage reports.
+
+#### Validation
+
+- Split total cannot exceed `qty_remaining` — error code `SPLIT_EXCEEDS_AVAILABLE`
+- Minimum 2 boxes in any split; each box must have at least 1 round
+
+#### UI Flow
+
+Access via box detail page or inventory list `⋮` menu → **Split Box**. Preview screen shows all boxes to be created before confirming. Success: "Split complete — N new boxes created (#X–#Y)" with links.
+
+### 9.2.5 Restock / Add Same
+
+Any existing box can be used as a template to quickly add new boxes of the same ammo. Eliminates re-entering all fields when restocking.
+
+#### Access Points
+
+Inventory list `⋮` → **Restock**, box detail page **Restock This Ammo** button, or empty box detail **Restock This Ammo** call-to-action.
+
+#### Pre-populated Fields
+
+Opens the Add Ammo form with these copied from the source box: caliber, manufacturer, product name, grain, weight unit, type, category, dealer, cost per round (editable — prices change), qty per box (from `qty_original` of source box).
+
+Fields reset to defaults: purchase date → today, container → blank, location → blank, notes → blank, number of boxes → 1, is_shared → user default.
+
+Form header: *"Based on Box #47 — edit any fields"*. Submitting creates new boxes — source box is unchanged.
 
 ### 9.3 Expend Rounds
 
@@ -691,10 +882,40 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 
 ### 9.4 Search & Filter
 
-- Filter bar: Caliber, Container, Location, Category, Type, Manufacturer, Owner
-- Combinable filters (AND logic)
-- Live summary below filter bar: round count and estimated value for the filtered set
-- URL reflects filter state — bookmarkable and shareable
+#### Global Search
+
+Single search box at the top of the inventory list. Searches across: caliber, manufacturer, product_name, legacy_id, type, category, dealer, notes. Fires on keystroke with 300ms debounce; minimum 2 characters; results update without page reload.
+
+#### Quick Filter Chips
+
+Horizontal scrollable row below the search box: most common calibers as chips, type chips (FMJ, JHP, Slug, etc.), category chips. Active chips highlighted; click to toggle off.
+
+#### Advanced Filter Panel
+
+Collapsible panel with full options:
+
+- Caliber, Manufacturer, Type, Category, Location, Container, Dealer (all multi-select dropdowns)
+- Purchase date range (from / to)
+- Cost per round range (min / max)
+- Qty remaining range (min / max)
+- Show empty boxes toggle
+- Show archived boxes toggle
+
+#### Filter Summary Bar
+
+Shown when any filter is active: *"Showing X boxes — N rounds — $Y value"* with a **Clear all filters** link.
+
+#### Sort
+
+Click any column header to sort ascending; click again for descending. Arrow indicator on active sort column. Default sort: newest first (`created_at DESC`). Sort preference persists for the session.
+
+#### URL State
+
+Active filters and sort are reflected in the URL — links are bookmarkable and shareable.
+
+#### Performance Target
+
+Results in under 200ms for up to 10,000 box records, relying on the indexes defined in §6.9.
 
 ### 9.5 User Management (Admin)
 
@@ -848,6 +1069,101 @@ container, location, notes
 | container | No | text | Must match an existing container name |
 | location | No | text | Must match an existing location name |
 | notes | No | text | Free text |
+
+### 9.9 Notifications
+
+#### Notification Types
+
+| Type | Trigger |
+| ---- | ------- |
+| `low_stock` | A caliber drops below its configured threshold |
+| `backup_failure` | Scheduled or manual backup fails |
+| `backup_success` | Scheduled backup completes successfully |
+| `import_complete` | CSV import finishes |
+| `new_user` | A new user registers (Admin only) |
+| `update_available` | A newer GitHub release is detected |
+
+#### Delivery Channels
+
+All channels are optional and configured independently in `config.yaml`. Multiple channels can be active simultaneously.
+
+**In-app (always enabled):** Bell icon in nav bar with unread count badge. Notification panel slides out on click showing recent alerts. Mark as read individually or all at once. Notifications stored in the `notifications` table (§6.12).
+
+**Email (optional, requires SMTP config):** Uses the SMTP settings already in `config.yaml`. Per-user opt-in from profile settings. Configurable per notification type.
+
+**Discord (optional):** Webhook URL configured in `config.yaml`. Sends formatted embed messages to a Discord channel. Configurable per notification type.
+
+**Extensible design:** Notification system uses a channel interface (`send(notification)`) so additional clients (Slack, Telegram, Pushover, Gotify) can be added in future versions without changing core notification logic.
+
+#### Config Structure
+
+```yaml
+notifications:
+  discord:
+    enabled: false
+    webhook_url: ""
+    notify_on: ["low_stock", "backup_failure", "update_available"]
+  email:
+    notify_on: ["backup_failure"]
+  low_stock:
+    default_threshold: 50
+    per_caliber_thresholds: {}
+```
+
+### 9.10 Version Info & About
+
+#### About Page
+
+Accessible from the nav bar. Shows: AmmoLedger logo and tagline, current installed version (e.g. `v1.2.0`), link to that specific release on GitHub, release notes for the current version, links to the GitHub repo, issues, and documentation, and an update-available indicator if a newer release exists.
+
+#### Update Detection
+
+On startup and every 24 hours the backend checks:
+
+```text
+GET https://api.github.com/repos/OWNER/AmmoLedger/releases/latest
+```
+
+The latest release tag is compared to the current installed version. Result stored in `app_settings`: `latest_version`, `update_available`, `update_checked_at`. If an update is available: subtle indicator in the nav bar and a notification of type `update_available`.
+
+Controlled by config flag:
+
+```yaml
+app:
+  check_for_updates: true
+```
+
+Never sends any user data — only reads the GitHub public API.
+
+#### Release Notes on Upgrade
+
+On first startup after a version change, compare the current version to `last_seen_version` in `app_settings`. If different: show a release notes modal to Admin users (once per version per user; dismissible). Release notes sourced from the GitHub release body.
+
+#### Version Storage
+
+Current version stored in `backend/version.py`:
+
+```python
+__version__ = "0.1.0"
+```
+
+Single source of truth for the entire app. Docker image built with this version baked in. GitHub Actions tags the image with this version on release.
+
+### 9.11 Empty Box & Archive Behavior
+
+#### Empty Boxes
+
+- Boxes with `qty_remaining = 0` are considered empty
+- Hidden from the inventory list by default
+- Toggle above inventory list: **Show empty boxes**
+- Toggle state saved to `localStorage` per device
+
+#### Archived Boxes
+
+- Boxes can be archived three ways: fully split (`archive_reason = "split"`), manually by the user (`archive_reason = "manual"`), or auto-archived after N days empty (future config option)
+- Archived boxes hidden from inventory by default
+- Separate toggle: **Show archived boxes**
+- Archived boxes are never deleted automatically — all expenditure history is preserved
 
 ---
 
@@ -1116,10 +1432,50 @@ services:
 | Backup | JSON export/import | Re-importable; version-tagged; survives schema migrations |
 | External Access | Tailscale or Cloudflare | SSL + secondary auth without managing certificates |
 | CI/CD | GitHub Actions + GHCR | Lint (ruff) and compose validation on every push and PR; images published to `ghcr.io` with three-tier tags: `:dev` + `:sha-<hash>` on every push to `main`; `:latest`, full semver, and major-only on GitHub Release; PR builds only (no push) |
+| Notifications | In-app bell + Discord webhook + Email (SMTP) | Multi-channel; extensible channel interface for future clients |
+| Changelog | CHANGELOG.md — Keep a Changelog format | Updated each PR; released with GitHub Releases; powers the in-app About page |
 
 ---
 
-## 14. Non-Functional Requirements
+## 14. Release Process
+
+### 14.1 Semantic Versioning
+
+| Increment | When |
+| --------- | ---- |
+| Patch `1.0.x` | Bug fixes; no new features |
+| Minor `1.x.0` | New features; backwards compatible |
+| Major `x.0.0` | Breaking changes requiring dump → restore migration (see §11.6) |
+
+### 14.2 CHANGELOG.md
+
+- Lives at repo root; follows [Keep a Changelog](https://keepachangelog.com) format
+- `[Unreleased]` section updated as features land during each phase
+- User-facing language only — describe what changed for the user, not how it was implemented
+- Categories: **Added**, **Changed**, **Fixed**, **Security**, **Deprecated**, **Removed**
+- One line per change; group minor fixes
+
+### 14.3 Release Steps
+
+```text
+1. Move [Unreleased] entries to new version section with today's date:
+   ## [1.1.0] - YYYY-MM-DD
+2. Commit: "chore: release v1.1.0"
+3. Push to main
+4. GitHub → Releases → Draft new release
+5. Tag: v1.1.0 | Title: AmmoLedger v1.1.0
+6. Body: paste the CHANGELOG section for this version
+7. Publish → GitHub Actions builds and pushes:
+   :1.1.0, :1.1, :1, :latest to GHCR
+```
+
+### 14.4 In-App Release Notes
+
+The About page fetches the release body from the GitHub Releases API. The CHANGELOG section for a given version is the single source of truth — no duplication required.
+
+---
+
+## 15. Non-Functional Requirements
 
 - Runs on a single Docker Compose stack on a home server, NAS, or Windows PC
 - No internet connection required after initial install
@@ -1132,7 +1488,7 @@ services:
 - All schema changes versioned in Alembic — no manual database surgery required
 - First run setup completes in under 2 minutes
 
-### 14.1 Configuration Validation
+### 15.1 Configuration Validation
 
 `config.yaml` is validated on every startup before any other initialisation step. All checks run before reporting so the operator sees every problem at once.
 
@@ -1176,9 +1532,53 @@ If `/data/config.yaml` does not exist on startup:
 
 The operator edits the file and restarts. This prevents accidental startup with missing or unconfigured credentials.
 
+### 15.2 Error Handling
+
+#### API Error Format
+
+All API errors return a consistent JSON envelope:
+
+```json
+{
+  "error": true,
+  "code": "ERROR_CODE",
+  "message": "Human readable message",
+  "detail": "Additional context if available"
+}
+```
+
+#### Standard Error Codes
+
+| Code | Meaning |
+| ---- | ------- |
+| `UNAUTHORIZED` | Not logged in |
+| `FORBIDDEN` | Insufficient role |
+| `NOT_FOUND` | Resource not found or not visible to this user |
+| `INSUFFICIENT_ROUNDS` | Expend amount exceeds `qty_remaining` |
+| `DUPLICATE_ENTRY` | Unique constraint violation |
+| `VALIDATION_ERROR` | Request body failed schema validation |
+| `CONFIG_ERROR` | Configuration issue detected on startup |
+| `BACKUP_REQUIRED` | Import attempted without required backup |
+| `SPLIT_EXCEEDS_AVAILABLE` | Split total exceeds `qty_remaining` |
+
+#### Backend Error Handling
+
+- Global FastAPI exception handler returns the consistent JSON format for all error types
+- Full error details logged server-side with timestamp; sensitive data never included in error responses
+- 500 errors logged with full stack trace
+
+#### Frontend Error Handling
+
+- React error boundary wraps the entire app
+- **Fatal errors:** friendly full-page error screen with "Reload" and "Go to Dashboard" options
+- **Non-fatal errors:** toast notification
+- **Network errors:** "Cannot reach server — check your connection"
+- **Session expiry (401):** redirect to login with return URL preserved; user lands back where they were after logging in
+- **Form validation:** inline errors shown next to each field; submit button disabled while errors exist
+
 ---
 
-## 15. Open Questions
+## 16. Open Questions
 
 | # | Question | Recommendation |
 |---|----------|----------------|
