@@ -35,6 +35,11 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 - Schema migrations run automatically on container start (Alembic)
 - Runs entirely in Docker — no cloud, no subscriptions, your data stays yours
 
+## Documentation
+
+- [Product Requirements Document](docs/PRD.md) — full feature 
+  specs, data model, architecture decisions, and roadmap
+  
 ## Tech Stack
 
 - **Backend:** Python + FastAPI (`python:3.12.9-slim-bookworm`)
