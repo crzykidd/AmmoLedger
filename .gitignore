@@ -12,8 +12,15 @@ build/
 venv/
 env/
 
-# SQLite database
-data/
+# Data directory — runtime files are git-ignored; defaults.yaml is kept in git
+data/ammoledger.db
+data/backups/
+data/uploads/
+data/config.yaml
+# data/defaults.yaml  — kept in git (shipped default seed data)
+# data/README.md      — kept in git
+
+# SQLite files anywhere else in the tree
 *.db
 *.sqlite
 *.sqlite3

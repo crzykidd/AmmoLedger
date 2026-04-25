@@ -1,0 +1,49 @@
+calibers:
+  - "9mm Luger"
+  - "45 ACP"
+  - ".223 Remington / 5.56 NATO"
+  - ".308 Winchester / 7.62 NATO"
+  - "12 Gauge"
+  - "20 Gauge"
+  - ".22 LR"
+  - ".38 Special"
+  - ".357 Magnum"
+  - "10mm Auto"
+
+manufacturers:
+  - "Federal"
+  - "Hornady"
+  - "Winchester"
+  - "Remington"
+  - "Speer"
+  - "CCI"
+  - "Fiocchi"
+  - "PMC"
+
+ammo_types:
+  - "FMJ"
+  - "JHP"
+  - "Slug"
+  - "Birdshot"
+  - "Buckshot"
+  - "OTM"
+  - "Frangible"
+  - "Subsonic"
+
+categories:
+  - "Hunting"
+  - "Defense"
+  - "Target / Range"
+  - "Competition"
+  - "Training"
+  - "Plinking"
+
+dealers:
+  - name: "Cabela's"
+    url: "https://www.cabelas.com"
+  - name: "Lucky Gunner"
+    url: "https://www.luckygunner.com"
+  - name: "Brownells"
+    url: "https://www.brownells.com"
+  - name: "MidwayUSA"
+    url: "https://www.midwayusa.com"

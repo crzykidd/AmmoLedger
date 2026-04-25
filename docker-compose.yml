@@ -7,9 +7,14 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app          # live reload your Python code
-      - ./data:/data            # persist SQLite database
+      - ./data:/data            # persist SQLite database, config, backups, uploads
     environment:
       - DATABASE_URL=sqlite:////data/ammoledger.db
+      - SESSION_SECRET=dev-secret-change-in-production
+      - CONFIG_PATH=/data/config.yaml
+      - DEFAULTS_PATH=/data/defaults.yaml
+      - BACKUP_PATH=/data/backups
+      - UPLOADS_PATH=/data/uploads
     restart: unless-stopped
 
   frontend:

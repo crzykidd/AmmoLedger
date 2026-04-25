@@ -25,6 +25,7 @@
 
 ## Build Status
 - Phase 1 — Alembic + schema: COMPLETE
+- Pre-Phase 2 — Data directory structure: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
 - Phase 3 — Ammo CRUD API: NOT STARTED
 - Phase 4 — Frontend basics: NOT STARTED

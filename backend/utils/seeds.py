@@ -1,16 +1,19 @@
 import os
+
 import yaml
 from sqlmodel import Session, select
 
 from database import engine
-from models import Caliber, Manufacturer, AmmoType, Category, Dealer
+from models import AmmoType, Caliber, Category, Dealer, Manufacturer
+from utils.config import DEFAULTS_PATH
 
 
 def sync_yaml_seeds() -> None:
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    defaults_path = os.path.join(base_dir, "defaults.yaml")
-
-    with open(defaults_path) as f:
+    """
+    Insert any lookup-table entries defined in defaults.yaml that are not
+    already present in the database.  Existing entries are never modified.
+    """
+    with open(DEFAULTS_PATH) as f:
         data = yaml.safe_load(f)
 
     with Session(engine) as db:

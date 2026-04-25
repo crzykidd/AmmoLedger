@@ -701,6 +701,36 @@ Old backups beyond `retention_days` are automatically pruned.
    → Importer transforms data to the new schema shape
 ```
 
+### 11.7 Data Directory Structure
+
+All runtime data lives under the `/data` Docker volume. Nothing in this directory is committed to git except `defaults.yaml`.
+
+```
+/data/
+├── ammoledger.db        # SQLite database (git-ignored)
+├── config.yaml          # App settings and secrets (git-ignored; auto-created on first start)
+├── defaults.yaml        # Editable seed data (copied from bundled backend/defaults.yaml if missing)
+├── backups/             # Nightly and manual backup JSON files (auto-created; git-ignored)
+└── uploads/             # Target photo uploads — v2.0 (auto-created; git-ignored)
+```
+
+**config.yaml** is auto-generated on first startup from a bundled template. Edit it to configure:
+- `app.session_timeout_hours` — session lifetime (default: 8 hours)
+- `security.reset_token` — one-time token to enable `/reset` password recovery; clear after use
+- `backup.enabled`, `backup.schedule`, `backup.retention_days` — nightly backup settings
+- `smtp.*` — optional SMTP settings for scheduled report delivery (v2.0)
+
+**Environment variables** take precedence over config.yaml for path configuration:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `DATABASE_URL` | `sqlite:////data/ammoledger.db` | SQLite connection string |
+| `SESSION_SECRET` | *(required in production)* | Signs session cookies — set a strong random value |
+| `CONFIG_PATH` | `/data/config.yaml` | Path to config.yaml |
+| `DEFAULTS_PATH` | `/data/defaults.yaml` | Path to defaults.yaml seed file |
+| `BACKUP_PATH` | `/data/backups` | Backup output directory |
+| `UPLOADS_PATH` | `/data/uploads` | Photo upload directory (v2.0) |
+
 ---
 
 ## 12. Reverse Proxy, SSL & External Access

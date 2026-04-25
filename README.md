@@ -87,20 +87,47 @@ docker compose up --build
 
 > **Note:** The frontend runs a Vite dev server locally (`node:20.19.1-slim`). The production build will use a multi-stage Dockerfile that compiles static assets and serves them with `nginx:1.27-alpine`.
 
-## Backup
+## Data Directory
 
-Your data lives in a single file: `./data/ammoledger.db`
+All runtime data lives in `./data/` (mounted at `/data` inside the container). Most files are git-ignored. The directory is created automatically on first startup.
 
-To back up, just copy that file somewhere safe.
+```
+data/
+├── ammoledger.db        # SQLite database            ← git-ignored
+├── config.yaml          # App settings and secrets   ← git-ignored (auto-created)
+├── defaults.yaml        # Editable seed data         ← kept in git
+├── backups/             # Backup JSON files           ← git-ignored (auto-created)
+└── uploads/             # Photo uploads (v2.0)       ← git-ignored (auto-created)
+```
+
+**config.yaml** is generated on first startup. Key settings:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `app.session_timeout_hours` | `8` | Session lifetime |
+| `security.reset_token` | `""` | Set to enable `/reset` password recovery; clear after use |
+| `backup.schedule` | `"03:00"` | Nightly backup time (24-hour) |
+| `backup.retention_days` | `30` | Days to keep backup files |
+
+**To back up:** copy `./data/ammoledger.db` somewhere safe, or use the Admin → Backup Now button (v1.0).
 
 ## Project Structure
 
 ```
 AmmoLedger/
 ├── backend/
-│   ├── main.py          # FastAPI app and routes
-│   ├── models.py        # Database models
-│   ├── database.py      # SQLite connection
+│   ├── main.py              # FastAPI app, startup sequence
+│   ├── models.py            # SQLModel database models
+│   ├── database.py          # Engine and Alembic runner
+│   ├── defaults.yaml        # Bundled seed data (shipped in container image)
+│   ├── routers/
+│   │   └── auth.py          # Auth routes (setup, login, logout, me)
+│   ├── utils/
+│   │   ├── config.py        # load_config(), ensure_data_dirs()
+│   │   ├── rbac.py          # require_auth(), require_role() dependencies
+│   │   ├── security.py      # hash_password(), verify_password()
+│   │   └── seeds.py         # sync_yaml_seeds()
+│   ├── migrations/          # Alembic migration files
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -108,12 +135,9 @@ AmmoLedger/
 │   │   └── main.jsx
 │   ├── package.json
 │   └── vite.config.js
-├── data/                # SQLite database lives here (git ignored)
-├── .devcontainer/
-│   └── devcontainer.json
-├── .github/
-│   └── workflows/
-│       └── docker-publish.yml
+├── data/                    # Runtime data volume (mostly git-ignored)
+├── docs/
+│   └── PRD.md
 ├── docker-compose.yml
 ├── Dockerfile.backend
 ├── Dockerfile.frontend
