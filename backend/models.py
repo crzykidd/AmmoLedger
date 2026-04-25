@@ -134,3 +134,16 @@ class ExpenditureLog(SQLModel, table=True):
     date: date
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# App Settings
+# ---------------------------------------------------------------------------
+
+class AppSettings(SQLModel, table=True):
+    __tablename__ = "app_settings"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    key: str = Field(sa_column_kwargs={"unique": True})
+    value: str
+    updated_at: Optional[datetime] = None

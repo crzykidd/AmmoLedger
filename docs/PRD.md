@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 0.5 — Working Draft  
+**Version:** 0.6 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -19,6 +19,7 @@
 | 0.3.4 | April 2026 | Phase 2: Login/logout, first-run admin setup, signed session cookies, RBAC roles (admin/member/readonly), YAML seed sync on startup |
 | 0.4 | April 2026 | Phase 3: Ammo CRUD API with RBAC visibility filter, expenditure logging with round deduction, 7 lookup table routes (calibers, manufacturers, types, categories, dealers, containers, locations) |
 | 0.5 | April 2026 | Added product_name field to ammo_box; expanded caliber list to 22 entries; expanded manufacturer list to 44 entries; product_name partial-match filter on GET /ammo; CSV import column spec updated |
+| 0.6 | April 2026 | Versioned defaults sync system: app_settings table, version field in defaults.yaml, sync config flags (sync_on_startup, update_existing, allow_removal), smart case-insensitive upsert logic |
 
 ---
 
@@ -300,7 +301,25 @@ categories      — id, name, is_active, source
 dealers         — id, name, url, is_active, source
 ```
 
-### 6.6 Firearms (v2.0)
+### 6.6 App Settings
+
+Key-value store for internal application state that persists across restarts.
+
+```
+app_settings
+├── id          INTEGER    Primary key
+├── key         TEXT       Unique setting key (e.g. "defaults_version")
+└── value       TEXT       Setting value (always stored as text)
+└── updated_at  DATETIME   Last updated timestamp
+```
+
+Current keys written by the application:
+
+| Key | Written by | Purpose |
+| --- | ---------- | ------- |
+| defaults_version | startup sync | Last successfully synced defaults.yaml version |
+
+### 6.7 Firearms (v2.0)
 
 ```
 firearms
@@ -464,64 +483,63 @@ In practice, restoring from a backup is usually faster and safer than a downgrad
 
 ## 8. YAML Seed Data
 
-A `defaults.yaml` file ships with the application and pre-populates all lookup tables on startup. The startup process compares YAML entries against the database and inserts any that do not already exist. Existing user-created entries are never modified.
+A `defaults.yaml` file ships with the application and pre-populates all lookup tables on startup. The sync process is version-aware and configurable via `config.yaml`.
 
-The `source` field on every lookup record distinguishes `yaml` entries from `user` entries — this is used in the Settings UI to show which entries came from defaults.
+### 8.1 Version Field
+
+`defaults.yaml` carries a `version` field at the top. The last successfully synced version is stored in `app_settings` under the key `defaults_version`. On startup the two are compared to decide whether sync should run.
 
 ```yaml
-# defaults.yaml
+version: "1.0"
+
 calibers:
   - "9mm Luger"
   - "45 ACP"
-  - ".223 Remington / 5.56 NATO"
-  - ".308 Winchester / 7.62 NATO"
-  - "12 Gauge"
-  - "20 Gauge"
-  - ".22 LR"
-  - ".38 Special"
-  - ".357 Magnum"
-  - "10mm Auto"
-
-manufacturers:
-  - "Federal"
-  - "Hornady"
-  - "Winchester"
-  - "Remington"
-  - "Speer"
-  - "CCI"
-  - "Fiocchi"
-  - "PMC"
-
-ammo_types:
-  - "FMJ"
-  - "JHP"
-  - "Slug"
-  - "Birdshot"
-  - "Buckshot"
-  - "OTM"
-  - "Frangible"
-  - "Subsonic"
-
-categories:
-  - "Hunting"
-  - "Defense"
-  - "Target / Range"
-  - "Competition"
-  - "Training"
-  - "Plinking"
-
-dealers:
-  - name: "Cabela's"
-    url: "https://www.cabelas.com"
-  - name: "Lucky Gunner"
-    url: "https://www.luckygunner.com"
-  - name: "Brownells"
-    url: "https://www.brownells.com"
-  - name: "MidwayUSA"
-    url: "https://www.midwayusa.com"
+  ...
 ```
 
-> **Community contribution:** Any user can submit a pull request to `defaults.yaml` to add calibers, manufacturers, or types. New defaults are added to all installations automatically on the next startup after upgrade.
+### 8.2 Sync Config Flags
+
+Three flags in `config.yaml` control sync behavior:
+
+```yaml
+defaults:
+  sync_on_startup: true    # Always sync on startup, even if version already matches
+  update_existing: false   # If true, rename yaml-sourced entries when YAML spelling changes
+  allow_removal: false     # If true, deactivate yaml-sourced entries removed from YAML
+```
+
+| Flag | Default | Effect |
+| ---- | ------- | ------ |
+| sync_on_startup | true | When false, sync is skipped if stored version equals YAML version |
+| update_existing | false | When true, yaml-sourced entries are renamed to match current YAML spelling |
+| allow_removal | false | When true, yaml-sourced entries absent from YAML are deactivated (`is_active=false`) |
+
+### 8.3 Sync Logic
+
+On each startup the following sequence runs:
+
+1. Read `version` from `defaults.yaml`
+2. Query `app_settings` for `defaults_version`
+3. If versions match **and** `sync_on_startup` is false → skip, log "Defaults up to date"
+4. Otherwise sync every lookup table (calibers, manufacturers, ammo_types, categories, dealers):
+   - **Not in DB** → insert with `source="yaml"` — logged as "Added"
+   - **In DB, source="user"** → never touch — logged as "Skipping user entry"
+   - **In DB, source="yaml", update_existing=false** → skip
+   - **In DB, source="yaml", update_existing=true** → update name to current YAML spelling
+   - **In DB, source="yaml", not in YAML, allow_removal=true** → set `is_active=false` — logged as "Deactivated"
+5. Write current YAML `version` to `app_settings.defaults_version`
+6. Log summary: `Defaults sync complete: X added, Y skipped, Z deactivated. Version: 1.0`
+
+Name matching is **case-insensitive** — existing entries with different casing are found correctly and never duplicated.
+
+### 8.4 The source Field
+
+Every lookup record carries a `source` field (`yaml` or `user`). This distinguishes YAML-seeded defaults from user-created entries. The Settings UI uses this to show which entries came from defaults and which were added manually. User entries are never modified or removed by the sync process regardless of config flags.
+
+### 8.5 Community Contributions
+
+Any user can submit a pull request to `defaults.yaml` to add calibers, manufacturers, or types. Bump the `version` field with each PR. New defaults are applied to all installations on the next startup after upgrade.
 
 ---
 

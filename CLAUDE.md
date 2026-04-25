@@ -30,6 +30,7 @@
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
 - Phase 3 — Ammo CRUD API: COMPLETE
 - Schema update — product_name + clean lookup defaults: COMPLETE
+- Schema update — versioned defaults sync, app_settings table: COMPLETE
 - Phase 4 — Frontend basics: NOT STARTED
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED

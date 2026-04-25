@@ -1,6 +1,8 @@
 import os
 import shutil
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
@@ -26,6 +28,15 @@ security:
   # Set a token here to enable password reset at /reset?token=<your-token>.
   # Remove or clear this value immediately after use.
   reset_token: ""
+
+defaults:
+  # Always run the seed sync on startup, even if the version already matches.
+  # Set to false to skip sync when the stored version equals the YAML version.
+  sync_on_startup: true
+  # When true, rename yaml-sourced entries if the YAML spelling changes.
+  update_existing: false
+  # When true, deactivate yaml-sourced entries that were removed from the YAML.
+  allow_removal: false
 
 backup:
   enabled: true
@@ -64,6 +75,26 @@ def _ensure_config_yaml() -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if not dest.exists():
         dest.write_text(_CONFIG_TEMPLATE)
+
+
+def get_setting(session, key: str) -> Optional[str]:
+    from sqlmodel import select
+    from models import AppSettings
+    row = session.exec(select(AppSettings).where(AppSettings.key == key)).first()
+    return row.value if row else None
+
+
+def set_setting(session, key: str, value: str) -> None:
+    from sqlmodel import select
+    from models import AppSettings
+    row = session.exec(select(AppSettings).where(AppSettings.key == key)).first()
+    now = datetime.utcnow()
+    if row:
+        row.value = value
+        row.updated_at = now
+        session.add(row)
+    else:
+        session.add(AppSettings(key=key, value=value, updated_at=now))
 
 
 def load_config() -> dict:

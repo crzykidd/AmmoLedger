@@ -31,9 +31,9 @@ app.include_router(lookups.router)
 
 @app.on_event("startup")
 def on_startup():
-    load_config()      # ensure /data dirs, copy defaults if missing, create config if missing
-    run_migrations()   # apply any pending Alembic migrations
-    sync_yaml_seeds()  # insert missing lookup-table rows from defaults.yaml
+    run_migrations()              # apply pending Alembic migrations first
+    config = load_config()        # ensure dirs, copy defaults if missing, create config if missing
+    sync_yaml_seeds(config)       # versioned smart sync from defaults.yaml
 
 
 @app.get("/health")
