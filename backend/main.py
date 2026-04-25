@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from database import run_migrations
-from utils.config import load_config
+from utils.config import ensure_data_dirs, load_and_validate_config
 from utils.seeds import sync_yaml_seeds
 from routers import auth, ammo, expenditure, lookups
 
@@ -31,9 +31,10 @@ app.include_router(lookups.router)
 
 @app.on_event("startup")
 def on_startup():
-    run_migrations()              # apply pending Alembic migrations first
-    config = load_config()        # ensure dirs, copy defaults if missing, create config if missing
-    sync_yaml_seeds(config)       # versioned smart sync from defaults.yaml
+    config = load_and_validate_config()  # validate config first — exits if invalid in production
+    run_migrations()                     # apply pending Alembic migrations
+    ensure_data_dirs()                   # create /data/backups and /data/uploads
+    sync_yaml_seeds(config)              # versioned smart sync from defaults.yaml
 
 
 @app.get("/health")

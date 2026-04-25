@@ -1,0 +1,61 @@
+# AmmoLedger Configuration Template
+# Copy this file to /data/config.yaml and edit before first startup.
+# WARNING: This file may contain secrets. It is git-ignored — never commit it.
+
+app:
+  # Runtime environment — controls how validation errors are handled.
+  # "development" logs errors as warnings and continues.
+  # "production" exits immediately on any config error.
+  env: "development"  # development | production
+
+  # How long a login session stays active before the user must re-authenticate.
+  session_timeout_hours: 8  # 1-720
+
+  # Base URL used to build QR code links on printed labels (v2.0).
+  # Change to your external URL if accessing from other devices.
+  base_url: "http://localhost:5173"
+
+security:
+  # Secret key used to sign session cookies. MUST be changed before production use.
+  # Generate a strong value with: openssl rand -hex 32
+  # Or on Windows: python -c "import secrets; print(secrets.token_hex(32))"
+  session_secret: "change-this-to-a-random-string"
+
+  # Set a token here to enable password reset at /reset?token=<your-token>.
+  # Remove or clear this value immediately after use.
+  reset_token: ""
+
+defaults:
+  # Always run the seed sync on startup, even if the version already matches.
+  # Set to false to skip sync when the stored version equals the YAML version.
+  sync_on_startup: true
+  # When true, rename yaml-sourced entries if the YAML spelling changes.
+  update_existing: false
+  # When true, deactivate yaml-sourced entries that were removed from the YAML.
+  allow_removal: false
+
+import:
+  # Auto-backup always runs before import when true (recommended).
+  require_backup: true
+  # Warn in the UI if the most recent backup is older than N hours.
+  backup_warning_hours: 24
+  # Block import if the last backup is older than N hours (only when require_backup is false).
+  backup_block_hours: 168
+
+backup:
+  enabled: true
+  # Time of day for the nightly backup (24-hour HH:MM, server local time).
+  schedule: "03:00"
+  # Number of days to retain backup files before pruning. 1-365.
+  retention_days: 30
+  path: /data/backups
+
+smtp:
+  # Set enabled to true to activate email features (v2.0 — scheduled reports).
+  # Leave host empty or enabled false to disable all email features.
+  enabled: false
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+  from_address: ""

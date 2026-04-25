@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 0.8 — Working Draft  
+**Version:** 0.9 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -22,6 +22,7 @@
 | 0.6 | April 2026 | Versioned defaults sync system: app_settings table, version field in defaults.yaml, sync config flags (sync_on_startup, update_existing, allow_removal), smart case-insensitive upsert logic |
 | 0.7 | April 2026 | Added detailed CSV import spec: two-step validation flow, fuzzy matching rules, pre-import backup requirement, import config flags |
 | 0.8 | April 2026 | Expanded label printing spec — configurable fields, Avery sizes, QR code with mobile expend flow. Added product_name to add ammo form spec. |
+| 0.9 | April 2026 | Added config.yaml validation spec — presence, type, value, and warning checks; dev vs production mode behavior; missing config first-run flow |
 
 ---
 
@@ -1011,6 +1012,50 @@ services:
 - Passwords hashed with bcrypt — plaintext never stored or logged
 - All schema changes versioned in Alembic — no manual database surgery required
 - First run setup completes in under 2 minutes
+
+### 14.1 Configuration Validation
+
+`config.yaml` is validated on every startup before any other initialisation step. All checks run before reporting so the operator sees every problem at once.
+
+#### Check categories
+
+| Category | Behaviour |
+| -------- | --------- |
+| Presence | Error if a required field is absent |
+| Type | Error if a field has the wrong type (e.g. string where integer expected) |
+| Value | Error if a field is present but out of allowed range or format |
+| Warning | Logged and startup continues; does not block the application |
+
+#### Validated fields
+
+**Presence (error if missing):** `security.session_secret`, `app.session_timeout_hours`, `backup.enabled`, `backup.schedule`, `backup.retention_days`
+
+**Type checks:** `backup.retention_days` (integer), `app.session_timeout_hours` (integer), `backup.enabled` (boolean), `import.require_backup` (boolean), `import.backup_warning_hours` (integer), `import.backup_block_hours` (integer), `smtp.port` (integer, only when `smtp.enabled` is true)
+
+**Value checks:** `security.session_secret` ≥ 32 chars; `backup.schedule` matches `HH:MM`; `backup.retention_days` 1–365; `app.session_timeout_hours` 1–720; `import.backup_block_hours` ≥ `import.backup_warning_hours`; `smtp.port` 1–65535 (when smtp enabled)
+
+**Warnings:** session_secret is the default sentinel value; `smtp.enabled` true but `smtp.host` empty; `backup.enabled` false; `app.base_url` contains `localhost`
+
+#### Dev vs production mode
+
+Controlled by `app.env` in `config.yaml`:
+
+| Mode | Validation errors | Warnings |
+| ---- | ----------------- | -------- |
+| `development` | Logged; startup continues with caution | Logged |
+| `production` | Startup exits with code 1; all errors printed | Logged |
+
+Additionally, using the default `session_secret` sentinel value is a **warning** in development but a hard **error** in production.
+
+#### Missing config.yaml
+
+If `/data/config.yaml` does not exist on startup:
+
+1. The bundled `config.template.yaml` is copied to `/data/config.yaml`
+2. Clear instructions are printed including the command to generate a session secret
+3. The process exits with code 1
+
+The operator edits the file and restarts. This prevents accidental startup with missing or unconfigured credentials.
 
 ---
 
