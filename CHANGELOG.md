@@ -24,6 +24,22 @@ Versioning: [Semantic Versioning](https://semver.org)
 - Current version stored in app_settings on every startup; upgrade detected and logged
 - Extended `config.yaml` with security (registration mode, invite expiry, password policy), notification (Discord webhook, email, low-stock threshold) settings
 - Config validation for all new settings (URL format, registration enum, password policy integers)
+- Docker health checks on backend (`GET /health`) and frontend services
+- `VERSION` build arg baked into Docker images; exposed as `APP_VERSION` env var
+- Image cleanup jobs in GitHub Actions after each push (keeps 5 untagged versions minimum)
+- YAML validation step in CI pipeline for `defaults.yaml` and `config.template.yaml`
+- Alembic migration consistency check in CI pipeline
+- `GET /system/health` endpoint with database connectivity check (no auth required)
+- `GET /system/version` endpoint returning current and latest version info
+- `data/backups/` and `data/uploads/` directories tracked via `.gitkeep` files
+- `.dockerignore` at repo root to reduce image build context
+- `docs/INSTALL.md` quick-start installation guide
+
+### Security
+
+- Docker containers now run as non-root user (`appuser`)
+- Ports bound to `127.0.0.1` in `docker-compose.yml` — not exposed on all interfaces
+- `SESSION_SECRET` reads from environment variable with a dev-only default
 
 ---
 

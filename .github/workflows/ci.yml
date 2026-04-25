@@ -25,6 +25,46 @@ jobs:
       - name: Lint backend
         run: ruff check backend/
 
+  validate-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Validate defaults.yaml
+        run: python -c "import yaml; yaml.safe_load(open('backend/defaults.yaml'))"
+
+      - name: Validate config.template.yaml
+        run: python -c "import yaml; yaml.safe_load(open('backend/config.template.yaml'))"
+
+  check-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run migrations on test database
+        run: cd backend && alembic upgrade head
+        env:
+          DATABASE_URL: sqlite:///./test_ci.db
+
+      - name: Check migrations are consistent
+        run: cd backend && alembic check
+        env:
+          DATABASE_URL: sqlite:///./test_ci.db
+
   validate-compose:
     runs-on: ubuntu-latest
     steps:

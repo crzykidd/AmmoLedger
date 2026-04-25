@@ -4,17 +4,23 @@ services:
       context: ./backend
       dockerfile: ../Dockerfile.backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./backend:/app          # live reload your Python code
       - ./data:/data            # persist SQLite database, config, backups, uploads
     environment:
       - DATABASE_URL=sqlite:////data/ammoledger.db
-      - SESSION_SECRET=dev-secret-change-in-production
+      - SESSION_SECRET=${SESSION_SECRET:-change-me}
       - CONFIG_PATH=/data/config.yaml
       - DEFAULTS_PATH=/data/defaults.yaml
       - BACKUP_PATH=/data/backups
       - UPLOADS_PATH=/data/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
 
   frontend:
@@ -22,7 +28,7 @@ services:
       context: ./frontend
       dockerfile: ../Dockerfile.frontend
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ./frontend:/app         # live reload your React code
       - /app/node_modules       # keep node_modules inside container

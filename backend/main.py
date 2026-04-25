@@ -1,14 +1,16 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlmodel import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from database import engine, run_migrations
+from database import engine, get_session, run_migrations
 from utils.config import ensure_data_dirs, get_setting, load_and_validate_config, set_setting
 from utils.seeds import sync_yaml_seeds
 from routers import auth, ammo, expenditure, lookups
+from utils.rbac import require_auth
 from version import __version__
 
 SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
@@ -55,3 +57,25 @@ def on_startup():
 @app.get("/health")
 def health():
     return {"status": "ok", "version": __version__}
+
+
+@app.get("/system/health")
+def system_health(db=Depends(get_session)):
+    try:
+        db.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception:
+        db_status = "error"
+    return {"status": "ok", "version": __version__, "database": db_status}
+
+
+@app.get("/system/version")
+def system_version(user=Depends(require_auth), db=Depends(get_session)):
+    latest = get_setting(db, "latest_version")
+    update_available_raw = get_setting(db, "update_available")
+    update_available = update_available_raw == "true" if update_available_raw else False
+    return {
+        "version": __version__,
+        "latest_version": latest,
+        "update_available": update_available,
+    }

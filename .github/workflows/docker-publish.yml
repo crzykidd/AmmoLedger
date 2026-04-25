@@ -28,6 +28,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(python3 -c "exec(open('backend/version.py').read()); print(__version__)")
+          echo "value=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Set image name
         id: image_name
         run: echo "value=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
@@ -48,6 +54,8 @@ jobs:
             type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
             # Pull request — build-only label (never pushed)
             type=ref,event=pr
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
@@ -65,6 +73,29 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=${{ steps.version.outputs.value }}
+
+  cleanup-backend:
+    runs-on: ubuntu-latest
+    needs: build-backend
+    if: github.event_name != 'pull_request'
+    permissions:
+      packages: write
+
+    steps:
+      - name: Set package name
+        id: pkg
+        run: |
+          REPO_LC=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+          echo "name=$(basename $REPO_LC)-backend" >> $GITHUB_OUTPUT
+
+      - name: Delete old untagged backend images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ steps.pkg.outputs.name }}
+          package-type: container
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: true
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -75,6 +106,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(python3 -c "exec(open('backend/version.py').read()); print(__version__)")
+          echo "value=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Set image name
         id: image_name
@@ -96,6 +133,8 @@ jobs:
             type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
             # Pull request — build-only label (never pushed)
             type=ref,event=pr
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
@@ -113,3 +152,26 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=${{ steps.version.outputs.value }}
+
+  cleanup-frontend:
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    if: github.event_name != 'pull_request'
+    permissions:
+      packages: write
+
+    steps:
+      - name: Set package name
+        id: pkg
+        run: |
+          REPO_LC=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+          echo "name=$(basename $REPO_LC)-frontend" >> $GITHUB_OUTPUT
+
+      - name: Delete old untagged frontend images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ steps.pkg.outputs.name }}
+          package-type: container
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: true
