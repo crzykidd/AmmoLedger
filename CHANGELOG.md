@@ -12,6 +12,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Migration 0010: `first_name` and `last_name` columns on the `users` table
 - Phase 4.1 frontend shell: React + TypeScript + Tailwind + shadcn/ui scaffold
 - React Router with auth-gated routes (`/`, `/login`, `/setup`, `/dashboard`, `/inventory`)
 - `AuthContext` — calls `GET /auth/me` on mount, provides `user`, `isFirstRun`, `login()`, `logout()`, `refetch()`
@@ -31,6 +32,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 - README now displays logo and badges at top of page
 - Frontend converted from JavaScript to TypeScript; `tsconfig.json` configured for Vite + strict mode
+- Auth endpoints switched from `username` to `email` — login and setup now accept `{ email, password }` and `{ email, first_name, last_name, password }` respectively; all responses return `email`, `first_name`, `last_name` instead of `username`
 
 ### Fixed
 

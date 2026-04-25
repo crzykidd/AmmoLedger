@@ -18,20 +18,35 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # ---------------------------------------------------------------------------
 
 class SetupRequest(BaseModel):
-    username: str
+    email: str
     password: str
+    first_name: str
+    last_name: str
 
 
 class LoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 
 class UserResponse(BaseModel):
     id: int
-    username: str
+    email: str
+    first_name: str
+    last_name: str
     role: str
     is_active: bool
+
+
+def _user_response(user: User) -> UserResponse:
+    return UserResponse(
+        id=user.id,
+        email=user.email or user.username,  # fallback for rows created before email migration
+        first_name=user.first_name,
+        last_name=user.last_name,
+        role=user.role,
+        is_active=user.is_active,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -45,7 +60,10 @@ def setup(body: SetupRequest, request: Request, db: Session = Depends(get_sessio
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup already complete")
 
     user = User(
-        username=body.username,
+        username=body.email,  # username = email to satisfy the legacy unique constraint
+        email=body.email,
+        first_name=body.first_name,
+        last_name=body.last_name,
         password_hash=hash_password(body.password),
         role="admin",
         is_active=True,
@@ -58,13 +76,13 @@ def setup(body: SetupRequest, request: Request, db: Session = Depends(get_sessio
     request.session["user_id"] = user.id
     request.session["role"] = user.role
 
-    return UserResponse(id=user.id, username=user.username, role=user.role, is_active=user.is_active)
+    return _user_response(user)
 
 
 @router.post("/login", response_model=UserResponse)
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_session)):
     """Validate credentials and create a session cookie."""
-    user = db.exec(select(User).where(User.username == body.username)).first()
+    user = db.exec(select(User).where(User.email == body.email)).first()
 
     # Constant-time failure path — always verify even on miss to avoid timing attacks
     dummy_hash = "$2b$12$KIXBcOnfQjSal7uHuV5yj.LnBjZQkXZv5cFwX5bQ9vBzFJpQHBnHG"
@@ -86,7 +104,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_sessio
     db.commit()
     db.refresh(user)
 
-    return UserResponse(id=user.id, username=user.username, role=user.role, is_active=user.is_active)
+    return _user_response(user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -109,4 +127,4 @@ def me(request: Request, db: Session = Depends(get_session)) -> Any:
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    return UserResponse(id=user.id, username=user.username, role=user.role, is_active=user.is_active)
+    return _user_response(user)

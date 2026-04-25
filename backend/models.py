@@ -82,8 +82,10 @@ class User(SQLModel, table=True):
     __tablename__ = "users"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    username: str = Field(sa_column_kwargs={"unique": True})
+    username: str = Field(sa_column_kwargs={"unique": True})  # kept for DB compat; set to email on create
     email: Optional[str] = None
+    first_name: str = Field(default="")
+    last_name: str = Field(default="")
     password_hash: str
     role: str = Field(default="member")  # admin | member | readonly
     is_active: bool = Field(default=True)
