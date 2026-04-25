@@ -3,6 +3,7 @@ services:
     build:
       context: ./backend
       dockerfile: ../Dockerfile.backend
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

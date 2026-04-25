@@ -13,10 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
 
-# Create data directory and unprivileged user
-RUN mkdir -p /data \
-    && adduser --disabled-password --gecos "" appuser \
-    && chown -R appuser /app /data
+# Create unprivileged user then set ownership
+RUN adduser --disabled-password --gecos "" appuser
+RUN mkdir -p /data && chown -R appuser:appuser /app /data
 
 ARG VERSION=dev
 ENV APP_VERSION=$VERSION
