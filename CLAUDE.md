@@ -37,6 +37,7 @@
 - PRD v1.1 — invitation system and password requirements: COMPLETE
 - PRD v2.0 — comprehensive spec complete: COMPLETE
 - CHANGELOG.md created: COMPLETE
+- Schema catchup — migrations 0004-0009: COMPLETE
 - Phase 4 — Frontend basics: NOT STARTED
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED

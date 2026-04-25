@@ -8,11 +8,26 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Added
+
+- `legacy_id` field on ammo boxes for import compatibility with existing tracking systems
+- Split box tracking fields: `split_from_id`, `is_archived`, `archive_reason`
+- Expenditure log `log_type` field (expend / split / adjust) and `related_ids` for split audit trails
+- Invitations table for token-based user registration
+- Password history table for reuse prevention
+- Notifications table for in-app and channel-based alerts
+- Database indexes for search and filter performance (sub-200ms at 10,000 records)
+- `show_archived` query param on `GET /ammo` to include archived boxes
+- `search` query param on `GET /ammo` for combined product_name + legacy_id partial match
+
 ---
+
+<!-- markdownlint-disable MD024 -->
 
 ## [0.1.0] - 2026-04-25
 
 ### Added
+
 - Initial project structure with Docker Compose
 - FastAPI backend with SQLite database via SQLModel
 - Alembic database migrations with automatic startup apply

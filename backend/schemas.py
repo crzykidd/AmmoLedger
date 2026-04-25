@@ -83,7 +83,11 @@ class AmmoBoxRead(_OrmBase):
     cost_per_round: Optional[float]
     dealer_id: Optional[int]
     container_id: Optional[int]
+    legacy_id: Optional[str]
     notes: Optional[str]
+    split_from_id: Optional[int]
+    is_archived: bool
+    archive_reason: Optional[str]
     created_at: datetime
     updated_at: datetime
 
@@ -103,6 +107,7 @@ class AmmoBoxCreate(BaseModel):
     cost_per_round: Optional[float] = None
     dealer_id: Optional[int] = None
     container_id: Optional[int] = None
+    legacy_id: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -121,7 +126,10 @@ class AmmoBoxUpdate(BaseModel):
     cost_per_round: Optional[float] = None
     dealer_id: Optional[int] = None
     container_id: Optional[int] = None
+    legacy_id: Optional[str] = None
     notes: Optional[str] = None
+    is_archived: Optional[bool] = None
+    archive_reason: Optional[str] = None
 
 
 class AmmoListResponse(BaseModel):
@@ -141,6 +149,8 @@ class ExpenditureRead(_OrmBase):
     logged_by: int
     rounds_used: int
     date: date
+    log_type: str
+    related_ids: Optional[str]
     notes: Optional[str]
     created_at: datetime
 
@@ -154,3 +164,41 @@ class ExpendRequest(BaseModel):
 class ExpendResponse(BaseModel):
     box: AmmoBoxRead
     log_entry: ExpenditureRead
+
+
+# ---------------------------------------------------------------------------
+# Invitation schemas
+# ---------------------------------------------------------------------------
+
+class InvitationCreate(BaseModel):
+    role: str  # admin | member | readonly
+    email_hint: Optional[str] = None
+    expires_hours: int = 72
+
+
+class InvitationRead(_OrmBase):
+    id: int
+    token: str
+    created_by: int
+    created_at: datetime
+    expires_at: datetime
+    used_at: Optional[datetime]
+    used_by: Optional[int]
+    role: str
+    email_hint: Optional[str]
+    is_revoked: bool
+
+
+# ---------------------------------------------------------------------------
+# Notification schemas
+# ---------------------------------------------------------------------------
+
+class NotificationRead(_OrmBase):
+    id: int
+    user_id: Optional[int]
+    type: str
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+    read_at: Optional[datetime]

@@ -42,13 +42,27 @@ def _check_write(box: AmmoBox, user: User) -> None:
 
 @router.get("", response_model=AmmoListResponse)
 def list_ammo(
+    search: Optional[str] = Query(default=None, description="Partial match on product_name or legacy_id"),
     product_name: Optional[str] = Query(default=None, description="Partial match on product name"),
+    legacy_id: Optional[str] = Query(default=None, description="Partial match on legacy ID"),
+    show_archived: bool = Query(default=False, description="Include archived boxes in results"),
     user: User = Depends(require_auth),
     db: Session = Depends(get_session),
 ):
     stmt = _visibility_filter(select(AmmoBox), user)
+    if not show_archived:
+        stmt = stmt.where(AmmoBox.is_archived == False)  # noqa: E712
+    if search:
+        stmt = stmt.where(
+            or_(
+                AmmoBox.product_name.ilike(f"%{search}%"),
+                AmmoBox.legacy_id.ilike(f"%{search}%"),
+            )
+        )
     if product_name:
         stmt = stmt.where(AmmoBox.product_name.ilike(f"%{product_name}%"))
+    if legacy_id:
+        stmt = stmt.where(AmmoBox.legacy_id.ilike(f"%{legacy_id}%"))
     boxes = list(db.exec(stmt).all())
     total_rounds = sum(b.qty_remaining for b in boxes)
     costs = [b.qty_remaining * b.cost_per_round for b in boxes if b.cost_per_round is not None]
@@ -87,6 +101,7 @@ def create_ammo(
         cost_per_round=payload.cost_per_round,
         dealer_id=payload.dealer_id,
         container_id=payload.container_id,
+        legacy_id=payload.legacy_id,
         notes=payload.notes,
     )
     db.add(box)
