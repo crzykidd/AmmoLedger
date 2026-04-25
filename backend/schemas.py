@@ -72,6 +72,7 @@ class AmmoBoxRead(_OrmBase):
     is_shared: bool
     caliber_id: int
     manufacturer_id: int
+    product_name: Optional[str]
     gr_oz: Optional[float]
     weight_unit: Optional[str]
     type_id: Optional[int]
@@ -90,6 +91,7 @@ class AmmoBoxRead(_OrmBase):
 class AmmoBoxCreate(BaseModel):
     caliber_id: int
     manufacturer_id: int
+    product_name: Optional[str] = None
     qty_original: int
     qty_remaining: Optional[int] = None  # defaults to qty_original if omitted
     is_shared: bool = False
@@ -108,6 +110,7 @@ class AmmoBoxUpdate(BaseModel):
     is_shared: Optional[bool] = None
     caliber_id: Optional[int] = None
     manufacturer_id: Optional[int] = None
+    product_name: Optional[str] = None
     gr_oz: Optional[float] = None
     weight_unit: Optional[str] = None
     type_id: Optional[int] = None

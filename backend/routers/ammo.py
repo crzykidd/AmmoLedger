@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
@@ -41,10 +42,14 @@ def _check_write(box: AmmoBox, user: User) -> None:
 
 @router.get("", response_model=AmmoListResponse)
 def list_ammo(
+    product_name: Optional[str] = Query(default=None, description="Partial match on product name"),
     user: User = Depends(require_auth),
     db: Session = Depends(get_session),
 ):
-    boxes = db.exec(_visibility_filter(select(AmmoBox), user)).all()
+    stmt = _visibility_filter(select(AmmoBox), user)
+    if product_name:
+        stmt = stmt.where(AmmoBox.product_name.ilike(f"%{product_name}%"))
+    boxes = list(db.exec(stmt).all())
     total_rounds = sum(b.qty_remaining for b in boxes)
     costs = [b.qty_remaining * b.cost_per_round for b in boxes if b.cost_per_round is not None]
     total_value = round(sum(costs), 2) if len(costs) == len(boxes) else None
@@ -71,6 +76,7 @@ def create_ammo(
         is_shared=payload.is_shared,
         caliber_id=payload.caliber_id,
         manufacturer_id=payload.manufacturer_id,
+        product_name=payload.product_name,
         gr_oz=payload.gr_oz,
         weight_unit=payload.weight_unit,
         type_id=payload.type_id,

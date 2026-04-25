@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 0.4 — Working Draft  
+**Version:** 0.5 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -18,6 +18,7 @@
 | 0.3.3 | April 2026 | Pre-Phase 2: Pinned Docker base image versions (python:3.12.9-slim-bookworm, node:20.19.1-slim, nginx:1.27-alpine) |
 | 0.3.4 | April 2026 | Phase 2: Login/logout, first-run admin setup, signed session cookies, RBAC roles (admin/member/readonly), YAML seed sync on startup |
 | 0.4 | April 2026 | Phase 3: Ammo CRUD API with RBAC visibility filter, expenditure logging with round deduction, 7 lookup table routes (calibers, manufacturers, types, categories, dealers, containers, locations) |
+| 0.5 | April 2026 | Added product_name field to ammo_box; expanded caliber list to 22 entries; expanded manufacturer list to 44 entries; product_name partial-match filter on GET /ammo; CSV import column spec updated |
 
 ---
 
@@ -239,6 +240,7 @@ ammo_box
 ├── is_shared        BOOLEAN    True = visible to all Members
 ├── caliber_id       INTEGER    FK → calibers
 ├── manufacturer_id  INTEGER    FK → manufacturers
+├── product_name     TEXT       Optional free-text product name (e.g. "Gold Dot", "HST", "V-Crown"); nullable
 ├── gr_oz            DECIMAL    Bullet weight
 ├── weight_unit      TEXT       GR | OZ
 ├── type_id          INTEGER    FK → ammo_types (FMJ, JHP, Slug, Birdshot...)
@@ -577,6 +579,33 @@ dealers:
 - Unknown lookup values (new calibers, manufacturers, etc.) auto-added on import
 - Duplicate detection by caliber + manufacturer + purchase_date + cost_per_round
 - Imported boxes default to `is_shared = false` (private to importer)
+
+**CSV column order:**
+
+```text
+ammoledger_version, caliber, manufacturer, product_name, grain, weight_unit,
+type, category, qty_original, qty_remaining, purchase_date, cost_per_round,
+dealer, container, location, notes
+```
+
+| Column | Required | Notes |
+| ------ | -------- | ----- |
+| ammoledger_version | Yes | Template version tag — enables future migration of older import files |
+| caliber | Yes | Matched to calibers lookup; auto-added if unknown |
+| manufacturer | Yes | Matched to manufacturers lookup; auto-added if unknown |
+| product_name | No | Free-text product name (e.g. "Gold Dot", "HST", "V-Crown") |
+| grain | No | Bullet weight numeric value |
+| weight_unit | No | GR or OZ |
+| type | No | Matched to ammo_types lookup; auto-added if unknown |
+| category | No | Matched to categories lookup; auto-added if unknown |
+| qty_original | Yes | Box size when purchased |
+| qty_remaining | No | Current rounds; defaults to qty_original if omitted |
+| purchase_date | No | ISO 8601 date (YYYY-MM-DD) |
+| cost_per_round | No | Cost per round in dollars |
+| dealer | No | Matched to dealers lookup; auto-added if unknown |
+| container | No | Matched to containers; auto-added if unknown |
+| location | No | Matched to locations; auto-added if unknown |
+| notes | No | Free text |
 
 ### 9.6 User Management (Admin)
 

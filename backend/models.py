@@ -104,6 +104,7 @@ class AmmoBox(SQLModel, table=True):
     is_shared: bool = Field(default=False)
     caliber_id: int = Field(foreign_key="calibers.id")
     manufacturer_id: int = Field(foreign_key="manufacturers.id")
+    product_name: Optional[str] = None
     gr_oz: Optional[float] = None
     weight_unit: Optional[str] = None  # GR | OZ
     type_id: Optional[int] = Field(default=None, foreign_key="ammo_types.id")
