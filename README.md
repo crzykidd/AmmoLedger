@@ -33,7 +33,7 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 | Phase 1 | ✅ Complete | Alembic migrations, full database schema |
 | Phase 2 | ✅ Complete | Auth (login/logout/setup), RBAC, YAML seed data |
 | Phase 3 | ✅ Complete | Ammo CRUD API |
-| Phase 4 | 🔲 Not started | Frontend basics |
+| Phase 4 | 🔲 In Progress | Frontend basics |
 | Phase 5 | 🔲 Not started | Dashboard |
 | Phase 6 | 🔲 Not started | Backup system |
 
