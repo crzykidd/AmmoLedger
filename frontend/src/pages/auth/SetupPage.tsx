@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { setup } from '@/api/auth'
 import type { ApiError } from '@/types'
@@ -15,7 +15,6 @@ interface FormState {
 
 export default function SetupPage() {
   const { isFirstRun, loading, refetch } = useAuth()
-  const navigate = useNavigate()
   const [form, setForm] = useState<FormState>({
     first_name: '',
     last_name: '',
@@ -53,7 +52,9 @@ export default function SetupPage() {
         password: form.password,
       })
       await refetch()
-      navigate('/dashboard', { replace: true })
+      // No navigate() call here — SetupRoute re-renders when user becomes
+      // non-null and its own `if (user) return <Navigate to="/dashboard">` fires,
+      // avoiding a race where navigate() runs before the state update commits.
     } catch (err) {
       setError((err as ApiError).detail ?? 'Setup failed. Please try again.')
     } finally {
