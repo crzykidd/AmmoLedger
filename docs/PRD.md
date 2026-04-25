@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 0.6 — Working Draft  
+**Version:** 0.7 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -20,6 +20,7 @@
 | 0.4 | April 2026 | Phase 3: Ammo CRUD API with RBAC visibility filter, expenditure logging with round deduction, 7 lookup table routes (calibers, manufacturers, types, categories, dealers, containers, locations) |
 | 0.5 | April 2026 | Added product_name field to ammo_box; expanded caliber list to 22 entries; expanded manufacturer list to 44 entries; product_name partial-match filter on GET /ammo; CSV import column spec updated |
 | 0.6 | April 2026 | Versioned defaults sync system: app_settings table, version field in defaults.yaml, sync config flags (sync_on_startup, update_existing, allow_removal), smart case-insensitive upsert logic |
+| 0.7 | April 2026 | Added detailed CSV import spec: two-step validation flow, fuzzy matching rules, pre-import backup requirement, import config flags |
 
 ---
 
@@ -589,43 +590,7 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 - Live summary below filter bar: round count and estimated value for the filtered set
 - URL reflects filter state — bookmarkable and shareable
 
-### 9.5 CSV Import
-
-- Downloadable import template with column definitions and example rows
-- Upload a CSV and preview parsed rows before importing
-- Per-row validation errors shown before commit
-- Unknown lookup values (new calibers, manufacturers, etc.) auto-added on import
-- Duplicate detection by caliber + manufacturer + purchase_date + cost_per_round
-- Imported boxes default to `is_shared = false` (private to importer)
-
-**CSV column order:**
-
-```text
-ammoledger_version, caliber, manufacturer, product_name, grain, weight_unit,
-type, category, qty_original, qty_remaining, purchase_date, cost_per_round,
-dealer, container, location, notes
-```
-
-| Column | Required | Notes |
-| ------ | -------- | ----- |
-| ammoledger_version | Yes | Template version tag — enables future migration of older import files |
-| caliber | Yes | Matched to calibers lookup; auto-added if unknown |
-| manufacturer | Yes | Matched to manufacturers lookup; auto-added if unknown |
-| product_name | No | Free-text product name (e.g. "Gold Dot", "HST", "V-Crown") |
-| grain | No | Bullet weight numeric value |
-| weight_unit | No | GR or OZ |
-| type | No | Matched to ammo_types lookup; auto-added if unknown |
-| category | No | Matched to categories lookup; auto-added if unknown |
-| qty_original | Yes | Box size when purchased |
-| qty_remaining | No | Current rounds; defaults to qty_original if omitted |
-| purchase_date | No | ISO 8601 date (YYYY-MM-DD) |
-| cost_per_round | No | Cost per round in dollars |
-| dealer | No | Matched to dealers lookup; auto-added if unknown |
-| container | No | Matched to containers; auto-added if unknown |
-| location | No | Matched to locations; auto-added if unknown |
-| notes | No | Free text |
-
-### 9.6 User Management (Admin)
+### 9.5 User Management (Admin)
 
 - List all accounts: username, role, status, last login
 - Create new account: username, email (optional), role, temporary password
@@ -633,7 +598,7 @@ dealer, container, location, notes
 - Reset any user's password
 - Deactivated accounts cannot log in; records are preserved with original `owner_id`
 
-### 9.7 Settings
+### 9.6 Settings
 
 - Manage lookup tables: Calibers, Manufacturers, Types, Categories, Dealers, Containers, Locations
 - Add, rename, or deactivate entries (deactivated entries hidden from dropdowns but preserved in historical records)
@@ -641,6 +606,126 @@ dealer, container, location, notes
 - Configure low-stock threshold per caliber
 - View YAML seed sync log (what was added on last startup)
 - Backup controls (Admin only — see Section 11)
+
+### 9.7 Backup (Admin)
+
+See [Section 11](#11-database-backup) for full specification. UI entry point is Settings → Backup.
+
+### 9.8 CSV Import
+
+#### Overview
+
+Import is a two-step process — validate first, then confirm. No database writes happen during validation. The flow gives the user full visibility into what will change before any data is committed.
+
+#### Step 1 — Validation (`POST /import/validate`)
+
+Accepts a CSV file upload and runs full validation with **no database writes**. Returns a structured validation report:
+
+##### New values to be created
+
+- List of new calibers, manufacturers, ammo types, categories, and dealers that will be auto-created on import
+- Fuzzy match warnings where an imported value closely matches an existing DB entry — the user must verify the match before confirming
+
+##### Row warnings (non-blocking — row imports with the adjusted value)
+
+| Warning | Behaviour |
+| ------- | --------- |
+| `qty_remaining` exceeds `qty_original` | Capped to `qty_original` |
+| Unrecognized date format | `purchase_date` left blank |
+| Missing `cost_per_round` | Set to `0.00` |
+| Fuzzy matched value | Shows what was matched and from which lookup |
+
+##### Row errors (blocking — row will not import)
+
+| Error | Condition |
+| ----- | --------- |
+| Missing required field | `caliber`, `qty_original`, or `qty_remaining` absent |
+| Invalid number | `qty_remaining` or `qty_original` cannot be parsed as an integer |
+
+##### Validation summary
+
+- Total rows, valid rows, warning count, error count
+- List of all new lookup values that will be created on confirm
+- A **validation token** with a 15-minute expiry — required to call the confirm endpoint
+
+Returns `400` if the file format is invalid. Returns `422` if zero rows are importable.
+
+#### Step 2 — Confirm & Import (`POST /import/confirm`)
+
+Requires the validation token from Step 1. Token expires after 15 minutes; expired tokens must re-validate.
+
+##### Pre-import backup
+
+Before any data is written the system automatically triggers a backup:
+
+- Labelled `ammoledger_backup_pre-import_YYYY-MM-DD.json`
+- Stored in `/data/backups/` alongside scheduled backups
+- Import is **blocked** if the backup fails to write
+
+##### Import behaviour
+
+- New lookup values (calibers, manufacturers, etc.) are created first with `source="user"`
+- Ammo boxes are created with `owner_id` = importing user; `is_shared` defaults to `false`
+- Duplicate detection: `caliber + manufacturer + purchase_date + cost_per_round` — duplicates are skipped, not errored
+- Fuzzy-matched values use the existing DB entry, not the raw imported string
+- Returns import summary: `X rows imported, Y duplicates skipped, Z warnings`
+
+#### Backup Requirement Config
+
+Three flags in `config.yaml` control import backup behaviour:
+
+```yaml
+import:
+  require_backup: true       # Auto-backup always runs before import
+  backup_warning_hours: 24   # Warn if last backup is older than N hours
+  backup_block_hours: 168    # Block if last backup is older than N hours (when require_backup is false)
+```
+
+| Flag | Default | Effect |
+| ---- | ------- | ------ |
+| require_backup | true | When true, a backup is always taken automatically before import |
+| backup_warning_hours | 24 | Warn in the UI if the most recent backup is older than this threshold |
+| backup_block_hours | 168 | When `require_backup` is false, block import if last backup exceeds this age |
+
+#### Fuzzy Matching Rules
+
+| Match type | Behaviour |
+| ---------- | --------- |
+| Exact (case-insensitive) | Silent — no warning shown |
+| Fuzzy (close spelling) | Warning shown; uses existing DB entry |
+| No match | New entry created; shown in validation report |
+
+The system **never silently auto-corrects** without surfacing the match to the user.
+
+#### CSV Template
+
+The downloadable template includes a version header row and these columns in order:
+
+```text
+ammoledger_version, caliber, manufacturer, product_name,
+grain, weight_unit, type, category, qty_original,
+qty_remaining, purchase_date, cost_per_round, dealer,
+container, location, notes
+```
+
+| Column | Required | Format | Notes |
+| ------ | -------- | ------ | ----- |
+| ammoledger_version | Header only | text | Version tag — do not edit; enables future import migration |
+| caliber | Yes | text | Matched to calibers lookup; auto-created if no match |
+| manufacturer | Yes | text | Matched to manufacturers lookup; auto-created if no match |
+| product_name | No | text | Free-text product line or SKU (e.g. "Gold Dot", "HST", "V-Crown") |
+| grain | No | integer | Bullet weight; leave blank for shotgun |
+| weight_unit | No | GR \| OZ | Defaults to GR if omitted |
+| type | No | text | FMJ, JHP, Slug, etc.; auto-created if no match |
+| category | No | text | Hunting, Defense, Target, etc.; auto-created if no match |
+| qty_original | Yes | integer | Box size when purchased |
+| qty_remaining | Yes | integer | Current rounds on hand; capped to `qty_original` if higher |
+| purchase_date | No | YYYY-MM-DD | Left blank if format unrecognised |
+| cost_per_round | No | decimal | e.g. `0.32`; set to `0.00` if missing |
+| dealer | No | text | Matched to dealers lookup; auto-created if no match |
+| container | No | text | Must match an existing container name |
+| location | No | text | Must match an existing location name |
+| notes | No | text | Free text |
 
 ---
 

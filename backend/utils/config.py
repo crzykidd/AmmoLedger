@@ -38,6 +38,14 @@ defaults:
   # When true, deactivate yaml-sourced entries that were removed from the YAML.
   allow_removal: false
 
+import:
+  # Auto-backup always runs before import when true (recommended).
+  require_backup: true
+  # Warn in the UI if the most recent backup is older than N hours.
+  backup_warning_hours: 24
+  # Block import if the last backup is older than N hours (only when require_backup is false).
+  backup_block_hours: 168
+
 backup:
   enabled: true
   # Time of day for the nightly backup (24-hour HH:MM, server local time).
