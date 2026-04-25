@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 0.9 — Working Draft  
+**Version:** 1.1 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -23,6 +23,8 @@
 | 0.7 | April 2026 | Added detailed CSV import spec: two-step validation flow, fuzzy matching rules, pre-import backup requirement, import config flags |
 | 0.8 | April 2026 | Expanded label printing spec — configurable fields, Avery sizes, QR code with mobile expend flow. Added product_name to add ammo form spec. |
 | 0.9 | April 2026 | Added config.yaml validation spec — presence, type, value, and warning checks; dev vs production mode behavior; missing config first-run flow |
+| 1.0 | April 2026 | Version milestone — all Phase 1–3 backend specs complete and committed |
+| 1.1 | April 2026 | Added invitation system spec (§4.4, §6.10, §9.5 updates) and password requirements spec (§4.5, §6.11, §9.6 updates) |
 
 ---
 
@@ -169,6 +171,79 @@ reset_token: "your-secret-token-here"
 ```
 
 Visit `/reset?token=your-secret-token-here` to access a password reset form. Remove the token from `config.yaml` after use. Admins can also reset any user's password from the Admin panel.
+
+### 4.4 Invitation System
+
+New users are added by Admin via invitation links rather than direct account creation. This avoids sharing temporary passwords out-of-band.
+
+#### Invite flow
+
+1. Admin navigates to **User Management → Invite User**
+2. Admin selects the role the invited user will receive and optionally enters an email hint (for display only — not validated)
+3. System generates a UUID invitation token and stores it in the `invitations` table with a configurable expiry (default: 72 hours)
+4. Admin copies the generated invite link and sends it to the recipient however they choose (email, messaging app, etc.)
+5. Recipient opens the link, sees a registration form pre-populated with the assigned role, and creates their account (username + password)
+6. On registration, `used_at` and `used_by` are set on the invitation row; the user account is created and the session is started
+
+#### Link states
+
+| State | Condition | User-visible message |
+| ------- | ----------- | ---------------------- |
+| **Valid** | Token exists, `expires_at` is in the future, `used_at` is null, `is_revoked` is false | Registration form shown |
+| **Expired** | `expires_at` is in the past | "This invite link has expired. Ask an Admin to send a new one." |
+| **Used** | `used_at` is not null | "This invite link has already been used." |
+| **Revoked** | `is_revoked` is true | "This invite link has been revoked." |
+
+#### Registration mode
+
+Configurable in `config.yaml` via `security.registration_mode`:
+
+| Mode | Behavior |
+| ------ | ---------- |
+| `invite_only` | Only valid invite links allow registration (default) |
+| `open` | Anyone can register without an invite (creates a Member account) |
+| `disabled` | No new registrations — Admin creates accounts directly |
+
+#### API endpoints
+
+| Method | Path | Auth | Description |
+| -------- | ------ | ------ | ------------- |
+| `POST` | `/auth/invite` | Admin | Create an invitation; returns the invite URL |
+| `GET` | `/auth/invite/{token}` | None | Validate token and return role/email_hint for the form |
+| `POST` | `/auth/register` | None | Complete registration using a valid invite token |
+| `DELETE` | `/auth/invite/{token}` | Admin | Revoke an invitation |
+
+### 4.5 Password Requirements
+
+#### Hard requirements (enforced on create and change)
+
+- Minimum 12 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+- At least one special character (`!@#$%^&*()-_=+[]{}|;:'",.<>?/~`)
+- Must not contain the user's username (case-insensitive)
+- Must not match any of the user's last 5 passwords (checked via bcrypt comparison against `password_history`)
+- Must not appear in a bundled list of the 10,000 most common passwords
+
+#### Real-time strength indicator
+
+The registration and password-change forms show a live strength meter with per-rule status icons. The submit button is disabled until all hard requirements are met.
+
+#### Password change rules
+
+- Users can change their own password from the Settings page
+- Admins can force-reset any user's password (the new password must still meet all requirements)
+- After a forced reset the user is prompted to change their password on next login (requires a `must_change_password` flag on the `users` table)
+
+#### Configuration flags (in `config.yaml`)
+
+```yaml
+security:
+  password_min_length: 12        # minimum character count (8–128)
+  password_history_count: 5      # number of previous passwords to reject (0 = disabled)
+  password_common_list: true     # reject passwords on the common-password list
+```
 
 ---
 
@@ -380,6 +455,34 @@ accessories
 ├── cost             DECIMAL    Optional
 └── notes            TEXT       Optional
 ```
+
+### 6.10 Invitations
+
+```
+invitations
+├── id               INTEGER    Primary key
+├── token            TEXT       UUID; unique index
+├── created_by       INTEGER    FK → users.id (the Admin who created it)
+├── created_at       DATETIME
+├── expires_at       DATETIME
+├── used_at          DATETIME   Nullable; set when the invite is accepted
+├── used_by          INTEGER    FK → users.id; nullable
+├── role             TEXT       Role to assign on registration (admin/member/readonly)
+├── email_hint       TEXT       Optional display-only email for the Admin's reference
+└── is_revoked       BOOLEAN    Default false; set by Admin to invalidate before use
+```
+
+### 6.11 Password History
+
+```
+password_history
+├── id               INTEGER    Primary key
+├── user_id          INTEGER    FK → users.id
+├── password_hash    TEXT       bcrypt hash of a previous password
+└── created_at       DATETIME   When this password was set
+```
+
+Only the most recent N hashes are retained per user (N = `security.password_history_count`). Older rows are pruned on every password change.
 
 ---
 
@@ -598,17 +701,33 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 - List all accounts: username, role, status, last login
 - Create new account: username, email (optional), role, temporary password
 - Edit role or deactivate an account
-- Reset any user's password
+- Reset any user's password (forced reset flags the account with `must_change_password`)
 - Deactivated accounts cannot log in; records are preserved with original `owner_id`
+
+#### Invite link management
+
+- **Invite User** button opens a modal: select role, optional email hint, set expiry (default 72 hours)
+- Generated link is displayed with a copy-to-clipboard button; link is never stored in plaintext after display
+- **Pending Invites** table shows: email hint, role, created at, expires at, status (Valid / Expired / Revoked)
+- Admin can revoke any pending invite; used invites are read-only
+- Expired and used invites older than 30 days are hidden by default (expandable)
 
 ### 9.6 Settings
 
 - Manage lookup tables: Calibers, Manufacturers, Types, Categories, Dealers, Containers, Locations
 - Add, rename, or deactivate entries (deactivated entries hidden from dropdowns but preserved in historical records)
-- Change own password
+- Change own password (subject to full password requirements and history check)
 - Configure low-stock threshold per caliber
 - View YAML seed sync log (what was added on last startup)
 - Backup controls (Admin only — see Section 11)
+
+#### Security settings (Admin only)
+
+- **Registration mode** — toggle between `invite_only`, `open`, and `disabled`
+- **Invite expiry** — default hours for new invite links (e.g. 24, 48, 72)
+- **Password minimum length** — configurable from 8 to 128 characters (default 12)
+- **Password history depth** — number of previous passwords to block reuse (default 5; 0 = disabled)
+- **Common password list** — enable/disable rejection of passwords on the top-10k list
 
 ### 9.7 Backup (Admin)
 

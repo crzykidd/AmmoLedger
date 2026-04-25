@@ -34,6 +34,7 @@
 - PRD update — CSV import validation spec: COMPLETE
 - PRD update — label printing expanded, product_name on form: COMPLETE
 - Config validation: COMPLETE
+- PRD v1.1 — invitation system and password requirements: COMPLETE
 - Phase 4 — Frontend basics: NOT STARTED
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
@@ -61,3 +62,11 @@
   with the current date and a brief description of what changed
 - Always update README.md when setup or usage changes
 - Include doc updates in the same commit as the code changes
+
+## Changelog
+- CHANGELOG.md lives at repo root
+- Follow Keep a Changelog format
+- Add entries to [Unreleased] section as features are built
+- On release: move [Unreleased] to new version section with date
+- One line per change, user-facing language
+- Categories: Added, Changed, Fixed, Security
