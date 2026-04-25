@@ -1,6 +1,18 @@
-# AmmoLedger
+<div align="center">
+  <img src="frontend/src/assets/brand/logo-full-dark.png"
+       alt="AmmoLedger" width="400"/>
+</div>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<div align="center">
+
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Version](https://img.shields.io/badge/version-0.1.0-gold)
+![Docker](https://img.shields.io/badge/docker-ready-blue)
+![PRD](https://img.shields.io/badge/docs-PRD-navy)
+
+</div>
+
+# AmmoLedger
 
 This app is very early and still in development
 

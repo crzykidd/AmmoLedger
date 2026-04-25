@@ -1,5 +1,7 @@
 # Changelog
 
+<!-- markdownlint-disable MD024 -->
+
 All notable changes to AmmoLedger are documented here.  
 Format: [Keep a Changelog](https://keepachangelog.com)  
 Versioning: [Semantic Versioning](https://semver.org)
@@ -7,6 +9,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 ---
 
 ## [Unreleased]
+
+### Changed
+
+- README now displays logo and badges at top of page
 
 ### Fixed
 
@@ -54,8 +60,6 @@ Versioning: [Semantic Versioning](https://semver.org)
 - `SESSION_SECRET` reads from environment variable with a dev-only default
 
 ---
-
-<!-- markdownlint-disable MD024 -->
 
 ## [0.1.0] - 2026-04-25
 
