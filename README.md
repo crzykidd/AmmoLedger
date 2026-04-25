@@ -33,7 +33,9 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 | Phase 1 | ✅ Complete | Alembic migrations, full database schema |
 | Phase 2 | ✅ Complete | Auth (login/logout/setup), RBAC, YAML seed data |
 | Phase 3 | ✅ Complete | Ammo CRUD API |
-| Phase 4 | 🔲 In Progress | Frontend basics |
+| Phase 4.1 | ✅ Complete | Frontend shell — router, auth, login/setup pages, AppShell |
+| Phase 4.2 | ✅ Complete | Inventory page — table, cards, form panel, RBAC edit/delete |
+| Phase 4 | 🔲 In Progress | Frontend basics (remaining pages) |
 | Phase 5 | 🔲 Not started | Dashboard |
 | Phase 6 | 🔲 Not started | Backup system |
 
@@ -48,6 +50,9 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 - Full ammo CRUD API with RBAC enforcement (shared/private ownership model)
 - Expenditure logging with round deduction and full history
 - Lookup table management (calibers, manufacturers, types, categories, dealers, containers, locations)
+- **Inventory page** — sortable table (desktop) and card list (mobile), expandable rows, real-time search, stats bar
+- **Add / Edit ammo boxes** via side drawer form with all fields and validation
+- **RBAC-enforced actions** — admin edits all boxes, members edit their own, read-only gets view-only
 - Runs entirely in Docker — no cloud, no subscriptions, your data stays yours
 
 ## Documentation

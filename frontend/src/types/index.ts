@@ -14,3 +14,112 @@ export interface ApiError {
 }
 
 export type MeResponse = User | { first_run: true }
+
+// ---------------------------------------------------------------------------
+// Lookup types
+// ---------------------------------------------------------------------------
+
+export interface LookupItem {
+  id: number
+  name: string
+  is_active: boolean
+  source: string
+}
+
+export interface LocationItem {
+  id: number
+  name: string
+  notes: string | null
+}
+
+export interface ContainerItem {
+  id: number
+  name: string
+  location_id: number | null
+  notes: string | null
+}
+
+export interface DealerItem {
+  id: number
+  name: string
+  url: string | null
+  is_active: boolean
+  source: string
+}
+
+// ---------------------------------------------------------------------------
+// Ammo box types — mirrors backend schemas.py
+// ---------------------------------------------------------------------------
+
+export interface AmmoBoxRead {
+  id: number
+  owner_id: number
+  is_shared: boolean
+  caliber_id: number
+  manufacturer_id: number
+  product_name: string | null
+  gr_oz: number | null
+  weight_unit: string | null
+  type_id: number | null
+  category_id: number | null
+  qty_original: number
+  qty_remaining: number
+  purchase_date: string | null   // ISO date string
+  cost_per_round: number | null
+  dealer_id: number | null
+  container_id: number | null
+  legacy_id: string | null
+  notes: string | null
+  split_from_id: number | null
+  is_archived: boolean
+  archive_reason: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AmmoListResponse {
+  boxes: AmmoBoxRead[]
+  total_boxes: number
+  total_rounds: number
+  total_value: number | null
+}
+
+export interface AmmoBoxCreate {
+  caliber_id: number
+  manufacturer_id: number
+  qty_original: number
+  product_name?: string
+  qty_remaining?: number
+  is_shared?: boolean
+  gr_oz?: number
+  weight_unit?: string
+  type_id?: number
+  category_id?: number
+  purchase_date?: string
+  cost_per_round?: number
+  dealer_id?: number
+  container_id?: number
+  legacy_id?: string
+  notes?: string
+}
+
+export interface AmmoBoxUpdate {
+  caliber_id?: number
+  manufacturer_id?: number
+  product_name?: string
+  qty_original?: number
+  qty_remaining?: number
+  is_shared?: boolean
+  gr_oz?: number
+  weight_unit?: string
+  type_id?: number
+  category_id?: number
+  purchase_date?: string
+  cost_per_round?: number
+  dealer_id?: number
+  container_id?: number
+  legacy_id?: string
+  notes?: string
+  is_archived?: boolean
+  archive_reason?: string
+}

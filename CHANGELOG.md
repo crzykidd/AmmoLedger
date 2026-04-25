@@ -12,6 +12,17 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **Inventory page** — full CRUD UI for ammo boxes with responsive table (desktop) and card list (mobile)
+- Sortable inventory table columns: caliber, manufacturer, product name, qty remaining
+- Expandable rows / cards showing weight, cost per round, purchase date, container, and notes
+- "Add Box" form panel (side drawer) with all fields: caliber, manufacturer, product name, qty, weight, type, category, purchase date, cost/round, container, notes
+- Edit and delete actions gated by role — admin edits all, member edits own boxes, read-only sees no actions
+- Delete confirmation dialog with loading state
+- Real-time search bar filtering ammo by caliber, manufacturer, or product name
+- Show/hide archived boxes toggle
+- Stats bar showing total boxes, total rounds, and total inventory value
+- Empty state with prompt to add first box when no inventory exists
+- All lookup data (calibers, manufacturers, types, categories, containers) cached for 5 minutes
 - Migration 0010: `first_name` and `last_name` columns on the `users` table
 - Phase 4.1 frontend shell: React + TypeScript + Tailwind + shadcn/ui scaffold
 - React Router with auth-gated routes (`/`, `/login`, `/setup`, `/dashboard`, `/inventory`)

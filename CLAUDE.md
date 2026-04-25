@@ -42,6 +42,7 @@
 - Config and version catchup: COMPLETE
 - Infrastructure cleanup pre-Phase 4: COMPLETE
 - Phase 4.1 — Frontend shell (router, auth, AppShell, login/setup pages): COMPLETE
+- Phase 4.2 — Inventory page (table, cards, form panel, delete dialog, RBAC): COMPLETE
 - Phase 4 — Frontend basics: IN PROGRESS
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
