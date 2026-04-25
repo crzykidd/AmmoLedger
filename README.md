@@ -21,8 +21,8 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 
 ## Tech Stack
 
-- **Backend:** Python + FastAPI
-- **Frontend:** React + Tailwind CSS
+- **Backend:** Python + FastAPI (`python:3.12.9-slim-bookworm`)
+- **Frontend:** React + Tailwind CSS (`node:20.19.1-slim` dev / `nginx:1.27-alpine` production)
 - **Database:** SQLite (single file, easy to back up)
 - **Container:** Docker + Docker Compose
 
@@ -70,6 +70,8 @@ docker compose down
 # Rebuild after dependency changes
 docker compose up --build
 ```
+
+> **Note:** The frontend runs a Vite dev server locally (`node:20.19.1-slim`). The production build will use a multi-stage Dockerfile that compiles static assets and serves them with `nginx:1.27-alpine`.
 
 ## Backup
 

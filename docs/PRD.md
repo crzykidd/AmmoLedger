@@ -762,7 +762,7 @@ services:
 | Database | SQLite + SQLModel | Zero-config; single file; easy backup |
 | Migrations | Alembic | Versioned schema changes; automatic on startup |
 | Auth | Session + Bcrypt | Secure password hashing; server-side sessions |
-| Container | Docker Compose | Single command startup on any OS |
+| Container | Docker Compose | Single command startup on any OS; base images pinned to `python:3.12.9-slim-bookworm` and `node:20.19.1-slim`; production frontend served by `nginx:1.27-alpine` (planned multi-stage build) |
 | Config | YAML | Human-editable seed data and app settings |
 | Backup | JSON export/import | Re-importable; version-tagged; survives schema migrations |
 | External Access | Tailscale or Cloudflare | SSL + secondary auth without managing certificates |
