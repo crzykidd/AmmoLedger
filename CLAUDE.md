@@ -31,3 +31,9 @@
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
 - Phase 7 — User management UI: NOT STARTED
+
+## URL Structure (Production Target)
+- / → React frontend
+- /api/ → FastAPI backend  
+- /api/docs → Swagger UI (FastAPI auto-generated)
+- Reverse proxy handles routing — Nginx or Cloudflare Tunnel
