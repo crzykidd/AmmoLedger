@@ -8,7 +8,7 @@ This app is very early and still in development
 >
 > This project is primarily *vibe coded* — optimized for momentum over perfection.
 >
-> Code may prioritize “it works” over “it’s elegant.” Refactors welcome.
+> Code may prioritize "it works" over "it's elegant." Refactors welcome.
 
 A self-hosted web application to track your ammunition inventory. Keep your ammo counts accurate on and off the range.
 
@@ -40,68 +40,136 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 
 ## Documentation
 
-- [Product Requirements Document](docs/PRD.md) — full feature 
-  specs, data model, architecture decisions, and roadmap
-  
-## Tech Stack
+- [Product Requirements Document](docs/PRD.md) — full feature specs, data model, architecture decisions, and roadmap
+- [Installation Guide](docs/INSTALL.md) — detailed setup, external access, and upgrade instructions
 
-- **Backend:** Python + FastAPI (`python:3.12.9-slim-bookworm`)
-- **Frontend:** React + Tailwind CSS (`node:20.19.1-slim` dev / `nginx:1.27-alpine` production)
-- **Database:** SQLite (single file, easy to back up)
-- **Container:** Docker + Docker Compose
+---
 
-## Requirements
+## For End Users (Running AmmoLedger)
 
-- Docker Desktop (with WSL2 on Windows)
-- Git
+### Requirements
 
-## Quick Start
+- Docker with Docker Compose
+  - **Windows / Mac:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+  - **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) + [Docker Compose plugin](https://docs.docker.com/compose/install/)
+  - **NAS / Home Server:** Synology, Unraid, and TrueNAS all supported
 
-### 1. Clone the repo
+### Quick Start
+
+**1. Download the compose file:**
 
 ```bash
-git clone https://github.com/yourusername/AmmoLedger.git
+curl -O https://raw.githubusercontent.com/YOURUSERNAME/AmmoLedger/main/docker-compose.yml
+```
+
+Or manually download `docker-compose.yml` from this repo and save it to a folder on your machine.
+
+**2. Start AmmoLedger:**
+
+```bash
+docker compose up -d
+```
+
+Docker will automatically pull the latest images from GitHub Container Registry.
+
+**3. Open in your browser:**
+
+- App: <http://localhost:5173>
+- API docs: <http://localhost:8000/docs>
+
+**4. First run:**
+
+- You will be prompted to create an admin account
+- Set a secure password (12+ characters required)
+- Edit `data/config.yaml` to configure backup schedule, notifications, and other settings
+
+### Pulling a specific version
+
+```bash
+# Latest stable release
+docker pull ghcr.io/YOURUSERNAME/ammologger-backend:latest
+docker pull ghcr.io/YOURUSERNAME/ammologger-frontend:latest
+
+# Specific version
+docker pull ghcr.io/YOURUSERNAME/ammologger-backend:1.0.0
+docker pull ghcr.io/YOURUSERNAME/ammologger-frontend:1.0.0
+
+# Latest development build (may be unstable)
+docker pull ghcr.io/YOURUSERNAME/ammologger-backend:dev
+docker pull ghcr.io/YOURUSERNAME/ammologger-frontend:dev
+```
+
+> `:latest` only advances when an official release is published on GitHub. `:dev` tracks the tip of `main` and may include incomplete or in-progress changes.
+
+### Upgrading
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Database migrations run automatically on startup. Your data in `data/` is never touched during upgrades.
+
+### Backup
+
+Your data lives in one folder:
+
+```
+data/
+├── ammoledger.db    ← your database
+├── config.yaml      ← your settings
+├── defaults.yaml    ← lookup table defaults
+├── backups/         ← automated backups
+└── uploads/         ← target photos (v2.0)
+```
+
+To back up: copy the entire `data/` folder somewhere safe.
+
+---
+
+## For Developers (Building from Source)
+
+### Developer Requirements
+
+- Docker with Docker Compose
+- Git
+- Node.js 20+
+- Python 3.12+
+
+### Tech Stack
+
+| Layer | Technology |
+| ----- | ---------- |
+| Backend | Python + FastAPI (`python:3.12.9-slim-bookworm`) |
+| Frontend | React + Tailwind CSS (`node:20.19.1-slim` dev / `nginx:1.27-alpine` production) |
+| Database | SQLite + SQLModel + Alembic migrations |
+| Container | Docker + Docker Compose |
+
+### Development Quick Start
+
+**1. Clone the repo:**
+
+```bash
+git clone https://github.com/YOURUSERNAME/AmmoLedger.git
 cd AmmoLedger
 ```
 
-### 2. Start the app
+**2. Start the development environment:**
 
 ```bash
 docker compose up --build
 ```
 
-### 3. Open in your browser
+**3. Open in your browser:**
 
-- **App:** http://localhost:5173
-- **API docs:** http://localhost:8000/docs
+- App: <http://localhost:5173>
+- API docs: <http://localhost:8000/docs>
 
-## Container Images
+**4. VS Code users:**
 
-Pre-built images are published to [GitHub Container Registry (GHCR)](https://ghcr.io). Replace `OWNER` with the repository owner's GitHub username.
+Install the Dev Containers extension. When prompted, click **Reopen in Container** for a fully configured development environment.
 
-| Tag | Updated | Use for |
-|-----|---------|---------|
-| `:latest` | Official GitHub Releases only | Production deployments |
-| `:dev` | Every push to `main` | Testing the latest work-in-progress |
-| `:sha-abc1234` | Every push to `main` | Pinning to a specific commit |
-
-```bash
-# Stable release
-docker pull ghcr.io/OWNER/ammologger-backend:latest
-docker pull ghcr.io/OWNER/ammologger-frontend:latest
-
-# Latest development build (may not be stable)
-docker pull ghcr.io/OWNER/ammologger-backend:dev
-docker pull ghcr.io/OWNER/ammologger-frontend:dev
-```
-
-> **Note:** `:latest` only advances when an official release is published on GitHub. `:dev` tracks the tip of `main` and may include incomplete or in-progress changes.
-
-## Development
-
-This project uses VS Code Dev Containers. Open the project in VS Code and when prompted, click **Reopen in Container**. Your full development environment will be running inside Docker automatically.
-
-### Useful commands
+### Development workflow
 
 ```bash
 # Start in background
@@ -115,9 +183,24 @@ docker compose down
 
 # Rebuild after dependency changes
 docker compose up --build
+
+# Run database migrations manually
+docker compose exec backend alembic upgrade head
+
+# Check migration status
+docker compose exec backend alembic current
 ```
 
-> **Note:** The frontend runs a Vite dev server locally (`node:20.19.1-slim`). The production build will use a multi-stage Dockerfile that compiles static assets and serves them with `nginx:1.27-alpine`.
+> **Note:** The frontend runs a Vite dev server (`node:20.19.1-slim`). The production build will use a multi-stage Dockerfile that compiles static assets and serves them with `nginx:1.27-alpine`.
+
+### Contributing
+
+- Read `CLAUDE.md` for project conventions and build status
+- Read `docs/PRD.md` for full feature specifications
+- Add entries to `CHANGELOG.md` `[Unreleased]` with your changes
+- Every PR that changes the data model must include an Alembic migration file
+
+---
 
 ## Data Directory
 
@@ -135,13 +218,11 @@ data/
 **config.yaml** is generated on first startup. Key settings:
 
 | Setting | Default | Description |
-|---------|---------|-------------|
+| ------- | ------- | ----------- |
 | `app.session_timeout_hours` | `8` | Session lifetime |
 | `security.reset_token` | `""` | Set to enable `/reset` password recovery; clear after use |
 | `backup.schedule` | `"03:00"` | Nightly backup time (24-hour) |
 | `backup.retention_days` | `30` | Days to keep backup files |
-
-**To back up:** copy `./data/ammoledger.db` somewhere safe, or use the Admin → Backup Now button (v1.0).
 
 ## Project Structure
 
@@ -169,7 +250,8 @@ AmmoLedger/
 │   └── vite.config.js
 ├── data/                    # Runtime data volume (mostly git-ignored)
 ├── docs/
-│   └── PRD.md
+│   ├── PRD.md
+│   └── INSTALL.md
 ├── docker-compose.yml
 ├── Dockerfile.backend
 ├── Dockerfile.frontend

@@ -35,6 +35,12 @@ Versioning: [Semantic Versioning](https://semver.org)
 - `.dockerignore` at repo root to reduce image build context
 - `docs/INSTALL.md` quick-start installation guide
 
+### Changed
+
+- README restructured to separate end user and developer instructions
+- Added one-line Docker Compose pull install method for end users
+- Added upgrade instructions and backup folder explanation to README
+
 ### Security
 
 - Docker containers now run as non-root user (`appuser`)
