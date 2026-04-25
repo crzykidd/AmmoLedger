@@ -32,6 +32,7 @@
 - Schema update — product_name + clean lookup defaults: COMPLETE
 - Schema update — versioned defaults sync, app_settings table: COMPLETE
 - PRD update — CSV import validation spec: COMPLETE
+- PRD update — label printing expanded, product_name on form: COMPLETE
 - Phase 4 — Frontend basics: NOT STARTED
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED

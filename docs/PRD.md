@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 0.7 — Working Draft  
+**Version:** 0.8 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -21,6 +21,7 @@
 | 0.5 | April 2026 | Added product_name field to ammo_box; expanded caliber list to 22 entries; expanded manufacturer list to 44 entries; product_name partial-match filter on GET /ammo; CSV import column spec updated |
 | 0.6 | April 2026 | Versioned defaults sync system: app_settings table, version field in defaults.yaml, sync config flags (sync_on_startup, update_existing, allow_removal), smart case-insensitive upsert logic |
 | 0.7 | April 2026 | Added detailed CSV import spec: two-step validation flow, fuzzy matching rules, pre-import backup requirement, import config flags |
+| 0.8 | April 2026 | Expanded label printing spec — configurable fields, Avery sizes, QR code with mobile expend flow. Added product_name to add ammo form spec. |
 
 ---
 
@@ -561,6 +562,7 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 - Form with all fields from Section 6.2
 - `is_shared` toggle — defaults to `false` (private)
 - Caliber, manufacturer, type, category, dealer dropdowns all support inline **Add New**
+- **Product Name** — free-text field positioned directly below Manufacturer; not a dropdown (product lines too varied to maintain a list); carries through to the Add X Copies feature
 - Cost entered per round; calculated box total shown alongside for reference
 - Container and location are optional — a **None** option is always available
 
@@ -777,6 +779,66 @@ container, location, notes
 - Optional attachment to a specific firearm
 - Detach/reattach history — track which firearm an accessory has been on
 - Fields: type, make, model, serial (optional), purchase date, cost, notes
+
+### 10.7 Bulk Label Printing (v2.0)
+
+#### Configurable Label Template
+
+- Admin configures the default label template in Settings
+- Any `ammo_box` field can be toggled on or off
+- Selected fields can be reordered via drag and drop
+- Field size can be set: **large** for key fields (Box ID, Caliber), **normal** for others
+- Template is saved as the default for all future label prints
+- Users can override the template at print time without changing the saved default
+
+#### Label Size Options
+
+Support these Avery label formats:
+
+| Format | Size | Per sheet | Best for |
+| ------ | ---- | --------- | -------- |
+| 5160 | 1" × 2-5/8" | 30 | Standard ammo labels |
+| 5163 | 2" × 4" | 10 | Larger rifle boxes |
+| 5167 | 1/2" × 1-3/4" | 80 | Small pistol boxes |
+| 5164 | 3-1/3" × 4" | 6 | Large rifle boxes |
+
+#### QR Code
+
+- Optional field in the label template — toggled on/off like any other field
+- QR code encodes the full URL to the box detail page
+- Base URL configured in `config.yaml`:
+
+  ```yaml
+  app:
+    base_url: "http://localhost:5173"
+  ```
+
+- When scanned, opens the browser directly to the box detail page
+- If not logged in, redirects to login then back to the box page
+
+#### QR Scan → Expend Flow (mobile optimised)
+
+The box detail page, when accessed via QR scan, is mobile-optimised and shows:
+
+- Box ID, caliber, manufacturer, product name
+- `qty_remaining` with a visual progress bar
+- Quick expend buttons:
+
+  ```text
+  [ Shot All (N) ]
+  [ Shot 50 ]  [ Shot 25 ]  [ Shot 10 ]  [ Shot 5 ]
+  [ Custom amount... ]
+  ```
+
+Quick preset buttons support range use with gloves or in poor lighting conditions. The **Shot All** button shows the current remaining count so the action is unambiguous.
+
+#### Print Flow
+
+1. Select one or more boxes from the inventory list
+2. Click **Print Labels**
+3. Choose label size (defaults to last-used preference)
+4. Preview labels before printing
+5. Download as PDF or send directly to the browser print dialog
 
 ---
 
