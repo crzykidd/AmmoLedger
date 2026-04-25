@@ -15,6 +15,9 @@ app:
   # Change to your external URL if accessing from other devices.
   base_url: "http://localhost:5173"
 
+  # Check GitHub releases for available updates on startup and every 24 hours.
+  check_for_updates: true
+
 security:
   # Secret key used to sign session cookies. MUST be changed before production use.
   # Generate a strong value with: openssl rand -hex 32
@@ -24,6 +27,27 @@ security:
   # Set a token here to enable password reset at /reset?token=<your-token>.
   # Remove or clear this value immediately after use.
   reset_token: ""
+
+  # Registration mode controls who can create a new account.
+  # invite_only  — only valid invite links allow registration (recommended)
+  # open         — anyone can register without an invite (creates a Member account)
+  # disabled     — no new registrations; Admin creates accounts directly
+  registration: "invite_only"
+
+  # Default lifetime for new invite links in hours.
+  invite_expiry_hours: 72
+
+  # Password requirements (enforced on create and change).
+  password_min_length: 12          # minimum characters (8-128)
+  password_require_uppercase: true
+  password_require_number: true
+  password_require_special: true
+
+  # Number of previous passwords to block reuse (0 = disabled).
+  password_history_count: 5
+
+  # Invalidate all existing sessions when a user changes their password.
+  invalidate_sessions_on_pw_change: true
 
 defaults:
   # Always run the seed sync on startup, even if the version already matches.
@@ -59,3 +83,22 @@ smtp:
   username: ""
   password: ""
   from_address: ""
+
+notifications:
+  discord:
+    # Set enabled to true and supply a webhook URL to post alerts to Discord.
+    enabled: false
+    webhook_url: ""
+    # Which notification types trigger Discord messages.
+    notify_on: ["low_stock", "backup_failure", "update_available"]
+  email:
+    # Which notification types trigger email (requires smtp.enabled: true).
+    notify_on: ["backup_failure"]
+  low_stock:
+    # Alert when a caliber's total qty_remaining drops below this threshold.
+    default_threshold: 50
+    # Per-caliber overrides. Example:
+    #   per_caliber_thresholds:
+    #     "9mm Luger": 200
+    #     ".22 LR": 500
+    per_caliber_thresholds: {}

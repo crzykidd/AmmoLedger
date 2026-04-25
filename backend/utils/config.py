@@ -4,6 +4,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import yaml
 
@@ -16,6 +17,7 @@ _BUNDLED_DEFAULTS = Path(__file__).parent.parent / "defaults.yaml"
 _BUNDLED_TEMPLATE = Path(__file__).parent.parent / "config.template.yaml"
 
 _DEFAULT_SECRET = "change-this-to-a-random-string"
+_VALID_REGISTRATION_MODES = {"invite_only", "open", "disabled"}
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +57,22 @@ def set_setting(session, key: str, value: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Validation helpers
+# ---------------------------------------------------------------------------
+
+def _is_int(val) -> bool:
+    return isinstance(val, int) and not isinstance(val, bool)
+
+
+def _is_valid_url(val) -> bool:
+    try:
+        parsed = urlparse(str(val))
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
 
@@ -76,9 +94,6 @@ def validate_config(config: dict) -> dict:
             val = val.get(key)
         return val
 
-    def _is_int(val) -> bool:
-        return isinstance(val, int) and not isinstance(val, bool)
-
     # --- Presence checks ---
     for keys in [
         ("security", "session_secret"),
@@ -90,7 +105,7 @@ def validate_config(config: dict) -> dict:
         if _get(*keys) is None:
             errors.append(f"[{'.'.join(keys)}] required field is missing")
 
-    # --- Type checks ---
+    # --- Type check helper ---
     def _check_type(keys, predicate, type_name, condition=True):
         if not condition:
             return
@@ -101,7 +116,9 @@ def validate_config(config: dict) -> dict:
             )
 
     smtp_enabled = _get("smtp", "enabled") is True
+    discord_enabled = _get("notifications", "discord", "enabled") is True
 
+    # Existing type checks
     _check_type(("backup", "retention_days"), _is_int, "integer")
     _check_type(("app", "session_timeout_hours"), _is_int, "integer")
     _check_type(("backup", "enabled"), lambda v: isinstance(v, bool), "boolean")
@@ -109,6 +126,20 @@ def validate_config(config: dict) -> dict:
     _check_type(("import", "backup_warning_hours"), _is_int, "integer")
     _check_type(("import", "backup_block_hours"), _is_int, "integer")
     _check_type(("smtp", "port"), _is_int, "integer", condition=smtp_enabled)
+
+    # New type checks
+    _check_type(("app", "check_for_updates"), lambda v: isinstance(v, bool), "boolean")
+    _check_type(("security", "invite_expiry_hours"), _is_int, "integer")
+    _check_type(("security", "password_min_length"), _is_int, "integer")
+    _check_type(("security", "password_history_count"), _is_int, "integer")
+    _check_type(("security", "password_require_uppercase"), lambda v: isinstance(v, bool), "boolean")
+    _check_type(("security", "password_require_number"), lambda v: isinstance(v, bool), "boolean")
+    _check_type(("security", "password_require_special"), lambda v: isinstance(v, bool), "boolean")
+    _check_type(("security", "invalidate_sessions_on_pw_change"), lambda v: isinstance(v, bool), "boolean")
+    _check_type(("notifications", "discord", "enabled"), lambda v: isinstance(v, bool), "boolean")
+    _check_type(
+        ("notifications", "low_stock", "default_threshold"), _is_int, "integer",
+    )
 
     # --- Value checks ---
     secret = _get("security", "session_secret")
@@ -141,6 +172,36 @@ def validate_config(config: dict) -> dict:
     if smtp_enabled and _is_int(smtp_port) and not (1 <= smtp_port <= 65535):
         errors.append("[smtp.port] must be between 1 and 65535")
 
+    base_url = _get("app", "base_url")
+    if base_url is not None and not _is_valid_url(base_url):
+        errors.append(
+            "[app.base_url] must be a valid URL with http or https scheme "
+            "(e.g. 'http://localhost:5173' or 'https://ammo.example.com')"
+        )
+
+    invite_expiry = _get("security", "invite_expiry_hours")
+    if _is_int(invite_expiry) and invite_expiry <= 0:
+        errors.append("[security.invite_expiry_hours] must be greater than 0")
+
+    pw_min = _get("security", "password_min_length")
+    if _is_int(pw_min) and pw_min < 8:
+        errors.append("[security.password_min_length] must be at least 8")
+
+    pw_history = _get("security", "password_history_count")
+    if _is_int(pw_history) and pw_history < 0:
+        errors.append("[security.password_history_count] must be 0 or greater")
+
+    registration = _get("security", "registration")
+    if registration is not None and str(registration) not in _VALID_REGISTRATION_MODES:
+        errors.append(
+            f"[security.registration] must be one of: "
+            f"{', '.join(sorted(_VALID_REGISTRATION_MODES))}"
+        )
+
+    low_stock_threshold = _get("notifications", "low_stock", "default_threshold")
+    if _is_int(low_stock_threshold) and low_stock_threshold <= 0:
+        errors.append("[notifications.low_stock.default_threshold] must be greater than 0")
+
     # --- Warning checks ---
     env = str(_get("app", "env") or "development")
 
@@ -162,10 +223,15 @@ def validate_config(config: dict) -> dict:
             "email features will not work until a host is configured"
         )
 
+    if discord_enabled and not _get("notifications", "discord", "webhook_url"):
+        warnings.append(
+            "[notifications.discord] enabled is true but webhook_url is empty — "
+            "Discord notifications will not work until a webhook URL is configured"
+        )
+
     if _get("backup", "enabled") is False:
         warnings.append("[backup.enabled] is false — nightly backups are disabled")
 
-    base_url = _get("app", "base_url")
     if base_url and "localhost" in str(base_url):
         warnings.append(
             "[app.base_url] contains 'localhost' — "

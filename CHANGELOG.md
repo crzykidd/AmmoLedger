@@ -19,6 +19,11 @@ Versioning: [Semantic Versioning](https://semver.org)
 - Database indexes for search and filter performance (sub-200ms at 10,000 records)
 - `show_archived` query param on `GET /ammo` to include archived boxes
 - `search` query param on `GET /ammo` for combined product_name + legacy_id partial match
+- `version.py` as single source of truth for app version (`0.1.0`)
+- Version logged on startup (`AmmoLedger v0.1.0 starting...`)
+- Current version stored in app_settings on every startup; upgrade detected and logged
+- Extended `config.yaml` with security (registration mode, invite expiry, password policy), notification (Discord webhook, email, low-stock threshold) settings
+- Config validation for all new settings (URL format, registration enum, password policy integers)
 
 ---
 

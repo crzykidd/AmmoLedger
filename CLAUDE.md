@@ -38,6 +38,7 @@
 - PRD v2.0 — comprehensive spec complete: COMPLETE
 - CHANGELOG.md created: COMPLETE
 - Schema catchup — migrations 0004-0009: COMPLETE
+- Config and version catchup: COMPLETE
 - Phase 4 — Frontend basics: NOT STARTED
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
