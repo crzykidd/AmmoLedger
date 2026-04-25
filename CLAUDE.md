@@ -41,7 +41,8 @@
 - Schema catchup — migrations 0004-0009: COMPLETE
 - Config and version catchup: COMPLETE
 - Infrastructure cleanup pre-Phase 4: COMPLETE
-- Phase 4 — Frontend basics: NOT STARTED
+- Phase 4.1 — Frontend shell (router, auth, AppShell, login/setup pages): COMPLETE
+- Phase 4 — Frontend basics: IN PROGRESS
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
 - Phase 7 — User management UI: NOT STARTED

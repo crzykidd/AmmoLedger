@@ -10,9 +10,27 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Added
+
+- Phase 4.1 frontend shell: React + TypeScript + Tailwind + shadcn/ui scaffold
+- React Router with auth-gated routes (`/`, `/login`, `/setup`, `/dashboard`, `/inventory`)
+- `AuthContext` — calls `GET /auth/me` on mount, provides `user`, `isFirstRun`, `login()`, `logout()`, `refetch()`
+- `ThemeContext` — `light`/`dark`/`system` theme with `amber` accent, both persisted to `localStorage`
+- `AppShell` with collapsible sidebar (240 px / 64 px), state persisted to `localStorage`
+- Sidebar shows full logo when expanded, circle logo when collapsed; gold active nav highlight
+- `LoginPage` — dark navy card, email/password fields, error display, link to `/setup` on first run
+- `SetupPage` — same navy layout, first/last name + email + password + confirm, auto-login on success
+- Typed `fetch` API client (`src/api/client.ts`) with `credentials: 'include'` for session cookies
+- Typed auth API wrappers: `getMe`, `login`, `logout`, `setup`
+- shadcn-compatible `Button` and `Input` components in `src/components/ui/`
+- Brand colors added to Tailwind config: `navy #0D1821`, `gold #B8962E`, `gold-light #D4AF5A`
+- `TopBar` layout component for page titles and action slots
+- `DashboardPage` and `InventoryPage` stubs (AppShell + "Coming soon")
+
 ### Changed
 
 - README now displays logo and badges at top of page
+- Frontend converted from JavaScript to TypeScript; `tsconfig.json` configured for Vite + strict mode
 
 ### Fixed
 
