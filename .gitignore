@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# SQLite database
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / React
+node_modules/
+frontend/dist/
+frontend/build/
+.npm
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
