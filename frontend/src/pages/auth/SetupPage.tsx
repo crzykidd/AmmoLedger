@@ -56,7 +56,8 @@ export default function SetupPage() {
       // non-null and its own `if (user) return <Navigate to="/dashboard">` fires,
       // avoiding a race where navigate() runs before the state update commits.
     } catch (err) {
-      setError((err as ApiError).detail ?? 'Setup failed. Please try again.')
+      const detail = (err as ApiError).detail
+      setError(typeof detail === 'string' ? detail : (detail?.message ?? 'Setup failed. Please try again.'))
     } finally {
       setSubmitting(false)
     }

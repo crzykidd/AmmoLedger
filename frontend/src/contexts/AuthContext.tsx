@@ -7,6 +7,7 @@ interface AuthContextType {
   user: User | null
   isFirstRun: boolean
   loading: boolean
+  mustChangePassword: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   refetch: () => Promise<void>
@@ -51,8 +52,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsFirstRun(false)
   }
 
+  const mustChangePassword = user?.must_change_password ?? false
+
   return (
-    <AuthContext.Provider value={{ user, isFirstRun, loading, login, logout, refetch: fetchMe }}>
+    <AuthContext.Provider value={{ user, isFirstRun, loading, mustChangePassword, login, logout, refetch: fetchMe }}>
       {children}
     </AuthContext.Provider>
   )

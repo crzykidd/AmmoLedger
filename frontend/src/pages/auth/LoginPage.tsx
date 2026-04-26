@@ -21,7 +21,8 @@ export default function LoginPage() {
     try {
       await login(email, password)
     } catch (err) {
-      setError((err as ApiError).detail ?? 'Login failed. Check your credentials.')
+      const detail = (err as ApiError).detail
+      setError(typeof detail === 'string' ? detail : (detail?.message ?? 'Login failed. Check your credentials.'))
     } finally {
       setSubmitting(false)
     }

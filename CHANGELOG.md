@@ -12,6 +12,17 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **Phase 4.6 frontend** — Registration page, user management UI, invite management UI, profile/password-change page, admin sidebar section
+- **Registration page** (`/register?token=…`) — validates invite token on mount, shows role/email hint, includes live password strength checklist, auto-logs in and redirects to dashboard on success
+- **User management** (`/admin/users`) — table with role badge, status badge, last login; per-row role dropdown, deactivate/reactivate toggle, reset-password dialog
+- **Invite management** (`/admin/invites`) — generate invite link with role/email hint/expiry form, copy-to-clipboard link box, pending invites table with revoke action; hides old expired/used invites by default
+- **Profile page** (`/settings/profile`) — account info section (read-only) plus change-password form with live strength checklist; force-reset banner shown when `must_change_password` is set
+- **Admin sidebar section** — Users and Invitations nav items visible to admin role only
+- **Profile + Thresholds** separated in sidebar Settings section with section header
+- **Password strength checklist** — shared component showing 5 rule checkmarks in real time; submit buttons disabled until all pass
+- **Must-change-password redirect** — `ProtectedRoute` redirects to `/settings/profile` if `user.must_change_password` is set; banner persists until password changed and `refetch()` clears the flag
+- Favicon and apple-touch-icon link tags added to `index.html`
+
 - **User management backend** (Phase 4.6) — admin can list all users, update roles, deactivate accounts, and force-reset passwords
 - **Invitation system** — admin generates time-limited invite tokens; invited users self-register via `/register?token=...`; tokens are single-use and revocable
 - **Password policy enforcement** — 12-char minimum, uppercase, lowercase, digit, and special character required; email/username must not appear in password

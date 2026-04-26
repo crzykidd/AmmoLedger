@@ -7,10 +7,44 @@ export interface User {
   last_name: string
   role: Role
   is_active: boolean
+  must_change_password?: boolean
+}
+
+export interface UserRead {
+  id: number
+  email: string
+  first_name: string
+  last_name: string
+  role: string
+  is_active: boolean
+  must_change_password: boolean
+  created_at: string
+  last_login_at: string | null
+}
+
+export interface InviteRead {
+  id: number
+  token: string
+  created_by: number
+  created_at: string
+  expires_at: string
+  used_at: string | null
+  used_by: number | null
+  role: string
+  email_hint: string | null
+  is_revoked: boolean
+  status: 'valid' | 'expired' | 'used' | 'revoked'
+  invite_url?: string | null
+}
+
+export interface InviteCreate {
+  role: string
+  email_hint?: string
+  expires_hours?: number
 }
 
 export interface ApiError {
-  detail: string
+  detail: string | { error: boolean; code: string; message: string }
 }
 
 export type MeResponse = User | { first_run: true }

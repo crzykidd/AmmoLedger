@@ -38,7 +38,7 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 | Phase 4.3 | ✅ Complete | Expenditure logging — Log Use dialog, round deduction, toast notifications |
 | Phase 4.4 | ✅ Complete | Stock thresholds — per-caliber alerts, low-stock banner, caliber summary, settings page |
 | Phase 4.5 | ✅ Complete | Dashboard — stats cards, caliber breakdown, low-stock list, recent activity, getting started flow |
-| Phase 4.6 | ✅ Complete | User management backend — invite system, password policy, admin user controls, 40 tests |
+| Phase 4.6 | ✅ Complete | User management — invite system, registration page, admin UI (users/invites), profile/password-change, 40 backend tests |
 | Phase 4 | 🔲 In Progress | Frontend basics (remaining pages) |
 | Phase 6 | 🔲 Not started | Backup system |
 | Phase 7 | 🔲 Not started | User management UI |
@@ -48,9 +48,10 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 - First-run setup creates the initial admin account
 - Login/logout with signed session cookies
 - Role-based access control: `admin`, `member`, `read_only`
-- **User management** — admin can list users, update roles, deactivate accounts, and force-reset passwords
-- **Invitation system** — admin generates time-limited, single-use invite links; invited users self-register
-- **Password policy** — 12-char minimum with uppercase, lowercase, digit, and special character; last 5 passwords blocked from reuse
+- **User management** — admin lists users, changes roles, deactivates accounts, and force-resets passwords via `/admin/users`
+- **Invitation system** — admin generates time-limited, single-use invite links via `/admin/invites`; invited users self-register at `/register?token=…`
+- **Password policy** — 12-char minimum with uppercase, lowercase, digit, and special character; live strength checklist on all password forms; last 5 passwords blocked from reuse
+- **Profile page** (`/settings/profile`) — change your own password with live strength indicator; force-reset banner shown when admin has reset your password
 - Lookup tables (calibers, manufacturers, ammo types, categories, dealers) pre-seeded from `defaults.yaml` on every startup
 - Full database schema: users, ammo boxes, expenditure log, storage locations and containers
 - Schema migrations run automatically on container start (Alembic)
