@@ -89,6 +89,7 @@ class User(SQLModel, table=True):
     password_hash: str
     role: str = Field(default="member")  # admin | member | readonly
     is_active: bool = Field(default=True)
+    must_change_password: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login_at: Optional[datetime] = None
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")

@@ -12,6 +12,23 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **User management backend** (Phase 4.6) — admin can list all users, update roles, deactivate accounts, and force-reset passwords
+- **Invitation system** — admin generates time-limited invite tokens; invited users self-register via `/register?token=...`; tokens are single-use and revocable
+- **Password policy enforcement** — 12-char minimum, uppercase, lowercase, digit, and special character required; email/username must not appear in password
+- **Password history** — last 5 password hashes retained per user; reuse blocked on change and admin reset
+- `must_change_password` flag — set by admin reset, cleared on next successful password change
+- `POST /auth/invite` — admin creates a scoped, expiring invite link
+- `GET /auth/invites` — admin lists all invitations with status (valid / used / expired / revoked)
+- `GET /auth/invite/{token}` — public endpoint to validate a token and return role / email hint
+- `POST /auth/register` — public endpoint to create an account from a valid token (auto-logs in on success)
+- `DELETE /auth/invite/{token}` — admin revokes an invitation
+- `GET /users` — admin lists all users sorted by creation date
+- `PATCH /users/{user_id}` — admin updates a user's role or active status (cannot modify self)
+- `POST /users/{user_id}/reset-password` — admin force-resets any user's password
+- `POST /users/me/change-password` — any authenticated user can change their own password
+- Backend test suite: 40 tests covering password validation, invite lifecycle, user management, and auth flows
+- `pytest` and `httpx` added to `requirements.txt`
+
 - **Dashboard** — landing page after login with stats cards (total rounds, total boxes, calibers tracked, low stock count), caliber breakdown with proportion bars, running-low list, and recent-activity feed
 - Getting Started checklist shown on first login (no inventory yet) — guides through adding a box, setting thresholds, and future invite; dismissible with "Don't show again"
 - Dashboard nav link is active for both `/` and `/dashboard`

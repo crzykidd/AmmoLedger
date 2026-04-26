@@ -167,6 +167,50 @@ class ExpendResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# User schemas
+# ---------------------------------------------------------------------------
+
+class UserRead(_OrmBase):
+    id: int
+    email: str
+    first_name: str
+    last_name: str
+    role: str
+    is_active: bool
+    must_change_password: bool
+    created_at: datetime
+    last_login_at: Optional[datetime]
+
+
+class UserUpdate(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+# ---------------------------------------------------------------------------
+# Registration and password management schemas
+# ---------------------------------------------------------------------------
+
+class RegisterRequest(BaseModel):
+    token: str
+    first_name: str
+    last_name: str
+    email: str
+    password: str
+    confirm_password: str
+
+
+class PasswordResetRequest(BaseModel):
+    new_password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+
+# ---------------------------------------------------------------------------
 # Invitation schemas
 # ---------------------------------------------------------------------------
 
@@ -187,6 +231,22 @@ class InvitationRead(_OrmBase):
     role: str
     email_hint: Optional[str]
     is_revoked: bool
+
+
+class InviteRead(BaseModel):
+    """InvitationRead with computed status and invite_url."""
+    id: int
+    token: str
+    created_by: int
+    created_at: datetime
+    expires_at: datetime
+    used_at: Optional[datetime]
+    used_by: Optional[int]
+    role: str
+    email_hint: Optional[str]
+    is_revoked: bool
+    status: str          # valid | expired | used | revoked
+    invite_url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

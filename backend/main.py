@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from database import engine, get_session, run_migrations
 from utils.config import ensure_data_dirs, get_setting, load_and_validate_config, set_setting
 from utils.seeds import sync_yaml_seeds
-from routers import auth, ammo, expenditure, lookups
+from routers import auth, ammo, expenditure, lookups, users
 from utils.rbac import require_auth
 from version import __version__
 
@@ -28,6 +28,7 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 
 app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(ammo.router)
 app.include_router(expenditure.router)
 app.include_router(lookups.router)
