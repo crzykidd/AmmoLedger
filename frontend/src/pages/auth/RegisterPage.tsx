@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordStrengthChecklist, allRulesPassed } from '@/components/ui/password-strength'
+import { cn } from '@/lib/utils'
 import logoFull from '@/assets/brand/logo-full-dark.png'
 
 const schema = z.object({
@@ -38,7 +39,7 @@ export default function RegisterPage() {
   const [inviteLoading, setInviteLoading] = useState(true)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { first_name: '', last_name: '', email: '', password: '', confirm_password: '' },
   })
@@ -52,7 +53,12 @@ export default function RegisterPage() {
       return
     }
     validateInviteToken(token)
-      .then(setInviteInfo)
+      .then((info) => {
+        setInviteInfo(info)
+        if (info.email_hint) {
+          setValue('email', info.email_hint)
+        }
+      })
       .catch((err: { detail?: { code?: string; message?: string } | string }) => {
         const detail = err?.detail
         if (detail && typeof detail === 'object' && detail.message) {
@@ -62,7 +68,7 @@ export default function RegisterPage() {
         }
       })
       .finally(() => setInviteLoading(false))
-  }, [token])
+  }, [token, setValue])
 
   const onSubmit = async (data: FormData) => {
     if (!allRulesPassed(data.password)) return
@@ -110,9 +116,6 @@ export default function RegisterPage() {
                 <span className="font-medium text-gray-700 dark:text-gray-300">
                   {ROLE_LABELS[inviteInfo.role] ?? inviteInfo.role}
                 </span>
-                {inviteInfo.email_hint && (
-                  <> · Hint: <span className="font-medium">{inviteInfo.email_hint}</span></>
-                )}
               </p>
             )}
 
@@ -146,10 +149,20 @@ export default function RegisterPage() {
                   {...register('email')}
                   type="email"
                   placeholder="jane@example.com"
-                  defaultValue={inviteInfo?.email_hint ?? ''}
+                  readOnly={Boolean(inviteInfo?.email_hint)}
+                  className={cn(
+                    inviteInfo?.email_hint &&
+                      'bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 cursor-default select-none',
+                  )}
                 />
-                {errors.email && (
-                  <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>
+                {inviteInfo?.email_hint ? (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Email set by your administrator
+                  </p>
+                ) : (
+                  errors.email && (
+                    <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>
+                  )
                 )}
               </div>
 
