@@ -12,6 +12,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- Missing `HTTPException` import in `main.py` caused a `NameError` at runtime when backup config endpoints returned errors
 - Removed `#` prefix from inventory ID column — box ID now displays as a plain number
 - Legacy ID now shown as a small gray subtitle under the box ID when set; hidden entirely when not set
 - Password strength meter now shown on Profile password change form consistently with registration flow; all password forms (setup, registration, profile, admin reset) now use the same `PasswordStrengthMeter` component with visual strength bar and per-rule checklist, always visible from the first keystroke
