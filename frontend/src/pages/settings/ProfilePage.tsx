@@ -7,7 +7,7 @@ import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { PasswordStrengthChecklist, allRulesPassed } from '@/components/ui/password-strength'
+import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import { useAuth } from '@/contexts/AuthContext'
 import { changeMyPassword } from '@/api/users'
 import { toast } from '@/hooks/use-toast'
@@ -120,9 +120,7 @@ export default function ProfilePage() {
                   New Password
                 </label>
                 <Input {...register('new_password')} type="password" placeholder="••••••••••••" />
-                {watchedPassword !== '' && (
-                  <PasswordStrengthChecklist password={watchedPassword} />
-                )}
+                <PasswordStrengthMeter password={watchedPassword} />
               </div>
 
               <div>

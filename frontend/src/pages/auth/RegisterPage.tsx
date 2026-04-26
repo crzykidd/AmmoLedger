@@ -9,7 +9,7 @@ import { register as apiRegister } from '@/api/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { PasswordStrengthChecklist, allRulesPassed } from '@/components/ui/password-strength'
+import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import { cn } from '@/lib/utils'
 import logoFull from '@/assets/brand/logo-full-dark.png'
 
@@ -171,9 +171,7 @@ export default function RegisterPage() {
                   Password
                 </label>
                 <Input {...register('password')} type="password" placeholder="••••••••••••" />
-                {watchedPassword !== '' && (
-                  <PasswordStrengthChecklist password={watchedPassword} />
-                )}
+                <PasswordStrengthMeter password={watchedPassword} />
               </div>
 
               <div>

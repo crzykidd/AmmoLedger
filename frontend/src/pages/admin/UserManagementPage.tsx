@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { PasswordStrengthChecklist, allRulesPassed } from '@/components/ui/password-strength'
+import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import { getUsers, updateUser, resetUserPassword } from '@/api/users'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/hooks/use-toast'
@@ -120,7 +120,7 @@ function ResetPasswordDialog({
             New Password
           </label>
           <Input {...register('new_password')} type="password" placeholder="••••••••••••" />
-          {watchedPassword !== '' && <PasswordStrengthChecklist password={watchedPassword} />}
+          <PasswordStrengthMeter password={watchedPassword} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

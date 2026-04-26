@@ -12,6 +12,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- Password strength meter now shown on Profile password change form consistently with registration flow; all password forms (setup, registration, profile, admin reset) now use the same `PasswordStrengthMeter` component with visual strength bar and per-rule checklist, always visible from the first keystroke
 - Registration page email field now pre-populates from `email_hint` and becomes read-only when the admin specified one; uses `setValue` after async invite validation so react-hook-form picks up the value correctly; `readOnly` (not `disabled`) ensures the value is still submitted with the form
 - Ruff lint errors in backend: removed unused `Optional` import from `password_utils.py`, unused `check_password_history` and `require_auth` imports from `routers/auth.py`, unused `pytest` imports from test files, and added `# noqa: E402` to post-env-setup imports in `tests/conftest.py`
 

@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { setup } from '@/api/auth'
 import type { ApiError } from '@/types'
+import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import logoFull from '@/assets/brand/logo-full-dark.png'
 
 interface FormState {
@@ -130,6 +131,7 @@ export default function SetupPage() {
                 autoComplete="new-password"
                 required
               />
+              <PasswordStrengthMeter password={form.password} className="mt-2" />
             </div>
 
             <div>
@@ -151,7 +153,7 @@ export default function SetupPage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !allRulesPassed(form.password)}
               className="w-full py-2.5 bg-gold hover:bg-gold-light text-navy font-semibold rounded-lg transition-colors disabled:opacity-50 mt-2"
             >
               {submitting ? 'Creating account…' : 'Create admin account'}
