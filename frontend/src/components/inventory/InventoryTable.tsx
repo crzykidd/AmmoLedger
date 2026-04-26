@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from 'react'
-import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Crosshair, Pencil, Trash2 } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -23,12 +23,19 @@ interface Props {
   containers: ContainerItem[]
   onEdit: (box: AmmoBoxRead) => void
   onDelete: (box: AmmoBoxRead) => void
+  onExpend: (box: AmmoBoxRead) => void
 }
 
 function canEdit(box: AmmoBoxRead, user: User): boolean {
   if (user.role === 'admin') return true
   if (user.role === 'member') return box.owner_id === user.id
   return false
+}
+
+function canExpend(box: AmmoBoxRead, user: User): boolean {
+  if (user.role === 'read_only') return false
+  if (user.role === 'admin') return true
+  return box.owner_id === user.id || box.is_shared
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -44,6 +51,7 @@ export default function InventoryTable({
   containers,
   onEdit,
   onDelete,
+  onExpend,
 }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('caliber')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -126,6 +134,7 @@ export default function InventoryTable({
           {sorted.map((box) => {
             const isExpanded = expanded.has(box.id)
             const editable = canEdit(box, user)
+            const expendable = canExpend(box, user)
             return (
               <Fragment key={box.id}>
                 <TableRow
@@ -166,28 +175,42 @@ export default function InventoryTable({
                     )}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    {editable && (
-                      <div className="flex gap-1 justify-end">
+                    <div className="flex gap-1 justify-end">
+                      {expendable && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-gray-500 hover:text-navy dark:hover:text-white"
-                          onClick={() => onEdit(box)}
-                          title="Edit"
+                          className="h-7 w-7 text-gray-500 hover:text-gold"
+                          onClick={() => onExpend(box)}
+                          title="Log use"
+                          disabled={box.qty_remaining === 0}
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <Crosshair className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-gray-500 hover:text-red-600"
-                          onClick={() => onDelete(box)}
-                          title="Delete"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
+                      )}
+                      {editable && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-gray-500 hover:text-navy dark:hover:text-white"
+                            onClick={() => onEdit(box)}
+                            title="Edit"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-gray-500 hover:text-red-600"
+                            onClick={() => onDelete(box)}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
                 {isExpanded && (

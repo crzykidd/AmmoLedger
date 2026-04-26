@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Crosshair, Pencil, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,12 +13,19 @@ interface Props {
   containers: ContainerItem[]
   onEdit: (box: AmmoBoxRead) => void
   onDelete: (box: AmmoBoxRead) => void
+  onExpend: (box: AmmoBoxRead) => void
 }
 
 function canEdit(box: AmmoBoxRead, user: User): boolean {
   if (user.role === 'admin') return true
   if (user.role === 'member') return box.owner_id === user.id
   return false
+}
+
+function canExpend(box: AmmoBoxRead, user: User): boolean {
+  if (user.role === 'read_only') return false
+  if (user.role === 'admin') return true
+  return box.owner_id === user.id || box.is_shared
 }
 
 export default function InventoryCardList({
@@ -29,6 +36,7 @@ export default function InventoryCardList({
   containers,
   onEdit,
   onDelete,
+  onExpend,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
@@ -53,6 +61,7 @@ export default function InventoryCardList({
       {boxes.map((box) => {
         const isExpanded = expanded.has(box.id)
         const editable = canEdit(box, user)
+        const expendable = canExpend(box, user)
 
         return (
           <Card key={box.id} className="overflow-hidden">
@@ -136,26 +145,42 @@ export default function InventoryCardList({
                       {box.notes}
                     </p>
                   )}
-                  {editable && (
+                  {(editable || expendable) && (
                     <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-800 mt-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => onEdit(box)}
-                      >
-                        <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => onDelete(box)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                        Delete
-                      </Button>
+                      {expendable && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => onExpend(box)}
+                          disabled={box.qty_remaining === 0}
+                        >
+                          <Crosshair className="h-3.5 w-3.5 mr-1.5" />
+                          Log Use
+                        </Button>
+                      )}
+                      {editable && (
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => onEdit(box)}
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => onDelete(box)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                            Delete
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

@@ -1,29 +1,34 @@
 # AmmoLedger — Claude Code Instructions
 
 ## Always
-- After any change that affects architecture, dependencies, or 
+
+- After any change that affects architecture, dependencies, or
   configuration, update docs/PRD.md and README.md accordingly
 - After completing a phase, update README.md with what has been built
 - Never leave PRD or README out of sync with the codebase
 
 ## Commit style
+
 - feat: new feature
-- chore: config, tooling, maintenance  
+- chore: config, tooling, maintenance
 - fix: bug fix
 - docs: documentation only changes
 
 ## Stack
+
 - Backend: Python + FastAPI + SQLModel + Alembic
 - Frontend: React + Tailwind + Vite
 - Database: SQLite
 - Container: Docker Compose
 
 ## Project Documentation
+
 - Full PRD is at docs/PRD.md — read this before starting any phase
 - README.md is at the root — keep it current with what has been built
 - Commit docs changes in the same commit as the code changes they describe
 
 ## Build Status
+
 - Phase 1 — Alembic + schema: COMPLETE
 - Pre-Phase 2 — Data directory structure: COMPLETE
 - Pre-Phase 2 — CI/CD and licensing: COMPLETE
@@ -43,6 +48,7 @@
 - Infrastructure cleanup pre-Phase 4: COMPLETE
 - Phase 4.1 — Frontend shell (router, auth, AppShell, login/setup pages): COMPLETE
 - Phase 4.2 — Inventory page (table, cards, form panel, delete dialog, RBAC): COMPLETE
+- Phase 4.3 — Expenditure logging (Log Use dialog, toast notifications): COMPLETE
 - Phase 4 — Frontend basics: IN PROGRESS
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED
@@ -59,14 +65,16 @@
   4. GitHub Actions builds and pushes `:latest`, `:1.0.0`, and `:1` to GHCR
 
 ## URL Structure (Production Target)
+
 - / → React frontend
-- /api/ → FastAPI backend  
+- /api/ → FastAPI backend
 - /api/docs → Swagger UI (FastAPI auto-generated)
 - Reverse proxy handles routing — Nginx or Cloudflare Tunnel
 
 ## Documentation Updates
+
 - Always update docs/PRD.md when architecture or features change
-- Always update the Revision History table in docs/PRD.md 
+- Always update the Revision History table in docs/PRD.md
   with the current date and a brief description of what changed
 - Always update README.md when setup or usage changes
 - Include doc updates in the same commit as the code changes

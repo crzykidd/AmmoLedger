@@ -14,6 +14,11 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 - **Inventory page** — full CRUD UI for ammo boxes with responsive table (desktop) and card list (mobile)
 - Purchase date field uses a Calendar popover (shadcn Calendar + Popover) with date-fns formatting ("MMM d, yyyy"); defaults to today when adding a new box
+- **Log Use button** (crosshair icon) on every inventory row and card — opens an expenditure dialog to record rounds fired
+- Expenditure dialog: rounds used (validated against current stock), date used, optional notes; updates qty_remaining via PATCH
+- Stock progress bar in expenditure dialog shows remaining rounds colored gold/amber/red by fill level
+- Toast notifications for logged use (and errors); Toaster mounted globally in App
+- RBAC for Log Use: read_only sees no button; members can log their own boxes and shared boxes; admins can log all
 - Sortable inventory table columns: caliber, manufacturer, product name, qty remaining
 - Expandable rows / cards showing weight, cost per round, purchase date, container, and notes
 - "Add Box" form panel (side drawer) with all fields: caliber, manufacturer, product name, qty, weight, type, category, purchase date, cost/round, container, notes

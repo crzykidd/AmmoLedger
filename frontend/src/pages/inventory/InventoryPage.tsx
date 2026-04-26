@@ -9,6 +9,7 @@ import InventoryTable from '@/components/inventory/InventoryTable'
 import InventoryCardList from '@/components/inventory/InventoryCardList'
 import AmmoFormPanel from '@/components/inventory/AmmoFormPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
+import ExpendDialog from '@/components/inventory/ExpendDialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo } from '@/api/ammo'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
@@ -77,6 +78,8 @@ export default function InventoryPage() {
   const [editBox, setEditBox] = useState<AmmoBoxRead | null>(null)
   const [deleteBox, setDeleteBox] = useState<AmmoBoxRead | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [expendBox, setExpendBox] = useState<AmmoBoxRead | null>(null)
+  const [expendOpen, setExpendOpen] = useState(false)
 
   const lookups = useInventoryLookups()
 
@@ -105,6 +108,11 @@ export default function InventoryPage() {
   function openDelete(box: AmmoBoxRead) {
     setDeleteBox(box)
     setDeleteOpen(true)
+  }
+
+  function openExpend(box: AmmoBoxRead) {
+    setExpendBox(box)
+    setExpendOpen(true)
   }
 
   return (
@@ -185,6 +193,7 @@ export default function InventoryPage() {
                   containers={lookups.containers}
                   onEdit={openEdit}
                   onDelete={openDelete}
+                  onExpend={openExpend}
                 />
               </div>
               {/* Mobile cards */}
@@ -197,6 +206,7 @@ export default function InventoryPage() {
                   containers={lookups.containers}
                   onEdit={openEdit}
                   onDelete={openDelete}
+                  onExpend={openExpend}
                 />
               </div>
             </>
@@ -225,6 +235,17 @@ export default function InventoryPage() {
           setDeleteOpen(o)
           if (!o) setDeleteBox(null)
         }}
+      />
+
+      {/* Expenditure dialog */}
+      <ExpendDialog
+        box={expendBox}
+        open={expendOpen}
+        onOpenChange={(o) => {
+          setExpendOpen(o)
+          if (!o) setExpendBox(null)
+        }}
+        calibers={lookups.calibers}
       />
     </AppShell>
   )
