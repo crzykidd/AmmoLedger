@@ -22,6 +22,21 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 - Legacy ID field on Add / Edit Ammo Box form — optional field for carrying over an ID from a previous tracking system; displays as a subtitle under the box ID in the inventory table when set
 
+- **Phase 5 — Backup & Restore system**
+- `POST /backup/trigger` — manual SQLite database backup with download link
+- `POST /backup/export` — full JSON data export (all tables, version-tagged)
+- `GET /backup/list` — list all backup files with type, size, and timestamp
+- `GET /backup/download/{filename}` — download any backup file
+- `DELETE /backup/{filename}` — delete a backup file
+- `POST /backup/restore/sqlite` — restore database from uploaded .db file (integrity-checked, auto-migrated)
+- `POST /backup/import/preview` — preview a JSON export before importing
+- `POST /backup/import/commit` — commit JSON import in full-replace or additive-merge mode
+- `GET /system/config` — read backup schedule config (admin only)
+- `POST /system/config` — update backup schedule config; reloads scheduler immediately
+- Nightly scheduled backup via APScheduler — runs at configured time, prunes files beyond retention window
+- Automatic pre-import SQLite backup before any restore or import operation
+- Backup management UI at Admin → Backup with Quick Backup, Data Export, Scheduled Backup config, Backup History table, Restore from .db, and Import from JSON sections
+
 - **Phase 4.6 frontend** — Registration page, user management UI, invite management UI, profile/password-change page, admin sidebar section
 - **Registration page** (`/register?token=…`) — validates invite token on mount, shows role/email hint, includes live password strength checklist, auto-logs in and redirects to dashboard on success
 - **User management** (`/admin/users`) — table with role badge, status badge, last login; per-row role dropdown, deactivate/reactivate toggle, reset-password dialog

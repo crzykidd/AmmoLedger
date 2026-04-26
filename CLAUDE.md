@@ -53,6 +53,7 @@
 - Phase 4.5 — Dashboard (stats, caliber breakdown, low stock, recent activity, getting started): COMPLETE
 - Phase 4.6 — User management (invites, registration, profile, admin user management): COMPLETE
 - PRD v2.3 — inventory row redesign and QuickExpendPopover spec: COMPLETE
+- Phase 5 — Backup & Restore system: COMPLETE
 - Phase 4 — Frontend basics: IN PROGRESS
 - Phase 5 — Dashboard: COMPLETE (shipped as Phase 4.5)
 - Phase 6 — Backup system: NOT STARTED

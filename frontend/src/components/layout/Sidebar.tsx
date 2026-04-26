@@ -7,6 +7,7 @@ import {
   User,
   Users,
   Mail,
+  DatabaseBackup,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -50,6 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Users', icon: Users, href: '/admin/users' },
       { label: 'Invitations', icon: Mail, href: '/admin/invites' },
+      { label: 'Backup', icon: DatabaseBackup, href: '/admin/backup' },
     ],
   },
 ]
