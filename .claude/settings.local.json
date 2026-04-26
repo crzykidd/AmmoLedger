@@ -3,7 +3,10 @@
     "allow": [
       "Bash(python -m ruff check backend/routers/auth.py backend/models.py backend/migrations/versions/0010_add_user_name_fields.py)",
       "Bash(pip install *)",
-      "Bash(python -m ruff check backend/routers/auth.py backend/models.py)"
+      "Bash(python -m ruff check backend/routers/auth.py backend/models.py)",
+      "WebFetch(domain:localhost)",
+      "Bash(npm install *)",
+      "Bash(./node_modules/.bin/tsc --noEmit)"
     ]
   }
 }
