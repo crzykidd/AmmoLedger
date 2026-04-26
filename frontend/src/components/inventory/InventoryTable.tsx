@@ -143,7 +143,7 @@ export default function InventoryTable({
                     {caliberMap.get(box.caliber_id) ?? '—'}
                   </TableCell>
                   <TableCell>{manufacturerMap.get(box.manufacturer_id) ?? '—'}</TableCell>
-                  <TableCell className="text-gray-600 dark:text-gray-400">
+                  <TableCell className="text-gray-500 dark:text-gray-400">
                     {box.product_name ?? '—'}
                   </TableCell>
                   <TableCell>
@@ -157,7 +157,7 @@ export default function InventoryTable({
                       {box.qty_remaining}
                     </span>
                   </TableCell>
-                  <TableCell className="text-gray-500">{box.qty_original}</TableCell>
+                  <TableCell className="text-gray-500 dark:text-gray-400">{box.qty_original}</TableCell>
                   <TableCell>
                     {box.is_shared ? (
                       <Badge variant="gold">Shared</Badge>
@@ -194,7 +194,7 @@ export default function InventoryTable({
                   <TableRow className="bg-gray-50/50 dark:bg-gray-800/20 hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
                     <TableCell />
                     <TableCell colSpan={7}>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-1 py-1 text-sm">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-1 py-1 text-sm text-gray-900 dark:text-gray-100">
                         {box.gr_oz != null && (
                           <div>
                             <span className="text-gray-500">Weight: </span>
