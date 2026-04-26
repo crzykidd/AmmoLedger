@@ -48,6 +48,24 @@ export interface DealerItem {
 }
 
 // ---------------------------------------------------------------------------
+// Threshold types (stored client-side in localStorage)
+// ---------------------------------------------------------------------------
+
+export interface ThresholdConfig {
+  default_rounds: number
+  default_boxes: number
+  caliber_overrides: Record<string, { rounds?: number; boxes?: number }>
+}
+
+export interface CaliberSummary {
+  caliber_id: number
+  caliber_name: string
+  total_rounds: number
+  box_count: number
+  is_low: boolean
+}
+
+// ---------------------------------------------------------------------------
 // Ammo box types — mirrors backend schemas.py
 // ---------------------------------------------------------------------------
 

@@ -11,6 +11,7 @@ interface Props {
   calibers: LookupItem[]
   manufacturers: LookupItem[]
   containers: ContainerItem[]
+  lowSet: Set<number>
   onEdit: (box: AmmoBoxRead) => void
   onDelete: (box: AmmoBoxRead) => void
   onExpend: (box: AmmoBoxRead) => void
@@ -34,6 +35,7 @@ export default function InventoryCardList({
   calibers,
   manufacturers,
   containers,
+  lowSet,
   onEdit,
   onDelete,
   onExpend,
@@ -62,9 +64,18 @@ export default function InventoryCardList({
         const isExpanded = expanded.has(box.id)
         const editable = canEdit(box, user)
         const expendable = canExpend(box, user)
+        const isLow = lowSet.has(box.id)
+        const pct = box.qty_original > 0 ? (box.qty_remaining / box.qty_original) * 100 : 0
 
         return (
-          <Card key={box.id} className="overflow-hidden">
+          <Card
+            key={box.id}
+            className={
+              isLow
+                ? 'overflow-hidden border-amber-400/60 dark:border-amber-500/40'
+                : 'overflow-hidden'
+            }
+          >
             <CardContent className="p-0">
               <button
                 className="w-full text-left px-4 pt-4 pb-3 flex items-start justify-between gap-2"
@@ -93,6 +104,18 @@ export default function InventoryCardList({
                       {box.qty_remaining}
                     </div>
                     <div className="text-xs text-gray-400">/ {box.qty_original}</div>
+                    <div className="h-1 w-14 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-1">
+                      <div
+                        className={
+                          pct > 50
+                            ? 'h-full rounded-full bg-emerald-500'
+                            : pct > 20
+                              ? 'h-full rounded-full bg-amber-400'
+                              : 'h-full rounded-full bg-red-500'
+                        }
+                        style={{ width: `${Math.min(pct, 100)}%` }}
+                      />
+                    </div>
                   </div>
                   {isExpanded ? (
                     <ChevronUp className="h-4 w-4 text-gray-400" />

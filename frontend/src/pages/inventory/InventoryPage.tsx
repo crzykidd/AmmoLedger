@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Search, PackageOpen } from 'lucide-react'
+import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import InventoryTable from '@/components/inventory/InventoryTable'
 import InventoryCardList from '@/components/inventory/InventoryCardList'
 import AmmoFormPanel from '@/components/inventory/AmmoFormPanel'
@@ -13,7 +14,11 @@ import ExpendDialog from '@/components/inventory/ExpendDialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo } from '@/api/ammo'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
+import { useThresholds } from '@/hooks/useThresholds'
+import { cn } from '@/lib/utils'
 import type { AmmoBoxRead } from '@/types'
+
+const BANNER_DISMISS_KEY = 'low_stock_banner_dismissed'
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
@@ -80,8 +85,13 @@ export default function InventoryPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [expendBox, setExpendBox] = useState<AmmoBoxRead | null>(null)
   const [expendOpen, setExpendOpen] = useState(false)
+  const [bannerDismissed, setBannerDismissed] = useState(
+    () => sessionStorage.getItem(BANNER_DISMISS_KEY) === '1',
+  )
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   const lookups = useInventoryLookups()
+  const { getLowItems, getCaliberSummary } = useThresholds()
 
   const {
     data,
@@ -94,6 +104,23 @@ export default function InventoryPage() {
 
   const boxes = data?.boxes ?? []
   const canAdd = user?.role !== 'read_only'
+
+  const lowItems = useMemo(
+    () => getLowItems(boxes, lookups.calibers),
+    [boxes, lookups.calibers, getLowItems],
+  )
+
+  const lowSet = useMemo(() => new Set(lowItems.map((b) => b.id)), [lowItems])
+
+  const caliberSummary = useMemo(
+    () => getCaliberSummary(boxes, lookups.calibers),
+    [boxes, lookups.calibers, getCaliberSummary],
+  )
+
+  function dismissBanner() {
+    sessionStorage.setItem(BANNER_DISMISS_KEY, '1')
+    setBannerDismissed(true)
+  }
 
   function openAdd() {
     setEditBox(null)
@@ -160,7 +187,75 @@ export default function InventoryPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto px-4 sm:px-6 py-4">
+        <div className="flex-1 overflow-auto px-4 sm:px-6 py-4 space-y-4">
+          {/* Low-stock alert banner */}
+          {!bannerDismissed && lowItems.length > 0 && (
+            <Alert variant="warning" className="flex items-start gap-3 pr-10 relative">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                <AlertTitle>Low stock on {lowItems.length} item{lowItems.length !== 1 ? 's' : ''}</AlertTitle>
+                <AlertDescription>
+                  Some calibers are below your configured thresholds.{' '}
+                  <button
+                    className="underline hover:no-underline font-medium"
+                    onClick={() => setSummaryOpen(true)}
+                  >
+                    View summary
+                  </button>
+                </AlertDescription>
+              </div>
+              <button
+                className="absolute right-3 top-3 text-amber-600 dark:text-amber-400 hover:opacity-70"
+                onClick={dismissBanner}
+                title="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </Alert>
+          )}
+
+          {/* Caliber summary */}
+          {caliberSummary.length > 0 && (
+            <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+              <button
+                className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => setSummaryOpen((v) => !v)}
+              >
+                <span>Caliber Summary</span>
+                {summaryOpen ? (
+                  <ChevronUp className="h-4 w-4 text-gray-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                )}
+              </button>
+              {summaryOpen && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-px bg-gray-200 dark:bg-gray-800">
+                  {caliberSummary.map((cs) => (
+                    <div
+                      key={cs.caliber_id}
+                      className={cn(
+                        'px-4 py-3 bg-white dark:bg-gray-900',
+                        cs.is_low && 'bg-amber-50 dark:bg-amber-950/20',
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {cs.is_low && (
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        )}
+                        <span className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
+                          {cs.caliber_name}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {cs.total_rounds.toLocaleString()} rds · {cs.box_count} box{cs.box_count !== 1 ? 'es' : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {isLoading || lookups.isLoading ? (
             <TableSkeleton />
           ) : isError ? (
@@ -191,6 +286,7 @@ export default function InventoryPage() {
                   calibers={lookups.calibers}
                   manufacturers={lookups.manufacturers}
                   containers={lookups.containers}
+                  lowSet={lowSet}
                   onEdit={openEdit}
                   onDelete={openDelete}
                   onExpend={openExpend}
@@ -204,6 +300,7 @@ export default function InventoryPage() {
                   calibers={lookups.calibers}
                   manufacturers={lookups.manufacturers}
                   containers={lookups.containers}
+                  lowSet={lowSet}
                   onEdit={openEdit}
                   onDelete={openDelete}
                   onExpend={openExpend}

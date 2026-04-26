@@ -12,6 +12,13 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **Stock thresholds** — configurable low-stock alerts stored in localStorage; set a global rounds threshold or per-caliber overrides
+- Amber row tint and amber card border on any ammo box below its caliber's threshold
+- Inline stock progress bar (green / amber / red by fill %) on every inventory row and card
+- Dismissible low-stock alert banner on the inventory page showing the count of low items (dismissed per session)
+- Collapsible caliber summary panel on the inventory page with total rounds and box count per caliber, low-stock indicator on affected rows
+- **Settings → Stock Thresholds page** (`/settings/thresholds`) — edit default and per-caliber round thresholds with live save
+- Settings nav item in the sidebar linking to the threshold settings page
 - **Inventory page** — full CRUD UI for ammo boxes with responsive table (desktop) and card list (mobile)
 - Purchase date field uses a Calendar popover (shadcn Calendar + Popover) with date-fns formatting ("MMM d, yyyy"); defaults to today when adding a new box
 - **Log Use button** (crosshair icon) on every inventory row and card — opens an expenditure dialog to record rounds fired

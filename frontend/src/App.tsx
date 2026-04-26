@@ -7,6 +7,7 @@ import LoginPage from '@/pages/auth/LoginPage'
 import SetupPage from '@/pages/auth/SetupPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
 import InventoryPage from '@/pages/inventory/InventoryPage'
+import ThresholdSettingsPage from '@/pages/settings/ThresholdSettingsPage'
 
 const queryClient = new QueryClient()
 
@@ -52,6 +53,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <InventoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/thresholds"
+        element={
+          <ProtectedRoute>
+            <ThresholdSettingsPage />
           </ProtectedRoute>
         }
       />

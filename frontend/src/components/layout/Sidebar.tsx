@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Package, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
+import { LayoutDashboard, Package, SlidersHorizontal, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import logoFull from '@/assets/brand/logo-full-dark.png'
@@ -18,6 +18,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', enabled: true },
   { label: 'Inventory', icon: Package, href: '/inventory', enabled: true },
+  { label: 'Settings', icon: SlidersHorizontal, href: '/settings/thresholds', enabled: true },
 ]
 
 const ROLE_META: Record<string, { label: string; className: string }> = {
@@ -73,7 +74,10 @@ export default function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
-          const active = location.pathname === item.href
+          const active =
+            item.href === '/settings/thresholds'
+              ? location.pathname.startsWith('/settings')
+              : location.pathname === item.href
           const Icon = item.icon
           return (
             <Link

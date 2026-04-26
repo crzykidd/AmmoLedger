@@ -49,6 +49,7 @@
 - Phase 4.1 — Frontend shell (router, auth, AppShell, login/setup pages): COMPLETE
 - Phase 4.2 — Inventory page (table, cards, form panel, delete dialog, RBAC): COMPLETE
 - Phase 4.3 — Expenditure logging (Log Use dialog, toast notifications): COMPLETE
+- Phase 4.4 — Stock thresholds, alerts, caliber summary, settings page: COMPLETE
 - Phase 4 — Frontend basics: IN PROGRESS
 - Phase 5 — Dashboard: NOT STARTED
 - Phase 6 — Backup system: NOT STARTED

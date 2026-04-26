@@ -21,6 +21,7 @@ interface Props {
   calibers: LookupItem[]
   manufacturers: LookupItem[]
   containers: ContainerItem[]
+  lowSet: Set<number>
   onEdit: (box: AmmoBoxRead) => void
   onDelete: (box: AmmoBoxRead) => void
   onExpend: (box: AmmoBoxRead) => void
@@ -49,6 +50,7 @@ export default function InventoryTable({
   calibers,
   manufacturers,
   containers,
+  lowSet,
   onEdit,
   onDelete,
   onExpend,
@@ -135,10 +137,12 @@ export default function InventoryTable({
             const isExpanded = expanded.has(box.id)
             const editable = canEdit(box, user)
             const expendable = canExpend(box, user)
+            const isLow = lowSet.has(box.id)
+            const pct = box.qty_original > 0 ? (box.qty_remaining / box.qty_original) * 100 : 0
             return (
               <Fragment key={box.id}>
                 <TableRow
-                  className="cursor-pointer"
+                  className={isLow ? 'cursor-pointer bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'cursor-pointer'}
                   onClick={() => toggleExpand(box.id)}
                 >
                   <TableCell className="text-gray-400">
@@ -156,15 +160,29 @@ export default function InventoryTable({
                     {box.product_name ?? '—'}
                   </TableCell>
                   <TableCell>
-                    <span
-                      className={
-                        box.qty_remaining === 0
-                          ? 'text-red-500 font-semibold'
-                          : 'text-gray-900 dark:text-gray-100'
-                      }
-                    >
-                      {box.qty_remaining}
-                    </span>
+                    <div className="flex flex-col gap-1 min-w-[72px]">
+                      <span
+                        className={
+                          box.qty_remaining === 0
+                            ? 'text-red-500 font-semibold'
+                            : 'text-gray-900 dark:text-gray-100'
+                        }
+                      >
+                        {box.qty_remaining}
+                      </span>
+                      <div className="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className={
+                            pct > 50
+                              ? 'h-full rounded-full bg-emerald-500'
+                              : pct > 20
+                                ? 'h-full rounded-full bg-amber-400'
+                                : 'h-full rounded-full bg-red-500'
+                          }
+                          style={{ width: `${Math.min(pct, 100)}%` }}
+                        />
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell className="text-gray-500 dark:text-gray-400">{box.qty_original}</TableCell>
                   <TableCell>
