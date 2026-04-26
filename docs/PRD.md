@@ -30,6 +30,7 @@
 | 2.2 | April 2026 | Phase 4.6: user management backend (invite system, password policy, password history, must_change_password flag), user management UI, invite management UI, registration page, profile/password-change page, admin sidebar section. |
 | 2.3 | April 2026 | Inventory row redesign: new column layout (ID, Gr/Oz, Type, Category, Value), Manufacturer now includes product_name subtitle, Remaining cell opens QuickExpendPopover in-place, expanded row two-column layout with purchase details + expenditure history. |
 | 2.4 | April 2026 | Added ammo_condition field — production origin lookup table (Factory New, Remanufactured, Reloaded / Handload, Military Surplus, Old / Unknown) with YAML seed values, add/edit form dropdown between Type and Category, condition badge in inventory row, Condition filter support, CSV import column. |
+| 2.4.1 | April 2026 | Updated ammo_condition seed values — split Old and Unknown into separate entries. Old = known aged ammunition; Unknown = origin completely unknown. Bumped defaults.yaml to version 1.1. |
 
 ---
 
@@ -742,10 +743,11 @@ ammo_conditions:
   - "Remanufactured"
   - "Reloaded / Handload"
   - "Military Surplus"
-  - "Old / Unknown"
+  - "Old"
+  - "Unknown"
 ```
 
-These represent the production origin of the ammunition. `Factory New` is the most common and should be displayed first. All five values ship in `defaults.yaml` and are synced on startup.
+These represent the production origin of the ammunition. `Factory New` is the most common and should be displayed first. `Old` means aged ammunition of known origin; `Unknown` means origin is completely unknown. All six values ship in `defaults.yaml` and are synced on startup.
 
 ### 8.6 Community Contributions
 
