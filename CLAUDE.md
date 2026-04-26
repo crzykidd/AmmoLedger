@@ -50,8 +50,9 @@
 - Phase 4.2 — Inventory page (table, cards, form panel, delete dialog, RBAC): COMPLETE
 - Phase 4.3 — Expenditure logging (Log Use dialog, toast notifications): COMPLETE
 - Phase 4.4 — Stock thresholds, alerts, caliber summary, settings page: COMPLETE
+- Phase 4.5 — Dashboard (stats, caliber breakdown, low stock, recent activity, getting started): COMPLETE
 - Phase 4 — Frontend basics: IN PROGRESS
-- Phase 5 — Dashboard: NOT STARTED
+- Phase 5 — Dashboard: COMPLETE (shipped as Phase 4.5)
 - Phase 6 — Backup system: NOT STARTED
 - Phase 7 — User management UI: NOT STARTED
 

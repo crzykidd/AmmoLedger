@@ -12,6 +12,9 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **Dashboard** — landing page after login with stats cards (total rounds, total boxes, calibers tracked, low stock count), caliber breakdown with proportion bars, running-low list, and recent-activity feed
+- Getting Started checklist shown on first login (no inventory yet) — guides through adding a box, setting thresholds, and future invite; dismissible with "Don't show again"
+- Dashboard nav link is active for both `/` and `/dashboard`
 - **Stock thresholds** — configurable low-stock alerts stored in localStorage; set a global rounds threshold or per-caliber overrides
 - Amber row tint and amber card border on any ammo box below its caliber's threshold
 - Inline stock progress bar (green / amber / red by fill %) on every inventory row and card

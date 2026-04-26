@@ -77,7 +77,9 @@ export default function Sidebar() {
           const active =
             item.href === '/settings/thresholds'
               ? location.pathname.startsWith('/settings')
-              : location.pathname === item.href
+              : item.href === '/dashboard'
+                ? location.pathname === '/dashboard' || location.pathname === '/'
+                : location.pathname === item.href
           const Icon = item.icon
           return (
             <Link

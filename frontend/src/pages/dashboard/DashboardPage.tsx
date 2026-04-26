@@ -1,12 +1,470 @@
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { AlertTriangle, Check, ChevronRight, Crosshair, Layers, Package } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useThresholds } from '@/hooks/useThresholds'
+import { useInventoryLookups } from '@/hooks/useInventoryLookups'
+import { listAmmo } from '@/api/ammo'
+import { cn } from '@/lib/utils'
+import iconInventory from '@/assets/brand/icon-inventory-dark.png'
+import type { AmmoBoxRead } from '@/types'
+
+// ---------------------------------------------------------------------------
+// Stat card
+// ---------------------------------------------------------------------------
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  accent = false,
+}: {
+  icon: React.ElementType
+  label: string
+  value: string
+  accent?: boolean
+}) {
+  return (
+    <Card className={cn(accent && 'border-amber-400/60 dark:border-amber-500/40')}>
+      <CardContent className="p-4 flex items-center gap-4">
+        <div
+          className={cn(
+            'shrink-0 h-10 w-10 rounded-lg flex items-center justify-center',
+            accent
+              ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
+          )}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <div
+            className={cn(
+              'text-2xl font-bold tabular-nums leading-none',
+              accent
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-gray-900 dark:text-white',
+            )}
+          >
+            {value}
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{label}</div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Getting started panel
+// ---------------------------------------------------------------------------
+
+function GettingStartedCard({
+  hasBoxes,
+  thresholdsCustomized,
+  onDismiss,
+  onNavigate,
+}: {
+  hasBoxes: boolean
+  thresholdsCustomized: boolean
+  onDismiss: () => void
+  onNavigate: (path: string) => void
+}) {
+  const items = [
+    { label: 'Create your account', done: true, available: true, path: null },
+    { label: 'Add your first ammo box', done: hasBoxes, available: true, path: '/inventory' },
+    { label: 'Set stock thresholds', done: thresholdsCustomized, available: true, path: '/settings/thresholds' },
+    { label: 'Invite a family member', done: false, available: false, path: null },
+  ]
+
+  return (
+    <Card className="border-gold/30">
+      <CardHeader className="pb-2">
+        <CardTitle>Getting Started</CardTitle>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Complete these steps to set up AmmoLedger.
+        </p>
+      </CardHeader>
+      <CardContent className="pt-2 space-y-1">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className={cn(
+              'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+              item.available && !item.done && item.path
+                ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
+                : '',
+              !item.available && 'opacity-50',
+            )}
+            onClick={() => {
+              if (item.available && !item.done && item.path) onNavigate(item.path)
+            }}
+          >
+            <div
+              className={cn(
+                'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0',
+                item.done
+                  ? 'border-emerald-500 bg-emerald-500 text-white'
+                  : 'border-gray-300 dark:border-gray-600',
+              )}
+            >
+              {item.done && <Check className="h-3 w-3" />}
+            </div>
+            <span
+              className={cn(
+                'text-sm flex-1',
+                item.done
+                  ? 'line-through text-gray-400'
+                  : 'text-gray-700 dark:text-gray-300',
+              )}
+            >
+              {item.label}
+            </span>
+            {!item.available && (
+              <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                Coming soon
+              </span>
+            )}
+            {item.available && !item.done && item.path && (
+              <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+            )}
+          </div>
+        ))}
+        <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+          <button
+            onClick={onDismiss}
+            className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+          >
+            Don't show again
+          </button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Loading skeleton
+// ---------------------------------------------------------------------------
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-40 rounded-xl" />
+      <Skeleton className="h-56 rounded-xl" />
+      <Skeleton className="h-40 rounded-xl" />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function DashboardPage() {
+  const navigate = useNavigate()
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem('getting_started_dismissed') === 'true',
+  )
+
+  const { thresholds, getLowItems, getCaliberSummary } = useThresholds()
+  const { calibers, isLoading: lookupsLoading } = useInventoryLookups()
+
+  const { data, isLoading: dataLoading } = useQuery({
+    queryKey: ['ammo', 'dashboard'],
+    queryFn: () => listAmmo(),
+  })
+
+  const loading = dataLoading || lookupsLoading
+  const boxes = data?.boxes ?? []
+
+  const caliberMap = useMemo(
+    () => new Map(calibers.map((c) => [c.id, c.name])),
+    [calibers],
+  )
+
+  const calibersTracked = useMemo(
+    () => new Set(boxes.map((b) => b.caliber_id)).size,
+    [boxes],
+  )
+
+  const lowItems = useMemo(
+    () => getLowItems(boxes, calibers),
+    [boxes, calibers, getLowItems],
+  )
+
+  const caliberSummary = useMemo(
+    () =>
+      [...getCaliberSummary(boxes, calibers)].sort(
+        (a, b) => b.total_rounds - a.total_rounds,
+      ),
+    [boxes, calibers, getCaliberSummary],
+  )
+
+  const totalInventoryRounds = caliberSummary.reduce((sum, cs) => sum + cs.total_rounds, 0)
+
+  const recentActivity = useMemo(
+    () =>
+      [...boxes]
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        )
+        .slice(0, 5),
+    [boxes],
+  )
+
+  const thresholdsCustomized =
+    thresholds.default_rounds !== 200 ||
+    Object.keys(thresholds.caliber_overrides).length > 0
+
+  function dismiss() {
+    localStorage.setItem('getting_started_dismissed', 'true')
+    setDismissed(true)
+  }
+
+  function getItemThreshold(box: AmmoBoxRead): number {
+    const name = caliberMap.get(box.caliber_id) ?? ''
+    const override = thresholds.caliber_overrides[name]
+    return override?.rounds ?? thresholds.default_rounds
+  }
+
+  // ---- render ----
+
+  if (loading) {
+    return (
+      <AppShell>
+        <TopBar title="Dashboard" />
+        <div className="flex-1 overflow-auto px-4 sm:px-6 py-6">
+          <DashboardSkeleton />
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (boxes.length === 0) {
+    return (
+      <AppShell>
+        <TopBar title="Dashboard" />
+        <div className="flex-1 overflow-auto px-4 sm:px-6 py-6 space-y-6">
+          {!dismissed && (
+            <div className="max-w-md mx-auto">
+              <GettingStartedCard
+                hasBoxes={false}
+                thresholdsCustomized={thresholdsCustomized}
+                onDismiss={dismiss}
+                onNavigate={navigate}
+              />
+            </div>
+          )}
+          <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+            <img src={iconInventory} alt="No inventory" className="w-24 h-24 opacity-30 dark:opacity-20" />
+            <div>
+              <p className="font-medium text-gray-700 dark:text-gray-300">
+                No ammo inventory yet
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Add your first box to see dashboard stats.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => navigate('/inventory')}>
+              <Package className="h-4 w-4 mr-1.5" />
+              Add Ammo Box
+            </Button>
+          </div>
+        </div>
+      </AppShell>
+    )
+  }
+
   return (
     <AppShell>
       <TopBar title="Dashboard" />
-      <div className="flex-1 p-6 overflow-auto">
-        <p className="text-gray-500 dark:text-gray-400">Coming soon</p>
+      <div className="flex-1 overflow-auto px-4 sm:px-6 py-6 space-y-6">
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            icon={Layers}
+            label="Total Rounds"
+            value={(data?.total_rounds ?? 0).toLocaleString()}
+          />
+          <StatCard
+            icon={Package}
+            label="Total Boxes"
+            value={(data?.total_boxes ?? 0).toString()}
+          />
+          <StatCard
+            icon={Crosshair}
+            label="Calibers Tracked"
+            value={calibersTracked.toString()}
+          />
+          <StatCard
+            icon={AlertTriangle}
+            label="Low Stock Items"
+            value={lowItems.length.toString()}
+            accent={lowItems.length > 0}
+          />
+        </div>
+
+        {/* Running Low */}
+        {lowItems.length > 0 && (
+          <section>
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3">
+              Running Low
+            </h2>
+            <Card>
+              <CardContent className="p-0">
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {lowItems.map((box) => {
+                    const caliberName = caliberMap.get(box.caliber_id) ?? '—'
+                    const threshold = getItemThreshold(box)
+                    return (
+                      <button
+                        key={box.id}
+                        className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
+                        onClick={() => navigate('/inventory')}
+                      >
+                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {caliberName}
+                          </span>
+                          {box.product_name && (
+                            <span className="text-sm text-gray-500 ml-1.5">
+                              {box.product_name}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
+                            {box.qty_remaining.toLocaleString()} rds
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            threshold: {threshold}
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                      </button>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {/* By Caliber */}
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3">
+            By Caliber
+          </h2>
+          <Card>
+            <CardContent className="py-4 px-4 space-y-4">
+              {caliberSummary.map((cs) => {
+                const pct =
+                  totalInventoryRounds > 0
+                    ? (cs.total_rounds / totalInventoryRounds) * 100
+                    : 0
+                return (
+                  <div key={cs.caliber_id}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {cs.is_low && (
+                          <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                        )}
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {cs.caliber_name}
+                        </span>
+                        <span className="text-xs text-gray-400 shrink-0">
+                          {cs.box_count} {cs.box_count === 1 ? 'box' : 'boxes'}
+                        </span>
+                      </div>
+                      <span className="text-sm tabular-nums text-gray-700 dark:text-gray-300 ml-4 shrink-0">
+                        {cs.total_rounds.toLocaleString()} rds
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all',
+                          cs.is_low ? 'bg-amber-400' : 'bg-gold',
+                        )}
+                        style={{ width: `${Math.max(pct, 1)}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Recent Activity */}
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3">
+            Recent Activity
+          </h2>
+          <Card>
+            {recentActivity.length === 0 ? (
+              <CardContent className="py-8 text-center text-sm text-gray-400">
+                No recent activity
+              </CardContent>
+            ) : (
+              <CardContent className="p-0">
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {recentActivity.map((box) => {
+                    const caliberName = caliberMap.get(box.caliber_id) ?? '—'
+                    const diffMs = Math.abs(
+                      new Date(box.updated_at).getTime() -
+                        new Date(box.created_at).getTime(),
+                    )
+                    const action = diffMs < 60_000 ? 'Added' : 'Updated'
+                    return (
+                      <div key={box.id} className="flex items-center gap-3 px-4 py-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {caliberName}
+                          </span>
+                          {box.product_name && (
+                            <span className="text-sm text-gray-500 ml-1.5">
+                              {box.product_name}
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={cn(
+                            'text-xs px-2 py-0.5 rounded-full shrink-0',
+                            action === 'Added'
+                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+                          )}
+                        >
+                          {action}
+                        </span>
+                        <span className="text-xs text-gray-400 shrink-0 w-12 text-right">
+                          {format(parseISO(box.updated_at), 'MMM d')}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        </section>
+
       </div>
     </AppShell>
   )
