@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -12,9 +12,10 @@ import AmmoFormPanel from '@/components/inventory/AmmoFormPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
 import ExpendDialog from '@/components/inventory/ExpendDialog'
 import { useAuth } from '@/contexts/AuthContext'
-import { listAmmo } from '@/api/ammo'
+import { listAmmo, updateAmmo } from '@/api/ammo'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useThresholds } from '@/hooks/useThresholds'
+import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import type { AmmoBoxRead } from '@/types'
 
@@ -77,6 +78,7 @@ function StatsBar({
 
 export default function InventoryPage() {
   const { user } = useAuth()
+  const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
@@ -92,6 +94,18 @@ export default function InventoryPage() {
 
   const lookups = useInventoryLookups()
   const { getLowItems, getCaliberSummary } = useThresholds()
+
+  const archiveMutation = useMutation({
+    mutationFn: (box: AmmoBoxRead) =>
+      updateAmmo(box.id, { is_archived: true, archive_reason: 'manual' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ammo'] })
+      toast({ title: 'Box archived' })
+    },
+    onError: () => {
+      toast({ title: 'Failed to archive box', variant: 'destructive' })
+    },
+  })
 
   const {
     data,
@@ -140,6 +154,10 @@ export default function InventoryPage() {
   function openExpend(box: AmmoBoxRead) {
     setExpendBox(box)
     setExpendOpen(true)
+  }
+
+  function openArchive(box: AmmoBoxRead) {
+    archiveMutation.mutate(box)
   }
 
   return (
@@ -285,11 +303,14 @@ export default function InventoryPage() {
                   user={user!}
                   calibers={lookups.calibers}
                   manufacturers={lookups.manufacturers}
+                  ammoTypes={lookups.ammoTypes}
+                  categories={lookups.categories}
+                  dealers={lookups.dealers}
                   containers={lookups.containers}
                   lowSet={lowSet}
                   onEdit={openEdit}
                   onDelete={openDelete}
-                  onExpend={openExpend}
+                  onArchive={openArchive}
                 />
               </div>
               {/* Mobile cards */}

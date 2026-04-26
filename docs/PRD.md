@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 2.0 — Working Draft  
+**Version:** 2.3 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -27,6 +27,8 @@
 | 1.1 | April 2026 | Added invitation system spec (§4.4, §6.10, §9.5 updates) and password requirements spec (§4.5, §6.11, §9.6 updates) |
 | 2.0 | April 2026 | Major update: notifications multi-channel system, version info and update detection, empty box and archive behavior, expanded search and filter spec, dashboard scope selector and getting started guide, error handling standards, DB indexes, reporting integrity rules and leaf box concept, expenditure log types (expend/split/adjust), split box feature with full and partial modes, restock/add same, add X copies, label printing with QR code and mobile expend flow, release process and CHANGELOG.md format. PRD v2.0 represents a complete and comprehensive specification ready for full frontend and remaining backend development. |
 | 2.1 | April 2026 | Updated backup section to dual format strategy — SQLite file for scheduled backups, JSON export for migrations. Added version detection on startup docs, pre-import backup, and restore playbooks. |
+| 2.2 | April 2026 | Phase 4.6: user management backend (invite system, password policy, password history, must_change_password flag), user management UI, invite management UI, registration page, profile/password-change page, admin sidebar section. |
+| 2.3 | April 2026 | Inventory row redesign: new column layout (ID, Gr/Oz, Type, Category, Value), Manufacturer now includes product_name subtitle, Remaining cell opens QuickExpendPopover in-place, expanded row two-column layout with purchase details + expenditure history. |
 
 ---
 
@@ -805,20 +807,64 @@ Checklist:
 
 #### Inventory List
 
-- Columns: Box ID, Caliber, Brand, Gr/Oz, Type, Qty Remaining, Location, Cost/rd, Owner
-- Sortable columns — click header to sort ascending, click again for descending
-- Color indicator for partially used and nearly-empty boxes
+| Column | Content | Notes |
+|--------|---------|-------|
+| Expand | Chevron toggle | Reveals detail row |
+| ID | Box ID (bold); `legacy_id` below in gray if set | — |
+| Caliber | Caliber name | Sortable |
+| Manufacturer | Manufacturer name; `product_name` below in gray if set | Sortable |
+| Gr/Oz | Bullet weight + unit | — |
+| Type | Ammo type name | — |
+| Category | Category name | — |
+| Remaining | Round count + inline progress bar; click opens QuickExpendPopover | Sortable |
+| Value | `qty_remaining × cost_per_round`; shown only if cost is set | — |
+| Shared | "Shared" badge or "Private" text | — |
+| Actions | Edit (pencil), Delete (trash), Archive (box-x) icons | Role-gated |
+
+- Sortable columns: Caliber, Manufacturer, Remaining
+- Amber row tint when box is below configured threshold
+- Progress bar: green > 50 %, amber 20–50 %, red < 20 %
+- Clicking Remaining opens QuickExpendPopover (`stopPropagation` prevents row expansion)
+- `read_only` users see the count but cannot click to expend
 - Empty boxes hidden by default; toggle above list: **Show empty boxes**
 - Members see: all shared boxes + their own private boxes; Admin sees: all boxes
-- Context menu `⋮` per row: Edit, Expend, Split, Restock, Archive
 
-#### Box Detail
+#### Expanded Row
 
-- All fields displayed and editable (based on role)
-- Expenditure history for that box (with user attribution)
-- Quick-log rounds button
-- **Split from Box #N** link shown if `split_from_id` is set
-- **Split into boxes #N–#M** links shown if this box was split
+Two-column layout inside a `<tr>` below the main row:
+
+- **Left column:** Purchase date, Dealer, Container, Notes (each shown only if set)
+- **Right column:** Expenditure history — date, rounds used, optional notes per entry; "No expenditure history" when empty
+
+Future action buttons at bottom of expanded row: Restock, Split (placeholder until implemented).
+
+### 9.2.1 QuickExpendPopover
+
+Anchored popover attached to the Remaining cell. Opens on click, closes on Cancel or successful submission.
+
+#### Header
+
+"Box #[id] — [caliber] [manufacturer]" in bold  
+"[N] rounds remaining" in muted text below
+
+#### Preset Buttons
+
+- **Shot All** — always shown; sets quantity input to `qty_remaining`
+- **Shot 50 / Shot 25 / Shot 10 / Shot 5** — shown only when `qty_remaining` is strictly greater than that number (avoids duplicating Shot All)
+
+#### Input Fields
+
+- **Rounds used** — numeric input; validated `1 ≤ rounds ≤ qty_remaining`
+- **Notes** — optional free-text
+
+#### Actions
+
+- **Cancel** — closes popover, clears state
+- **Log Usage** — calls `POST /ammo/{id}/expend`; on success: invalidates `['ammo']` query cache, shows toast "Logged N rounds for [caliber]", closes popover; on error: shows inline error message
+
+#### RBAC
+
+Same rules as the existing Log Use button: `read_only` cannot expend; members can log own and shared boxes; admins can log all boxes.
 
 ### 9.2.4 Split Box
 

@@ -51,6 +51,8 @@
 - Phase 4.3 — Expenditure logging (Log Use dialog, toast notifications): COMPLETE
 - Phase 4.4 — Stock thresholds, alerts, caliber summary, settings page: COMPLETE
 - Phase 4.5 — Dashboard (stats, caliber breakdown, low stock, recent activity, getting started): COMPLETE
+- Phase 4.6 — User management (invites, registration, profile, admin user management): COMPLETE
+- PRD v2.3 — inventory row redesign and QuickExpendPopover spec: COMPLETE
 - Phase 4 — Frontend basics: IN PROGRESS
 - Phase 5 — Dashboard: COMPLETE (shipped as Phase 4.5)
 - Phase 6 — Backup system: NOT STARTED

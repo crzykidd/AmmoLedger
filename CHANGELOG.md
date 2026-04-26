@@ -93,6 +93,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 - Expenditure logging now uses `POST /ammo/{box_id}/expend` instead of `PATCH /ammo/{box_id}` — rounds, date, and notes are persisted in the expenditure log
 - Expanded rows in the inventory table now show expenditure history (date, rounds used, notes) fetched from `GET /ammo/{box_id}/history`
+- Inventory table columns redesigned: ID column added (with legacy_id subtitle), Manufacturer column now shows product name as a subtitle, Gr/Oz / Type / Category columns added, Value column (remaining × cost/rd) added
+- Log Use crosshair button removed from Actions column — click the Remaining count directly to open the in-place QuickExpendPopover
+- Expanded row now uses a two-column layout: purchase details (date, dealer, container, cost/rd, notes) on the left and expenditure history on the right
+- Archive button added to inventory row actions for admin/member users
 
 ### Changed
 
