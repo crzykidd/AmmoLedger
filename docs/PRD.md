@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 2.3 — Working Draft  
+**Version:** 2.4 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -29,6 +29,7 @@
 | 2.1 | April 2026 | Updated backup section to dual format strategy — SQLite file for scheduled backups, JSON export for migrations. Added version detection on startup docs, pre-import backup, and restore playbooks. |
 | 2.2 | April 2026 | Phase 4.6: user management backend (invite system, password policy, password history, must_change_password flag), user management UI, invite management UI, registration page, profile/password-change page, admin sidebar section. |
 | 2.3 | April 2026 | Inventory row redesign: new column layout (ID, Gr/Oz, Type, Category, Value), Manufacturer now includes product_name subtitle, Remaining cell opens QuickExpendPopover in-place, expanded row two-column layout with purchase details + expenditure history. |
+| 2.4 | April 2026 | Added ammo_condition field — production origin lookup table (Factory New, Remanufactured, Reloaded / Handload, Military Surplus, Old / Unknown) with YAML seed values, add/edit form dropdown between Type and Category, condition badge in inventory row, Condition filter support, CSV import column. |
 
 ---
 
@@ -87,6 +88,7 @@ AmmoLedger is a self-hosted web application for tracking personal ammunition inv
 | RBAC — Admin / Member / Read-Only | Role-based permission enforcement on all API routes | v1.0 |
 | Shared Ownership Model | is_shared flag on ammo boxes; attributed expenditure logging | v1.0 |
 | Ammo Inventory | Full CRUD for ammo boxes with all tracked fields | v1.0 |
+| Ammo Condition field | Track production origin (Factory New, Remanufactured, Surplus, etc.) | v1.0 |
 | Storage — Containers & Locations | Containers and locations; optional assignment to boxes | v1.0 |
 | Round Expenditure | Quick-log rounds used; deducts from box quantity | v1.0 |
 | Usage History | Timestamped log of all expenditures with user attribution | v1.0 |
@@ -328,6 +330,7 @@ ammo_box
 ├── gr_oz            DECIMAL    Bullet weight
 ├── weight_unit      TEXT       GR | OZ
 ├── type_id          INTEGER    FK → ammo_types (FMJ, JHP, Slug, Birdshot...)
+├── ammo_condition_id INTEGER   FK → ammo_conditions; nullable (Factory New, Remanufactured, etc.)
 ├── category_id      INTEGER    FK → categories (Hunting, Defense, Target...)
 ├── qty_original     INTEGER    Box size — rounds when purchased
 ├── qty_remaining    INTEGER    Current rounds left; decremented on expenditure
@@ -392,6 +395,7 @@ All shared across users. `source` distinguishes YAML-seeded defaults from user-c
 calibers        — id, name, is_active, source (yaml | user)
 manufacturers   — id, name, is_active, source
 ammo_types      — id, name, is_active, source
+ammo_conditions — id, name, is_active, source
 categories      — id, name, is_active, source
 dealers         — id, name, url, is_active, source
 ```
@@ -728,7 +732,22 @@ Name matching is **case-insensitive** — existing entries with different casing
 
 Every lookup record carries a `source` field (`yaml` or `user`). This distinguishes YAML-seeded defaults from user-created entries. The Settings UI uses this to show which entries came from defaults and which were added manually. User entries are never modified or removed by the sync process regardless of config flags.
 
-### 8.5 Community Contributions
+### 8.5 Ammo Condition Seeds
+
+Default values for the `ammo_conditions` lookup table:
+
+```yaml
+ammo_conditions:
+  - "Factory New"
+  - "Remanufactured"
+  - "Reloaded / Handload"
+  - "Military Surplus"
+  - "Old / Unknown"
+```
+
+These represent the production origin of the ammunition. `Factory New` is the most common and should be displayed first. All five values ship in `defaults.yaml` and are synced on startup.
+
+### 8.6 Community Contributions
 
 Any user can submit a pull request to `defaults.yaml` to add calibers, manufacturers, or types. Bump the `version` field with each PR. New defaults are applied to all installations on the next startup after upgrade.
 
@@ -791,8 +810,9 @@ Checklist:
 
 - Form with all fields from Section 6.2
 - `is_shared` toggle — defaults to `false` (private)
-- Caliber, manufacturer, type, category, dealer dropdowns all support inline **Add New**
+- Caliber, manufacturer, type, condition, category, dealer dropdowns all support inline **Add New**
 - **Product Name** — free-text field positioned directly below Manufacturer; not a dropdown (product lines too varied to maintain a list); carries through to the Add X Copies and Restock features
+- **Condition** — optional dropdown between Type and Category; values from `ammo_conditions` lookup (Factory New, Remanufactured, Reloaded / Handload, Military Surplus, Old / Unknown); defaults to blank (no selection required)
 - Cost entered per round; calculated box total shown alongside for reference
 - Container and location are optional — a **None** option is always available
 
@@ -815,6 +835,7 @@ Checklist:
 | Manufacturer | Manufacturer name; `product_name` below in gray if set | Sortable |
 | Gr/Oz | Bullet weight + unit | — |
 | Type | Ammo type name | — |
+| Condition | Condition badge (Factory New, Remanufactured, etc.); hidden when null | — |
 | Category | Category name | — |
 | Remaining | Round count + inline progress bar; click opens QuickExpendPopover | Sortable |
 | Value | `qty_remaining × cost_per_round`; shown only if cost is set | — |
@@ -935,13 +956,13 @@ Single search box at the top of the inventory list. Searches across: caliber, ma
 
 #### Quick Filter Chips
 
-Horizontal scrollable row below the search box: most common calibers as chips, type chips (FMJ, JHP, Slug, etc.), category chips. Active chips highlighted; click to toggle off.
+Horizontal scrollable row below the search box: most common calibers as chips, type chips (FMJ, JHP, Slug, etc.), condition chips (Factory New, Remanufactured, etc.), category chips. Active chips highlighted; click to toggle off.
 
 #### Advanced Filter Panel
 
 Collapsible panel with full options:
 
-- Caliber, Manufacturer, Type, Category, Location, Container, Dealer (all multi-select dropdowns)
+- Caliber, Manufacturer, Type, Condition, Category, Location, Container, Dealer (all multi-select dropdowns)
 - Purchase date range (from / to)
 - Cost per round range (min / max)
 - Qty remaining range (min / max)
@@ -1093,7 +1114,7 @@ The downloadable template includes a version header row and these columns in ord
 
 ```text
 ammoledger_version, caliber, manufacturer, product_name,
-grain, weight_unit, type, category, qty_original,
+grain, weight_unit, type, ammo_condition, category, qty_original,
 qty_remaining, purchase_date, cost_per_round, dealer,
 container, location, notes
 ```
@@ -1107,6 +1128,7 @@ container, location, notes
 | grain | No | integer | Bullet weight; leave blank for shotgun |
 | weight_unit | No | GR \| OZ | Defaults to GR if omitted |
 | type | No | text | FMJ, JHP, Slug, etc.; auto-created if no match |
+| ammo_condition | No | text | Factory New, Remanufactured, etc.; matched to ammo_conditions lookup; auto-created if no match |
 | category | No | text | Hunting, Defense, Target, etc.; auto-created if no match |
 | qty_original | Yes | integer | Box size when purchased |
 | qty_remaining | Yes | integer | Current rounds on hand; capped to `qty_original` if higher |
