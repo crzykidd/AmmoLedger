@@ -189,8 +189,8 @@ export default function InventoryTable({
 
                   {/* ID */}
                   <TableCell>
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">#{box.id}</span>
-                    {box.legacy_id && (
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">{box.id}</span>
+                    {box.legacy_id && box.legacy_id.trim() !== '' && (
                       <div className="text-xs text-gray-400 dark:text-gray-500 leading-tight">{box.legacy_id}</div>
                     )}
                   </TableCell>
