@@ -57,6 +57,11 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Changed
 
+- Expenditure logging now uses `POST /ammo/{box_id}/expend` instead of `PATCH /ammo/{box_id}` — rounds, date, and notes are persisted in the expenditure log
+- Expanded rows in the inventory table now show expenditure history (date, rounds used, notes) fetched from `GET /ammo/{box_id}/history`
+
+### Changed
+
 - README now displays logo and badges at top of page
 - Frontend converted from JavaScript to TypeScript; `tsconfig.json` configured for Vite + strict mode
 - Auth endpoints switched from `username` to `email` — login and setup now accept `{ email, password }` and `{ email, first_name, last_name, password }` respectively; all responses return `email`, `first_name`, `last_name` instead of `username`

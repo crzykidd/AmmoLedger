@@ -66,6 +66,33 @@ export interface CaliberSummary {
 }
 
 // ---------------------------------------------------------------------------
+// Expenditure types — mirrors backend schemas.py
+// ---------------------------------------------------------------------------
+
+export interface ExpendRequest {
+  rounds_used: number
+  date: string            // YYYY-MM-DD
+  notes?: string | null
+}
+
+export interface ExpenditureRead {
+  id: number
+  ammo_box_id: number
+  logged_by: number
+  rounds_used: number
+  date: string            // YYYY-MM-DD
+  log_type: string
+  related_ids: string | null
+  notes: string | null
+  created_at: string      // ISO datetime
+}
+
+export interface ExpendResponse {
+  box: AmmoBoxRead
+  log_entry: ExpenditureRead
+}
+
+// ---------------------------------------------------------------------------
 // Ammo box types — mirrors backend schemas.py
 // ---------------------------------------------------------------------------
 

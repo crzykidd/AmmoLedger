@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { format, parseISO } from 'date-fns'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon } from 'lucide-react'
-import { updateAmmo } from '@/api/ammo'
+import { expendAmmo } from '@/api/ammo'
 import { toast } from '@/hooks/use-toast'
 import {
   Dialog,
@@ -28,7 +28,7 @@ import type { AmmoBoxRead, LookupItem } from '@/types'
 
 const schema = z.object({
   rounds_used: z.number().int().min(1, 'Must be at least 1'),
-  date_used: z.string(),
+  date: z.string(),
   notes: z.string().optional(),
 })
 
@@ -68,9 +68,10 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
     ? [box.product_name, caliberName].filter(Boolean).join(' · ')
     : ''
 
-  const pct = box && box.qty_original > 0
-    ? Math.round((box.qty_remaining / box.qty_original) * 100)
-    : 0
+  const pct =
+    box && box.qty_original > 0
+      ? Math.round((box.qty_remaining / box.qty_original) * 100)
+      : 0
 
   const {
     register,
@@ -84,7 +85,7 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
     resolver: zodResolver(schema),
     defaultValues: {
       rounds_used: 1,
-      date_used: format(new Date(), 'yyyy-MM-dd'),
+      date: format(new Date(), 'yyyy-MM-dd'),
       notes: '',
     },
   })
@@ -93,7 +94,7 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
     if (open) {
       reset({
         rounds_used: 1,
-        date_used: format(new Date(), 'yyyy-MM-dd'),
+        date: format(new Date(), 'yyyy-MM-dd'),
         notes: '',
       })
     }
@@ -102,11 +103,16 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
   const roundsUsed = watch('rounds_used')
 
   const mutation = useMutation({
-    mutationFn: (newQty: number) =>
-      updateAmmo(box!.id, { qty_remaining: newQty }),
-    onSuccess: (_, newQty) => {
+    mutationFn: (values: FormValues) =>
+      expendAmmo(box!.id, {
+        rounds_used: values.rounds_used,
+        date: values.date,
+        notes: values.notes || null,
+      }),
+    onSuccess: (response) => {
       void queryClient.invalidateQueries({ queryKey: ['ammo'] })
-      const used = box!.qty_remaining - newQty
+      void queryClient.invalidateQueries({ queryKey: ['ammo-history', box!.id] })
+      const used = response.log_entry.rounds_used
       toast({ title: `Logged ${used} round${used !== 1 ? 's' : ''} used` })
       onOpenChange(false)
     },
@@ -123,8 +129,7 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
       })
       return
     }
-    const newQty = box.qty_remaining - values.rounds_used
-    mutation.mutate(newQty)
+    mutation.mutate(values)
   }
 
   const newQty = box ? Math.max(0, box.qty_remaining - (roundsUsed || 0)) : 0
@@ -179,7 +184,10 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
                 <p className="text-xs text-gray-400">
                   {box.qty_remaining} round{box.qty_remaining !== 1 ? 's' : ''} remaining
                   {roundsUsed > 0 && roundsUsed <= box.qty_remaining && (
-                    <> → <span className="text-gray-600 dark:text-gray-300">{newQty} after</span></>
+                    <>
+                      {' '}→{' '}
+                      <span className="text-gray-600 dark:text-gray-300">{newQty} after</span>
+                    </>
                   )}
                 </p>
               )
@@ -192,7 +200,7 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
               Date Used
             </label>
             <Controller
-              name="date_used"
+              name="date"
               control={control}
               render={({ field }) => {
                 const date = field.value ? parseISO(field.value) : undefined
@@ -222,7 +230,6 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
                 )
               }}
             />
-            <p className="text-xs text-gray-400">For your records — not stored separately</p>
           </div>
 
           {/* Notes */}

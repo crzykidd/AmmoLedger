@@ -1,5 +1,6 @@
 import { useState, useMemo, Fragment } from 'react'
 import { ChevronDown, ChevronRight, Crosshair, Pencil, Trash2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Table,
   TableBody,
@@ -10,7 +11,57 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { getAmmoHistory } from '@/api/ammo'
 import type { AmmoBoxRead, User, LookupItem, ContainerItem } from '@/types'
+
+// ---------------------------------------------------------------------------
+// Expenditure history — fetched per-row when expanded
+// ---------------------------------------------------------------------------
+
+function HistorySection({ boxId }: { boxId: number }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['ammo-history', boxId],
+    queryFn: () => getAmmoHistory(boxId),
+  })
+
+  if (isLoading) {
+    return <p className="text-xs text-gray-400 italic mt-2">Loading history…</p>
+  }
+  if (isError) {
+    return <p className="text-xs text-red-400 mt-2">Failed to load history</p>
+  }
+  if (!data || data.length === 0) {
+    return <p className="text-xs text-gray-400 italic mt-2">No expenditure history</p>
+  }
+
+  return (
+    <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">
+        History
+      </p>
+      <div className="space-y-1">
+        {data.map((entry) => (
+          <div
+            key={entry.id}
+            className="flex items-baseline gap-3 text-xs text-gray-600 dark:text-gray-400"
+          >
+            <span className="tabular-nums shrink-0 w-20 text-gray-400">{entry.date}</span>
+            <span className="tabular-nums font-medium text-gray-800 dark:text-gray-200 shrink-0">
+              −{entry.rounds_used} rds
+            </span>
+            {entry.notes && (
+              <span className="truncate italic text-gray-400 dark:text-gray-500">
+                {entry.notes}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 
 type SortKey = 'caliber' | 'manufacturer' | 'product_name' | 'qty_remaining'
 type SortDir = 'asc' | 'desc'
@@ -269,6 +320,7 @@ export default function InventoryTable({
                           </div>
                         )}
                       </div>
+                      <HistorySection boxId={box.id} />
                     </TableCell>
                   </TableRow>
                 )}

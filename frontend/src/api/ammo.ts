@@ -1,5 +1,13 @@
 import { api } from './client'
-import type { AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, AmmoListResponse } from '@/types'
+import type {
+  AmmoBoxCreate,
+  AmmoBoxRead,
+  AmmoBoxUpdate,
+  AmmoListResponse,
+  ExpendRequest,
+  ExpendResponse,
+  ExpenditureRead,
+} from '@/types'
 
 export const listAmmo = (params?: { search?: string; show_archived?: boolean }) => {
   const qs = new URLSearchParams()
@@ -17,3 +25,9 @@ export const updateAmmo = (id: number, data: AmmoBoxUpdate) =>
   api.patch<AmmoBoxRead>(`/ammo/${id}`, data)
 
 export const deleteAmmo = (id: number) => api.delete<void>(`/ammo/${id}`)
+
+export const expendAmmo = (boxId: number, data: ExpendRequest) =>
+  api.post<ExpendResponse>(`/ammo/${boxId}/expend`, data)
+
+export const getAmmoHistory = (boxId: number) =>
+  api.get<ExpenditureRead[]>(`/ammo/${boxId}/history`)
