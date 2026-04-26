@@ -69,14 +69,21 @@ const DEFAULT_VALUES: FormValues = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+const NONE = '__none__'
+
 function toNum(s: string | undefined): number | undefined {
-  if (!s || s.trim() === '') return undefined
+  if (!s || s.trim() === '' || s === NONE) return undefined
   const n = parseFloat(s)
   return isNaN(n) ? undefined : n
 }
 
 function toIntStr(n: number | null | undefined): string {
   return n != null ? String(n) : ''
+}
+
+// Returns true when an optional select field has a real selection
+function hasId(s: string | undefined): s is string {
+  return !!s && s !== '' && s !== NONE
 }
 
 // ---------------------------------------------------------------------------
@@ -139,15 +146,17 @@ function SelectField({
         </SelectTrigger>
         <SelectContent>
           {optional && (
-            <SelectItem value="">
+            <SelectItem value="__none__">
               <span className="text-gray-400">None</span>
             </SelectItem>
           )}
-          {items.map((item) => (
-            <SelectItem key={item.id} value={String(item.id)}>
-              {item.name}
-            </SelectItem>
-          ))}
+          {items
+            .filter((item) => item.id != null && item.id !== 0)
+            .map((item) => (
+              <SelectItem key={item.id} value={String(item.id)}>
+                {item.name}
+              </SelectItem>
+            ))}
         </SelectContent>
       </Select>
     </Field>
@@ -256,14 +265,14 @@ export default function AmmoFormPanel({
         is_shared: values.is_shared,
         ...(toNum(values.gr_oz) !== undefined ? { gr_oz: toNum(values.gr_oz) } : {}),
         ...(values.weight_unit ? { weight_unit: values.weight_unit } : {}),
-        ...(values.type_id ? { type_id: parseInt(values.type_id) } : {}),
-        ...(values.category_id ? { category_id: parseInt(values.category_id) } : {}),
+        ...(hasId(values.type_id) ? { type_id: parseInt(values.type_id) } : {}),
+        ...(hasId(values.category_id) ? { category_id: parseInt(values.category_id) } : {}),
         ...(values.purchase_date ? { purchase_date: values.purchase_date } : {}),
         ...(toNum(values.cost_per_round) !== undefined
           ? { cost_per_round: toNum(values.cost_per_round) }
           : {}),
-        ...(values.dealer_id ? { dealer_id: parseInt(values.dealer_id) } : {}),
-        ...(values.container_id ? { container_id: parseInt(values.container_id) } : {}),
+        ...(hasId(values.dealer_id) ? { dealer_id: parseInt(values.dealer_id) } : {}),
+        ...(hasId(values.container_id) ? { container_id: parseInt(values.container_id) } : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       }
       updateMutation.mutate({ id: editBox!.id, data })
@@ -277,14 +286,14 @@ export default function AmmoFormPanel({
         is_shared: values.is_shared,
         ...(toNum(values.gr_oz) !== undefined ? { gr_oz: toNum(values.gr_oz) } : {}),
         ...(values.weight_unit ? { weight_unit: values.weight_unit } : {}),
-        ...(values.type_id ? { type_id: parseInt(values.type_id) } : {}),
-        ...(values.category_id ? { category_id: parseInt(values.category_id) } : {}),
+        ...(hasId(values.type_id) ? { type_id: parseInt(values.type_id) } : {}),
+        ...(hasId(values.category_id) ? { category_id: parseInt(values.category_id) } : {}),
         ...(values.purchase_date ? { purchase_date: values.purchase_date } : {}),
         ...(toNum(values.cost_per_round) !== undefined
           ? { cost_per_round: toNum(values.cost_per_round) }
           : {}),
-        ...(values.dealer_id ? { dealer_id: parseInt(values.dealer_id) } : {}),
-        ...(values.container_id ? { container_id: parseInt(values.container_id) } : {}),
+        ...(hasId(values.dealer_id) ? { dealer_id: parseInt(values.dealer_id) } : {}),
+        ...(hasId(values.container_id) ? { container_id: parseInt(values.container_id) } : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       }
       createMutation.mutate(data)
