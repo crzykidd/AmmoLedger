@@ -1,5 +1,4 @@
 """Integration tests for invitation creation and validation."""
-import pytest
 from fastapi.testclient import TestClient
 
 

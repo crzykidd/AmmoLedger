@@ -11,12 +11,11 @@ from starlette.requests import Request
 from database import get_session
 from models import Invitation, User
 from password_utils import (
-    check_password_history,
     save_password_history,
     validate_password_strength,
 )
 from schemas import InvitationCreate, InviteRead, RegisterRequest
-from utils.rbac import require_auth, require_role
+from utils.rbac import require_role
 from utils.security import hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])

@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Fixed
+
+- Ruff lint errors in backend: removed unused `Optional` import from `password_utils.py`, unused `check_password_history` and `require_auth` imports from `routers/auth.py`, unused `pytest` imports from test files, and added `# noqa: E402` to post-env-setup imports in `tests/conftest.py`
+
 ### Added
 
 - **Phase 4.6 frontend** — Registration page, user management UI, invite management UI, profile/password-change page, admin sidebar section

@@ -1,7 +1,6 @@
 """Password strength validation and history helpers."""
 
 import re
-from typing import Optional
 
 from sqlmodel import Session, select
 

@@ -8,9 +8,9 @@ from sqlmodel.pool import StaticPool
 os.environ.setdefault("SESSION_SECRET", "test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 
-from database import get_session
-from models import User
-from utils.security import hash_password
+from database import get_session  # noqa: E402
+from models import User  # noqa: E402
+from utils.security import hash_password  # noqa: E402
 
 TEST_ENGINE = create_engine(
     "sqlite://",
