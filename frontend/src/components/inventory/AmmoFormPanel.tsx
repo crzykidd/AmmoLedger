@@ -47,6 +47,7 @@ const formSchema = z.object({
   cost_per_round: z.string().optional(),
   dealer_id: z.string().optional(),
   container_id: z.string().optional(),
+  legacy_id: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -67,6 +68,7 @@ const DEFAULT_VALUES: FormValues = {
   cost_per_round: '',
   dealer_id: '',
   container_id: '',
+  legacy_id: '',
   notes: '',
 }
 
@@ -231,6 +233,7 @@ export default function AmmoFormPanel({
         cost_per_round: editBox.cost_per_round != null ? String(editBox.cost_per_round) : '',
         dealer_id: toIntStr(editBox.dealer_id),
         container_id: toIntStr(editBox.container_id),
+        legacy_id: editBox.legacy_id ?? '',
         notes: editBox.notes ?? '',
       })
     } else {
@@ -278,6 +281,7 @@ export default function AmmoFormPanel({
           : {}),
         ...(hasId(values.dealer_id) ? { dealer_id: parseInt(values.dealer_id) } : {}),
         ...(hasId(values.container_id) ? { container_id: parseInt(values.container_id) } : {}),
+        ...(values.legacy_id ? { legacy_id: values.legacy_id } : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       }
       updateMutation.mutate({ id: editBox!.id, data })
@@ -299,6 +303,7 @@ export default function AmmoFormPanel({
           : {}),
         ...(hasId(values.dealer_id) ? { dealer_id: parseInt(values.dealer_id) } : {}),
         ...(hasId(values.container_id) ? { container_id: parseInt(values.container_id) } : {}),
+        ...(values.legacy_id ? { legacy_id: values.legacy_id } : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       }
       createMutation.mutate(data)
@@ -515,6 +520,17 @@ export default function AmmoFormPanel({
               />
             </div>
           )}
+
+          <Field label="Legacy ID" error={errors.legacy_id?.message}>
+            <input
+              {...register('legacy_id')}
+              placeholder="e.g. B23, #637, LOT-2024"
+              className={inputCls}
+            />
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Optional — if this box has an ID from a previous tracking system
+            </p>
+          </Field>
 
           <Field label="Notes" error={errors.notes?.message}>
             <Textarea {...register('notes')} placeholder="Optional notes…" rows={3} />

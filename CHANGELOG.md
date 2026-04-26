@@ -20,6 +20,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Legacy ID field on Add / Edit Ammo Box form — optional field for carrying over an ID from a previous tracking system; displays as a subtitle under the box ID in the inventory table when set
+
 - **Phase 4.6 frontend** — Registration page, user management UI, invite management UI, profile/password-change page, admin sidebar section
 - **Registration page** (`/register?token=…`) — validates invite token on mount, shows role/email hint, includes live password strength checklist, auto-logs in and redirects to dashboard on success
 - **User management** (`/admin/users`) — table with role badge, status badge, last login; per-row role dropdown, deactivate/reactivate toggle, reset-password dialog
