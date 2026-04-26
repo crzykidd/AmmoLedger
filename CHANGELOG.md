@@ -13,6 +13,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 ### Added
 
 - **Inventory page** — full CRUD UI for ammo boxes with responsive table (desktop) and card list (mobile)
+- Purchase date field uses a Calendar popover (shadcn Calendar + Popover) with date-fns formatting ("MMM d, yyyy"); defaults to today when adding a new box
 - Sortable inventory table columns: caliber, manufacturer, product name, qty remaining
 - Expandable rows / cards showing weight, cost per round, purchase date, container, and notes
 - "Add Box" form panel (side drawer) with all fields: caliber, manufacturer, product name, qty, weight, type, category, purchase date, cost/round, container, notes
@@ -47,6 +48,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- React key-prop warning in InventoryTable: replaced shorthand `<>` fragment with `<Fragment key={box.id}>` so the key is on the outermost element returned from map
+- SelectItem empty-string value crash: replaced `value=""` on the optional "None" item with `"__none__"` sentinel to satisfy Radix UI's constraint
 - Removed unused `require_auth` import in `expenditure.py` that caused ruff lint failure in CI
 - Replaced `alembic check` in CI with `alembic heads` + `alembic current` to avoid SQLite/SQLModel TEXT vs AutoString false positives
 - Updated `actions/setup-python` from v5 to v6 in CI workflow

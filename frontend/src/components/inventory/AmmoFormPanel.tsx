@@ -2,7 +2,9 @@ import { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { format, parseISO } from 'date-fns'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { CalendarIcon } from 'lucide-react'
 import { createAmmo, updateAmmo } from '@/api/ammo'
 import {
   Sheet,
@@ -21,6 +23,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 import type { AmmoBoxRead, AmmoBoxCreate, AmmoBoxUpdate, User, LookupItem, ContainerItem } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -229,7 +234,7 @@ export default function AmmoFormPanel({
         notes: editBox.notes ?? '',
       })
     } else {
-      reset(DEFAULT_VALUES)
+      reset({ ...DEFAULT_VALUES, purchase_date: format(new Date(), 'yyyy-MM-dd') })
     }
   }, [open, editBox, reset])
 
@@ -434,7 +439,40 @@ export default function AmmoFormPanel({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Purchase Date" error={errors.purchase_date?.message}>
-              <input {...register('purchase_date')} type="date" className={inputCls} />
+              <Controller
+                name="purchase_date"
+                control={control}
+                render={({ field }) => {
+                  const date =
+                    field.value && field.value !== '' ? parseISO(field.value) : undefined
+                  return (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            inputCls,
+                            'flex items-center justify-start gap-2',
+                            !date && 'text-gray-400 dark:text-gray-500',
+                          )}
+                        >
+                          <CalendarIcon className="h-4 w-4 shrink-0" />
+                          {date ? format(date, 'MMM d, yyyy') : 'Pick a date'}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="p-0 w-auto">
+                        <Calendar
+                          mode="single"
+                          selected={date}
+                          onSelect={(d) =>
+                            field.onChange(d ? format(d, 'yyyy-MM-dd') : '')
+                          }
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )
+                }}
+              />
             </Field>
             <Field label="Cost / Round ($)" error={errors.cost_per_round?.message}>
               <input

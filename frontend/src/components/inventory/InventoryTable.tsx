@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import {
   Table,
@@ -127,9 +127,8 @@ export default function InventoryTable({
             const isExpanded = expanded.has(box.id)
             const editable = canEdit(box, user)
             return (
-              <>
+              <Fragment key={box.id}>
                 <TableRow
-                  key={box.id}
                   className="cursor-pointer"
                   onClick={() => toggleExpand(box.id)}
                 >
@@ -192,7 +191,7 @@ export default function InventoryTable({
                   </TableCell>
                 </TableRow>
                 {isExpanded && (
-                  <TableRow key={`${box.id}-detail`} className="bg-gray-50/50 dark:bg-gray-800/20 hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
+                  <TableRow className="bg-gray-50/50 dark:bg-gray-800/20 hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
                     <TableCell />
                     <TableCell colSpan={7}>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-1 py-1 text-sm">
@@ -232,7 +231,7 @@ export default function InventoryTable({
                     </TableCell>
                   </TableRow>
                 )}
-              </>
+              </Fragment>
             )
           })}
         </TableBody>
