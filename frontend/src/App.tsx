@@ -13,6 +13,7 @@ import ProfilePage from '@/pages/settings/ProfilePage'
 import UserManagementPage from '@/pages/admin/UserManagementPage'
 import InviteManagementPage from '@/pages/admin/InviteManagementPage'
 import BackupPage from '@/pages/admin/BackupPage'
+import LookupsPage from '@/pages/admin/LookupsPage'
 import ImportPage from '@/pages/ImportPage'
 
 const queryClient = new QueryClient()
@@ -120,6 +121,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <BackupPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/lookups"
+        element={
+          <AdminRoute>
+            <LookupsPage />
           </AdminRoute>
         }
       />

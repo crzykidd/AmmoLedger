@@ -25,6 +25,24 @@ class LookupCreate(BaseModel):
     name: str
 
 
+class ManufacturerRead(_OrmBase):
+    id: int
+    name: str
+    url: Optional[str]
+    is_active: bool
+    source: str
+
+
+class ManufacturerCreate(BaseModel):
+    name: str
+    url: Optional[str] = None
+
+
+class ManufacturerUpdate(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
+
+
 class DealerRead(_OrmBase):
     id: int
     name: str

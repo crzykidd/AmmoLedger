@@ -12,6 +12,9 @@ from schemas import (
     LocationRead,
     LookupCreate,
     LookupRead,
+    ManufacturerCreate,
+    ManufacturerRead,
+    ManufacturerUpdate,
 )
 from utils.rbac import require_auth, require_role
 
@@ -46,20 +49,45 @@ def create_caliber(
 # Manufacturers
 # ---------------------------------------------------------------------------
 
-@router.get("/manufacturers", response_model=list[LookupRead])
+@router.get("/manufacturers", response_model=list[ManufacturerRead])
 def list_manufacturers(user=Depends(require_auth), db: Session = Depends(get_session)):
     return db.exec(select(Manufacturer).where(Manufacturer.is_active)).all()
 
 
-@router.post("/manufacturers", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
+@router.post("/manufacturers", response_model=ManufacturerRead, status_code=status.HTTP_201_CREATED)
 def create_manufacturer(
-    payload: LookupCreate,
+    payload: ManufacturerCreate,
     user=Depends(require_role("admin")),
     db: Session = Depends(get_session),
 ):
     if db.exec(select(Manufacturer).where(Manufacturer.name == payload.name)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Manufacturer already exists")
-    m = Manufacturer(name=payload.name)
+    m = Manufacturer(name=payload.name, url=payload.url or None)
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return m
+
+
+@router.patch("/manufacturers/{manufacturer_id}", response_model=ManufacturerRead)
+def update_manufacturer(
+    manufacturer_id: int,
+    payload: ManufacturerUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    m = db.get(Manufacturer, manufacturer_id)
+    if not m:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manufacturer not found")
+    if payload.name is not None:
+        existing = db.exec(
+            select(Manufacturer).where(Manufacturer.name == payload.name).where(Manufacturer.id != manufacturer_id)
+        ).first()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Manufacturer name already exists")
+        m.name = payload.name
+    if payload.url is not None:
+        m.url = payload.url or None
     db.add(m)
     db.commit()
     db.refresh(m)

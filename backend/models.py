@@ -21,6 +21,7 @@ class Manufacturer(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column_kwargs={"unique": True})
+    url: Optional[str] = None
     is_active: bool = Field(default=True)
     source: str = Field(default="user")
 

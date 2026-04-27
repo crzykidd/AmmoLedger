@@ -73,6 +73,14 @@ export interface ContainerItem {
   notes: string | null
 }
 
+export interface ManufacturerItem {
+  id: number
+  name: string
+  url: string | null
+  is_active: boolean
+  source: string
+}
+
 export interface DealerItem {
   id: number
   name: string

@@ -9,6 +9,7 @@ import {
   Users,
   Mail,
   DatabaseBackup,
+  List,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -54,6 +55,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Users', icon: Users, href: '/admin/users' },
       { label: 'Invitations', icon: Mail, href: '/admin/invites' },
       { label: 'Backup', icon: DatabaseBackup, href: '/admin/backup' },
+      { label: 'Lookups', icon: List, href: '/admin/lookups' },
     ],
   },
 ]

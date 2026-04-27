@@ -36,6 +36,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 - **Legacy ID Mode** for CSV import — when all `legacy_id` values in the CSV are unique positive integers with no conflicts, a radio-button option lets you preserve them as AmmoLedger box IDs; the confirm endpoint inserts rows with explicit IDs and resets the autoincrement counter; rows without a legacy ID receive a new sequential ID
 - `legacy_id` column added to the CSV import template
 - ID Assignment section in the validation results screen: shows the Legacy ID Mode radio group when eligible, an amber conflict warning when IDs clash, or an info note when IDs are non-numeric
+- `url` field on manufacturers — optional website link, pre-populated for all known brands via `defaults.yaml`
+- Complete manufacturer list updated to 47 entries with URLs for all known brands; `defaults.yaml` bumped to v1.3
+- Manufacturer URLs shown as clickable external links in the Admin → Lookups page
+- Lookups page (`/admin/lookups`) in the Admin sidebar — shows manufacturers table with inline name/URL editing; admin-only
 
 - **Phase 5 — Backup & Restore system**
 - `POST /backup/trigger` — manual SQLite database backup with download link

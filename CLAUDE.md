@@ -58,6 +58,7 @@
 - Phase 6 — CSV Import + ammo_condition: COMPLETE
 - Phase 6 — Legacy ID mode added: COMPLETE
 - PRD v2.5 — legacy ID mode import spec: COMPLETE
+- Manufacturer url field + complete defaults v1.3: COMPLETE
 - Phase 4 — Frontend basics: IN PROGRESS
 - Phase 5 — Dashboard: COMPLETE (shipped as Phase 4.5)
 - Phase 6 — Backup system: NOT STARTED

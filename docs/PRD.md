@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 2.5 — Working Draft  
+**Version:** 2.6 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -32,6 +32,7 @@
 | 2.4 | April 2026 | Added ammo_condition field — production origin lookup table (Factory New, Remanufactured, Reloaded / Handload, Military Surplus, Old / Unknown) with YAML seed values, add/edit form dropdown between Type and Category, condition badge in inventory row, Condition filter support, CSV import column. |
 | 2.4.1 | April 2026 | Updated ammo_condition seed values — split Old and Unknown into separate entries. Old = known aged ammunition; Unknown = origin completely unknown. Bumped defaults.yaml to version 1.1. |
 | 2.5 | April 2026 | Legacy ID Mode for CSV import — eligibility analysis on validate, use_legacy_ids form field on confirm, explicit primary key insertion for integer legacy_ids, sqlite_sequence reset after import, three-state UI (eligible/conflict/non-integer), legacy_id column added to CSV template. |
+| 2.6 | April 2026 | url field on manufacturers — optional website link stored in DB, pre-populated for known brands via defaults.yaml v1.3. Admin Lookups page at /admin/lookups with inline name/URL editing. PATCH /manufacturers/{id} endpoint. §6.5 updated. |
 
 ---
 
@@ -395,12 +396,14 @@ All shared across users. `source` distinguishes YAML-seeded defaults from user-c
 
 ```
 calibers        — id, name, is_active, source (yaml | user)
-manufacturers   — id, name, is_active, source
+manufacturers   — id, name, url, is_active, source
 ammo_types      — id, name, is_active, source
 ammo_conditions — id, name, is_active, source
 categories      — id, name, is_active, source
 dealers         — id, name, url, is_active, source
 ```
+
+`url` on manufacturers is optional. Pre-populated for known brands via `defaults.yaml`; blank for private-label or unknown brands. Admins can update the URL via the Lookups settings page without affecting the `source` field.
 
 ### 6.6 App Settings
 
