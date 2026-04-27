@@ -2,6 +2,8 @@
 
 ## Quick Start (Docker Compose)
 
+End users only need the `docker-compose.yml` file — no source code required. Images are pulled automatically from GHCR.
+
 ### Prerequisites
 
 - **Windows:** Docker Desktop with WSL2
@@ -9,12 +11,13 @@
 
 ### Steps
 
-**1. Clone the repository**
+**1. Download the compose file**
 
 ```bash
-git clone https://github.com/USERNAME/AmmoLedger
-cd AmmoLedger
+curl -O https://raw.githubusercontent.com/crzykidd/AmmoLedger/main/docker-compose.yml
 ```
+
+Or copy `docker-compose.yml` from the repository root manually.
 
 **2. Start the app**
 
@@ -22,28 +25,34 @@ cd AmmoLedger
 docker compose up -d
 ```
 
+Docker pulls the latest images from GHCR automatically on first run.
+
 **3. First startup**
 
-On first launch, the backend generates `data/config.yaml` from the bundled template and then exits with instructions. You must set a secure session secret before the app will accept connections:
+On first launch, the backend generates `/data/config.yaml` from the bundled template and then exits with instructions. You must set a secure session secret before the app will accept connections:
 
 ```bash
 # Generate a random secret
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Paste the output as the value of `security.session_secret` in `data/config.yaml`, then restart:
+Edit the config inside the running container or copy it out:
 
 ```bash
+docker compose cp backend:/data/config.yaml ./config.yaml
+# Edit config.yaml — set security.session_secret
+docker compose cp ./config.yaml backend:/data/config.yaml
 docker compose restart backend
 ```
 
 **4. Create your admin account**
 
-Visit [http://localhost:5173](http://localhost:5173). On first launch you will be prompted to create the initial admin account — enter a username and password, then click **Create Account**.
+Visit [http://localhost:5173](http://localhost:5173). On first launch you will be prompted to create the initial admin account — enter a name, email, and password, then click **Create Account**.
 
 **5. Configure the app**
 
-Edit `data/config.yaml` to adjust:
+Adjust settings inside `data/config.yaml` (inside the `ammoledger_data` Docker volume):
+
 - `backup.enabled` and `backup.schedule` — nightly backup settings
 - `security.registration` — who can register (`invite_only` recommended)
 - `notifications.discord` — optional Discord webhook for alerts
@@ -56,9 +65,46 @@ docker compose restart backend
 
 ---
 
+## Accessing the App
+
+| Service  | URL                                          |
+|----------|----------------------------------------------|
+| Web UI   | <http://localhost:5173>                      |
+| API docs | <http://localhost:5173/api/docs>             |
+
+For reverse proxy / external access, point your proxy at port **5173**.
+
+---
+
+## Data Persistence
+
+All data is stored in the named Docker volume `ammoledger_data`. This volume persists across container restarts and upgrades.
+
+```bash
+# Inspect volume location
+docker volume inspect ammoledger_data
+```
+
+---
+
+## Upgrading
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Alembic migrations run automatically on startup. No manual database work required.
+
+---
+
 ## Configuration Reference
 
-The full config file with all options and comments is at `backend/config.template.yaml`.
+The full config file with all options and comments is bundled in the backend image at `/app/config.template.yaml`. Extract it with:
+
+```bash
+docker compose run --rm backend cat /app/config.template.yaml
+```
 
 ### Generating a secure session secret
 
@@ -79,7 +125,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 FastAPI auto-generates interactive API docs at:
 
 ```
-http://localhost:8000/docs
+http://localhost:5173/api/docs
 ```
 
 ---
@@ -94,23 +140,24 @@ For access from phones or outside your home network, see [docs/PRD.md §12](PRD.
 
 ---
 
-## Upgrading
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-Alembic migrations run automatically on startup. No manual database work required.
-
----
-
 ## Backup and Restore
-
-See [docs/PRD.md §11](PRD.md#11-database-backup) for full backup specification.
 
 **Manual backup:** Admin panel → Settings → Backup Now
 
-**Scheduled backup:** Configured in `data/config.yaml` under `backup:` — runs nightly at 03:00 by default, retains 30 days.
+**Scheduled backup:** Configured in `config.yaml` under `backup:` — runs nightly at 03:00 by default, retains 30 days.
 
 **Restore:** Admin panel → Settings → Import Backup → upload a `.json` backup file.
+
+---
+
+## Development Setup
+
+Developers who want to build from source should use `docker-compose.dev.yml`:
+
+```bash
+git clone https://github.com/crzykidd/AmmoLedger
+cd AmmoLedger
+docker compose -f docker-compose.dev.yml up -d
+```
+
+This mounts local source directories for live reload.

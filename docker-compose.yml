@@ -1,17 +1,10 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: ../Dockerfile.backend
-    user: "${UID:-1000}:${GID:-1000}"
-    ports:
-      - "127.0.0.1:8000:8000"
+    image: ghcr.io/crzykidd/ammoledger-backend:latest
     volumes:
-      - ./backend:/app          # live reload your Python code
-      - ./data:/data            # persist SQLite database, config, backups, uploads
+      - ammoledger_data:/data
     environment:
       - DATABASE_URL=sqlite:////data/ammoledger.db
-      - SESSION_SECRET=${SESSION_SECRET:-change-me}
       - CONFIG_PATH=/data/config.yaml
       - DEFAULTS_PATH=/data/defaults.yaml
       - BACKUP_PATH=/data/backups
@@ -25,16 +18,14 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: ../Dockerfile.frontend
+    image: ghcr.io/crzykidd/ammoledger-frontend:latest
     ports:
-      - "127.0.0.1:5173:5173"
-    volumes:
-      - ./frontend:/app         # live reload your React code
-      - /app/node_modules       # keep node_modules inside container
-    environment:
-      - VITE_API_URL=http://localhost:8000
+      - "5173:5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  ammoledger_data:
+    driver: local

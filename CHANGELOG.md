@@ -18,6 +18,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 - Confirmation dialog before applying bulk changes shows which fields will be updated and how many boxes are affected
 - Bulk action toolbar (amber bar) appears above the table when boxes are selected — shows count, Clear button, and Edit Selected button
 - Selection automatically cleared when filters, Group By, or search terms change
+- Production `docker-compose.yml` using pre-built GHCR images and a named Docker volume — end users no longer need the full source repository
 - Three-tier stock threshold system — global default (200 rds), per-caliber overrides, and per-location overrides, all stored server-side and shared across users
 - Threshold settings page redesigned with three sections: Global Default, Per-Caliber Thresholds, and Per-Location Thresholds; each table shows current on-hand rounds and OK/Low status
 - Dashboard Running Low section now shows caliber totals and location totals in separate subsections, using server-computed threshold logic
@@ -25,6 +26,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Changed
 
+- Development compose file renamed to `docker-compose.dev.yml`; `docker-compose.yml` is now the production file for end users
 - Add Ammo Box form now defaults new boxes to Shared
 - Dashboard Low Stock Items stat card now counts low calibers plus low locations (not individual boxes)
 - Stock thresholds are now stored in the database (`caliber_thresholds`, `location_thresholds` tables) instead of browser localStorage

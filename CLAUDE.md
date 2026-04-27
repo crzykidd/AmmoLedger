@@ -20,6 +20,8 @@
 - Frontend: React + Tailwind + Vite
 - Database: SQLite
 - Container: Docker Compose
+  - `docker-compose.yml` — production (GHCR images, named volume)
+  - `docker-compose.dev.yml` — development (build from source, volume mounts for live reload)
 
 ## Project Documentation
 
