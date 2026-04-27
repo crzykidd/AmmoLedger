@@ -27,6 +27,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- GitHub Actions image cleanup now correctly prunes SHA-tagged images — `delete-only-untagged-versions: true` only removed truly untagged images (none); changed to `false` with `ignore-versions` pattern protecting `latest`, `dev`, and semver tags; two separate cleanup jobs merged into one that waits for both builds
 - `defaults.yaml` manufacturer and dealer entries without URLs were missing the `url` field entirely; added explicit `url: ""` so the YAML is consistent and parseable without special-casing absent keys
 - Added `40 S&W` to the calibers defaults list; bumped `defaults.yaml` to v1.4
 - Getting started wizard "Invite a family member" item previously showed "Coming soon" and was never completable — invitations are live, item now checks real conditions
