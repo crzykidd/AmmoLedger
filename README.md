@@ -33,38 +33,49 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 | Phase 1 | ✅ Complete | Alembic migrations, full database schema |
 | Phase 2 | ✅ Complete | Auth (login/logout/setup), RBAC, YAML seed data |
 | Phase 3 | ✅ Complete | Ammo CRUD API |
-| Phase 4.1 | ✅ Complete | Frontend shell — router, auth, login/setup pages, AppShell |
-| Phase 4.2 | ✅ Complete | Inventory page — table, cards, form panel, RBAC edit/delete |
-| Phase 4.3 | ✅ Complete | Expenditure logging — Log Use dialog, round deduction, toast notifications |
-| Phase 4.4 | ✅ Complete | Stock thresholds — per-caliber alerts, low-stock banner, caliber summary, settings page |
-| Phase 4.5 | ✅ Complete | Dashboard — stats cards, caliber breakdown, low-stock list, recent activity, getting started flow |
-| Phase 4.6 | ✅ Complete | User management — invite system, registration page, admin UI (users/invites), profile/password-change, 40 backend tests |
-| Phase 4 | 🔲 In Progress | Frontend basics (remaining pages) |
-| Phase 6 | 🔲 Not started | Backup system |
-| Phase 7 | 🔲 Not started | User management UI |
+| Phase 4 | ✅ Complete | Frontend core — login, dashboard, inventory, expenditure, user management, invitations, stock thresholds, profile |
+| Phase 5 | ✅ Complete | Backup & Restore — manual backup, JSON export, scheduled nightly backup, restore, admin UI |
+| Phase 6 | ✅ Complete | CSV Import — two-step validation, fuzzy matching, legacy ID mode, ammo condition field |
+| Phase 7 | ✅ Complete | User management UI (shipped as part of Phase 4) |
+| Phase 8 | 🔄 In Progress | Sidebar + UI polish — full logo, About page, profile drawer, wizard fixes, version display |
+| Phase 9 | 🔲 Not started | Notifications |
+| Phase 10 | 🔲 Not started | Polish + mobile optimization |
 
 ## Features
 
-- First-run setup creates the initial admin account
-- Login/logout with signed session cookies
-- Role-based access control: `admin`, `member`, `read_only`
-- **User management** — admin lists users, changes roles, deactivates accounts, and force-resets passwords via `/admin/users`
-- **Invitation system** — admin generates time-limited, single-use invite links via `/admin/invites`; invited users self-register at `/register?token=…`
-- **Password policy** — 12-char minimum with uppercase, lowercase, digit, and special character; live strength checklist on all password forms; last 5 passwords blocked from reuse
-- **Profile page** (`/settings/profile`) — change your own password with live strength indicator; force-reset banner shown when admin has reset your password
-- Lookup tables (calibers, manufacturers, ammo types, categories, dealers) pre-seeded from `defaults.yaml` on every startup
-- Full database schema: users, ammo boxes, expenditure log, storage locations and containers
-- Schema migrations run automatically on container start (Alembic)
-- Full ammo CRUD API with RBAC enforcement (shared/private ownership model)
-- Expenditure logging with round deduction and full history
-- Lookup table management (calibers, manufacturers, types, categories, dealers, containers, locations)
-- **Dashboard** — stats cards (total rounds, boxes, calibers, low-stock count), caliber proportion bars, running-low list, recent-activity feed, getting-started checklist on first login
-- **Inventory page** — sortable table (desktop) and card list (mobile), expandable rows, real-time search, stats bar
-- **Add / Edit ammo boxes** via side drawer form with all fields and validation
-- **RBAC-enforced actions** — admin edits all boxes, members edit their own, read-only gets view-only
-- **Expenditure logging** — Log Use button on every row and card, records rounds fired and deducts from stock, toast confirmation
-- **Stock thresholds** — configurable low-stock alerts per caliber (localStorage); amber indicators on low rows/cards; dismissible banner; caliber summary panel
-- **Settings → Stock Thresholds** — set default and per-caliber round thresholds with live save
+### Backend (Phases 1–3 complete)
+
+- Full database schema with Alembic migrations
+- Session authentication with bcrypt password hashing
+- RBAC — Admin, Member, and Read-Only roles
+- Shared ownership model (`owner_id` + `is_shared`)
+- Full ammo inventory CRUD API
+- Expenditure logging with user attribution and full history
+- All lookup table routes (calibers, manufacturers, types, categories, dealers, containers, locations, ammo conditions)
+- CSV import with two-step validation, fuzzy matching, and legacy ID mode
+- Backup system — manual SQLite backup, JSON export, scheduled nightly backup, restore and import
+- Config validation on startup with dev/production mode behavior
+- Versioned YAML seed data (v1.3) — 47 manufacturers, 30 dealers, all synced automatically
+- APScheduler for nightly backups
+
+### Frontend (Phases 4–8 complete / in progress)
+
+- Login page with first-run setup wizard
+- Dashboard — stats cards (total rounds, boxes, calibers, low-stock count), caliber proportion bars, running-low list, recent-activity feed
+- Getting started checklist with real condition checks — dismissible, shows completion state
+- Inventory list — sortable table (desktop) and card list (mobile) with expandable rows, real-time search, stats bar
+- Click-to-expend popover — click the remaining count to log rounds fired inline
+- Add/Edit ammo box form — all fields including product name, legacy ID, and ammo condition
+- User management — list users, change roles, deactivate accounts, force-reset passwords
+- Invitation system — generate time-limited invite links, copy to clipboard, revoke pending invites
+- Stock threshold configuration — default and per-caliber round thresholds with live save
+- Profile page with change-password form and force-reset banner
+- Profile slide-out drawer — click username in sidebar to view account info and change password without leaving the page
+- Backup admin UI — manual backup, JSON export, backup history, restore from `.db`, import from JSON
+- CSV import UI — upload, two-step validation, confirm with legacy ID mode support
+- About page — version info, update-available banner, GitHub links, MIT license note
+- Sidebar with full logo (expanded) / circle logo (collapsed), About link, and version display
+- Password strength meter on all password forms with live rule checklist
 - Runs entirely in Docker — no cloud, no subscriptions, your data stays yours
 
 ## Documentation

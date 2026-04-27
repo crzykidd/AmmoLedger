@@ -30,41 +30,29 @@
 ## Build Status
 
 - Phase 1 — Alembic + schema: COMPLETE
-- Pre-Phase 2 — Data directory structure: COMPLETE
-- Pre-Phase 2 — CI/CD and licensing: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
 - Phase 3 — Ammo CRUD API: COMPLETE
-- Schema update — product_name + clean lookup defaults: COMPLETE
-- Schema update — versioned defaults sync, app_settings table: COMPLETE
-- PRD update — CSV import validation spec: COMPLETE
-- PRD update — label printing expanded, product_name on form: COMPLETE
-- Config validation: COMPLETE
-- PRD v1.1 — invitation system and password requirements: COMPLETE
-- PRD v2.0 — comprehensive spec complete: COMPLETE
-- PRD v2.1 — dual backup strategy documented: COMPLETE
-- CHANGELOG.md created: COMPLETE
-- Schema catchup — migrations 0004-0009: COMPLETE
-- Config and version catchup: COMPLETE
-- Infrastructure cleanup pre-Phase 4: COMPLETE
-- Phase 4.1 — Frontend shell (router, auth, AppShell, login/setup pages): COMPLETE
-- Phase 4.2 — Inventory page (table, cards, form panel, delete dialog, RBAC): COMPLETE
-- Phase 4.3 — Expenditure logging (Log Use dialog, toast notifications): COMPLETE
-- Phase 4.4 — Stock thresholds, alerts, caliber summary, settings page: COMPLETE
-- Phase 4.5 — Dashboard (stats, caliber breakdown, low stock, recent activity, getting started): COMPLETE
-- Phase 4.6 — User management (invites, registration, profile, admin user management): COMPLETE
-- PRD v2.3 — inventory row redesign and QuickExpendPopover spec: COMPLETE
-- Phase 5 — Backup & Restore system: COMPLETE
-- PRD v2.4 — ammo_condition field: COMPLETE
-- Phase 6 — CSV Import + ammo_condition: COMPLETE
-- Phase 6 — Legacy ID mode added: COMPLETE
-- PRD v2.5 — legacy ID mode import spec: COMPLETE
-- Manufacturer url field + complete defaults v1.3: COMPLETE
-- Dealer list expanded to 30 entries + Lookups page dealers section: COMPLETE
-- Sidebar logo, About page, profile drawer, wizard fixes: COMPLETE
-- Phase 4 — Frontend basics: IN PROGRESS
-- Phase 5 — Dashboard: COMPLETE (shipped as Phase 4.5)
-- Phase 6 — Backup system: NOT STARTED
-- Phase 7 — User management UI: NOT STARTED
+- Phase 4 — Frontend core: COMPLETE
+  - 4.1 — Login + first run setup
+  - 4.2 — Dashboard
+  - 4.3 — Inventory list with expandable rows
+  - 4.4 — Add/edit ammo box form
+  - 4.5 — Quick expend popover
+  - 4.6 — User management UI
+  - 4.7 — Invitations
+  - 4.8 — Stock thresholds
+  - 4.9 — Profile page
+- Phase 5 — Backup & Restore: COMPLETE
+- Phase 6 — CSV Import: COMPLETE
+- Phase 7 — User management UI: COMPLETE (merged into Phase 4)
+- Phase 8 — Sidebar + UI polish: IN PROGRESS
+  - 8.1 — Full sidebar logo: COMPLETE
+  - 8.2 — About page: COMPLETE
+  - 8.3 — Profile slide-out drawer: COMPLETE
+  - 8.4 — Getting started wizard fixes: COMPLETE
+  - 8.5 — Version display: COMPLETE
+- Phase 9 — Notifications: NOT STARTED
+- Phase 10 — Polish + mobile optimization: NOT STARTED
 
 ## Release Process
 

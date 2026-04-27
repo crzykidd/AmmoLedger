@@ -21,6 +21,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 - "All set" completion state in Getting Started wizard when every item is checked — shows confirmation message with a Dismiss button
 - Getting Started wizard now appears at the top of the dashboard even when inventory is non-empty, until dismissed
 
+### Changed
+
+- README and CLAUDE.md updated to reflect accurate phase completion status — phase table and Features section now describe what is actually built
+
 ### Fixed
 
 - Getting started wizard "Invite a family member" item previously showed "Coming soon" and was never completable — invitations are live, item now checks real conditions
