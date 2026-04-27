@@ -27,6 +27,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- `defaults.yaml` manufacturer and dealer entries without URLs were missing the `url` field entirely; added explicit `url: ""` so the YAML is consistent and parseable without special-casing absent keys
+- Added `40 S&W` to the calibers defaults list; bumped `defaults.yaml` to v1.4
 - Getting started wizard "Invite a family member" item previously showed "Coming soon" and was never completable — invitations are live, item now checks real conditions
 - Expanded `ammo_types` defaults — added FMJ BT, FMJ MC, HP, LRN, RN, RN/FMJ, SWC, SCHP, BTHP, Shot, SLD Rimfire, Tracer, M67; bumped `defaults.yaml` to v1.2 so new types sync automatically on next startup
 - Docker build time reduced significantly — `COPY --chown` sets file ownership at copy time rather than running `chown -R` on `node_modules` after the fact, eliminating a 70+ second recursive chown on 100k+ files
