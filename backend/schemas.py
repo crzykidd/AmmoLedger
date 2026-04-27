@@ -56,6 +56,11 @@ class DealerCreate(BaseModel):
     url: Optional[str] = None
 
 
+class DealerUpdate(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
+
+
 class LocationRead(_OrmBase):
     id: int
     name: str

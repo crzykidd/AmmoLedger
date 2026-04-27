@@ -14,3 +14,8 @@ export const updateManufacturer = (
   id: number,
   payload: { name?: string; url?: string | null },
 ) => api.patch<ManufacturerItem>(`/manufacturers/${id}`, payload)
+
+export const updateDealer = (
+  id: number,
+  payload: { name?: string; url?: string | null },
+) => api.patch<DealerItem>(`/dealers/${id}`, payload)

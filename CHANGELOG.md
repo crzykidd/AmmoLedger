@@ -40,6 +40,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 - Complete manufacturer list updated to 47 entries with URLs for all known brands; `defaults.yaml` bumped to v1.3
 - Manufacturer URLs shown as clickable external links in the Admin → Lookups page
 - Lookups page (`/admin/lookups`) in the Admin sidebar — shows manufacturers table with inline name/URL editing; admin-only
+- Complete dealer/source list expanded to 30 entries — major online retailers (Lucky Gunner, SG Ammo, Ammo.com, Brownells, MidwayUSA, Natchez, PSA, Wideners, etc.) plus non-commercial sources (Gift, Gun Show, Inherited, Found, Reloaded, Local Gun Shop); `PATCH /dealers/{id}` endpoint for admin URL and name editing
+- Dealers section added to Admin → Lookups page with the same inline name/URL editing as manufacturers
 
 - **Phase 5 — Backup & Restore system**
 - `POST /backup/trigger` — manual SQLite database backup with download link

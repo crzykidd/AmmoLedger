@@ -8,6 +8,7 @@ from schemas import (
     ContainerRead,
     DealerCreate,
     DealerRead,
+    DealerUpdate,
     LocationCreate,
     LocationRead,
     LookupCreate,
@@ -184,6 +185,31 @@ def create_dealer(
     if db.exec(select(Dealer).where(Dealer.name == payload.name)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Dealer already exists")
     d = Dealer(name=payload.name, url=payload.url)
+    db.add(d)
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+@router.patch("/dealers/{dealer_id}", response_model=DealerRead)
+def update_dealer(
+    dealer_id: int,
+    payload: DealerUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    d = db.get(Dealer, dealer_id)
+    if not d:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dealer not found")
+    if payload.name is not None:
+        existing = db.exec(
+            select(Dealer).where(Dealer.name == payload.name).where(Dealer.id != dealer_id)
+        ).first()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Dealer name already exists")
+        d.name = payload.name
+    if payload.url is not None:
+        d.url = payload.url or None
     db.add(d)
     db.commit()
     db.refresh(d)
