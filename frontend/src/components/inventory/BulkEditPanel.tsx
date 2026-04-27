@@ -5,7 +5,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from '@/components/ui/sheet'
 import {
   AlertDialog,
@@ -189,14 +188,14 @@ export default function BulkEditPanel({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="w-[400px] sm:w-[480px] overflow-y-auto">
+        <SheetContent className="w-[400px] sm:w-[480px] overflow-y-auto">
           <SheetHeader className="pb-4">
             <SheetTitle>
               Edit {selectedBoxes.length} Selected Box{selectedBoxes.length !== 1 ? 'es' : ''}
             </SheetTitle>
-            <SheetDescription>
+            <p className="text-sm text-muted-foreground">
               Leave a field blank to keep each box's existing value unchanged.
-            </SheetDescription>
+            </p>
           </SheetHeader>
 
           <div className="space-y-4">
