@@ -101,7 +101,15 @@ function UploadState({
       const result = await validateImport(file)
       onValidated(result, file)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Validation failed')
+      console.error('[ImportPage] validate error:', err)
+      let msg = 'Validation failed'
+      if (err instanceof Error) {
+        msg = err.message
+      } else if (err && typeof err === 'object' && 'detail' in err) {
+        const d = (err as { detail: unknown }).detail
+        msg = typeof d === 'string' ? d : JSON.stringify(d)
+      }
+      setError(msg)
     } finally {
       setLoading(false)
     }

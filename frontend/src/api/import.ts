@@ -3,6 +3,7 @@ import type { ImportConfirmResult, ImportValidationResult } from '@/types'
 const BASE = '/api'
 
 async function postFormData<T>(path: string, formData: FormData): Promise<T> {
+  // Do NOT set Content-Type manually — the browser must set it with the multipart boundary.
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     credentials: 'include',
@@ -12,8 +13,16 @@ async function postFormData<T>(path: string, formData: FormData): Promise<T> {
     let detail = `HTTP ${res.status}`
     try {
       const json = await res.json()
-      detail = json.detail ?? detail
-    } catch { /* keep default */ }
+      const raw = json.detail
+      if (typeof raw === 'string') {
+        detail = raw
+      } else if (Array.isArray(raw)) {
+        // FastAPI validation error format: [{loc, msg, type}, ...]
+        detail = raw.map((e: { msg?: string }) => e.msg ?? JSON.stringify(e)).join('; ')
+      } else if (raw != null) {
+        detail = JSON.stringify(raw)
+      }
+    } catch { /* keep HTTP status as fallback */ }
     throw new Error(detail)
   }
   return res.json()
