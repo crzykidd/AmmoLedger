@@ -10,7 +10,10 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useThresholds } from '@/hooks/useThresholds'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
+import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo } from '@/api/ammo'
+import { getInvites } from '@/api/invites'
+import { getUsers } from '@/api/users'
 import { cn } from '@/lib/utils'
 import iconInventory from '@/assets/brand/icon-inventory-dark.png'
 import type { AmmoBoxRead } from '@/types'
@@ -68,20 +71,28 @@ function StatCard({
 function GettingStartedCard({
   hasBoxes,
   thresholdsCustomized,
+  hasInvitedUsers,
+  isAdmin,
   onDismiss,
   onNavigate,
 }: {
   hasBoxes: boolean
   thresholdsCustomized: boolean
+  hasInvitedUsers: boolean
+  isAdmin: boolean
   onDismiss: () => void
   onNavigate: (path: string) => void
 }) {
   const items = [
-    { label: 'Create your account', done: true, available: true, path: null },
-    { label: 'Add your first ammo box', done: hasBoxes, available: true, path: '/inventory' },
-    { label: 'Set stock thresholds', done: thresholdsCustomized, available: true, path: '/settings/thresholds' },
-    { label: 'Invite a family member', done: false, available: false, path: null },
+    { label: 'Create your account', done: true, path: null },
+    { label: 'Add your first ammo box', done: hasBoxes, path: '/inventory' },
+    { label: 'Set stock thresholds', done: thresholdsCustomized, path: '/settings/thresholds' },
+    ...(isAdmin
+      ? [{ label: 'Invite a family member', done: hasInvitedUsers, path: '/admin/invites' }]
+      : []),
   ]
+
+  const allDone = items.every((i) => i.done)
 
   return (
     <Card className="border-gold/30">
@@ -92,56 +103,59 @@ function GettingStartedCard({
         </p>
       </CardHeader>
       <CardContent className="pt-2 space-y-1">
-        {items.map((item) => (
-          <div
-            key={item.label}
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
-              item.available && !item.done && item.path
-                ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
-                : '',
-              !item.available && 'opacity-50',
-            )}
-            onClick={() => {
-              if (item.available && !item.done && item.path) onNavigate(item.path)
-            }}
-          >
-            <div
-              className={cn(
-                'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0',
-                item.done
-                  ? 'border-emerald-500 bg-emerald-500 text-white'
-                  : 'border-gray-300 dark:border-gray-600',
-              )}
-            >
-              {item.done && <Check className="h-3 w-3" />}
-            </div>
-            <span
-              className={cn(
-                'text-sm flex-1',
-                item.done
-                  ? 'line-through text-gray-400'
-                  : 'text-gray-700 dark:text-gray-300',
-              )}
-            >
-              {item.label}
+        {allDone ? (
+          <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400">
+            <Check className="h-5 w-5 shrink-0" />
+            <span className="text-sm font-medium">
+              You're all set! AmmoLedger is ready.
             </span>
-            {!item.available && (
-              <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-                Coming soon
-              </span>
-            )}
-            {item.available && !item.done && item.path && (
-              <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
-            )}
           </div>
-        ))}
+        ) : (
+          items.map((item) => (
+            <div
+              key={item.label}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+                !item.done && item.path
+                  ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
+                  : '',
+              )}
+              onClick={() => {
+                if (!item.done && item.path) onNavigate(item.path)
+              }}
+            >
+              <div
+                className={cn(
+                  'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0',
+                  item.done
+                    ? 'border-emerald-500 bg-emerald-500 text-white'
+                    : 'border-gray-300 dark:border-gray-600',
+                )}
+              >
+                {item.done && <Check className="h-3 w-3" />}
+              </div>
+              <span
+                className={cn(
+                  'text-sm flex-1',
+                  item.done
+                    ? 'line-through text-gray-400'
+                    : 'text-gray-700 dark:text-gray-300',
+                )}
+              >
+                {item.label}
+              </span>
+              {!item.done && item.path && (
+                <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+              )}
+            </div>
+          ))
+        )}
         <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
           <button
             onClick={onDismiss}
             className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
           >
-            Don't show again
+            {allDone ? 'Dismiss' : "Don't show again"}
           </button>
         </div>
       </CardContent>
@@ -174,6 +188,9 @@ function DashboardSkeleton() {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem('getting_started_dismissed') === 'true',
   )
@@ -184,6 +201,19 @@ export default function DashboardPage() {
   const { data, isLoading: dataLoading } = useQuery({
     queryKey: ['ammo', 'dashboard'],
     queryFn: () => listAmmo(),
+  })
+
+  // Admin-only queries for getting-started wizard
+  const { data: invites } = useQuery({
+    queryKey: ['invites'],
+    queryFn: getInvites,
+    enabled: isAdmin && !dismissed,
+  })
+
+  const { data: allUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: getUsers,
+    enabled: isAdmin && !dismissed,
   })
 
   const loading = dataLoading || lookupsLoading
@@ -229,6 +259,10 @@ export default function DashboardPage() {
     thresholds.default_rounds !== 200 ||
     Object.keys(thresholds.caliber_overrides).length > 0
 
+  const hasInvitedUsers =
+    (allUsers?.length ?? 0) > 1 ||
+    (invites?.some((i) => i.used_at !== null) ?? false)
+
   function dismiss() {
     localStorage.setItem('getting_started_dismissed', 'true')
     setDismissed(true)
@@ -263,6 +297,8 @@ export default function DashboardPage() {
               <GettingStartedCard
                 hasBoxes={false}
                 thresholdsCustomized={thresholdsCustomized}
+                hasInvitedUsers={hasInvitedUsers}
+                isAdmin={isAdmin}
                 onDismiss={dismiss}
                 onNavigate={navigate}
               />
@@ -292,6 +328,18 @@ export default function DashboardPage() {
     <AppShell>
       <TopBar title="Dashboard" />
       <div className="flex-1 overflow-auto px-4 sm:px-6 py-6 space-y-6">
+
+        {/* Getting started wizard */}
+        {!dismissed && (
+          <GettingStartedCard
+            hasBoxes={(data?.total_boxes ?? 0) > 0}
+            thresholdsCustomized={thresholdsCustomized}
+            hasInvitedUsers={hasInvitedUsers}
+            isAdmin={isAdmin}
+            onDismiss={dismiss}
+            onNavigate={navigate}
+          />
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

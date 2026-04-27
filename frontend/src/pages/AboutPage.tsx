@@ -1,0 +1,118 @@
+import { useQuery } from '@tanstack/react-query'
+import { ArrowUpCircle, ExternalLink } from 'lucide-react'
+import AppShell from '@/components/layout/AppShell'
+import TopBar from '@/components/layout/TopBar'
+import logoFull from '@/assets/brand/logo-full-dark.png'
+import { getSystemVersion } from '@/api/system'
+
+const GH_BASE = 'https://github.com/crzykidd/AmmoLedger'
+
+const LINKS = [
+  { label: 'GitHub Repository', href: GH_BASE },
+  { label: 'Report an Issue', href: `${GH_BASE}/issues` },
+  { label: 'Changelog', href: `${GH_BASE}/blob/main/CHANGELOG.md` },
+  { label: 'Documentation', href: `${GH_BASE}/blob/main/docs/PRD.md` },
+]
+
+function versionDisplay(version: string, buildSha: string | null): string {
+  if (version.includes('dev')) return version
+  return `v${version}`
+}
+
+export default function AboutPage() {
+  const { data: versionData } = useQuery({
+    queryKey: ['system-version'],
+    queryFn: getSystemVersion,
+    retry: false,
+  })
+
+  const isDev =
+    !!versionData?.build_sha || (versionData?.version ?? '').includes('dev')
+
+  const displayVersion = versionData
+    ? versionDisplay(versionData.version, versionData.build_sha)
+    : '…'
+
+  const shortSha = versionData?.build_sha?.slice(0, 7) ?? null
+
+  return (
+    <AppShell>
+      <TopBar title="About" />
+      <div className="flex-1 overflow-y-auto px-4 py-8 flex justify-center">
+        <div className="w-full max-w-md space-y-6">
+
+          {/* Logo + name + tagline */}
+          <div className="text-center">
+            <img
+              src={logoFull}
+              alt="AmmoLedger"
+              className="w-[200px] mx-auto mb-5"
+            />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              AmmoLedger
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1.5 text-sm">
+              Track Inventory. Log Usage. Stay Prepared.
+            </p>
+          </div>
+
+          {/* Version card */}
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500 dark:text-gray-400">Version</span>
+              <span className="text-sm font-mono font-semibold text-gray-900 dark:text-white">
+                {displayVersion}
+                {isDev && shortSha && (
+                  <span className="ml-2 text-xs font-normal text-gray-400">
+                    · {shortSha}
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {versionData?.update_available && versionData.latest_version && (
+              <div className="flex items-center gap-2.5 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg px-3 py-2.5">
+                <ArrowUpCircle className="h-4 w-4 shrink-0" />
+                <span className="flex-1">
+                  v{versionData.latest_version} available
+                </span>
+                <a
+                  href={`${GH_BASE}/releases`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs underline hover:no-underline shrink-0"
+                >
+                  View on GitHub
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Links */}
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+            {LINKS.map(({ label, href }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
+              >
+                <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                  {label}
+                </span>
+                <ExternalLink className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+              </a>
+            ))}
+          </div>
+
+          {/* License */}
+          <p className="text-center text-xs text-gray-400 dark:text-gray-600 pb-4">
+            Released under the MIT License
+          </p>
+
+        </div>
+      </div>
+    </AppShell>
+  )
+}

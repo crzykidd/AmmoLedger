@@ -102,6 +102,7 @@ def system_version(user=Depends(require_auth), db=Depends(get_session)):
         "version": __version__,
         "latest_version": latest,
         "update_available": update_available,
+        "build_sha": os.environ.get("GIT_SHA") or None,
     }
 
 

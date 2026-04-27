@@ -47,6 +47,8 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     must_change_password: bool = False
+    created_at: datetime
+    last_login_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +64,8 @@ def _user_response(user: User) -> UserResponse:
         role=user.role,
         is_active=user.is_active,
         must_change_password=getattr(user, "must_change_password", False),
+        created_at=user.created_at,
+        last_login_at=user.last_login_at,
     )
 
 

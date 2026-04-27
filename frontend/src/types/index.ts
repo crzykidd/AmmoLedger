@@ -8,6 +8,8 @@ export interface User {
   role: Role
   is_active: boolean
   must_change_password?: boolean
+  created_at?: string
+  last_login_at?: string | null
 }
 
 export interface UserRead {

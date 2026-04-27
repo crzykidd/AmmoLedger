@@ -10,8 +10,20 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Added
+
+- Full logo image displayed in expanded sidebar (`logo-full-dark.png`, max 120 px tall, centered with padding); collapsed sidebar shows 40×40 circle logo
+- About page (`/about`) — app name, tagline, current version, update-available banner, GitHub / Issue / Changelog / Documentation links, MIT license note
+- About link in sidebar below the Collapse button, above the username section
+- Version string displayed below Sign out button in expanded sidebar — shows `v{version}` for releases; `dev · {sha}` with a GitHub commit link for dev builds (when `GIT_SHA` env var is set)
+- User profile slide-out drawer — click username in sidebar to view account info (email, member-since date, last login) and change password without leaving the current page
+- Getting Started wizard now checks real conditions: "Add your first ammo box" checks actual inventory count; "Invite a family member" checks for used invites or more than one user account; admin-only item is hidden from non-admin users
+- "All set" completion state in Getting Started wizard when every item is checked — shows confirmation message with a Dismiss button
+- Getting Started wizard now appears at the top of the dashboard even when inventory is non-empty, until dismissed
+
 ### Fixed
 
+- Getting started wizard "Invite a family member" item previously showed "Coming soon" and was never completable — invitations are live, item now checks real conditions
 - Expanded `ammo_types` defaults — added FMJ BT, FMJ MC, HP, LRN, RN, RN/FMJ, SWC, SCHP, BTHP, Shot, SLD Rimfire, Tracer, M67; bumped `defaults.yaml` to v1.2 so new types sync automatically on next startup
 - Docker build time reduced significantly — `COPY --chown` sets file ownership at copy time rather than running `chown -R` on `node_modules` after the fact, eliminating a 70+ second recursive chown on 100k+ files
 - Missing `HTTPException` import in `main.py` caused a `NameError` at runtime when backup config endpoints returned errors
