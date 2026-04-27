@@ -6,16 +6,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-COPY requirements.txt .
+# Create user before any files exist so all subsequent COPYs land with correct ownership
+RUN adduser --disabled-password --gecos "" appuser \
+    && mkdir -p /data && chown appuser:appuser /data
+
+# Install dependencies as appuser — files are owned correctly from the start
+COPY --chown=appuser:appuser requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app code
-COPY . .
-
-# Create unprivileged user then set ownership
-RUN adduser --disabled-password --gecos "" appuser
-RUN mkdir -p /data && chown -R appuser:appuser /app /data
+COPY --chown=appuser:appuser . .
 
 ARG VERSION=dev
 ENV APP_VERSION=$VERSION

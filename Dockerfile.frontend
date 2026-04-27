@@ -6,16 +6,15 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-COPY package*.json ./
+# Create user before any files exist so all subsequent COPYs land with correct ownership
+RUN adduser --disabled-password --gecos "" appuser
+
+# Install dependencies as appuser — files are owned correctly from the start
+COPY --chown=appuser:appuser package*.json ./
 RUN npm install
 
-# Copy app code
-COPY . .
-
-# Create unprivileged user
-RUN adduser --disabled-password --gecos "" appuser \
-    && chown -R appuser /app
+# Copy remaining source files
+COPY --chown=appuser:appuser . .
 
 USER appuser
 

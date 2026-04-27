@@ -12,6 +12,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- Docker build time reduced significantly — `COPY --chown` sets file ownership at copy time rather than running `chown -R` on `node_modules` after the fact, eliminating a 70+ second recursive chown on 100k+ files
 - Missing `HTTPException` import in `main.py` caused a `NameError` at runtime when backup config endpoints returned errors
 - Removed `#` prefix from inventory ID column — box ID now displays as a plain number
 - Legacy ID now shown as a small gray subtitle under the box ID when set; hidden entirely when not set
