@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 2.4 — Working Draft  
+**Version:** 2.5 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -31,6 +31,7 @@
 | 2.3 | April 2026 | Inventory row redesign: new column layout (ID, Gr/Oz, Type, Category, Value), Manufacturer now includes product_name subtitle, Remaining cell opens QuickExpendPopover in-place, expanded row two-column layout with purchase details + expenditure history. |
 | 2.4 | April 2026 | Added ammo_condition field — production origin lookup table (Factory New, Remanufactured, Reloaded / Handload, Military Surplus, Old / Unknown) with YAML seed values, add/edit form dropdown between Type and Category, condition badge in inventory row, Condition filter support, CSV import column. |
 | 2.4.1 | April 2026 | Updated ammo_condition seed values — split Old and Unknown into separate entries. Old = known aged ammunition; Unknown = origin completely unknown. Bumped defaults.yaml to version 1.1. |
+| 2.5 | April 2026 | Legacy ID Mode for CSV import — eligibility analysis on validate, use_legacy_ids form field on confirm, explicit primary key insertion for integer legacy_ids, sqlite_sequence reset after import, three-state UI (eligible/conflict/non-integer), legacy_id column added to CSV template. |
 
 ---
 
@@ -1083,6 +1084,43 @@ Before any data is written the system automatically triggers a backup:
 - Fuzzy-matched values use the existing DB entry, not the raw imported string
 - Returns import summary: `X rows imported, Y duplicates skipped, Z warnings`
 
+#### Legacy ID Mode
+
+When the CSV was exported from another system that used numeric IDs, AmmoLedger can optionally preserve those IDs as the new box IDs rather than auto-assigning new ones.
+
+##### Eligibility
+
+The validate endpoint returns a `legacy_id_mode` block:
+
+| Field | Type | Meaning |
+| ----- | ---- | ------- |
+| `all_integers` | bool | Every non-blank `legacy_id` value is a positive integer |
+| `conflict_count` | int | Number of legacy IDs that already exist as box IDs in the DB |
+| `conflicting_ids` | int[] | Up to 10 conflicting IDs (preview) |
+| `has_more_conflicts` | bool | More than 10 conflicts exist |
+| `blank_count` | int | Rows with no `legacy_id` value |
+| `eligible` | bool | `all_integers=true` AND `conflict_count=0` |
+
+Legacy ID mode is only offered when `eligible=true`.
+
+##### UI behaviour
+
+- **State A — eligible:** Radio button group: "Use Legacy IDs as box IDs" / "Assign new sequential IDs" (default). If `blank_count > 0`, a note explains those rows will receive a new sequential ID.
+- **State B — conflicts:** Amber warning box listing the conflicting IDs. Sequential IDs will be assigned; legacy IDs stored in the Legacy ID field.
+- **State C — non-numeric:** Info box noting non-integer IDs are present. Sequential IDs will be assigned.
+
+##### Confirm endpoint behaviour
+
+When `use_legacy_ids=true`:
+
+1. Re-runs eligibility check against live DB state (guard against race conditions)
+2. Each eligible row is inserted with `id = int(legacy_id)` explicitly set
+3. Rows with blank `legacy_id` receive a new auto-increment ID
+4. After commit, `sqlite_sequence` is reset to `MAX(id)` so future inserts continue from the correct position
+5. Response includes `legacy_id_mode_used: true` and `autoincrement_reset_to: N`
+
+When `use_legacy_ids=false` (or omitted), behaviour is unchanged — all rows receive new auto-increment IDs and `legacy_id` is stored in the `legacy_id` field.
+
 #### Backup Requirement Config
 
 Three flags in `config.yaml` control import backup behaviour:
@@ -1118,7 +1156,7 @@ The downloadable template includes a version header row and these columns in ord
 ammoledger_version, caliber, manufacturer, product_name,
 grain, weight_unit, type, ammo_condition, category, qty_original,
 qty_remaining, purchase_date, cost_per_round, dealer,
-container, location, notes
+container, location, legacy_id, notes
 ```
 
 | Column | Required | Format | Notes |
@@ -1139,6 +1177,7 @@ container, location, notes
 | dealer | No | text | Matched to dealers lookup; auto-created if no match |
 | container | No | text | Must match an existing container name |
 | location | No | text | Must match an existing location name |
+| legacy_id | No | integer or text | ID from a previous tracking system; used as AmmoLedger box ID when Legacy ID Mode is eligible |
 | notes | No | text | Free text |
 
 ### 9.9 Notifications

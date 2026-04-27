@@ -25,10 +25,15 @@ export const validateImport = (file: File): Promise<ImportValidationResult> => {
   return postFormData('/import/validate', fd)
 }
 
-export const confirmImport = (file: File, validationToken: string): Promise<ImportConfirmResult> => {
+export const confirmImport = (
+  file: File,
+  validationToken: string,
+  useLegacyIds: boolean,
+): Promise<ImportConfirmResult> => {
   const fd = new FormData()
   fd.append('file', file)
   fd.append('validation_token', validationToken)
+  fd.append('use_legacy_ids', String(useLegacyIds))
   return postFormData('/import/confirm', fd)
 }
 

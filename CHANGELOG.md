@@ -33,6 +33,9 @@ Versioning: [Semantic Versioning](https://semver.org)
 - `GET /import/template` — downloads a CSV template with header row and two example rows showing correct format for every column
 - Import page (`/import`) — three-state flow: upload CSV → view validation results → confirm and view import summary; includes countdown timer for token expiry, expandable new-value lists, separate error and warning tables, and fuzzy-match warnings
 - Import link in the sidebar navigation between Inventory and Settings
+- **Legacy ID Mode** for CSV import — when all `legacy_id` values in the CSV are unique positive integers with no conflicts, a radio-button option lets you preserve them as AmmoLedger box IDs; the confirm endpoint inserts rows with explicit IDs and resets the autoincrement counter; rows without a legacy ID receive a new sequential ID
+- `legacy_id` column added to the CSV import template
+- ID Assignment section in the validation results screen: shows the Legacy ID Mode radio group when eligible, an amber conflict warning when IDs clash, or an info note when IDs are non-numeric
 
 - **Phase 5 — Backup & Restore system**
 - `POST /backup/trigger` — manual SQLite database backup with download link

@@ -210,6 +210,15 @@ export interface AmmoBoxUpdate {
 // Import types
 // ---------------------------------------------------------------------------
 
+export interface LegacyIdMode {
+  all_integers: boolean
+  conflict_count: number
+  conflicting_ids: number[]
+  has_more_conflicts: boolean
+  blank_count: number
+  eligible: boolean
+}
+
 export interface ImportValidationResult {
   valid: boolean
   total_rows: number
@@ -219,6 +228,7 @@ export interface ImportValidationResult {
   new_values: Record<string, string[]>
   errors: { row: number; field: string; message: string }[]
   warnings: { row: number | null; field: string; message: string }[]
+  legacy_id_mode: LegacyIdMode
   validation_token: string
   token_expires_at: string
 }
@@ -229,5 +239,7 @@ export interface ImportConfirmResult {
   skipped: number
   new_lookup_values_created: number
   pre_import_backup: string
+  legacy_id_mode_used: boolean
+  autoincrement_reset_to?: number
   warnings: { row: number | null; field: string; message: string }[]
 }

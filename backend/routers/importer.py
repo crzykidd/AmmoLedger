@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date as date_type
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlmodel import Session, select
 
 from database import engine, get_session
@@ -320,6 +320,52 @@ def _resolve_container(db: Session, name: str, location_id: int | None = None) -
 
 
 # ---------------------------------------------------------------------------
+# Legacy ID analysis
+# ---------------------------------------------------------------------------
+
+def _analyze_legacy_ids(rows: list[dict[str, str]], db: Session) -> dict:
+    """
+    Inspect legacy_id values across all rows and determine eligibility
+    for legacy ID mode (using legacy_id as the actual ammo_box.id).
+    """
+    blank_count = 0
+    non_integer_found = False
+    candidate_ids: list[int] = []
+
+    for row in rows:
+        val = _get(row, "legacy_id")
+        if not val:
+            blank_count += 1
+            continue
+        parsed = _parse_int(val)
+        if parsed is None or parsed <= 0:
+            non_integer_found = True
+        else:
+            candidate_ids.append(parsed)
+
+    all_integers = not non_integer_found
+
+    # Check for conflicts with existing ammo_box IDs
+    conflicting_ids: list[int] = []
+    if candidate_ids:
+        existing_ids = {row.id for row in db.exec(select(AmmoBox.id)).all()}  # type: ignore[arg-type]
+        conflicting_ids = sorted(i for i in candidate_ids if i in existing_ids)
+
+    conflict_count = len(conflicting_ids)
+    has_more_conflicts = conflict_count > 10
+    eligible = all_integers and conflict_count == 0
+
+    return {
+        "all_integers": all_integers,
+        "conflict_count": conflict_count,
+        "conflicting_ids": conflicting_ids[:10],
+        "has_more_conflicts": has_more_conflicts,
+        "blank_count": blank_count,
+        "eligible": eligible,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
@@ -353,6 +399,7 @@ async def validate_import(
     new_values, fuzzy_warnings = _check_new_values(db, lookup_values)
     all_warnings.extend(fuzzy_warnings)
 
+    legacy_id_mode = _analyze_legacy_ids(rows, db)
     token, expires_at = _generate_token(db, importable)
 
     return {
@@ -364,6 +411,7 @@ async def validate_import(
         "new_values": new_values,
         "errors": all_errors,
         "warnings": all_warnings,
+        "legacy_id_mode": legacy_id_mode,
         "validation_token": token,
         "token_expires_at": expires_at.isoformat(),
     }
@@ -373,6 +421,7 @@ async def validate_import(
 async def confirm_import(
     file: UploadFile = File(...),
     validation_token: str = Form(...),
+    use_legacy_ids: bool = Form(False),
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
@@ -380,6 +429,15 @@ async def confirm_import(
 
     content = await file.read()
     rows, _headers = _parse_csv(content)
+
+    # Guard: if caller requested legacy ID mode, verify eligibility against fresh data
+    if use_legacy_ids:
+        analysis = _analyze_legacy_ids(rows, db)
+        if not analysis["eligible"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Legacy ID mode not available — conflicts exist or IDs are not all integers",
+            )
 
     # Pre-import backup — block if it fails
     try:
@@ -393,6 +451,7 @@ async def confirm_import(
     skipped = 0
     lookup_values_created = 0
     warnings: list[dict] = []
+    autoincrement_reset_to: int | None = None
 
     with Session(engine) as import_db:
         for i, row in enumerate(rows, start=2):
@@ -450,13 +509,21 @@ async def confirm_import(
             is_archived_raw = _get(row, "is_archived").lower()
             is_archived = is_archived_raw == "true"
 
-            # Manufacturer is required in model but CSV may omit it — use a placeholder
+            # Manufacturer is required in model but CSV may omit it — guard
             if manufacturer_id is None:
-                # Shouldn't happen given caliber is required, but guard
                 skipped += 1
                 continue
 
+            # Determine explicit ID when in legacy mode
+            legacy_id_val = _get(row, "legacy_id") or None
+            explicit_id: int | None = None
+            if use_legacy_ids and legacy_id_val:
+                parsed_lid = _parse_int(legacy_id_val)
+                if parsed_lid and parsed_lid > 0:
+                    explicit_id = parsed_lid
+
             box = AmmoBox(
+                id=explicit_id,  # None → auto-increment; int → explicit primary key
                 owner_id=user.id,
                 is_shared=False,
                 caliber_id=caliber_id,
@@ -473,7 +540,7 @@ async def confirm_import(
                 cost_per_round=cost_per_round,
                 dealer_id=dealer_id,
                 container_id=container_id,
-                legacy_id=_get(row, "legacy_id") or None,
+                legacy_id=legacy_id_val,
                 notes=_get(row, "notes") or None,
                 is_archived=is_archived,
                 archive_reason="manual" if is_archived else None,
@@ -483,20 +550,35 @@ async def confirm_import(
 
         import_db.commit()
 
+        # After legacy ID mode inserts, reset autoincrement so future boxes
+        # continue from MAX(id)+1 rather than the pre-import sequence value.
+        if use_legacy_ids:
+            result = import_db.exec(text("SELECT MAX(id) FROM ammo_box")).first()
+            max_id = result[0] if result and result[0] is not None else 0
+            import_db.exec(text(
+                "UPDATE sqlite_sequence SET seq = :max_id WHERE name = 'ammo_box'"
+            ), {"max_id": max_id})
+            import_db.commit()
+            autoincrement_reset_to = max_id
+
         # Count newly created lookup entries
         lookup_values_created = sum(
             len(import_db.exec(select(Model).where(Model.source == "user")).all())
             for Model in [Caliber, Manufacturer, AmmoType, AmmoCondition, Category, Dealer]
         )
 
-    return {
+    response: dict = {
         "success": True,
         "imported": imported,
         "skipped": skipped,
         "new_lookup_values_created": lookup_values_created,
         "pre_import_backup": backup_filename,
+        "legacy_id_mode_used": use_legacy_ids,
         "warnings": warnings,
     }
+    if use_legacy_ids:
+        response["autoincrement_reset_to"] = autoincrement_reset_to
+    return response
 
 
 @router.get("/template")

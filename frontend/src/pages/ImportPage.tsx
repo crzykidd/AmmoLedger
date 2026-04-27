@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileUp, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight, Download, RotateCcw, ArrowLeft } from 'lucide-react'
+import { FileUp, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight, Download, RotateCcw, ArrowLeft, Info } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { confirmImport, getImportTemplateUrl, validateImport } from '@/api/import'
-import type { ImportConfirmResult, ImportValidationResult } from '@/types'
+import type { ImportConfirmResult, ImportValidationResult, LegacyIdMode } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Countdown timer hook
@@ -184,6 +184,107 @@ function UploadState({
 }
 
 // ---------------------------------------------------------------------------
+// ID Assignment section (used inside ValidationState)
+// ---------------------------------------------------------------------------
+
+function LegacyIdSection({
+  mode,
+  useLegacyIds,
+  onChange,
+}: {
+  mode: LegacyIdMode
+  useLegacyIds: boolean
+  onChange: (v: boolean) => void
+}) {
+  if (mode.eligible) {
+    return (
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 space-y-3">
+        <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
+          <Info className="h-4 w-4 text-blue-500 shrink-0" />
+          ID Assignment
+        </p>
+        <div className="space-y-2">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="legacy_id_mode"
+              checked={useLegacyIds}
+              onChange={() => onChange(true)}
+              className="mt-0.5 accent-gold"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Use Legacy IDs as AmmoLedger Box IDs
+              </span>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Each box will keep its original numeric ID from your previous system.
+              </p>
+            </div>
+          </label>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="legacy_id_mode"
+              checked={!useLegacyIds}
+              onChange={() => onChange(false)}
+              className="mt-0.5 accent-gold"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Assign new sequential IDs
+              </span>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                AmmoLedger will assign its own IDs; legacy IDs are stored in the Legacy ID field.
+              </p>
+            </div>
+          </label>
+        </div>
+        {mode.blank_count > 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            {mode.blank_count} {mode.blank_count === 1 ? 'row has' : 'rows have'} no legacy ID — {mode.blank_count === 1 ? 'it' : 'they'} will receive a new sequential ID.
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (mode.conflict_count > 0) {
+    return (
+      <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-2">
+        <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Legacy IDs unavailable — ID conflicts detected
+        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          {mode.conflict_count} legacy {mode.conflict_count === 1 ? 'ID' : 'IDs'} already exist in your inventory:
+          {' '}{mode.conflicting_ids.join(', ')}{mode.has_more_conflicts ? '…' : ''}
+        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          New sequential IDs will be assigned. Legacy IDs are stored in the Legacy ID field.
+        </p>
+      </div>
+    )
+  }
+
+  if (!mode.all_integers) {
+    return (
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-1.5">
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+          <Info className="h-4 w-4 text-blue-400 shrink-0" />
+          Legacy IDs unavailable — non-numeric IDs present
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          One or more legacy IDs are not positive integers. New sequential IDs will be assigned; legacy IDs are stored in the Legacy ID field.
+        </p>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ---------------------------------------------------------------------------
 // State 2 — Validation Results
 // ---------------------------------------------------------------------------
 
@@ -212,6 +313,7 @@ function ValidationState({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [useLegacyIds, setUseLegacyIds] = useState(false)
   const countdown = useCountdown(result.token_expires_at)
   const expired = countdown !== null && countdown <= 0
 
@@ -219,7 +321,7 @@ function ValidationState({
     setImporting(true)
     setImportError(null)
     try {
-      const res = await confirmImport(file, result.validation_token)
+      const res = await confirmImport(file, result.validation_token, useLegacyIds)
       onImported(res)
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Import failed')
@@ -372,6 +474,9 @@ function ValidationState({
         }
       </div>
 
+      {/* ID Assignment */}
+      <LegacyIdSection mode={result.legacy_id_mode} useLegacyIds={useLegacyIds} onChange={setUseLegacyIds} />
+
       {importError && (
         <p className="text-sm text-red-500 flex items-center gap-1.5">
           <XCircle className="h-4 w-4 shrink-0" />
@@ -453,6 +558,18 @@ function ResultState({
         <div className="text-xs text-emerald-700 dark:text-emerald-500 bg-emerald-100 dark:bg-emerald-900/30 rounded px-2.5 py-1.5">
           Backup saved: {result.pre_import_backup}
         </div>
+
+        {result.legacy_id_mode_used ? (
+          <div className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded px-2.5 py-1.5 flex items-center gap-1.5">
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            Legacy IDs used as box IDs
+            {result.autoincrement_reset_to !== undefined && ` — autoincrement reset to ${result.autoincrement_reset_to}`}
+          </div>
+        ) : (
+          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded px-2.5 py-1.5">
+            New sequential IDs assigned — legacy IDs stored in Legacy ID field
+          </div>
+        )}
 
         <div className="flex gap-3 pt-2">
           <Button onClick={() => navigate('/inventory')} className="flex-1">
