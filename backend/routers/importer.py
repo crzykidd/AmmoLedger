@@ -562,6 +562,9 @@ async def confirm_import(
             import_db.commit()
             autoincrement_reset_to = max_id
 
+        import_db.execute(text("ANALYZE"))
+        import_db.commit()
+
         # Count newly created lookup entries
         lookup_values_created = sum(
             len(import_db.exec(select(Model).where(Model.source == "user")).all())

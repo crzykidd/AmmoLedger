@@ -10,6 +10,11 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Performance
+
+- ANALYZE runs after bulk CSV import to update SQLite query planner statistics
+- ANALYZE runs before each backup so statistics are fresh in the backup file
+
 ### Added
 
 - Group By dropdown on inventory page — group rows by Caliber, Manufacturer, Category, Type, Location, Container, or Condition; selection persisted to localStorage

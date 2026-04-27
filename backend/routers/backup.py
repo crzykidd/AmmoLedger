@@ -121,6 +121,17 @@ def trigger_backup(_: Any = Depends(require_role("admin"))):
     if not os.access(str(backup_dir), os.W_OK):
         raise HTTPException(status_code=500, detail="Backup directory is not writable")
 
+    # Refresh query-planner statistics so they are current in the backup file
+    try:
+        from database import engine  # noqa: PLC0415
+        from sqlalchemy import text  # noqa: PLC0415
+        from sqlmodel import Session  # noqa: PLC0415
+        with Session(engine) as session:
+            session.execute(text("ANALYZE"))
+            session.commit()
+    except Exception:
+        pass  # Never block a backup over a statistics update
+
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
     filename = f"ammoledger_{ts}.db"
     dest = backup_dir / filename
