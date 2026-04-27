@@ -28,7 +28,13 @@ router = APIRouter(tags=["lookups"])
 
 @router.get("/calibers", response_model=list[LookupRead])
 def list_calibers(user=Depends(require_auth), db: Session = Depends(get_session)):
-    return db.exec(select(Caliber).where(Caliber.is_active)).all()
+    try:
+        return db.exec(select(Caliber).where(Caliber.is_active)).all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lookups error: {str(e)}")
 
 
 @router.post("/calibers", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
@@ -52,7 +58,13 @@ def create_caliber(
 
 @router.get("/manufacturers", response_model=list[ManufacturerRead])
 def list_manufacturers(user=Depends(require_auth), db: Session = Depends(get_session)):
-    return db.exec(select(Manufacturer).where(Manufacturer.is_active)).all()
+    try:
+        return db.exec(select(Manufacturer).where(Manufacturer.is_active)).all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lookups error: {str(e)}")
 
 
 @router.post("/manufacturers", response_model=ManufacturerRead, status_code=status.HTTP_201_CREATED)
@@ -101,7 +113,13 @@ def update_manufacturer(
 
 @router.get("/ammo-types", response_model=list[LookupRead])
 def list_ammo_types(user=Depends(require_auth), db: Session = Depends(get_session)):
-    return db.exec(select(AmmoType).where(AmmoType.is_active)).all()
+    try:
+        return db.exec(select(AmmoType).where(AmmoType.is_active)).all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lookups error: {str(e)}")
 
 
 @router.post("/ammo-types", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
@@ -125,7 +143,13 @@ def create_ammo_type(
 
 @router.get("/ammo-conditions", response_model=list[LookupRead])
 def list_ammo_conditions(user=Depends(require_auth), db: Session = Depends(get_session)):
-    return db.exec(select(AmmoCondition).where(AmmoCondition.is_active)).all()
+    try:
+        return db.exec(select(AmmoCondition).where(AmmoCondition.is_active)).all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lookups error: {str(e)}")
 
 
 @router.post("/ammo-conditions", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
@@ -149,7 +173,13 @@ def create_ammo_condition(
 
 @router.get("/categories", response_model=list[LookupRead])
 def list_categories(user=Depends(require_auth), db: Session = Depends(get_session)):
-    return db.exec(select(Category).where(Category.is_active)).all()
+    try:
+        return db.exec(select(Category).where(Category.is_active)).all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lookups error: {str(e)}")
 
 
 @router.post("/categories", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
@@ -173,7 +203,13 @@ def create_category(
 
 @router.get("/dealers", response_model=list[DealerRead])
 def list_dealers(user=Depends(require_auth), db: Session = Depends(get_session)):
-    return db.exec(select(Dealer).where(Dealer.is_active)).all()
+    try:
+        return db.exec(select(Dealer).where(Dealer.is_active)).all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lookups error: {str(e)}")
 
 
 @router.post("/dealers", response_model=DealerRead, status_code=status.HTTP_201_CREATED)
@@ -222,7 +258,13 @@ def update_dealer(
 
 @router.get("/locations", response_model=list[LocationRead])
 def list_locations(user=Depends(require_auth), db: Session = Depends(get_session)):
-    return db.exec(select(Location)).all()
+    try:
+        return db.exec(select(Location)).all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lookups error: {str(e)}")
 
 
 @router.post("/locations", response_model=LocationRead, status_code=status.HTTP_201_CREATED)
@@ -244,7 +286,13 @@ def create_location(
 
 @router.get("/containers", response_model=list[ContainerRead])
 def list_containers(user=Depends(require_auth), db: Session = Depends(get_session)):
-    return db.exec(select(Container)).all()
+    try:
+        return db.exec(select(Container)).all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lookups error: {str(e)}")
 
 
 @router.post("/containers", response_model=ContainerRead, status_code=status.HTTP_201_CREATED)

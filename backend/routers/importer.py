@@ -425,6 +425,23 @@ async def confirm_import(
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
+    try:
+        return await _do_confirm_import(file, validation_token, use_legacy_ids, user, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Import confirm error: {str(e)}")
+
+
+async def _do_confirm_import(
+    file: UploadFile,
+    validation_token: str,
+    use_legacy_ids: bool,
+    user,
+    db: Session,
+):
     _validate_token(db, validation_token)
 
     content = await file.read()
