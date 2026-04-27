@@ -276,6 +276,33 @@ class InviteRead(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Bulk update schemas
+# ---------------------------------------------------------------------------
+
+class BulkAmmoUpdate(BaseModel):
+    manufacturer_id: Optional[int] = None
+    type_id: Optional[int] = None
+    category_id: Optional[int] = None
+    ammo_condition_id: Optional[int] = None
+    dealer_id: Optional[int] = None
+    container_id: Optional[int] = None
+    is_shared: Optional[bool] = None
+    cost_per_round: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class BulkUpdateRequest(BaseModel):
+    ids: List[int]
+    updates: BulkAmmoUpdate
+    notes_mode: str = "replace"  # "replace" | "append"
+
+
+class BulkUpdateResponse(BaseModel):
+    updated: int
+    failed: int
+
+
+# ---------------------------------------------------------------------------
 # Threshold schemas
 # ---------------------------------------------------------------------------
 

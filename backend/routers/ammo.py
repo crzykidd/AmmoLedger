@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from database import get_session
 from models import AmmoBox, User
-from schemas import AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, AmmoListResponse
+from schemas import AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, AmmoListResponse, BulkUpdateRequest, BulkUpdateResponse
 from utils.rbac import require_auth, require_role
 
 router = APIRouter(prefix="/ammo", tags=["ammo"])
@@ -108,6 +108,53 @@ def create_ammo(
     db.commit()
     db.refresh(box)
     return box
+
+
+@router.patch("/bulk-update", response_model=BulkUpdateResponse)
+def bulk_update_ammo(
+    payload: BulkUpdateRequest,
+    user: User = Depends(require_role("admin", "member")),
+    db: Session = Depends(get_session),
+):
+    if not payload.ids:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No IDs provided")
+    if len(payload.ids) > 500:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cannot bulk-update more than 500 boxes at once")
+    if payload.notes_mode not in ("replace", "append"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="notes_mode must be 'replace' or 'append'")
+
+    update_data = payload.updates.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No fields to update")
+
+    if update_data.get("is_shared") is True and user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can make boxes shared")
+
+    has_notes = "notes" in update_data
+    notes_value = update_data.pop("notes", None)
+
+    stmt = select(AmmoBox).where(AmmoBox.id.in_(payload.ids))
+    boxes = list(db.exec(stmt).all())
+
+    updated = 0
+    for box in boxes:
+        if user.role == "member" and box.owner_id != user.id:
+            continue
+        for key, value in update_data.items():
+            setattr(box, key, value)
+        if has_notes and notes_value:
+            if payload.notes_mode == "append" and box.notes:
+                box.notes = box.notes + "\n" + notes_value
+            else:
+                box.notes = notes_value
+        elif has_notes and not notes_value:
+            pass  # blank notes field means "leave unchanged"
+        box.updated_at = datetime.utcnow()
+        db.add(box)
+        updated += 1
+
+    db.commit()
+    return BulkUpdateResponse(updated=updated, failed=0)
 
 
 @router.get("/{box_id}", response_model=AmmoBoxRead)

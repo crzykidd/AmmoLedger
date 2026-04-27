@@ -4,6 +4,8 @@ import type {
   AmmoBoxRead,
   AmmoBoxUpdate,
   AmmoListResponse,
+  BulkUpdateRequest,
+  BulkUpdateResponse,
   ExpendRequest,
   ExpendResponse,
   ExpenditureRead,
@@ -25,6 +27,9 @@ export const updateAmmo = (id: number, data: AmmoBoxUpdate) =>
   api.patch<AmmoBoxRead>(`/ammo/${id}`, data)
 
 export const deleteAmmo = (id: number) => api.delete<void>(`/ammo/${id}`)
+
+export const bulkUpdateAmmo = (data: BulkUpdateRequest) =>
+  api.patch<BulkUpdateResponse>('/ammo/bulk-update', data)
 
 export const expendAmmo = (boxId: number, data: ExpendRequest) =>
   api.post<ExpendResponse>(`/ammo/${boxId}/expend`, data)

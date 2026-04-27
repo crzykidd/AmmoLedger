@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { getAmmoHistory } from '@/api/ammo'
 import QuickExpendPopover from '@/components/QuickExpendPopover'
 import type { AmmoBoxRead, User, LookupItem, DealerItem, ContainerItem, LocationItem } from '@/types'
@@ -89,6 +90,36 @@ function HistorySection({ boxId }: { boxId: number }) {
 }
 
 // ---------------------------------------------------------------------------
+// Indeterminate checkbox
+// ---------------------------------------------------------------------------
+
+function IndeterminateCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  className,
+}: {
+  checked: boolean
+  indeterminate: boolean
+  onChange: (checked: boolean) => void
+  className?: string
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      className={cn('accent-gold cursor-pointer', className)}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -117,6 +148,8 @@ interface Props {
   collapseSignal: number
   expandSignal: number
   columnFilters: ColumnFilters
+  selectedIds: Set<number>
+  onSelectionChange: (ids: Set<number>) => void
   onColumnFilterChange: (key: keyof ColumnFilters, value: string) => void
   onEdit: (box: AmmoBoxRead) => void
   onDelete: (box: AmmoBoxRead) => void
@@ -208,6 +241,8 @@ export default function InventoryTable({
   collapseSignal,
   expandSignal,
   columnFilters,
+  selectedIds,
+  onSelectionChange,
   onColumnFilterChange,
   onEdit,
   onDelete,
@@ -257,7 +292,6 @@ export default function InventoryTable({
     () => new Map(locations.map((l) => [l.id, l.name])),
     [locations],
   )
-  // Maps container_id → location_id for Group By Location
   const containerLocationMap = useMemo(
     () => new Map(containers.map((c) => [c.id, c.location_id])),
     [containers],
@@ -283,7 +317,12 @@ export default function InventoryTable({
     })
   }, [boxes, sortKey, sortDir, caliberMap, manufacturerMap])
 
-  // Grouping (computed from sorted boxes so rows within each group respect sort order)
+  // All visible IDs for header checkbox
+  const allIds = useMemo(() => sorted.map((b) => b.id), [sorted])
+  const headerChecked = allIds.length > 0 && allIds.every((id) => selectedIds.has(id))
+  const headerIndeterminate = selectedIds.size > 0 && !headerChecked
+
+  // Grouping
   const groups = useMemo((): GroupEntry[] => {
     if (groupBy === 'none') return []
 
@@ -356,11 +395,9 @@ export default function InventoryTable({
     containerLocationMap,
   ])
 
-  // Keep a ref to current groups for collapse-all signal
   const groupsRef = useRef<GroupEntry[]>(groups)
   groupsRef.current = groups
 
-  // Collapse All / Expand All driven by signal counters from parent toolbar
   useEffect(() => {
     if (collapseSignal > 0) {
       setCollapsedGroups(new Set(groupsRef.current.map((g) => g.name)))
@@ -401,6 +438,20 @@ export default function InventoryTable({
     })
   }
 
+  function toggleRowSelection(boxId: number, checked: boolean) {
+    const next = new Set(selectedIds)
+    if (checked) next.add(boxId)
+    else next.delete(boxId)
+    onSelectionChange(next)
+  }
+
+  function toggleGroupSelection(groupBoxes: AmmoBoxRead[], checked: boolean) {
+    const next = new Set(selectedIds)
+    if (checked) groupBoxes.forEach((b) => next.add(b.id))
+    else groupBoxes.forEach((b) => next.delete(b.id))
+    onSelectionChange(next)
+  }
+
   const SortableHead = ({
     label,
     col,
@@ -425,6 +476,7 @@ export default function InventoryTable({
 
   function renderRow(box: AmmoBoxRead) {
     const isExpanded = expanded.has(box.id)
+    const isSelected = selectedIds.has(box.id)
     const editable = canEdit(box, user)
     const expendable = canExpend(box, user)
     const isLow = lowSet.has(box.id)
@@ -443,15 +495,33 @@ export default function InventoryTable({
     return (
       <Fragment key={box.id}>
         <TableRow
-          className={
+          className={cn(
+            'group cursor-pointer',
             isLow
-              ? 'cursor-pointer bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-              : 'cursor-pointer'
-          }
+              ? 'bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+              : undefined,
+            isSelected ? 'bg-blue-50/40 dark:bg-blue-950/20' : undefined,
+          )}
           onClick={() => toggleExpand(box.id)}
         >
+          {/* Checkbox */}
+          <TableCell
+            className="w-8 py-0 pl-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => toggleRowSelection(box.id, e.target.checked)}
+              className={cn(
+                'accent-gold cursor-pointer',
+                selectedIds.size === 0 ? 'opacity-0 group-hover:opacity-100' : 'opacity-100',
+              )}
+            />
+          </TableCell>
+
           {/* Expand chevron */}
-          <TableCell className="text-gray-400">
+          <TableCell className="text-gray-400 w-8 px-1">
             {isExpanded ? (
               <ChevronDown className="h-4 w-4" />
             ) : (
@@ -607,7 +677,8 @@ export default function InventoryTable({
         {/* Expanded detail row */}
         {isExpanded && (
           <TableRow className="bg-gray-50/50 dark:bg-gray-800/20 hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
-            <TableCell />
+            <TableCell /> {/* checkbox col */}
+            <TableCell /> {/* expand chevron col */}
             <TableCell colSpan={10}>
               <div className="grid grid-cols-2 gap-6 py-2 text-sm">
                 <div className="space-y-1 text-gray-700 dark:text-gray-300">
@@ -672,6 +743,9 @@ export default function InventoryTable({
         )
       : null
     const lowCount = groupBoxes.filter((b) => lowSet.has(b.id)).length
+    const groupIds = groupBoxes.map((b) => b.id)
+    const groupChecked = groupIds.length > 0 && groupIds.every((id) => selectedIds.has(id))
+    const groupIndeterminate = groupIds.some((id) => selectedIds.has(id)) && !groupChecked
 
     return (
       <Fragment key={name}>
@@ -679,6 +753,18 @@ export default function InventoryTable({
           className="cursor-pointer bg-amber-50/40 dark:bg-amber-950/10 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 border-t-2 border-amber-200/60 dark:border-amber-800/30"
           onClick={() => toggleGroup(name)}
         >
+          {/* Group checkbox */}
+          <TableCell
+            className="py-2 w-8 pl-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IndeterminateCheckbox
+              checked={groupChecked}
+              indeterminate={groupIndeterminate}
+              onChange={(checked) => toggleGroupSelection(groupBoxes, checked)}
+            />
+          </TableCell>
+
           <TableCell colSpan={11} className="py-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -732,6 +818,16 @@ export default function InventoryTable({
         <TableHeader>
           {/* Column header row */}
           <TableRow className="bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+            {/* Header checkbox */}
+            <TableHead className="w-8 pl-3">
+              <IndeterminateCheckbox
+                checked={headerChecked}
+                indeterminate={headerIndeterminate}
+                onChange={(checked) =>
+                  onSelectionChange(checked ? new Set(allIds) : new Set())
+                }
+              />
+            </TableHead>
             <TableHead className="w-8" />
             <SortableHead label="ID" col="id" className="w-16" />
             <SortableHead label="Caliber" col="caliber" />
@@ -747,6 +843,7 @@ export default function InventoryTable({
 
           {/* Filter row */}
           <TableRow className="bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
+            <TableHead className="py-1.5" />
             <TableHead className="py-1.5" />
             <FilterCell
               value={cf.id}

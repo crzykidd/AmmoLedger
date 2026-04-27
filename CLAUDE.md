@@ -53,6 +53,7 @@
   - 8.5 — Version display: COMPLETE
   - 8.6 — Inventory Group By and column filters: COMPLETE
   - 8.7 — Three-tier threshold system, dashboard low stock by caliber/location, import ownership toggle: COMPLETE
+  - 8.8 — Bulk select and edit: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 

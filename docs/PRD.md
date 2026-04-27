@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 2.8 — Working Draft  
+**Version:** 2.9 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -35,6 +35,7 @@
 | 2.6 | April 2026 | url field on manufacturers — optional website link stored in DB, pre-populated for known brands via defaults.yaml v1.3. Admin Lookups page at /admin/lookups with inline name/URL editing. PATCH /manufacturers/{id} endpoint. §6.5 updated. |
 | 2.7 | April 2026 | Inventory Group By and per-column filters — §9.2 expanded with Group By spec (8 options, collapsible group headers with summary stats, localStorage persistence) and per-column filter row spec (always visible, AND logic, numeric operators for Remaining/Value). |
 | 2.8 | April 2026 | Three-tier threshold system — global default + per-caliber + per-location thresholds stored server-side in DB; new `/thresholds/*` API endpoints; dashboard Running Low shows caliber totals and location totals; Add Box defaults shared; CSV import ownership toggle. §8.1 rewritten. |
+| 2.9 | April 2026 | Bulk checkbox select and edit — checkbox column in inventory table, bulk action toolbar, Bulk Edit side panel, `PATCH /ammo/bulk-update` endpoint. §9.2 updated. |
 
 ---
 
@@ -935,6 +936,32 @@ Two-column layout inside a `<tr>` below the main row:
 - **Right column:** Expenditure history — date, rounds used, optional notes per entry; "No expenditure history" when empty
 
 Future action buttons at bottom of expanded row: Restock, Split (placeholder until implemented).
+
+#### Bulk Select and Edit
+
+A checkbox column (leftmost) enables multi-box selection for batch operations.
+
+**Checkbox column:**
+
+- Header checkbox: selects / deselects all visible (filtered) boxes; shows indeterminate state when partially selected
+- Row checkboxes: hidden until hover when nothing is selected; always visible when any box is selected
+- Group header checkbox: selects / deselects all boxes in that group; shows indeterminate state when partially selected
+- Selection cleared automatically when filters, Group By, or search changes
+
+**Bulk action toolbar** (amber bar, visible when selection > 0):
+
+- Shows selected count and a Clear button
+- "Edit Selected" button opens the Bulk Edit side panel
+
+**Bulk Edit side panel** (right-side sheet drawer):
+
+- Title: "Edit N Selected Boxes"
+- Fields: Manufacturer, Type, Category, Condition, Dealer, Location (UI-only filter for Container dropdown), Container, Shared (admin only), Cost per Round, Notes
+- Each field defaults to the common value if all selected boxes share the same value; otherwise shows blank with "Mixed" hint
+- Blank / unchanged field = keep each box's existing value; only non-blank fields are applied
+- Notes field shows Append / Replace radio buttons when text is entered
+- Confirmation dialog shows the list of fields being changed and box count before applying
+- Backend: `PATCH /ammo/bulk-update` — max 500 IDs per call; members can only update boxes they own; admins can update any box; 403 if member tries to set `is_shared=true`
 
 ### 9.2.1 QuickExpendPopover
 

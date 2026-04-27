@@ -258,6 +258,33 @@ export interface AmmoBoxUpdate {
 }
 
 // ---------------------------------------------------------------------------
+// Bulk update types — mirrors backend schemas.py
+// ---------------------------------------------------------------------------
+
+export interface BulkAmmoUpdate {
+  manufacturer_id?: number | null
+  type_id?: number | null
+  category_id?: number | null
+  ammo_condition_id?: number | null
+  dealer_id?: number | null
+  container_id?: number | null
+  is_shared?: boolean | null
+  cost_per_round?: number | null
+  notes?: string | null
+}
+
+export interface BulkUpdateRequest {
+  ids: number[]
+  updates: BulkAmmoUpdate
+  notes_mode: 'replace' | 'append'
+}
+
+export interface BulkUpdateResponse {
+  updated: number
+  failed: number
+}
+
+// ---------------------------------------------------------------------------
 // Import types
 // ---------------------------------------------------------------------------
 

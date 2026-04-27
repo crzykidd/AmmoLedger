@@ -12,6 +12,12 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Checkbox multi-select in inventory table — select individual boxes, groups, or all filtered boxes at once
+- Bulk Edit side panel — edit Manufacturer, Type, Category, Condition, Dealer, Container, Shared status, Cost per Round, and Notes across all selected boxes in one operation
+- Notes bulk edit supports Append and Replace modes — append adds text to each box's existing notes; replace overwrites
+- Confirmation dialog before applying bulk changes shows which fields will be updated and how many boxes are affected
+- Bulk action toolbar (amber bar) appears above the table when boxes are selected — shows count, Clear button, and Edit Selected button
+- Selection automatically cleared when filters, Group By, or search terms change
 - Three-tier stock threshold system — global default (200 rds), per-caliber overrides, and per-location overrides, all stored server-side and shared across users
 - Threshold settings page redesigned with three sections: Global Default, Per-Caliber Thresholds, and Per-Location Thresholds; each table shows current on-hand rounds and OK/Low status
 - Dashboard Running Low section now shows caliber totals and location totals in separate subsections, using server-computed threshold logic

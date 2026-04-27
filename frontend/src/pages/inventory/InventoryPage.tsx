@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import type { GroupByField, ColumnFilters } from '@/components/inventory/Invento
 import { DEFAULT_COLUMN_FILTERS } from '@/components/inventory/InventoryTable'
 import InventoryCardList from '@/components/inventory/InventoryCardList'
 import AmmoFormPanel from '@/components/inventory/AmmoFormPanel'
+import BulkEditPanel from '@/components/inventory/BulkEditPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
 import ExpendDialog from '@/components/inventory/ExpendDialog'
 import { useAuth } from '@/contexts/AuthContext'
@@ -128,6 +129,10 @@ export default function InventoryPage() {
   const [collapseSignal, setCollapseSignal] = useState(0)
   const [expandSignal, setExpandSignal] = useState(0)
 
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+
   // Panel / dialog state
   const [panelOpen, setPanelOpen] = useState(false)
   const [editBox, setEditBox] = useState<AmmoBoxRead | null>(null)
@@ -139,6 +144,11 @@ export default function InventoryPage() {
     () => sessionStorage.getItem(BANNER_DISMISS_KEY) === '1',
   )
   const [summaryOpen, setSummaryOpen] = useState(false)
+
+  // Clear selection when filters or groupBy change
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [columnFilters, groupBy, conditionFilter, search, showArchived])
 
   const lookups = useInventoryLookups()
   const { getLowItems, getCaliberSummary } = useThresholds()
@@ -262,6 +272,12 @@ export default function InventoryPage() {
       return true
     })
   }, [boxes, columnFilters, caliberMap, manufacturerMap, typeMap, categoryMap])
+
+  // Boxes currently selected (intersection with visible filtered set)
+  const selectedBoxes = useMemo(
+    () => filteredBoxes.filter((b) => selectedIds.has(b.id)),
+    [filteredBoxes, selectedIds],
+  )
 
   // Stats from filtered rows only
   const filteredStats = useMemo(() => {
@@ -455,6 +471,27 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {/* ── Bulk action toolbar ── */}
+        {selectedIds.size > 0 && (
+          <div className="px-4 sm:px-6 py-2 border-b border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 flex items-center gap-3">
+            <CheckSquare className="h-4 w-4 text-amber-700 dark:text-amber-400 shrink-0" />
+            <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
+              {selectedIds.size} selected
+            </span>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-amber-700 dark:text-amber-400 hover:underline"
+            >
+              Clear
+            </button>
+            <div className="ml-auto flex gap-2">
+              <Button size="sm" onClick={() => setBulkEditOpen(true)}>
+                Edit Selected
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* ── Content ── */}
         <div className="flex-1 overflow-auto px-4 sm:px-6 py-4 space-y-4">
           {/* Low-stock alert banner */}
@@ -570,6 +607,8 @@ export default function InventoryPage() {
                   collapseSignal={collapseSignal}
                   expandSignal={expandSignal}
                   columnFilters={columnFilters}
+                  selectedIds={selectedIds}
+                  onSelectionChange={setSelectedIds}
                   onColumnFilterChange={handleColumnFilterChange}
                   onEdit={openEdit}
                   onDelete={openDelete}
@@ -594,6 +633,22 @@ export default function InventoryPage() {
           )}
         </div>
       </div>
+
+      {/* Bulk edit panel */}
+      <BulkEditPanel
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        selectedBoxes={selectedBoxes}
+        user={user!}
+        manufacturers={lookups.manufacturers}
+        ammoTypes={lookups.ammoTypes}
+        ammoConditions={lookups.ammoConditions}
+        categories={lookups.categories}
+        dealers={lookups.dealers}
+        containers={lookups.containers}
+        locations={lookups.locations}
+        onSaved={() => setSelectedIds(new Set())}
+      />
 
       {/* Form panel */}
       <AmmoFormPanel
