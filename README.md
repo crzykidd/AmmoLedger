@@ -24,6 +24,8 @@ This app is very early and still in development
 
 A self-hosted web application to track your ammunition inventory. Keep your ammo counts accurate on and off the range.
 
+**WARNING**
+DB will be resest any data added to db before release will be lost on upgrade. 
 
 
 ## What's Built
