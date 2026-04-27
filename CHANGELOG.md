@@ -12,6 +12,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- Expanded `ammo_types` defaults — added FMJ BT, FMJ MC, HP, LRN, RN, RN/FMJ, SWC, SCHP, BTHP, Shot, SLD Rimfire, Tracer, M67; bumped `defaults.yaml` to v1.2 so new types sync automatically on next startup
 - Docker build time reduced significantly — `COPY --chown` sets file ownership at copy time rather than running `chown -R` on `node_modules` after the fact, eliminating a 70+ second recursive chown on 100k+ files
 - Missing `HTTPException` import in `main.py` caused a `NameError` at runtime when backup config endpoints returned errors
 - Removed `#` prefix from inventory ID column — box ID now displays as a plain number

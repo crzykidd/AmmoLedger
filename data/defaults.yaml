@@ -1,4 +1,4 @@
-version: "1.1"
+version: "1.2"
 
 calibers:
   - "9mm Luger"
@@ -73,13 +73,26 @@ manufacturers:
 
 ammo_types:
   - "FMJ"
+  - "FMJ BT"
+  - "FMJ MC"
   - "JHP"
+  - "HP"
+  - "LRN"
+  - "RN"
+  - "RN/FMJ"
+  - "SWC"
+  - "SCHP"
+  - "OTM"
+  - "BTHP"
   - "Slug"
   - "Birdshot"
   - "Buckshot"
-  - "OTM"
+  - "Shot"
   - "Frangible"
   - "Subsonic"
+  - "SLD Rimfire"
+  - "Tracer"
+  - "M67"
 
 categories:
   - "Hunting"
