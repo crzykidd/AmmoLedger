@@ -27,6 +27,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 - Box-level low-stock detection removed from dashboard Running Low section; replaced by caliber-total and location-total approach
 
+### Fixed
+
+- Legacy ID no longer shown as subtitle when it matches the box ID — avoids redundant display for imported boxes that used legacy ID mode
+
 ### Performance
 
 - ANALYZE runs after bulk CSV import to update SQLite query planner statistics
