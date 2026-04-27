@@ -348,7 +348,7 @@ def _analyze_legacy_ids(rows: list[dict[str, str]], db: Session) -> dict:
     # Check for conflicts with existing ammo_box IDs
     conflicting_ids: list[int] = []
     if candidate_ids:
-        existing_ids = {row.id for row in db.exec(select(AmmoBox.id)).all()}  # type: ignore[arg-type]
+        existing_ids = set(db.exec(select(AmmoBox.id)).all())
         conflicting_ids = sorted(i for i in candidate_ids if i in existing_ids)
 
     conflict_count = len(conflicting_ids)
