@@ -51,6 +51,7 @@
   - 8.3 — Profile slide-out drawer: COMPLETE
   - 8.4 — Getting started wizard fixes: COMPLETE
   - 8.5 — Version display: COMPLETE
+  - 8.6 — Inventory Group By and column filters: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 

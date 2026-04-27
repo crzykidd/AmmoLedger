@@ -12,6 +12,13 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Group By dropdown on inventory page — group rows by Caliber, Manufacturer, Category, Type, Location, Container, or Condition; selection persisted to localStorage
+- Collapsible group headers with summary stats — box count, total rounds, total value, and low-stock count per group
+- Collapse All / Expand All toolbar buttons appear when Group By is active
+- Per-column filter row always visible below inventory table headers — filter by ID (matches legacy ID too), Caliber, Manufacturer, Gr/Oz, Type, Category, Remaining, Value, and Shared
+- Remaining and Value column filters support operators: `<50`, `>100`, `10-50` range, or exact match
+- Active filter count and Clear Filters button in toolbar when any column filter is set
+- Toolbar stats (Boxes / Rounds / Value) now reflect filtered rows only, not total inventory
 - Full logo image displayed in expanded sidebar (`logo-full-dark.png`, max 120 px tall, centered with padding); collapsed sidebar shows 40×40 circle logo
 - About page (`/about`) — app name, tagline, current version, update-available banner, GitHub / Issue / Changelog / Documentation links, MIT license note
 - About link in sidebar below the Collapse button, above the username section

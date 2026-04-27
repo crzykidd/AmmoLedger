@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 2.6 — Working Draft  
+**Version:** 2.7 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -33,6 +33,7 @@
 | 2.4.1 | April 2026 | Updated ammo_condition seed values — split Old and Unknown into separate entries. Old = known aged ammunition; Unknown = origin completely unknown. Bumped defaults.yaml to version 1.1. |
 | 2.5 | April 2026 | Legacy ID Mode for CSV import — eligibility analysis on validate, use_legacy_ids form field on confirm, explicit primary key insertion for integer legacy_ids, sqlite_sequence reset after import, three-state UI (eligible/conflict/non-integer), legacy_id column added to CSV template. |
 | 2.6 | April 2026 | url field on manufacturers — optional website link stored in DB, pre-populated for known brands via defaults.yaml v1.3. Admin Lookups page at /admin/lookups with inline name/URL editing. PATCH /manufacturers/{id} endpoint. §6.5 updated. |
+| 2.7 | April 2026 | Inventory Group By and per-column filters — §9.2 expanded with Group By spec (8 options, collapsible group headers with summary stats, localStorage persistence) and per-column filter row spec (always visible, AND logic, numeric operators for Remaining/Value). |
 
 ---
 
@@ -848,13 +849,57 @@ Checklist:
 | Shared | "Shared" badge or "Private" text | — |
 | Actions | Edit (pencil), Delete (trash), Archive (box-x) icons | Role-gated |
 
-- Sortable columns: Caliber, Manufacturer, Remaining
+- Sortable columns: ID, Caliber, Manufacturer, Remaining (default sort: ID ascending)
 - Amber row tint when box is below configured threshold
 - Progress bar: green > 50 %, amber 20–50 %, red < 20 %
 - Clicking Remaining opens QuickExpendPopover (`stopPropagation` prevents row expansion)
 - `read_only` users see the count but cannot click to expend
 - Empty boxes hidden by default; toggle above list: **Show empty boxes**
 - Members see: all shared boxes + their own private boxes; Admin sees: all boxes
+
+#### Group By
+
+Toolbar dropdown (persisted to `localStorage` key `inventory_group_by`):
+
+| Option | Groups by |
+| -------- | ----------- |
+| None (default) | No grouping |
+| Caliber | `caliber_id` |
+| Manufacturer | `manufacturer_id` |
+| Category | `category_id` |
+| Type | `type_id` |
+| Location | Container's `location_id` |
+| Container | `container_id` |
+| Condition | `ammo_condition_id` |
+
+- Groups sorted alphabetically; boxes without a value for the field collected into "No [Field]" group shown last
+- Each group header row spans the full table width, amber-tinted background
+- Header shows: ▼/▶ toggle · group name · box count badge · total rounds · total value · low-stock count (amber, only if > 0)
+- Click group header to collapse/expand that group
+- All groups start expanded when Group By selection changes
+- "Collapse All" and "Expand All" toolbar buttons appear when Group By is active
+- Collapse state resets on Group By change; not persisted to localStorage
+
+#### Per-Column Filters
+
+Always-visible filter row directly below the column headers. All filters are AND-combined with each other and with the global search bar.
+
+| Column | Filter behavior |
+| -------- | ---------------- |
+| ID | Partial match on numeric `id` or `legacy_id` string |
+| Caliber | Partial match on caliber name, case-insensitive |
+| Manufacturer | Partial match on manufacturer name and `product_name` |
+| Gr/Oz | Partial match on weight value string |
+| Type | Partial match on type name |
+| Category | Partial match on category name |
+| Remaining | Operator filter: `50` = exact, `<50` = less than, `>100` = greater than, `10-50` = range |
+| Value | Same operator filter as Remaining |
+| Shared | Prefix match: `s`/`shared` → shared only; `p`/`private` → private only |
+
+- Active filter inputs highlighted with gold border
+- "N filters active" counter and "Clear Filters" button appear in toolbar when any column filter is set
+- Stats row (Boxes / Rounds / Value) reflects currently visible filtered rows, not total inventory
+- Column filters reset on page refresh; Group By persists
 
 #### Expanded Row
 

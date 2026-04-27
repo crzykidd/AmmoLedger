@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import InventoryTable from '@/components/inventory/InventoryTable'
+import type { GroupByField, ColumnFilters } from '@/components/inventory/InventoryTable'
+import { DEFAULT_COLUMN_FILTERS } from '@/components/inventory/InventoryTable'
 import InventoryCardList from '@/components/inventory/InventoryCardList'
 import AmmoFormPanel from '@/components/inventory/AmmoFormPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
@@ -20,6 +22,20 @@ import { cn } from '@/lib/utils'
 import type { AmmoBoxRead } from '@/types'
 
 const BANNER_DISMISS_KEY = 'low_stock_banner_dismissed'
+
+// ---------------------------------------------------------------------------
+// Numeric filter helper — supports <N, >N, N-M, and exact N
+// ---------------------------------------------------------------------------
+
+function matchNumericFilter(val: number, filter: string): boolean {
+  const f = filter.trim()
+  if (!f) return true
+  const rangeMatch = f.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/)
+  if (rangeMatch) return val >= Number(rangeMatch[1]) && val <= Number(rangeMatch[2])
+  if (f.startsWith('<')) return val < Number(f.slice(1))
+  if (f.startsWith('>')) return val > Number(f.slice(1))
+  return val === Number(f)
+}
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
@@ -49,7 +65,7 @@ function StatsBar({
   totalValue: number | null
 }) {
   return (
-    <div className="flex gap-6 text-sm">
+    <div className="flex gap-4 text-sm">
       <div>
         <span className="text-gray-500 dark:text-gray-400">Boxes </span>
         <span className="font-semibold text-gray-900 dark:text-white">{totalBoxes}</span>
@@ -73,15 +89,46 @@ function StatsBar({
 }
 
 // ---------------------------------------------------------------------------
+// Group By options
+// ---------------------------------------------------------------------------
+
+const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'caliber', label: 'Caliber' },
+  { value: 'manufacturer', label: 'Manufacturer' },
+  { value: 'category', label: 'Category' },
+  { value: 'type', label: 'Type' },
+  { value: 'location', label: 'Location' },
+  { value: 'container', label: 'Container' },
+  { value: 'condition', label: 'Condition' },
+]
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function InventoryPage() {
   const { user } = useAuth()
   const qc = useQueryClient()
+
+  // Global search / view state
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [conditionFilter, setConditionFilter] = useState<string>('')
+
+  // Group By — persisted to localStorage
+  const [groupBy, setGroupBy] = useState<GroupByField>(
+    () => (localStorage.getItem('inventory_group_by') as GroupByField) ?? 'none',
+  )
+
+  // Column filters — reset on page refresh
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>(DEFAULT_COLUMN_FILTERS)
+
+  // Collapse / Expand All signals (increment to trigger)
+  const [collapseSignal, setCollapseSignal] = useState(0)
+  const [expandSignal, setExpandSignal] = useState(0)
+
+  // Panel / dialog state
   const [panelOpen, setPanelOpen] = useState(false)
   const [editBox, setEditBox] = useState<AmmoBoxRead | null>(null)
   const [deleteBox, setDeleteBox] = useState<AmmoBoxRead | null>(null)
@@ -96,6 +143,24 @@ export default function InventoryPage() {
   const lookups = useInventoryLookups()
   const { getLowItems, getCaliberSummary } = useThresholds()
 
+  // Lookup maps used for column filtering
+  const caliberMap = useMemo(
+    () => new Map(lookups.calibers.map((c) => [c.id, c.name])),
+    [lookups.calibers],
+  )
+  const manufacturerMap = useMemo(
+    () => new Map(lookups.manufacturers.map((m) => [m.id, m.name])),
+    [lookups.manufacturers],
+  )
+  const typeMap = useMemo(
+    () => new Map(lookups.ammoTypes.map((t) => [t.id, t.name])),
+    [lookups.ammoTypes],
+  )
+  const categoryMap = useMemo(
+    () => new Map(lookups.categories.map((c) => [c.id, c.name])),
+    [lookups.categories],
+  )
+
   const archiveMutation = useMutation({
     mutationFn: (box: AmmoBoxRead) =>
       updateAmmo(box.id, { is_archived: true, archive_reason: 'manual' }),
@@ -108,32 +173,129 @@ export default function InventoryPage() {
     },
   })
 
-  const {
-    data,
-    isLoading,
-    isError,
-  } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['ammo', { search, showArchived }],
     queryFn: () => listAmmo({ search: search || undefined, show_archived: showArchived }),
   })
 
   const allBoxes = data?.boxes ?? []
+  // Apply the condition toolbar filter
   const boxes = conditionFilter
-    ? allBoxes.filter((b) => b.ammo_condition_id != null && String(b.ammo_condition_id) === conditionFilter)
+    ? allBoxes.filter(
+        (b) => b.ammo_condition_id != null && String(b.ammo_condition_id) === conditionFilter,
+      )
     : allBoxes
+
   const canAdd = user?.role !== 'read_only'
 
+  // Low-stock computed from all boxes (inventory health indicator, not filtered)
   const lowItems = useMemo(
     () => getLowItems(boxes, lookups.calibers),
     [boxes, lookups.calibers, getLowItems],
   )
-
   const lowSet = useMemo(() => new Set(lowItems.map((b) => b.id)), [lowItems])
 
   const caliberSummary = useMemo(
     () => getCaliberSummary(boxes, lookups.calibers),
     [boxes, lookups.calibers, getCaliberSummary],
   )
+
+  // Apply column filters — AND logic with the global search + condition filter above
+  const filteredBoxes = useMemo(() => {
+    const cf = columnFilters
+    const hasAny = Object.values(cf).some((v) => v !== '')
+    if (!hasAny) return boxes
+
+    return boxes.filter((box) => {
+      // ID — partial match on numeric id or legacy_id string
+      if (cf.id) {
+        const q = cf.id.toLowerCase()
+        if (!String(box.id).includes(q) && !(box.legacy_id ?? '').toLowerCase().includes(q))
+          return false
+      }
+      // Caliber
+      if (cf.caliber) {
+        const name = caliberMap.get(box.caliber_id) ?? ''
+        if (!name.toLowerCase().includes(cf.caliber.toLowerCase())) return false
+      }
+      // Manufacturer — also matches product_name
+      if (cf.manufacturer) {
+        const q = cf.manufacturer.toLowerCase()
+        const mfg = (manufacturerMap.get(box.manufacturer_id) ?? '').toLowerCase()
+        const prod = (box.product_name ?? '').toLowerCase()
+        if (!mfg.includes(q) && !prod.includes(q)) return false
+      }
+      // Gr/Oz
+      if (cf.grOz) {
+        const val = box.gr_oz != null ? String(box.gr_oz) : ''
+        if (!val.includes(cf.grOz)) return false
+      }
+      // Type
+      if (cf.type) {
+        const name = box.type_id != null ? (typeMap.get(box.type_id) ?? '') : ''
+        if (!name.toLowerCase().includes(cf.type.toLowerCase())) return false
+      }
+      // Category
+      if (cf.category) {
+        const name = box.category_id != null ? (categoryMap.get(box.category_id) ?? '') : ''
+        if (!name.toLowerCase().includes(cf.category.toLowerCase())) return false
+      }
+      // Remaining — operator filter
+      if (cf.remaining) {
+        if (!matchNumericFilter(box.qty_remaining, cf.remaining)) return false
+      }
+      // Value — operator filter; skip boxes with no cost set
+      if (cf.value) {
+        const val =
+          box.cost_per_round != null ? box.qty_remaining * box.cost_per_round : null
+        if (val == null) return false
+        if (!matchNumericFilter(val, cf.value)) return false
+      }
+      // Shared — "shared" or "private" prefix matching
+      if (cf.shared) {
+        const q = cf.shared.toLowerCase()
+        const matchesShared = 'shared'.startsWith(q)
+        const matchesPrivate = 'private'.startsWith(q)
+        if (matchesShared && !matchesPrivate && !box.is_shared) return false
+        if (matchesPrivate && !matchesShared && box.is_shared) return false
+      }
+      return true
+    })
+  }, [boxes, columnFilters, caliberMap, manufacturerMap, typeMap, categoryMap])
+
+  // Stats from filtered rows only
+  const filteredStats = useMemo(() => {
+    const totalBoxes = filteredBoxes.length
+    const totalRounds = filteredBoxes.reduce((sum, b) => sum + b.qty_remaining, 0)
+    const hasValue = filteredBoxes.some((b) => b.cost_per_round != null)
+    const totalValue = hasValue
+      ? filteredBoxes.reduce(
+          (sum, b) =>
+            sum + (b.cost_per_round != null ? b.qty_remaining * b.cost_per_round : 0),
+          0,
+        )
+      : null
+    return { totalBoxes, totalRounds, totalValue }
+  }, [filteredBoxes])
+
+  // Active column filter count
+  const activeFilterCount = useMemo(
+    () => Object.values(columnFilters).filter((v) => v !== '').length,
+    [columnFilters],
+  )
+
+  function handleColumnFilterChange(key: keyof ColumnFilters, value: string) {
+    setColumnFilters((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function clearColumnFilters() {
+    setColumnFilters(DEFAULT_COLUMN_FILTERS)
+  }
+
+  function handleGroupByChange(value: GroupByField) {
+    setGroupBy(value)
+    localStorage.setItem('inventory_group_by', value)
+  }
 
   function dismissBanner() {
     sessionStorage.setItem(BANNER_DISMISS_KEY, '1')
@@ -164,14 +326,38 @@ export default function InventoryPage() {
     archiveMutation.mutate(box)
   }
 
+  const selectClass =
+    'h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 px-2 focus:outline-none focus:ring-2 focus:ring-gold'
+
   return (
     <AppShell>
       <TopBar title="Inventory" />
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Toolbar */}
-        <div className="px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="flex items-center gap-3 flex-1 min-w-0 w-full sm:w-auto">
-            <div className="relative flex-1 max-w-sm">
+        {/* ── Toolbar ── */}
+        <div className="px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-800 space-y-2">
+          {/* Row 1: Group By | Search | Archived | Condition | Add Box */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Group By */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                Group By
+              </label>
+              <select
+                value={groupBy}
+                onChange={(e) => handleGroupByChange(e.target.value as GroupByField)}
+                className={selectClass}
+                aria-label="Group by field"
+              >
+                {GROUP_BY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Search */}
+            <div className="relative flex-1 min-w-[180px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="search"
@@ -181,7 +367,9 @@ export default function InventoryPage() {
                 className="w-full pl-9 pr-3 h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gold focus:border-transparent"
               />
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+
+            {/* Archived toggle */}
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none shrink-0">
               <input
                 type="checkbox"
                 checked={showArchived}
@@ -190,45 +378,93 @@ export default function InventoryPage() {
               />
               Archived
             </label>
+
+            {/* Condition filter */}
             {lookups.ammoConditions.length > 0 && (
               <select
                 value={conditionFilter}
                 onChange={(e) => setConditionFilter(e.target.value)}
-                className="h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 px-2 focus:outline-none focus:ring-2 focus:ring-gold"
+                className={selectClass}
                 aria-label="Filter by condition"
               >
                 <option value="">All Conditions</option>
                 {lookups.ammoConditions.map((c) => (
-                  <option key={c.id} value={String(c.id)}>{c.name}</option>
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             )}
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {data && (
-              <StatsBar
-                totalBoxes={data.total_boxes}
-                totalRounds={data.total_rounds}
-                totalValue={data.total_value}
-              />
-            )}
+
+            {/* Add Box — pushed to the right */}
             {canAdd && (
-              <Button onClick={openAdd} size="sm">
+              <Button onClick={openAdd} size="sm" className="ml-auto shrink-0">
                 <Plus className="h-4 w-4 mr-1.5" />
                 Add Box
               </Button>
             )}
           </div>
+
+          {/* Row 2: filter controls + stats */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Active filter count + Clear */}
+              {activeFilterCount > 0 && (
+                <>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} active
+                  </span>
+                  <button
+                    onClick={clearColumnFilters}
+                    className="flex items-center gap-1 text-xs text-gold hover:text-gold/80 font-medium"
+                  >
+                    <X className="h-3 w-3" />
+                    Clear Filters
+                  </button>
+                </>
+              )}
+
+              {/* Collapse / Expand All — only when grouped */}
+              {groupBy !== 'none' && (
+                <>
+                  {activeFilterCount > 0 && (
+                    <span className="text-gray-300 dark:text-gray-600">|</span>
+                  )}
+                  <button
+                    onClick={() => setCollapseSignal((s) => s + 1)}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    Collapse All
+                  </button>
+                  <button
+                    onClick={() => setExpandSignal((s) => s + 1)}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    Expand All
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Stats — reflect filtered rows */}
+            <StatsBar
+              totalBoxes={filteredStats.totalBoxes}
+              totalRounds={filteredStats.totalRounds}
+              totalValue={filteredStats.totalValue}
+            />
+          </div>
         </div>
 
-        {/* Content */}
+        {/* ── Content ── */}
         <div className="flex-1 overflow-auto px-4 sm:px-6 py-4 space-y-4">
           {/* Low-stock alert banner */}
           {!bannerDismissed && lowItems.length > 0 && (
             <Alert variant="warning" className="flex items-start gap-3 pr-10 relative">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <div>
-                <AlertTitle>Low stock on {lowItems.length} item{lowItems.length !== 1 ? 's' : ''}</AlertTitle>
+                <AlertTitle>
+                  Low stock on {lowItems.length} item{lowItems.length !== 1 ? 's' : ''}
+                </AlertTitle>
                 <AlertDescription>
                   Some calibers are below your configured thresholds.{' '}
                   <button
@@ -282,7 +518,8 @@ export default function InventoryPage() {
                         </span>
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {cs.total_rounds.toLocaleString()} rds · {cs.box_count} box{cs.box_count !== 1 ? 'es' : ''}
+                        {cs.total_rounds.toLocaleString()} rds · {cs.box_count} box
+                        {cs.box_count !== 1 ? 'es' : ''}
                       </div>
                     </div>
                   ))}
@@ -302,9 +539,11 @@ export default function InventoryPage() {
             <div className="flex flex-col items-center justify-center h-64 text-center gap-3">
               <PackageOpen className="h-12 w-12 text-gray-300 dark:text-gray-600" />
               <p className="text-gray-500 dark:text-gray-400 font-medium">
-                {search ? 'No results match your search.' : 'No ammo boxes yet.'}
+                {search || conditionFilter
+                  ? 'No results match your search.'
+                  : 'No ammo boxes yet.'}
               </p>
-              {canAdd && !search && (
+              {canAdd && !search && !conditionFilter && (
                 <Button onClick={openAdd} size="sm">
                   <Plus className="h-4 w-4 mr-1.5" />
                   Add your first box
@@ -316,7 +555,7 @@ export default function InventoryPage() {
               {/* Desktop table */}
               <div className="hidden md:block">
                 <InventoryTable
-                  boxes={boxes}
+                  boxes={filteredBoxes}
                   user={user!}
                   calibers={lookups.calibers}
                   manufacturers={lookups.manufacturers}
@@ -325,7 +564,13 @@ export default function InventoryPage() {
                   categories={lookups.categories}
                   dealers={lookups.dealers}
                   containers={lookups.containers}
+                  locations={lookups.locations}
                   lowSet={lowSet}
+                  groupBy={groupBy}
+                  collapseSignal={collapseSignal}
+                  expandSignal={expandSignal}
+                  columnFilters={columnFilters}
+                  onColumnFilterChange={handleColumnFilterChange}
                   onEdit={openEdit}
                   onDelete={openDelete}
                   onArchive={openArchive}
@@ -334,7 +579,7 @@ export default function InventoryPage() {
               {/* Mobile cards */}
               <div className="md:hidden">
                 <InventoryCardList
-                  boxes={boxes}
+                  boxes={filteredBoxes}
                   user={user!}
                   calibers={lookups.calibers}
                   manufacturers={lookups.manufacturers}
