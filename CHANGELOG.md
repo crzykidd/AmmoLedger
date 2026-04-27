@@ -23,6 +23,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Changed
 
+- ID column is now sortable in inventory table
 - README and CLAUDE.md updated to reflect accurate phase completion status — phase table and Features section now describe what is actually built
 
 ### Fixed

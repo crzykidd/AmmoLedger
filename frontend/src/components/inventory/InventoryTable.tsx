@@ -48,7 +48,7 @@ function HistorySection({ boxId }: { boxId: number }) {
 
 // ---------------------------------------------------------------------------
 
-type SortKey = 'caliber' | 'manufacturer' | 'qty_remaining'
+type SortKey = 'id' | 'caliber' | 'manufacturer' | 'qty_remaining'
 type SortDir = 'asc' | 'desc'
 
 interface Props {
@@ -99,7 +99,7 @@ export default function InventoryTable({
   onDelete,
   onArchive,
 }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>('caliber')
+  const [sortKey, setSortKey] = useState<SortKey>('id')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [openPopoverBoxId, setOpenPopoverBoxId] = useState<number | null>(null)
@@ -114,6 +114,9 @@ export default function InventoryTable({
 
   const sorted = useMemo(() => {
     return [...boxes].sort((a, b) => {
+      if (sortKey === 'id') {
+        return sortDir === 'asc' ? a.id - b.id : b.id - a.id
+      }
       if (sortKey === 'qty_remaining') {
         return sortDir === 'asc' ? a.qty_remaining - b.qty_remaining : b.qty_remaining - a.qty_remaining
       }
@@ -138,8 +141,8 @@ export default function InventoryTable({
     })
   }
 
-  const SortableHead = ({ label, col }: { label: string; col: SortKey }) => (
-    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => toggleSort(col)}>
+  const SortableHead = ({ label, col, className }: { label: string; col: SortKey; className?: string }) => (
+    <TableHead className={`cursor-pointer select-none whitespace-nowrap${className ? ` ${className}` : ''}`} onClick={() => toggleSort(col)}>
       {label}
       <SortIcon active={sortKey === col} dir={sortDir} />
     </TableHead>
@@ -151,7 +154,7 @@ export default function InventoryTable({
         <TableHeader>
           <TableRow className="bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50">
             <TableHead className="w-8" />
-            <TableHead className="w-16">ID</TableHead>
+            <SortableHead label="ID" col="id" className="w-16" />
             <SortableHead label="Caliber" col="caliber" />
             <SortableHead label="Manufacturer" col="manufacturer" />
             <TableHead>Gr/Oz</TableHead>
