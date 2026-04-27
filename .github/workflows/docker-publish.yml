@@ -86,7 +86,8 @@ jobs:
       - name: Delete old backend versions
         uses: actions/delete-package-versions@v5
         with:
-          package-name: ammologger-backend
+          owner: crzykidd
+          package-name: ammoledger-backend
           package-type: container
           min-versions-to-keep: 10
           delete-only-untagged-versions: false
@@ -95,7 +96,8 @@ jobs:
       - name: Delete old frontend versions
         uses: actions/delete-package-versions@v5
         with:
-          package-name: ammologger-frontend
+          owner: crzykidd
+          package-name: ammoledger-frontend
           package-type: container
           min-versions-to-keep: 10
           delete-only-untagged-versions: false
