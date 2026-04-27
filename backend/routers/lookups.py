@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from database import get_session
-from models import AmmoType, Caliber, Category, Container, Dealer, Location, Manufacturer
+from models import AmmoCondition, AmmoType, Caliber, Category, Container, Dealer, Location, Manufacturer
 from schemas import (
     ContainerCreate,
     ContainerRead,
@@ -88,6 +88,30 @@ def create_ammo_type(
     db.commit()
     db.refresh(t)
     return t
+
+
+# ---------------------------------------------------------------------------
+# Ammo Conditions
+# ---------------------------------------------------------------------------
+
+@router.get("/ammo-conditions", response_model=list[LookupRead])
+def list_ammo_conditions(user=Depends(require_auth), db: Session = Depends(get_session)):
+    return db.exec(select(AmmoCondition).where(AmmoCondition.is_active)).all()
+
+
+@router.post("/ammo-conditions", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
+def create_ammo_condition(
+    payload: LookupCreate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    if db.exec(select(AmmoCondition).where(AmmoCondition.name == payload.name)).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Condition already exists")
+    c = AmmoCondition(name=payload.name)
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return c
 
 
 # ---------------------------------------------------------------------------

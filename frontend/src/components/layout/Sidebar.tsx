@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Package,
+  FileUp,
   SlidersHorizontal,
   User,
   Users,
@@ -36,6 +37,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Inventory', icon: Package, href: '/inventory' },
+      { label: 'Import', icon: FileUp, href: '/import' },
     ],
   },
   {

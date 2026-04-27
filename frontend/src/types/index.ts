@@ -140,6 +140,7 @@ export interface AmmoBoxRead {
   gr_oz: number | null
   weight_unit: string | null
   type_id: number | null
+  ammo_condition_id: number | null
   category_id: number | null
   qty_original: number
   qty_remaining: number
@@ -173,6 +174,7 @@ export interface AmmoBoxCreate {
   gr_oz?: number
   weight_unit?: string
   type_id?: number
+  ammo_condition_id?: number
   category_id?: number
   purchase_date?: string
   cost_per_round?: number
@@ -192,6 +194,7 @@ export interface AmmoBoxUpdate {
   gr_oz?: number
   weight_unit?: string
   type_id?: number
+  ammo_condition_id?: number
   category_id?: number
   purchase_date?: string
   cost_per_round?: number
@@ -201,4 +204,30 @@ export interface AmmoBoxUpdate {
   notes?: string
   is_archived?: boolean
   archive_reason?: string
+}
+
+// ---------------------------------------------------------------------------
+// Import types
+// ---------------------------------------------------------------------------
+
+export interface ImportValidationResult {
+  valid: boolean
+  total_rows: number
+  importable_rows: number
+  error_rows: number
+  warning_count: number
+  new_values: Record<string, string[]>
+  errors: { row: number; field: string; message: string }[]
+  warnings: { row: number | null; field: string; message: string }[]
+  validation_token: string
+  token_expires_at: string
+}
+
+export interface ImportConfirmResult {
+  success: boolean
+  imported: number
+  skipped: number
+  new_lookup_values_created: number
+  pre_import_backup: string
+  warnings: { row: number | null; field: string; message: string }[]
 }

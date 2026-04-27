@@ -19,6 +19,7 @@ from utils.seeds import sync_yaml_seeds
 from utils.scheduler import reschedule, start_scheduler, stop_scheduler
 from routers import auth, ammo, expenditure, lookups, users
 from routers.backup import router as backup_router
+from routers.importer import router as import_router
 from utils.rbac import require_auth, require_role
 from version import __version__
 
@@ -44,6 +45,7 @@ app.include_router(ammo.router)
 app.include_router(expenditure.router)
 app.include_router(lookups.router)
 app.include_router(backup_router)
+app.include_router(import_router, prefix="/import")
 
 _config: dict = {}
 

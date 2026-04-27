@@ -1,0 +1,567 @@
+import csv
+import io
+import json
+import secrets
+from datetime import datetime, timedelta, date as date_type
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func
+from sqlmodel import Session, select
+
+from database import engine, get_session
+from models import (
+    AmmoBox,
+    AmmoCondition,
+    AmmoType,
+    Caliber,
+    Category,
+    Container,
+    Dealer,
+    Location,
+    Manufacturer,
+)
+from utils.config import get_setting, set_setting
+from utils.pre_import_backup import trigger_pre_import_backup
+from utils.rbac import require_auth
+
+router = APIRouter(tags=["import"])
+
+VALID_COLUMNS = {
+    "ammologger_version", "legacy_id", "caliber", "manufacturer",
+    "product_name", "gr_oz", "weight_unit", "type", "category",
+    "ammo_condition", "qty_original", "qty_remaining", "purchase_date",
+    "cost_per_round", "dealer", "location", "container", "is_archived", "notes",
+}
+
+TOKEN_TTL_MINUTES = 15
+
+
+# ---------------------------------------------------------------------------
+# Levenshtein distance (simple DP, no external dependency)
+# ---------------------------------------------------------------------------
+
+def _levenshtein(a: str, b: str) -> int:
+    a, b = a.lower(), b.lower()
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for ch_a in a:
+        curr = [prev[0] + 1]
+        for j, ch_b in enumerate(b):
+            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (ch_a != ch_b)))
+        prev = curr
+    return prev[-1]
+
+
+# ---------------------------------------------------------------------------
+# CSV parsing helpers
+# ---------------------------------------------------------------------------
+
+def _get(row: dict[str, str], key: str) -> str:
+    return row.get(key, "").strip()
+
+
+def _parse_int(val: str) -> int | None:
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_float(val: str) -> float | None:
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_date(val: str) -> date_type | None:
+    try:
+        return date_type.fromisoformat(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _validate_row(row: dict[str, str], row_num: int) -> tuple[list[dict], list[dict]]:
+    """Return (errors, warnings) for a single CSV row."""
+    errors: list[dict] = []
+    warnings: list[dict] = []
+
+    caliber = _get(row, "caliber")
+    if not caliber:
+        errors.append({"row": row_num, "field": "caliber", "message": "Caliber is required"})
+
+    qty_original_raw = _get(row, "qty_original")
+    qty_remaining_raw = _get(row, "qty_remaining")
+
+    if not qty_original_raw:
+        errors.append({"row": row_num, "field": "qty_original", "message": "qty_original is required"})
+        qty_original = None
+    else:
+        qty_original = _parse_int(qty_original_raw)
+        if qty_original is None or qty_original <= 0:
+            errors.append({"row": row_num, "field": "qty_original", "message": "qty_original must be a positive integer"})
+            qty_original = None
+
+    if not qty_remaining_raw:
+        errors.append({"row": row_num, "field": "qty_remaining", "message": "qty_remaining is required"})
+    else:
+        qty_remaining = _parse_int(qty_remaining_raw)
+        if qty_remaining is None or qty_remaining < 0:
+            errors.append({"row": row_num, "field": "qty_remaining", "message": "qty_remaining must be a non-negative integer"})
+        elif qty_original is not None and qty_remaining > qty_original:
+            errors.append({"row": row_num, "field": "qty_remaining", "message": f"qty_remaining ({qty_remaining}) exceeds qty_original ({qty_original})"})
+
+    purchase_date = _get(row, "purchase_date")
+    if purchase_date and _parse_date(purchase_date) is None:
+        warnings.append({"row": row_num, "field": "purchase_date", "message": "Date format not recognized — will be set to null"})
+
+    cost_raw = _get(row, "cost_per_round")
+    if cost_raw and _parse_float(cost_raw) is None:
+        warnings.append({"row": row_num, "field": "cost_per_round", "message": "cost_per_round is not a valid decimal — will be set to 0"})
+
+    is_archived_raw = _get(row, "is_archived")
+    if is_archived_raw and is_archived_raw.lower() not in ("true", "false", ""):
+        warnings.append({"row": row_num, "field": "is_archived", "message": "is_archived not 'true' or 'false' — will default to false"})
+
+    gr_oz_raw = _get(row, "gr_oz")
+    if gr_oz_raw and _parse_float(gr_oz_raw) is None:
+        warnings.append({"row": row_num, "field": "gr_oz", "message": "gr_oz is not a valid number — will be set to null"})
+
+    return errors, warnings
+
+
+# ---------------------------------------------------------------------------
+# Lookup resolution helpers
+# ---------------------------------------------------------------------------
+
+LOOKUP_MODELS = {
+    "calibers": Caliber,
+    "manufacturers": Manufacturer,
+    "ammo_types": AmmoType,
+    "categories": Category,
+    "ammo_conditions": AmmoCondition,
+    "dealers": Dealer,
+    "locations": Location,
+    "containers": Container,
+}
+
+# CSV column name → (db table key, Model)
+COLUMN_TO_LOOKUP = {
+    "caliber": ("calibers", Caliber),
+    "manufacturer": ("manufacturers", Manufacturer),
+    "type": ("ammo_types", AmmoType),
+    "category": ("categories", Category),
+    "ammo_condition": ("ammo_conditions", AmmoCondition),
+    "dealer": ("dealers", Dealer),
+    "location": ("locations", Location),
+    "container": ("containers", Container),
+}
+
+
+def _collect_lookup_values(rows: list[dict[str, str]]) -> dict[str, set[str]]:
+    """Collect unique non-blank values for each lookup column."""
+    result: dict[str, set[str]] = {col: set() for col in COLUMN_TO_LOOKUP}
+    for row in rows:
+        for col in COLUMN_TO_LOOKUP:
+            val = _get(row, col)
+            if val:
+                result[col].add(val)
+    return result
+
+
+def _check_new_values(
+    db: Session,
+    lookup_values: dict[str, set[str]],
+) -> tuple[dict[str, list[str]], list[dict]]:
+    """
+    Returns:
+      new_values: {table_key: [new values not yet in DB]}
+      fuzzy_warnings: [{row: None, field: col, message: "..."}]
+    """
+    new_values: dict[str, list[str]] = {}
+    fuzzy_warnings: list[dict] = []
+
+    for col, (table_key, Model) in COLUMN_TO_LOOKUP.items():
+        incoming = lookup_values.get(col, set())
+        if not incoming:
+            continue
+
+        existing_rows = db.exec(select(Model)).all()
+        existing_names = [r.name for r in existing_rows]
+        existing_lower = {n.lower(): n for n in existing_names}
+
+        col_new: list[str] = []
+        for val in sorted(incoming):
+            if val.lower() in existing_lower:
+                continue
+            col_new.append(val)
+            # fuzzy check against all existing
+            for existing_name in existing_names:
+                dist = _levenshtein(val, existing_name)
+                if 0 < dist <= 2:
+                    fuzzy_warnings.append({
+                        "row": None,
+                        "field": col,
+                        "message": f"'{val}' is similar to existing '{existing_name}' — verify these are the same",
+                    })
+                    break
+
+        if col_new:
+            new_values[table_key] = col_new
+
+    return new_values, fuzzy_warnings
+
+
+# ---------------------------------------------------------------------------
+# Token helpers
+# ---------------------------------------------------------------------------
+
+def _generate_token(db: Session, row_count: int) -> tuple[str, datetime]:
+    token = secrets.token_urlsafe(16)
+    expires_at = datetime.utcnow() + timedelta(minutes=TOKEN_TTL_MINUTES)
+    set_setting(db, f"import_token_{token}", json.dumps({
+        "expires_at": expires_at.isoformat(),
+        "row_count": row_count,
+    }))
+    db.commit()
+    return token, expires_at
+
+
+def _validate_token(db: Session, token: str) -> None:
+    raw = get_setting(db, f"import_token_{token}")
+    if not raw:
+        raise HTTPException(status_code=400, detail="Invalid or expired validation token — please re-validate")
+    data = json.loads(raw)
+    expires_at = datetime.fromisoformat(data["expires_at"])
+    if datetime.utcnow() > expires_at:
+        raise HTTPException(status_code=400, detail="Validation token has expired — please re-validate")
+
+
+def _consume_token(db: Session, token: str) -> None:
+    from models import AppSettings
+    row = db.exec(select(AppSettings).where(AppSettings.key == f"import_token_{token}")).first()
+    if row:
+        db.delete(row)
+        db.commit()
+
+
+# ---------------------------------------------------------------------------
+# CSV parsing entry point
+# ---------------------------------------------------------------------------
+
+def _parse_csv(content: bytes) -> tuple[list[dict[str, str]], list[str]]:
+    """Return (rows, headers). Raises HTTPException on malformed input."""
+    try:
+        text = content.decode("utf-8-sig")  # handle BOM
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+    if reader.fieldnames is None:
+        raise HTTPException(status_code=400, detail="CSV file is empty or has no headers")
+
+    # Normalize headers (strip whitespace, lower for matching)
+    headers = [h.strip() for h in reader.fieldnames]
+    norm_map = {h.lower(): h for h in headers}  # lower → original header
+
+    # Build rows using only valid columns, keyed by lowercase column name
+    rows = []
+    for raw_row in reader:
+        row: dict[str, str] = {}
+        for col in VALID_COLUMNS:
+            orig = norm_map.get(col)
+            row[col] = raw_row.get(orig, "").strip() if orig else ""
+        rows.append(row)
+
+    return rows, headers
+
+
+# ---------------------------------------------------------------------------
+# Lookup resolution for import/confirm
+# ---------------------------------------------------------------------------
+
+def _resolve_or_create(db: Session, Model, name: str) -> int:
+    """Get or create a lookup entry, return its id."""
+    existing = db.exec(
+        select(Model).where(func.lower(Model.name) == name.lower())
+    ).first()
+    if existing:
+        return existing.id
+    new = Model(name=name, source="user")
+    db.add(new)
+    db.flush()
+    return new.id
+
+
+def _resolve_location(db: Session, name: str) -> int:
+    existing = db.exec(
+        select(Location).where(func.lower(Location.name) == name.lower())
+    ).first()
+    if existing:
+        return existing.id
+    new = Location(name=name)
+    db.add(new)
+    db.flush()
+    return new.id
+
+
+def _resolve_container(db: Session, name: str, location_id: int | None = None) -> int:
+    existing = db.exec(
+        select(Container).where(func.lower(Container.name) == name.lower())
+    ).first()
+    if existing:
+        return existing.id
+    new = Container(name=name, location_id=location_id)
+    db.add(new)
+    db.flush()
+    return new.id
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/validate")
+async def validate_import(
+    file: UploadFile = File(...),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    content = await file.read()
+    rows, _headers = _parse_csv(content)
+
+    if not rows:
+        raise HTTPException(status_code=422, detail="CSV file contains no data rows")
+
+    all_errors: list[dict] = []
+    all_warnings: list[dict] = []
+    importable = 0
+
+    for i, row in enumerate(rows, start=2):  # row 1 = header
+        errs, warns = _validate_row(row, i)
+        all_errors.extend(errs)
+        all_warnings.extend(warns)
+        if not errs:
+            importable += 1
+
+    if importable == 0:
+        raise HTTPException(status_code=422, detail="No importable rows found — all rows have errors")
+
+    lookup_values = _collect_lookup_values(rows)
+    new_values, fuzzy_warnings = _check_new_values(db, lookup_values)
+    all_warnings.extend(fuzzy_warnings)
+
+    token, expires_at = _generate_token(db, importable)
+
+    return {
+        "valid": len(all_errors) == 0,
+        "total_rows": len(rows),
+        "importable_rows": importable,
+        "error_rows": len(rows) - importable,
+        "warning_count": len(all_warnings),
+        "new_values": new_values,
+        "errors": all_errors,
+        "warnings": all_warnings,
+        "validation_token": token,
+        "token_expires_at": expires_at.isoformat(),
+    }
+
+
+@router.post("/confirm")
+async def confirm_import(
+    file: UploadFile = File(...),
+    validation_token: str = Form(...),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    _validate_token(db, validation_token)
+
+    content = await file.read()
+    rows, _headers = _parse_csv(content)
+
+    # Pre-import backup — block if it fails
+    try:
+        backup_filename = trigger_pre_import_backup()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=f"Pre-import backup failed: {exc}") from exc
+
+    _consume_token(db, validation_token)
+
+    imported = 0
+    skipped = 0
+    lookup_values_created = 0
+    warnings: list[dict] = []
+
+    with Session(engine) as import_db:
+        for i, row in enumerate(rows, start=2):
+            errs, row_warns = _validate_row(row, i)
+            warnings.extend(row_warns)
+            if errs:
+                skipped += 1
+                continue
+
+            # Resolve required lookups
+            caliber_id = _resolve_or_create(import_db, Caliber, _get(row, "caliber"))
+
+            manufacturer_raw = _get(row, "manufacturer")
+            manufacturer_id = _resolve_or_create(import_db, Manufacturer, manufacturer_raw) if manufacturer_raw else None
+
+            # Optional lookups
+            type_raw = _get(row, "type")
+            type_id = _resolve_or_create(import_db, AmmoType, type_raw) if type_raw else None
+
+            category_raw = _get(row, "category")
+            category_id = _resolve_or_create(import_db, Category, category_raw) if category_raw else None
+
+            condition_raw = _get(row, "ammo_condition")
+            condition_id = _resolve_or_create(import_db, AmmoCondition, condition_raw) if condition_raw else None
+
+            dealer_raw = _get(row, "dealer")
+            dealer_id = _resolve_or_create(import_db, Dealer, dealer_raw) if dealer_raw else None
+
+            location_raw = _get(row, "location")
+            location_id = _resolve_location(import_db, location_raw) if location_raw else None
+
+            container_raw = _get(row, "container")
+            container_id = _resolve_container(import_db, container_raw, location_id) if container_raw else None
+
+            # Field values
+            qty_original = _parse_int(_get(row, "qty_original")) or 1
+            qty_remaining = _parse_int(_get(row, "qty_remaining"))
+            if qty_remaining is None:
+                qty_remaining = qty_original
+
+            gr_oz_raw = _get(row, "gr_oz")
+            gr_oz = _parse_float(gr_oz_raw) if gr_oz_raw else None
+
+            weight_unit_raw = _get(row, "weight_unit").upper()
+            weight_unit = weight_unit_raw if weight_unit_raw in ("GR", "OZ") else "GR"
+
+            purchase_date_raw = _get(row, "purchase_date")
+            purchase_date = _parse_date(purchase_date_raw)
+
+            cost_raw = _get(row, "cost_per_round")
+            cost_per_round = _parse_float(cost_raw) if cost_raw else None
+            if cost_per_round is None and cost_raw:
+                cost_per_round = 0.0
+
+            is_archived_raw = _get(row, "is_archived").lower()
+            is_archived = is_archived_raw == "true"
+
+            # Manufacturer is required in model but CSV may omit it — use a placeholder
+            if manufacturer_id is None:
+                # Shouldn't happen given caliber is required, but guard
+                skipped += 1
+                continue
+
+            box = AmmoBox(
+                owner_id=user.id,
+                is_shared=False,
+                caliber_id=caliber_id,
+                manufacturer_id=manufacturer_id,
+                product_name=_get(row, "product_name") or None,
+                gr_oz=gr_oz,
+                weight_unit=weight_unit,
+                type_id=type_id,
+                ammo_condition_id=condition_id,
+                category_id=category_id,
+                qty_original=qty_original,
+                qty_remaining=qty_remaining,
+                purchase_date=purchase_date,
+                cost_per_round=cost_per_round,
+                dealer_id=dealer_id,
+                container_id=container_id,
+                legacy_id=_get(row, "legacy_id") or None,
+                notes=_get(row, "notes") or None,
+                is_archived=is_archived,
+                archive_reason="manual" if is_archived else None,
+            )
+            import_db.add(box)
+            imported += 1
+
+        import_db.commit()
+
+        # Count newly created lookup entries
+        lookup_values_created = sum(
+            len(import_db.exec(select(Model).where(Model.source == "user")).all())
+            for Model in [Caliber, Manufacturer, AmmoType, AmmoCondition, Category, Dealer]
+        )
+
+    return {
+        "success": True,
+        "imported": imported,
+        "skipped": skipped,
+        "new_lookup_values_created": lookup_values_created,
+        "pre_import_backup": backup_filename,
+        "warnings": warnings,
+    }
+
+
+@router.get("/template")
+def get_template(user=Depends(require_auth)):
+    columns = [
+        "ammologger_version", "legacy_id", "caliber", "manufacturer", "product_name",
+        "gr_oz", "weight_unit", "type", "ammo_condition", "category",
+        "qty_original", "qty_remaining", "purchase_date", "cost_per_round",
+        "dealer", "location", "container", "is_archived", "notes",
+    ]
+
+    example_rows = [
+        {
+            "ammologger_version": "1.1",
+            "legacy_id": "B001",
+            "caliber": "9mm Luger",
+            "manufacturer": "Federal",
+            "product_name": "HST 147gr",
+            "gr_oz": "147",
+            "weight_unit": "GR",
+            "type": "JHP",
+            "ammo_condition": "Factory New",
+            "category": "Defense",
+            "qty_original": "50",
+            "qty_remaining": "47",
+            "purchase_date": "2025-11-15",
+            "cost_per_round": "0.89",
+            "dealer": "Lucky Gunner",
+            "location": "Gun Safe",
+            "container": "Ammo Can #1",
+            "is_archived": "false",
+            "notes": "carry ammo",
+        },
+        {
+            "ammologger_version": "1.1",
+            "legacy_id": "",
+            "caliber": ".223 Remington",
+            "manufacturer": "Winchester",
+            "product_name": "USA White Box",
+            "gr_oz": "55",
+            "weight_unit": "GR",
+            "type": "FMJ",
+            "ammo_condition": "Factory New",
+            "category": "Target / Range",
+            "qty_original": "1000",
+            "qty_remaining": "820",
+            "purchase_date": "2025-09-01",
+            "cost_per_round": "0.42",
+            "dealer": "Brownells",
+            "location": "Garage Cabinet",
+            "container": "",
+            "is_archived": "false",
+            "notes": "",
+        },
+    ]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=columns, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(example_rows)
+
+    csv_bytes = output.getvalue().encode("utf-8")
+
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=ammoledger_import_template.csv"},
+    )

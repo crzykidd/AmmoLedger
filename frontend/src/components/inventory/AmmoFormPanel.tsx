@@ -26,7 +26,7 @@ import { Switch } from '@/components/ui/switch'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import type { AmmoBoxRead, AmmoBoxCreate, AmmoBoxUpdate, User, LookupItem, ContainerItem } from '@/types'
+import type { AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, ContainerItem, LookupItem, User } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -42,6 +42,7 @@ const formSchema = z.object({
   gr_oz: z.string().optional(),
   weight_unit: z.string().optional(),
   type_id: z.string().optional(),
+  ammo_condition_id: z.string().optional(),
   category_id: z.string().optional(),
   purchase_date: z.string().optional(),
   cost_per_round: z.string().optional(),
@@ -63,6 +64,7 @@ const DEFAULT_VALUES: FormValues = {
   gr_oz: '',
   weight_unit: '',
   type_id: '',
+  ammo_condition_id: '',
   category_id: '',
   purchase_date: '',
   cost_per_round: '',
@@ -182,6 +184,7 @@ interface Props {
   calibers: LookupItem[]
   manufacturers: LookupItem[]
   ammoTypes: LookupItem[]
+  ammoConditions: LookupItem[]
   categories: LookupItem[]
   containers: ContainerItem[]
 }
@@ -198,6 +201,7 @@ export default function AmmoFormPanel({
   calibers,
   manufacturers,
   ammoTypes,
+  ammoConditions,
   categories,
   containers,
 }: Props) {
@@ -228,6 +232,7 @@ export default function AmmoFormPanel({
         gr_oz: editBox.gr_oz != null ? String(editBox.gr_oz) : '',
         weight_unit: editBox.weight_unit ?? '',
         type_id: toIntStr(editBox.type_id),
+        ammo_condition_id: toIntStr(editBox.ammo_condition_id),
         category_id: toIntStr(editBox.category_id),
         purchase_date: editBox.purchase_date ?? '',
         cost_per_round: editBox.cost_per_round != null ? String(editBox.cost_per_round) : '',
@@ -274,6 +279,7 @@ export default function AmmoFormPanel({
         ...(toNum(values.gr_oz) !== undefined ? { gr_oz: toNum(values.gr_oz) } : {}),
         ...(values.weight_unit ? { weight_unit: values.weight_unit } : {}),
         ...(hasId(values.type_id) ? { type_id: parseInt(values.type_id) } : {}),
+        ...(hasId(values.ammo_condition_id) ? { ammo_condition_id: parseInt(values.ammo_condition_id) } : {}),
         ...(hasId(values.category_id) ? { category_id: parseInt(values.category_id) } : {}),
         ...(values.purchase_date ? { purchase_date: values.purchase_date } : {}),
         ...(toNum(values.cost_per_round) !== undefined
@@ -296,6 +302,7 @@ export default function AmmoFormPanel({
         ...(toNum(values.gr_oz) !== undefined ? { gr_oz: toNum(values.gr_oz) } : {}),
         ...(values.weight_unit ? { weight_unit: values.weight_unit } : {}),
         ...(hasId(values.type_id) ? { type_id: parseInt(values.type_id) } : {}),
+        ...(hasId(values.ammo_condition_id) ? { ammo_condition_id: parseInt(values.ammo_condition_id) } : {}),
         ...(hasId(values.category_id) ? { category_id: parseInt(values.category_id) } : {}),
         ...(values.purchase_date ? { purchase_date: values.purchase_date } : {}),
         ...(toNum(values.cost_per_round) !== undefined
@@ -423,6 +430,21 @@ export default function AmmoFormPanel({
                 items={ammoTypes}
                 optional
                 error={errors.type_id?.message}
+              />
+            )}
+          />
+
+          <Controller
+            name="ammo_condition_id"
+            control={control}
+            render={({ field }) => (
+              <SelectField
+                label="Condition"
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                items={ammoConditions}
+                optional
+                error={errors.ammo_condition_id?.message}
               />
             )}
           />

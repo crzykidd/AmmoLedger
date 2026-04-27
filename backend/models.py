@@ -34,6 +34,15 @@ class AmmoType(SQLModel, table=True):
     source: str = Field(default="user")
 
 
+class AmmoCondition(SQLModel, table=True):
+    __tablename__ = "ammo_conditions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+
+
 class Category(SQLModel, table=True):
     __tablename__ = "categories"
 
@@ -111,6 +120,7 @@ class AmmoBox(SQLModel, table=True):
     gr_oz: Optional[float] = None
     weight_unit: Optional[str] = None  # GR | OZ
     type_id: Optional[int] = Field(default=None, foreign_key="ammo_types.id")
+    ammo_condition_id: Optional[int] = Field(default=None, foreign_key="ammo_conditions.id")
     category_id: Optional[int] = Field(default=None, foreign_key="categories.id")
     qty_original: int
     qty_remaining: int

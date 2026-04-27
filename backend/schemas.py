@@ -76,6 +76,7 @@ class AmmoBoxRead(_OrmBase):
     gr_oz: Optional[float]
     weight_unit: Optional[str]
     type_id: Optional[int]
+    ammo_condition_id: Optional[int]
     category_id: Optional[int]
     qty_original: int
     qty_remaining: int
@@ -102,6 +103,7 @@ class AmmoBoxCreate(BaseModel):
     gr_oz: Optional[float] = None
     weight_unit: Optional[str] = None
     type_id: Optional[int] = None
+    ammo_condition_id: Optional[int] = None
     category_id: Optional[int] = None
     purchase_date: Optional[date] = None
     cost_per_round: Optional[float] = None
@@ -119,6 +121,7 @@ class AmmoBoxUpdate(BaseModel):
     gr_oz: Optional[float] = None
     weight_unit: Optional[str] = None
     type_id: Optional[int] = None
+    ammo_condition_id: Optional[int] = None
     category_id: Optional[int] = None
     qty_original: Optional[int] = None
     qty_remaining: Optional[int] = None

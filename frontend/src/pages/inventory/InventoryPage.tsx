@@ -81,6 +81,7 @@ export default function InventoryPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
+  const [conditionFilter, setConditionFilter] = useState<string>('')
   const [panelOpen, setPanelOpen] = useState(false)
   const [editBox, setEditBox] = useState<AmmoBoxRead | null>(null)
   const [deleteBox, setDeleteBox] = useState<AmmoBoxRead | null>(null)
@@ -116,7 +117,10 @@ export default function InventoryPage() {
     queryFn: () => listAmmo({ search: search || undefined, show_archived: showArchived }),
   })
 
-  const boxes = data?.boxes ?? []
+  const allBoxes = data?.boxes ?? []
+  const boxes = conditionFilter
+    ? allBoxes.filter((b) => b.ammo_condition_id != null && String(b.ammo_condition_id) === conditionFilter)
+    : allBoxes
   const canAdd = user?.role !== 'read_only'
 
   const lowItems = useMemo(
@@ -186,6 +190,19 @@ export default function InventoryPage() {
               />
               Archived
             </label>
+            {lookups.ammoConditions.length > 0 && (
+              <select
+                value={conditionFilter}
+                onChange={(e) => setConditionFilter(e.target.value)}
+                className="h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 px-2 focus:outline-none focus:ring-2 focus:ring-gold"
+                aria-label="Filter by condition"
+              >
+                <option value="">All Conditions</option>
+                {lookups.ammoConditions.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.name}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="flex items-center gap-3 shrink-0">
             {data && (
@@ -304,6 +321,7 @@ export default function InventoryPage() {
                   calibers={lookups.calibers}
                   manufacturers={lookups.manufacturers}
                   ammoTypes={lookups.ammoTypes}
+                  ammoConditions={lookups.ammoConditions}
                   categories={lookups.categories}
                   dealers={lookups.dealers}
                   containers={lookups.containers}
@@ -341,6 +359,7 @@ export default function InventoryPage() {
         calibers={lookups.calibers}
         manufacturers={lookups.manufacturers}
         ammoTypes={lookups.ammoTypes}
+        ammoConditions={lookups.ammoConditions}
         categories={lookups.categories}
         containers={lookups.containers}
       />

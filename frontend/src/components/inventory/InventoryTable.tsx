@@ -57,6 +57,7 @@ interface Props {
   calibers: LookupItem[]
   manufacturers: LookupItem[]
   ammoTypes: LookupItem[]
+  ammoConditions: LookupItem[]
   categories: LookupItem[]
   dealers: DealerItem[]
   containers: ContainerItem[]
@@ -89,6 +90,7 @@ export default function InventoryTable({
   calibers,
   manufacturers,
   ammoTypes,
+  ammoConditions,
   categories,
   dealers,
   containers,
@@ -105,6 +107,7 @@ export default function InventoryTable({
   const caliberMap = useMemo(() => new Map(calibers.map((c) => [c.id, c.name])), [calibers])
   const manufacturerMap = useMemo(() => new Map(manufacturers.map((m) => [m.id, m.name])), [manufacturers])
   const typeMap = useMemo(() => new Map(ammoTypes.map((t) => [t.id, t.name])), [ammoTypes])
+  const conditionMap = useMemo(() => new Map(ammoConditions.map((c) => [c.id, c.name])), [ammoConditions])
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories])
   const dealerMap = useMemo(() => new Map(dealers.map((d) => [d.id, d.name])), [dealers])
   const containerMap = useMemo(() => new Map(containers.map((c) => [c.id, c.name])), [containers])
@@ -211,9 +214,16 @@ export default function InventoryTable({
                     {box.gr_oz != null ? `${box.gr_oz} ${box.weight_unit ?? 'gr'}` : '—'}
                   </TableCell>
 
-                  {/* Type */}
+                  {/* Type + Condition */}
                   <TableCell className="text-gray-600 dark:text-gray-300">
-                    {box.type_id != null ? (typeMap.get(box.type_id) ?? '—') : '—'}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{box.type_id != null ? (typeMap.get(box.type_id) ?? '—') : '—'}</span>
+                      {box.ammo_condition_id != null && conditionMap.has(box.ammo_condition_id) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                          {conditionMap.get(box.ammo_condition_id)}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
 
                   {/* Category */}

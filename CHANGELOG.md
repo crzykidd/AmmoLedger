@@ -22,6 +22,15 @@ Versioning: [Semantic Versioning](https://semver.org)
 ### Added
 
 - Legacy ID field on Add / Edit Ammo Box form — optional field for carrying over an ID from a previous tracking system; displays as a subtitle under the box ID in the inventory table when set
+- `ammo_condition` field on ammo boxes — tracks production origin (Factory New, Remanufactured, Reloaded / Handload, Military Surplus, Old, Unknown); shown as a muted badge next to the type in the inventory table
+- `ammo_conditions` lookup table seeded from `defaults.yaml` (6 values); synced automatically on startup
+- Condition dropdown on Add / Edit Ammo Box form between Type and Category
+- Condition filter dropdown in the inventory toolbar — narrows the list to boxes with a specific condition
+- `POST /import/validate` — validates a CSV file, returns importable row count, errors, warnings, new lookup values to be created, fuzzy-match similarity warnings, and a 15-minute validation token
+- `POST /import/confirm` — imports all valid rows from the CSV; creates new lookup values; automatically takes a pre-import SQLite backup before writing any data
+- `GET /import/template` — downloads a CSV template with header row and two example rows showing correct format for every column
+- Import page (`/import`) — three-state flow: upload CSV → view validation results → confirm and view import summary; includes countdown timer for token expiry, expandable new-value lists, separate error and warning tables, and fuzzy-match warnings
+- Import link in the sidebar navigation between Inventory and Settings
 
 - **Phase 5 — Backup & Restore system**
 - `POST /backup/trigger` — manual SQLite database backup with download link

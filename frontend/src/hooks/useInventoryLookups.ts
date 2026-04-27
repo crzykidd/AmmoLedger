@@ -3,6 +3,7 @@ import {
   getCalibersLookup,
   getManufacturers,
   getAmmoTypes,
+  getAmmoConditions,
   getCategories,
   getDealers,
   getLocations,
@@ -15,6 +16,7 @@ export function useInventoryLookups() {
   const calibers = useQuery({ queryKey: ['calibers'], queryFn: getCalibersLookup, staleTime: STALE })
   const manufacturers = useQuery({ queryKey: ['manufacturers'], queryFn: getManufacturers, staleTime: STALE })
   const ammoTypes = useQuery({ queryKey: ['ammo-types'], queryFn: getAmmoTypes, staleTime: STALE })
+  const ammoConditions = useQuery({ queryKey: ['ammo-conditions'], queryFn: getAmmoConditions, staleTime: STALE })
   const categories = useQuery({ queryKey: ['categories'], queryFn: getCategories, staleTime: STALE })
   const dealers = useQuery({ queryKey: ['dealers'], queryFn: getDealers, staleTime: STALE })
   const locations = useQuery({ queryKey: ['locations'], queryFn: getLocations, staleTime: STALE })
@@ -24,6 +26,7 @@ export function useInventoryLookups() {
     calibers: calibers.data ?? [],
     manufacturers: manufacturers.data ?? [],
     ammoTypes: ammoTypes.data ?? [],
+    ammoConditions: ammoConditions.data ?? [],
     categories: categories.data ?? [],
     dealers: dealers.data ?? [],
     locations: locations.data ?? [],
