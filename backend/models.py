@@ -1,3 +1,4 @@
+from sqlalchemy import UniqueConstraint
 from sqlmodel import SQLModel, Field
 from typing import Optional
 from datetime import datetime, date
@@ -203,6 +204,34 @@ class Notification(SQLModel, table=True):
     is_read: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     read_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Thresholds
+# ---------------------------------------------------------------------------
+
+class CaliberThreshold(SQLModel, table=True):
+    __tablename__ = "caliber_thresholds"
+    __table_args__ = (UniqueConstraint("caliber_id"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    caliber_id: int = Field(foreign_key="calibers.id")
+    owner_id: int = Field(foreign_key="users.id")
+    rounds: int
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class LocationThreshold(SQLModel, table=True):
+    __tablename__ = "location_thresholds"
+    __table_args__ = (UniqueConstraint("location_id"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    location_id: int = Field(foreign_key="locations.id")
+    owner_id: int = Field(foreign_key="users.id")
+    rounds: int
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------

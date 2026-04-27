@@ -276,6 +276,61 @@ class InviteRead(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Threshold schemas
+# ---------------------------------------------------------------------------
+
+class ThresholdDefaultUpdate(BaseModel):
+    rounds: int
+
+
+class CaliberThresholdRead(BaseModel):
+    id: int
+    caliber_id: int
+    caliber_name: str
+    rounds: int
+    rounds_on_hand: int
+    is_low: bool
+
+
+class CaliberThresholdCreate(BaseModel):
+    caliber_id: int
+    rounds: int
+
+
+class LocationThresholdRead(BaseModel):
+    id: int
+    location_id: int
+    location_name: str
+    rounds: int
+    rounds_on_hand: int
+    is_low: bool
+
+
+class LocationThresholdCreate(BaseModel):
+    location_id: int
+    rounds: int
+
+
+class LowStockCaliberItem(BaseModel):
+    caliber_id: int
+    caliber_name: str
+    rounds_on_hand: int
+    threshold: int
+
+
+class LowStockLocationItem(BaseModel):
+    location_id: int
+    location_name: str
+    rounds_on_hand: int
+    threshold: int
+
+
+class LowStockResponse(BaseModel):
+    calibers: List[LowStockCaliberItem]
+    locations: List[LowStockLocationItem]
+
+
+# ---------------------------------------------------------------------------
 # Notification schemas
 # ---------------------------------------------------------------------------
 

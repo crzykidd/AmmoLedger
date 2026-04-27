@@ -110,6 +110,47 @@ export interface CaliberSummary {
 }
 
 // ---------------------------------------------------------------------------
+// Threshold types (server-side API)
+// ---------------------------------------------------------------------------
+
+export interface CaliberThreshold {
+  id: number
+  caliber_id: number
+  caliber_name: string
+  rounds: number
+  rounds_on_hand: number
+  is_low: boolean
+}
+
+export interface LocationThreshold {
+  id: number
+  location_id: number
+  location_name: string
+  rounds: number
+  rounds_on_hand: number
+  is_low: boolean
+}
+
+export interface LowStockCaliberItem {
+  caliber_id: number
+  caliber_name: string
+  rounds_on_hand: number
+  threshold: number
+}
+
+export interface LowStockLocationItem {
+  location_id: number
+  location_name: string
+  rounds_on_hand: number
+  threshold: number
+}
+
+export interface LowStockResponse {
+  calibers: LowStockCaliberItem[]
+  locations: LowStockLocationItem[]
+}
+
+// ---------------------------------------------------------------------------
 // Expenditure types — mirrors backend schemas.py
 // ---------------------------------------------------------------------------
 

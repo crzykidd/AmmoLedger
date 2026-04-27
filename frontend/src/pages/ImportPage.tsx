@@ -322,6 +322,7 @@ function ValidationState({
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [useLegacyIds, setUseLegacyIds] = useState(false)
+  const [isShared, setIsShared] = useState(true)
   const countdown = useCountdown(result.token_expires_at)
   const expired = countdown !== null && countdown <= 0
 
@@ -329,7 +330,7 @@ function ValidationState({
     setImporting(true)
     setImportError(null)
     try {
-      const res = await confirmImport(file, result.validation_token, useLegacyIds)
+      const res = await confirmImport(file, result.validation_token, useLegacyIds, isShared)
       onImported(res)
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Import failed')
@@ -480,6 +481,43 @@ function ValidationState({
             ? `Validation expires in ${formatCountdown(countdown)} — import before then or re-validate`
             : 'Validating expiry…'
         }
+      </div>
+
+      {/* Ownership */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 space-y-3">
+        <p className="text-sm font-medium text-gray-900 dark:text-white">Ownership</p>
+        <div className="space-y-2">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="import_ownership"
+              checked={isShared}
+              onChange={() => setIsShared(true)}
+              className="mt-0.5 accent-gold"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Shared</span>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Visible to all members of this AmmoLedger.
+              </p>
+            </div>
+          </label>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="import_ownership"
+              checked={!isShared}
+              onChange={() => setIsShared(false)}
+              className="mt-0.5 accent-gold"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Private</span>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Only visible to you.
+              </p>
+            </div>
+          </label>
+        </div>
       </div>
 
       {/* ID Assignment */}

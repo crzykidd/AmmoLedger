@@ -8,15 +8,14 @@ import TopBar from '@/components/layout/TopBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useThresholds } from '@/hooks/useThresholds'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo } from '@/api/ammo'
 import { getInvites } from '@/api/invites'
 import { getUsers } from '@/api/users'
+import { fetchLowStock, fetchDefaultThreshold } from '@/api/thresholds'
 import { cn } from '@/lib/utils'
 import iconInventory from '@/assets/brand/icon-inventory-dark.png'
-import type { AmmoBoxRead } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -195,12 +194,22 @@ export default function DashboardPage() {
     () => localStorage.getItem('getting_started_dismissed') === 'true',
   )
 
-  const { thresholds, getLowItems, getCaliberSummary } = useThresholds()
   const { calibers, isLoading: lookupsLoading } = useInventoryLookups()
 
   const { data, isLoading: dataLoading } = useQuery({
     queryKey: ['ammo', 'dashboard'],
     queryFn: () => listAmmo(),
+  })
+
+  const { data: lowStockData } = useQuery({
+    queryKey: ['thresholds', 'low-stock'],
+    queryFn: fetchLowStock,
+  })
+
+  const { data: defaultThreshold } = useQuery({
+    queryKey: ['thresholds', 'default'],
+    queryFn: fetchDefaultThreshold,
+    enabled: !dismissed,
   })
 
   // Admin-only queries for getting-started wizard
@@ -229,17 +238,28 @@ export default function DashboardPage() {
     [boxes],
   )
 
-  const lowItems = useMemo(
-    () => getLowItems(boxes, calibers),
-    [boxes, calibers, getLowItems],
-  )
+  // Caliber summary for By Caliber section
+  const caliberSummary = useMemo(() => {
+    const byId = new Map<number, { caliber_id: number; caliber_name: string; total_rounds: number; box_count: number }>()
+    for (const box of boxes) {
+      if (!byId.has(box.caliber_id)) {
+        byId.set(box.caliber_id, {
+          caliber_id: box.caliber_id,
+          caliber_name: caliberMap.get(box.caliber_id) ?? 'Unknown',
+          total_rounds: 0,
+          box_count: 0,
+        })
+      }
+      const entry = byId.get(box.caliber_id)!
+      entry.total_rounds += box.qty_remaining
+      entry.box_count += 1
+    }
+    return [...byId.values()].sort((a, b) => b.total_rounds - a.total_rounds)
+  }, [boxes, caliberMap])
 
-  const caliberSummary = useMemo(
-    () =>
-      [...getCaliberSummary(boxes, calibers)].sort(
-        (a, b) => b.total_rounds - a.total_rounds,
-      ),
-    [boxes, calibers, getCaliberSummary],
+  const lowCaliberIds = useMemo(
+    () => new Set((lowStockData?.calibers ?? []).map((c) => c.caliber_id)),
+    [lowStockData],
   )
 
   const totalInventoryRounds = caliberSummary.reduce((sum, cs) => sum + cs.total_rounds, 0)
@@ -255,23 +275,19 @@ export default function DashboardPage() {
     [boxes],
   )
 
-  const thresholdsCustomized =
-    thresholds.default_rounds !== 200 ||
-    Object.keys(thresholds.caliber_overrides).length > 0
+  const thresholdsCustomized = (defaultThreshold?.rounds ?? 200) !== 200
 
   const hasInvitedUsers =
     (allUsers?.length ?? 0) > 1 ||
     (invites?.some((i) => i.used_at !== null) ?? false)
 
+  const lowCalibersCount = lowStockData?.calibers.length ?? 0
+  const lowLocationsCount = lowStockData?.locations.length ?? 0
+  const lowStockCount = lowCalibersCount + lowLocationsCount
+
   function dismiss() {
     localStorage.setItem('getting_started_dismissed', 'true')
     setDismissed(true)
-  }
-
-  function getItemThreshold(box: AmmoBoxRead): number {
-    const name = caliberMap.get(box.caliber_id) ?? ''
-    const override = thresholds.caliber_overrides[name]
-    return override?.rounds ?? thresholds.default_rounds
   }
 
   // ---- render ----
@@ -361,13 +377,13 @@ export default function DashboardPage() {
           <StatCard
             icon={AlertTriangle}
             label="Low Stock Items"
-            value={lowItems.length.toString()}
-            accent={lowItems.length > 0}
+            value={lowStockCount.toString()}
+            accent={lowStockCount > 0}
           />
         </div>
 
         {/* Running Low */}
-        {lowItems.length > 0 && (
+        {lowStockCount > 0 && (
           <section>
             <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3">
               Running Low
@@ -375,38 +391,66 @@ export default function DashboardPage() {
             <Card>
               <CardContent className="p-0">
                 <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {lowItems.map((box) => {
-                    const caliberName = caliberMap.get(box.caliber_id) ?? '—'
-                    const threshold = getItemThreshold(box)
-                    return (
-                      <button
-                        key={box.id}
-                        className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
-                        onClick={() => navigate('/inventory')}
-                      >
-                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {caliberName}
-                          </span>
-                          {box.product_name && (
-                            <span className="text-sm text-gray-500 ml-1.5">
-                              {box.product_name}
-                            </span>
-                          )}
+                  {lowCalibersCount > 0 && (
+                    <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/40">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        By Caliber
+                      </span>
+                    </div>
+                  )}
+                  {(lowStockData?.calibers ?? []).map((item) => (
+                    <button
+                      key={item.caliber_id}
+                      className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
+                      onClick={() => navigate('/inventory')}
+                    >
+                      <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {item.caliber_name}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
+                          {item.rounds_on_hand.toLocaleString()} rds
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
-                            {box.qty_remaining.toLocaleString()} rds
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            threshold: {threshold}
-                          </div>
+                        <div className="text-xs text-gray-400">
+                          threshold: {item.threshold.toLocaleString()}
                         </div>
-                        <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                      </button>
-                    )
-                  })}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                    </button>
+                  ))}
+                  {lowLocationsCount > 0 && (
+                    <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/40">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        By Location
+                      </span>
+                    </div>
+                  )}
+                  {(lowStockData?.locations ?? []).map((item) => (
+                    <button
+                      key={item.location_id}
+                      className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
+                      onClick={() => navigate('/inventory')}
+                    >
+                      <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {item.location_name}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
+                          {item.rounds_on_hand.toLocaleString()} rds
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          threshold: {item.threshold.toLocaleString()}
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                    </button>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -425,11 +469,12 @@ export default function DashboardPage() {
                   totalInventoryRounds > 0
                     ? (cs.total_rounds / totalInventoryRounds) * 100
                     : 0
+                const isLow = lowCaliberIds.has(cs.caliber_id)
                 return (
                   <div key={cs.caliber_id}>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2 min-w-0">
-                        {cs.is_low && (
+                        {isLow && (
                           <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
                         )}
                         <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
@@ -447,7 +492,7 @@ export default function DashboardPage() {
                       <div
                         className={cn(
                           'h-full rounded-full transition-all',
-                          cs.is_low ? 'bg-amber-400' : 'bg-gold',
+                          isLow ? 'bg-amber-400' : 'bg-gold',
                         )}
                         style={{ width: `${Math.max(pct, 1)}%` }}
                       />

@@ -422,6 +422,7 @@ async def confirm_import(
     file: UploadFile = File(...),
     validation_token: str = Form(...),
     use_legacy_ids: bool = Form(False),
+    is_shared: bool = Form(True),
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
@@ -525,7 +526,7 @@ async def confirm_import(
             box = AmmoBox(
                 id=explicit_id,  # None → auto-increment; int → explicit primary key
                 owner_id=user.id,
-                is_shared=False,
+                is_shared=is_shared,
                 caliber_id=caliber_id,
                 manufacturer_id=manufacturer_id,
                 product_name=_get(row, "product_name") or None,

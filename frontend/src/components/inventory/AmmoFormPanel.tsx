@@ -60,7 +60,7 @@ const DEFAULT_VALUES: FormValues = {
   qty_original: 0,
   product_name: '',
   qty_remaining: '',
-  is_shared: false,
+  is_shared: true,
   gr_oz: '',
   weight_unit: '',
   type_id: '',

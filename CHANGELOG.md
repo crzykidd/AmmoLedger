@@ -10,6 +10,23 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Added
+
+- Three-tier stock threshold system — global default (200 rds), per-caliber overrides, and per-location overrides, all stored server-side and shared across users
+- Threshold settings page redesigned with three sections: Global Default, Per-Caliber Thresholds, and Per-Location Thresholds; each table shows current on-hand rounds and OK/Low status
+- Dashboard Running Low section now shows caliber totals and location totals in separate subsections, using server-computed threshold logic
+- Import CSV — Ownership option (Shared / Private) added to validation results screen; defaults to Shared
+
+### Changed
+
+- Add Ammo Box form now defaults new boxes to Shared
+- Dashboard Low Stock Items stat card now counts low calibers plus low locations (not individual boxes)
+- Stock thresholds are now stored in the database (`caliber_thresholds`, `location_thresholds` tables) instead of browser localStorage
+
+### Removed
+
+- Box-level low-stock detection removed from dashboard Running Low section; replaced by caliber-total and location-total approach
+
 ### Performance
 
 - ANALYZE runs after bulk CSV import to update SQLite query planner statistics

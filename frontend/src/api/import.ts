@@ -38,11 +38,13 @@ export const confirmImport = (
   file: File,
   validationToken: string,
   useLegacyIds: boolean,
+  isShared: boolean = true,
 ): Promise<ImportConfirmResult> => {
   const fd = new FormData()
   fd.append('file', file)
   fd.append('validation_token', validationToken)
   fd.append('use_legacy_ids', String(useLegacyIds))
+  fd.append('is_shared', String(isShared))
   return postFormData('/import/confirm', fd)
 }
 

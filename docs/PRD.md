@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 2.7 — Working Draft  
+**Version:** 2.8 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -34,6 +34,7 @@
 | 2.5 | April 2026 | Legacy ID Mode for CSV import — eligibility analysis on validate, use_legacy_ids form field on confirm, explicit primary key insertion for integer legacy_ids, sqlite_sequence reset after import, three-state UI (eligible/conflict/non-integer), legacy_id column added to CSV template. |
 | 2.6 | April 2026 | url field on manufacturers — optional website link stored in DB, pre-populated for known brands via defaults.yaml v1.3. Admin Lookups page at /admin/lookups with inline name/URL editing. PATCH /manufacturers/{id} endpoint. §6.5 updated. |
 | 2.7 | April 2026 | Inventory Group By and per-column filters — §9.2 expanded with Group By spec (8 options, collapsible group headers with summary stats, localStorage persistence) and per-column filter row spec (always visible, AND logic, numeric operators for Remaining/Value). |
+| 2.8 | April 2026 | Three-tier threshold system — global default + per-caliber + per-location thresholds stored server-side in DB; new `/thresholds/*` API endpoints; dashboard Running Low shows caliber totals and location totals; Add Box defaults shared; CSV import ownership toggle. §8.1 rewritten. |
 
 ---
 
@@ -795,7 +796,32 @@ Last 10 `expenditure_log` entries where `log_type = 'expend'` — showing date, 
 
 #### Low Stock Alerts
 
-List of calibers below configured threshold. Threshold is configurable per caliber in Settings; global default in `config.yaml`.
+Running Low section shows two subsections:
+
+- **By Caliber** — calibers where total rounds on hand (across all non-archived boxes) are below the threshold. Threshold resolution: per-caliber override → global default.
+- **By Location** — locations where total rounds on hand (all non-archived boxes in containers at that location) are below the location's explicit threshold. Only locations with a threshold set appear here.
+
+The Low Stock Items stat card counts low calibers + low locations.
+
+Thresholds are stored server-side in the database and shared across all users. Three-tier resolution:
+
+1. **Global default** — `threshold_default_rounds` in `app_settings`; default 200 rounds.
+2. **Per-caliber** — `caliber_thresholds` table; overrides global default for a specific caliber.
+3. **Per-location** — `location_thresholds` table; independent of caliber thresholds; only triggers alerts when explicitly set.
+
+**API endpoints** (all require authentication):
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/thresholds/default` | Get global default rounds |
+| PUT | `/thresholds/default` | Update global default (admin only) |
+| GET | `/thresholds/calibers` | List per-caliber thresholds with on-hand and status |
+| POST | `/thresholds/calibers` | Create or update a caliber threshold |
+| DELETE | `/thresholds/calibers/{caliber_id}` | Remove a caliber threshold |
+| GET | `/thresholds/locations` | List per-location thresholds with on-hand and status |
+| POST | `/thresholds/locations` | Create or update a location threshold |
+| DELETE | `/thresholds/locations/{location_id}` | Remove a location threshold |
+| GET | `/thresholds/low-stock` | Combined low calibers + low locations for dashboard |
 
 #### Getting Started Guide
 
