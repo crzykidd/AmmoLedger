@@ -273,3 +273,34 @@ docker compose -f docker-compose.dev.yml up -d
 ```
 
 This mounts local source directories for live reload.
+
+---
+
+## Troubleshooting
+
+### Permission denied on /data
+
+If you see `ERROR: /data directory is not writable` in the container logs, the container user (UID 1000) does not have write access to your mounted data directory.
+
+Fix by setting ownership on the host path you mounted to `/data`:
+
+```bash
+sudo chown -R 1000:1000 /path/to/your/data
+```
+
+Replace the path with whatever you have in your `docker-compose.yml`:
+
+```yaml
+volumes:
+  - /var/docker/ammoledger/data:/data
+```
+
+Then restart the container:
+
+```bash
+docker compose restart backend
+```
+
+### Why UID 1000?
+
+AmmoLedger runs as a non-root user (`appuser`, UID 1000) inside the container for security. Your host directory must be owned by UID 1000 so the container process can write to it.

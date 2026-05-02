@@ -10,6 +10,11 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear actionable error message when `/data` is not writable — shows the exact `chown` command needed and links to the troubleshooting guide; container exits immediately rather than failing partway through startup
+- Troubleshooting section added to `docs/INSTALL.md` covering the `/data` permission denied error and UID 1000 requirement
+
 ## [0.1.2] — 2026-05-02
 
 ### Added

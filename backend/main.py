@@ -240,6 +240,46 @@ def _record_version() -> None:
 @app.on_event("startup")
 def on_startup():
     global _config
+
+    # Check /data is writable before doing anything else
+    _data_dir = os.path.dirname(CONFIG_PATH)  # typically /data
+    _test_file = os.path.join(_data_dir, ".write_test")
+    try:
+        with open(_test_file, "w") as _f:
+            _f.write("ok")
+        os.remove(_test_file)
+    except PermissionError:
+        _border = "═" * 67
+        print(
+            f"\n{_border}\n"
+            f"  ERROR: {_data_dir} directory is not writable\n"
+            f"{_border}\n"
+            f"\n"
+            f"  AmmoLedger needs write access to {_data_dir} for the database,\n"
+            f"  config files, and backups.\n"
+            f"\n"
+            f"  Fix by setting ownership on your host data directory:\n"
+            f"\n"
+            f"    sudo chown -R 1000:1000 /path/to/your/data\n"
+            f"\n"
+            f"  The path is whatever you mounted to {_data_dir} in your\n"
+            f"  docker-compose.yml volumes section.\n"
+            f"\n"
+            f"  Example:\n"
+            f"    volumes:\n"
+            f"      - /var/docker/ammoledger/data:{_data_dir}\n"
+            f"\n"
+            f"    sudo chown -R 1000:1000 /var/docker/ammoledger/data\n"
+            f"\n"
+            f"  Then restart the container.\n"
+            f"\n"
+            f"  For more info see:\n"
+            f"  https://github.com/crzykidd/AmmoLedger/blob/main/docs/INSTALL.md\n"
+            f"{_border}\n",
+            flush=True,
+        )
+        raise SystemExit(1)
+
     logger.info("AmmoLedger v%s starting...", __version__)
     print(f"✓ AmmoLedger v{__version__} starting", flush=True)
     _config = load_and_validate_config()
