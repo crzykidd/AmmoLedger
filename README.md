@@ -32,53 +32,36 @@ DB will be resest any data added to db before release will be lost on upgrade.
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 1 | ✅ Complete | Alembic migrations, full database schema |
-| Phase 2 | ✅ Complete | Auth (login/logout/setup), RBAC, YAML seed data |
+| Phase 1 | ✅ Complete | Schema + Alembic migrations |
+| Phase 2 | ✅ Complete | Auth + RBAC + YAML seeds |
 | Phase 3 | ✅ Complete | Ammo CRUD API |
-| Phase 4 | ✅ Complete | Frontend core — login, dashboard, inventory, expenditure, user management, invitations, stock thresholds, profile |
-| Phase 5 | ✅ Complete | Backup & Restore — manual backup, JSON export, scheduled nightly backup, restore, admin UI |
-| Phase 6 | ✅ Complete | CSV Import — two-step validation, fuzzy matching, legacy ID mode, ammo condition field |
-| Phase 7 | ✅ Complete | User management UI (shipped as part of Phase 4) |
-| Phase 8 | 🔄 In Progress | Sidebar + UI polish — full logo, About page, profile drawer, wizard fixes, version display |
-| Phase 9 | 🔲 Not started | Notifications |
-| Phase 10 | 🔲 Not started | Polish + mobile optimization |
+| Phase 4 | ✅ Complete | Frontend — dashboard, inventory, forms |
+| Phase 5 | ✅ Complete | Backup & Restore |
+| Phase 6 | ✅ Complete | CSV Import + ammo_condition |
+| Phase 7 | ✅ Complete | User management + invitations |
+| Phase 8 | ✅ Complete | UI polish — sidebar, about, help, lookups |
 
 ## Features
 
-### Backend (Phases 1–3 complete)
-
-- Full database schema with Alembic migrations
-- Session authentication with bcrypt password hashing
-- RBAC — Admin, Member, and Read-Only roles
-- Shared ownership model (`owner_id` + `is_shared`)
-- Full ammo inventory CRUD API
-- Expenditure logging with user attribution and full history
-- All lookup table routes (calibers, manufacturers, types, categories, dealers, containers, locations, ammo conditions)
-- CSV import with two-step validation, fuzzy matching, and legacy ID mode
-- Backup system — manual SQLite backup, JSON export, scheduled nightly backup, restore and import
-- Config validation on startup with dev/production mode behavior
-- Versioned YAML seed data (v1.3) — 47 manufacturers, 30 dealers, all synced automatically
-- APScheduler for nightly backups
-
-### Frontend (Phases 4–8 complete / in progress)
-
-- Login page with first-run setup wizard
-- Dashboard — stats cards (total rounds, boxes, calibers, low-stock count), caliber proportion bars, running-low list, recent-activity feed
-- Getting started checklist with real condition checks — dismissible, shows completion state
-- Inventory list — sortable table (desktop) and card list (mobile) with expandable rows, real-time search, stats bar
-- Click-to-expend popover — click the remaining count to log rounds fired inline
-- Add/Edit ammo box form — all fields including product name, legacy ID, and ammo condition
-- User management — list users, change roles, deactivate accounts, force-reset passwords
-- Invitation system — generate time-limited invite links, copy to clipboard, revoke pending invites
-- Stock threshold configuration — default and per-caliber round thresholds with live save
-- Profile page with change-password form and force-reset banner
-- Profile slide-out drawer — click username in sidebar to view account info and change password without leaving the page
-- Backup admin UI — manual backup, JSON export, backup history, restore from `.db`, import from JSON
-- CSV import UI — upload, two-step validation, confirm with legacy ID mode support
-- About page — version info, update-available banner, GitHub links, MIT license note
-- Sidebar with full logo (expanded) / circle logo (collapsed), About link, and version display
-- Password strength meter on all password forms with live rule checklist
-- Runs entirely in Docker — no cloud, no subscriptions, your data stays yours
+- **First-run setup wizard** — guides new users through adding inventory, setting thresholds, and inviting others
+- **Session auth with RBAC** — Admin, Member, and Read-Only roles; bcrypt password hashing; session cookies
+- **Full inventory CRUD with bulk edit** — add, edit, delete, archive boxes; select multiple rows and bulk-edit fields in one operation
+- **Group By with 8 options** — group by Caliber, Manufacturer, Category, Type, Location, Container, or Condition; collapsible group headers with summary stats
+- **Per-column filters** — filter by ID, Caliber, Manufacturer, Gr/Oz, Type, Category, Remaining, Value, and Shared; range operators (`<50`, `>100`, `10-50`) supported
+- **Click-to-expend popover** — click the remaining count on any row to log rounds fired inline; Shot All button empties the box
+- **Three-tier stock threshold system** — global default, per-caliber overrides, and per-location overrides; stored server-side and shared across all users
+- **CSV import with legacy ID mode** — two-step validation, fuzzy matching, optional preservation of existing box IDs from previous tracking systems
+- **Backup and restore** — manual SQLite backup, JSON export, scheduled nightly backup, restore from `.db`, import from JSON
+- **User management with inline invitations** — list users, change roles, deactivate accounts; generate and revoke invite links from the same page
+- **Password reset** — admin-generated single-use reset links; emergency self-recovery via `config.yaml` token
+- **Help page with searchable FAQ** — covers Getting Started, Inventory, Thresholds, Import, Backup, and User Management; TOC sidebar on desktop; search highlights matching text
+- **Contextual help tooltips** — hover or click ⓘ on key form fields to see a brief description
+- **About page with version check** — displays current version, checks GitHub Releases API for updates (24-hour cache), shows update-available banner
+- **Post-upgrade What's New modal** — automatically shows release notes between the previous and current version after an upgrade; dismissible
+- **Structured backend logging** — timestamps, log level, and module name on every entry; full tracebacks in `docker logs` for unhandled errors
+- **Admin Lookups** — accordion UI covering all 8 lookup tables; live search per section, usage counts, hide/unhide and delete entries, inline URL editing for manufacturers and dealers
+- **Docker Compose deployment** — single `docker-compose.yml` pulls pre-built images from GHCR; no source code required
+- **GHCR image registry** — images published to `ghcr.io/crzykidd/ammoledger-backend` and `ghcr.io/crzykidd/ammoledger-frontend`
 
 ## Documentation
 

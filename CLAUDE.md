@@ -31,6 +31,8 @@
 
 ## Build Status
 
+Current release: v0.1.0 (2026-05-02)
+
 - Phase 1 — Alembic + schema: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
 - Phase 3 — Ammo CRUD API: COMPLETE
@@ -47,7 +49,7 @@
 - Phase 5 — Backup & Restore: COMPLETE
 - Phase 6 — CSV Import: COMPLETE
 - Phase 7 — User management UI: COMPLETE (merged into Phase 4)
-- Phase 8 — Sidebar + UI polish: IN PROGRESS
+- Phase 8 — Sidebar + UI polish: COMPLETE
   - 8.1 — Full sidebar logo: COMPLETE
   - 8.2 — About page: COMPLETE
   - 8.3 — Profile slide-out drawer: COMPLETE
