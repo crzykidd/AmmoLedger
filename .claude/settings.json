@@ -1,4 +1,11 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(python -m ruff check backend/ --fix)",
+      "PowerShell(git add CHANGELOG.md backend/version.py frontend/package.json frontend/package-lock.json README.md CLAUDE.md)",
+      "PowerShell(git commit -m \"chore: bump version to v0.1.5\")"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -11,11 +18,6 @@
           }
         ]
       }
-    ]
-  },
-  "permissions": {
-    "allow": [
-      "Bash(python -m ruff check backend/ --fix)"
     ]
   }
 }
