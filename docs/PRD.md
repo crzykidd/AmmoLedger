@@ -39,6 +39,7 @@
 | 3.0 | May 2026 | Password reset — admin-generated one-time links (UI) and config-token admin self-recovery (emergency). §4.3 rewritten to cover both flows. |
 | 3.1 | May 2026 | Help system — §9.12 added: Help page with searchable FAQ and collapsible Q&A sections; HelpTip contextual tooltips on form fields and key UI elements. |
 | 3.2 | May 2026 | Merged Invitations into Users page — §9.5 rewritten with three sections (users, active invitations, invitation history) and inline Invite User modal. Separate Invitations sidebar link and `/admin/invites` page removed. |
+| 3.3 | May 2026 | Added logging and error handling spec — §15.3 added: log levels, what gets logged, global exception handler, log format. |
 
 ---
 
@@ -1880,6 +1881,66 @@ All API errors return a consistent JSON envelope:
 - **Network errors:** "Cannot reach server — check your connection"
 - **Session expiry (401):** redirect to login with return URL preserved; user lands back where they were after logging in
 - **Form validation:** inline errors shown next to each field; submit button disabled while errors exist
+
+### 15.3 Logging & Error Handling
+
+#### Log Levels
+
+AmmoLedger uses Python standard logging configured by the `APP_ENV` environment variable:
+
+| Mode | Level | Description |
+| ---- | ----- | ----------- |
+| `development` (default) | DEBUG | Verbose — request tracing, row counts, per-item seed sync details, box-level round changes |
+| `production` | INFO | Operational events only — imports, backups, auth events, threshold changes, errors |
+
+Third-party loggers (`uvicorn.access`, `apscheduler`, `sqlalchemy.engine`) are silenced to `WARNING` in both modes.
+
+#### What Gets Logged
+
+| Category | Events logged |
+| -------- | ------------- |
+| **Authentication** | Login success/failure, account creation (method: setup/invite), password reset token generated, reset completed. Passwords and tokens are never logged. |
+| **Import** | File received with byte count, parsed row/header count, legacy ID analysis result, pre-import backup filename, row insertion progress (every 100 rows in DEBUG), final imported/skipped counts, exceptions with full traceback |
+| **Backup** | Manual backup triggered, backup complete with size, JSON export created, restore started, restore complete, file deleted (WARN), scheduled backup start/complete/failure, pruned file count |
+| **Inventory** | Box created (DEBUG), box updated (DEBUG), box deleted with username (DEBUG), bulk update with count and username (INFO) |
+| **Expenditure** | Rounds logged with box ID and username (INFO), before/after remaining count (DEBUG) |
+| **Thresholds** | Default threshold change, per-caliber and per-location threshold set with resolved name |
+| **Seeds** | Sync version (INFO), per-table entry count (DEBUG), individual add/deactivate events (DEBUG) |
+| **Startup** | Version, config path, migrations complete, defaults synced, scheduler status, server ready |
+
+#### Global Exception Handler
+
+A FastAPI `@app.exception_handler(Exception)` catches any unhandled exception before it reaches the client:
+
+- Logs `ERROR` with the HTTP method, path, and full traceback via `exc_info=`
+- Returns HTTP 500 with `{"detail": "Internal server error — check server logs"}`
+- No stack trace is exposed to the client
+- `HTTPException` instances are handled by FastAPI's own handler first and do not reach this handler
+
+Per-endpoint `try/except` in the import routes supplements the global handler with file-specific context (filename, mode) before re-raising.
+
+#### Log Format
+
+```text
+timestamp | LEVEL    | module   | message
+```
+
+Example output:
+
+```text
+2026-05-01 14:30:00 | INFO     | importer | Import validate started: inventory.csv, 48302 bytes
+2026-05-01 14:30:00 | DEBUG    | importer | Parsed 1195 rows, 19 headers found
+2026-05-01 14:30:00 | DEBUG    | importer | Legacy ID analysis: all_integers=True, conflicts=0, eligible=True
+2026-05-01 14:30:00 | INFO     | importer | Import validate complete: 1195 valid, 0 errors, 2 warnings
+2026-05-01 14:30:05 | INFO     | importer | Pre-import backup created: ammoledger_pre-import_2026-05-01_14-30.db
+2026-05-01 14:30:05 | INFO     | importer | Import complete: 1195 imported, 0 skipped
+```
+
+Viewing logs in a running container:
+
+```bash
+docker logs ammologger-backend-1 --follow
+```
 
 ---
 
