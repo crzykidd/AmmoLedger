@@ -16,13 +16,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    conn = op.get_bind()
-
-    # Create products table (idempotent)
-    existing = conn.execute(
-        sa.text("SELECT name FROM sqlite_master WHERE type='table' AND name='products'")
-    ).fetchone()
-    if not existing:
+    # Create products table
+    try:
         op.create_table(
             "products",
             sa.Column("id", sa.Integer(), nullable=False, primary_key=True),
@@ -44,21 +39,24 @@ def upgrade() -> None:
             sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
             sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         )
-        # Composite unique index using COALESCE for null-safe keying
-        conn.execute(sa.text("""
-            CREATE UNIQUE INDEX ix_product_unique
-            ON products(
-                caliber_id,
-                manufacturer_id,
-                COALESCE(product_name, ''),
-                COALESCE(gr_oz, -1),
-                COALESCE(type_id, -1)
-            )
-        """))
+    except Exception:
+        pass  # Table already exists
 
-    # Add product_id column to ammo_box (idempotent)
-    cols = [row[1] for row in conn.execute(sa.text("PRAGMA table_info(ammo_box)")).fetchall()]
-    if "product_id" not in cols:
+    # Create unique index using COALESCE for null-safe keying
+    try:
+        op.execute(
+            "CREATE UNIQUE INDEX ix_product_unique "
+            "ON products("
+            "caliber_id, manufacturer_id, "
+            "COALESCE(product_name, ''), "
+            "COALESCE(gr_oz, -1), "
+            "COALESCE(type_id, -1))"
+        )
+    except Exception:
+        pass  # Index already exists
+
+    # Add product_id to ammo_box
+    try:
         op.add_column(
             "ammo_box",
             sa.Column(
@@ -68,10 +66,11 @@ def upgrade() -> None:
                 nullable=True,
             ),
         )
+    except Exception:
+        pass  # Column already exists
 
 
 def downgrade() -> None:
     op.drop_column("ammo_box", "product_id")
-    conn = op.get_bind()
-    conn.execute(sa.text("DROP INDEX IF EXISTS ix_product_unique"))
+    op.drop_index("ix_product_unique", table_name="products")
     op.drop_table("products")
