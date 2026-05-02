@@ -60,12 +60,16 @@ export interface LookupItem {
   name: string
   is_active: boolean
   source: string
+  usage_count: number
 }
 
 export interface LocationItem {
   id: number
   name: string
   notes: string | null
+  is_active: boolean
+  source: string
+  usage_count: number
 }
 
 export interface ContainerItem {
@@ -73,6 +77,9 @@ export interface ContainerItem {
   name: string
   location_id: number | null
   notes: string | null
+  is_active: boolean
+  source: string
+  usage_count: number
 }
 
 export interface ManufacturerItem {
@@ -81,6 +88,7 @@ export interface ManufacturerItem {
   url: string | null
   is_active: boolean
   source: string
+  usage_count: number
 }
 
 export interface DealerItem {
@@ -89,6 +97,7 @@ export interface DealerItem {
   url: string | null
   is_active: boolean
   source: string
+  usage_count: number
 }
 
 // ---------------------------------------------------------------------------

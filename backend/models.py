@@ -74,6 +74,8 @@ class Location(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     notes: Optional[str] = None
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
 
 
 class Container(SQLModel, table=True):
@@ -83,6 +85,8 @@ class Container(SQLModel, table=True):
     name: str
     location_id: Optional[int] = Field(default=None, foreign_key="locations.id")
     notes: Optional[str] = None
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
 
 
 # ---------------------------------------------------------------------------

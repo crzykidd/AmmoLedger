@@ -44,6 +44,13 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Changed
 
+- Admin Lookups page redesigned as eight collapsible accordion sections (Calibers, Manufacturers, Ammo Types, Categories, Ammo Conditions, Dealers, Locations, Containers)
+- Each Lookups section shows a live entry count in the header and a real-time search input when expanded
+- Every lookup entry now shows its usage count (number of non-archived ammo boxes using it)
+- YAML-seeded entries with no associated boxes can be hidden from form dropdowns (Hide button); hidden entries are shown at the bottom of the list and can be unhidden at any time
+- User-created entries with no associated boxes can be permanently deleted from the Lookups page
+- All lookup form dropdowns (Add Ammo Box, Bulk Edit, Import, etc.) automatically exclude hidden entries
+- Locations and Containers are now full lookup table entries with source and active status, consistent with Calibers and other lookup tables
 - Development compose file renamed to `docker-compose.dev.yml`; `docker-compose.yml` is now the production file for end users
 - Add Ammo Box form now defaults new boxes to Shared
 - Dashboard Low Stock Items stat card now counts low calibers plus low locations (not individual boxes)

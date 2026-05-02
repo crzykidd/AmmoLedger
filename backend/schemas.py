@@ -19,6 +19,7 @@ class LookupRead(_OrmBase):
     name: str
     is_active: bool
     source: str
+    usage_count: int = 0
 
 
 class LookupCreate(BaseModel):
@@ -31,6 +32,7 @@ class ManufacturerRead(_OrmBase):
     url: Optional[str]
     is_active: bool
     source: str
+    usage_count: int = 0
 
 
 class ManufacturerCreate(BaseModel):
@@ -49,6 +51,7 @@ class DealerRead(_OrmBase):
     url: Optional[str]
     is_active: bool
     source: str
+    usage_count: int = 0
 
 
 class DealerCreate(BaseModel):
@@ -65,6 +68,9 @@ class LocationRead(_OrmBase):
     id: int
     name: str
     notes: Optional[str]
+    is_active: bool
+    source: str
+    usage_count: int = 0
 
 
 class LocationCreate(BaseModel):
@@ -77,12 +83,20 @@ class ContainerRead(_OrmBase):
     name: str
     location_id: Optional[int]
     notes: Optional[str]
+    is_active: bool
+    source: str
+    usage_count: int = 0
 
 
 class ContainerCreate(BaseModel):
     name: str
     location_id: Optional[int] = None
     notes: Optional[str] = None
+
+
+class LookupUpdate(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

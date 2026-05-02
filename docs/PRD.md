@@ -40,6 +40,7 @@
 | 3.1 | May 2026 | Help system — §9.12 added: Help page with searchable FAQ and collapsible Q&A sections; HelpTip contextual tooltips on form fields and key UI elements. |
 | 3.2 | May 2026 | Merged Invitations into Users page — §9.5 rewritten with three sections (users, active invitations, invitation history) and inline Invite User modal. Separate Invitations sidebar link and `/admin/invites` page removed. |
 | 3.3 | May 2026 | Added logging and error handling spec — §15.3 added: log levels, what gets logged, global exception handler, log format. |
+| 3.4 | May 2026 | Admin Lookups page redesigned — accordion layout with all 8 lookup tables, per-section search, usage counts, hide (YAML) / delete (user) actions, active_only filter on all lookup GET endpoints, is_active and source fields added to locations and containers. §9.6 updated. |
 
 ---
 
@@ -1151,12 +1152,46 @@ The old `/admin/invites` URL redirects to `/admin/users`.
 
 ### 9.6 Settings
 
-- Manage lookup tables: Calibers, Manufacturers, Types, Categories, Dealers, Containers, Locations
-- Add, rename, or deactivate entries (deactivated entries hidden from dropdowns but preserved in historical records)
 - Change own password (subject to full password requirements and history check)
 - Configure low-stock threshold per caliber
 - View YAML seed sync log (what was added on last startup)
 - Backup controls (Admin only — see Section 11)
+
+#### Lookup Tables page (`/admin/lookups`) — Admin only
+
+Eight collapsible accordion sections, all collapsed by default:
+
+**Sections:** Calibers, Manufacturers, Ammo Types, Categories, Ammo Conditions, Dealers, Locations, Containers
+
+Each section header shows the count of active entries. Click to expand.
+
+**Expanded section content:**
+
+- Search input — real-time case-insensitive partial match on entry name
+- Scrollable table (max 400 px) with columns:
+  - **Name** | **Website** (Manufacturers and Dealers only) | **Source** | **In Use** | **Actions**
+- **Source** badge: `yaml` (gray) for YAML-seeded entries, `user` (gold) for admin-created entries
+- **In Use** count: number of non-archived ammo boxes currently using this lookup value; `—` when zero
+- Hidden/inactive entries shown at the bottom of each section in muted text with strikethrough on the name
+- Add new entry form at the bottom of each section (Name input; URL input for Manufacturers and Dealers)
+
+**Action rules:**
+
+| Condition | Available actions |
+|-----------|-------------------|
+| YAML entry, in use (boxes > 0) | Edit only |
+| YAML entry, not in use, active | Edit + Hide |
+| User entry, in use | Edit only |
+| User entry, not in use, active | Edit + Delete (with confirmation dialog) |
+| Any inactive entry | Unhide only |
+
+- **Hide** sets `is_active = false` — entry disappears from all form dropdowns; a warning tooltip notes it will be restored on next restart (YAML entries are re-seeded on startup)
+- **Delete** permanently removes user-created entries with no associated boxes; blocked with a clear error for YAML entries or entries still in use
+- **Unhide** sets `is_active = true` — entry reappears in form dropdowns immediately
+
+**`active_only` filter on all lookup endpoints:**
+
+All lookup GET endpoints (`/calibers`, `/manufacturers`, etc.) accept `active_only: bool` (default `true`). Form dropdowns use the default and never show hidden entries. The Lookups admin page fetches with `active_only=false` to display the full list including hidden entries.
 
 #### Security settings (Admin only)
 
