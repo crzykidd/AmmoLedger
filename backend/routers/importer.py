@@ -554,14 +554,15 @@ async def confirm_import(
         # After legacy ID mode inserts, reset autoincrement so future boxes
         # continue from MAX(id)+1 rather than the pre-import sequence value.
         if use_legacy_ids:
-            result = import_db.execute(text("SELECT MAX(id) FROM ammo_box")).first()
-            max_id = result[0] if result and result[0] is not None else 0
             import_db.execute(
-                text("UPDATE sqlite_sequence SET seq = :max_id WHERE name = 'ammo_box'"),
-                {"max_id": max_id},
+                text(
+                    "UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM ammo_box) "
+                    "WHERE name = 'ammo_box'"
+                )
             )
             import_db.commit()
-            autoincrement_reset_to = max_id
+            result = import_db.execute(text("SELECT MAX(id) FROM ammo_box")).first()
+            autoincrement_reset_to = result[0] if result and result[0] is not None else 0
 
         import_db.execute(text("ANALYZE"))
         import_db.commit()
