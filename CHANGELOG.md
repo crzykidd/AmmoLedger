@@ -37,6 +37,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- Dashboard second stat card now shows Total Value instead of Total Boxes; when some boxes have no cost set a partial sum is shown with an asterisk and subtitle
 - Legacy ID no longer shown as subtitle when it matches the box ID — avoids redundant display for imported boxes that used legacy ID mode
 
 ### Performance

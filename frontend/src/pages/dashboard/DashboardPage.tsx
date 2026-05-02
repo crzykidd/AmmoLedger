@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Check, ChevronRight, Crosshair, Layers, Package } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Crosshair, DollarSign, Layers, Package } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -25,11 +25,13 @@ function StatCard({
   icon: Icon,
   label,
   value,
+  subtitle,
   accent = false,
 }: {
   icon: React.ElementType
   label: string
   value: string
+  subtitle?: string
   accent?: boolean
 }) {
   return (
@@ -57,10 +59,17 @@ function StatCard({
             {value}
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{label}</div>
+          {subtitle && (
+            <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{subtitle}</div>
+          )}
         </div>
       </CardContent>
     </Card>
   )
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +247,16 @@ export default function DashboardPage() {
     [boxes],
   )
 
+  const totalValue = useMemo(() => {
+    if (data?.total_value != null) return { amount: data.total_value, partial: false }
+    // API returns null when any box lacks cost_per_round — compute partial sum from boxes that have it
+    const partial = boxes.reduce(
+      (sum, b) => (b.cost_per_round != null ? sum + b.qty_remaining * b.cost_per_round : sum),
+      0,
+    )
+    return { amount: partial, partial: true }
+  }, [data?.total_value, boxes])
+
   // Caliber summary for By Caliber section
   const caliberSummary = useMemo(() => {
     const byId = new Map<number, { caliber_id: number; caliber_name: string; total_rounds: number; box_count: number }>()
@@ -365,9 +384,18 @@ export default function DashboardPage() {
             value={(data?.total_rounds ?? 0).toLocaleString()}
           />
           <StatCard
-            icon={Package}
-            label="Total Boxes"
-            value={(data?.total_boxes ?? 0).toString()}
+            icon={DollarSign}
+            label="Total Value"
+            value={
+              totalValue.amount > 0
+                ? `${formatCurrency(totalValue.amount)}${totalValue.partial ? '*' : ''}`
+                : '—'
+            }
+            subtitle={
+              totalValue.partial && totalValue.amount > 0
+                ? 'Some boxes have no cost set'
+                : undefined
+            }
           />
           <StatCard
             icon={Crosshair}
