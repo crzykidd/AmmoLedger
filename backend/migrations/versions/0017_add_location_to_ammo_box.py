@@ -8,7 +8,6 @@ Create Date: 2026-05-02
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import text
 
 revision = "0017"
 down_revision = "0016"
@@ -17,12 +16,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    conn = op.get_bind()
-    columns = [
-        row[1] for row in
-        conn.execute(text("PRAGMA table_info('ammo_box')")).fetchall()
-    ]
-    if "location_id" not in columns:
+    try:
         op.add_column(
             "ammo_box",
             sa.Column(
@@ -32,6 +26,8 @@ def upgrade() -> None:
                 nullable=True,
             ),
         )
+    except Exception:
+        pass  # column already exists
 
 
 def downgrade() -> None:
