@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-02
+
 ### Added
 
 - Environment variable support for all key config settings — set `AL_SESSION_SECRET`, `AL_BASE_URL`, `AL_BACKUP_ENABLED`, and others directly in `docker-compose.yml` without editing `config.yaml`
