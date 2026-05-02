@@ -8,14 +8,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 
 RUN adduser --disabled-password --gecos "" appuser
 
-COPY package*.json ./
+COPY --chown=appuser:appuser package*.json ./
 RUN npm install
 
-COPY . .
+COPY --chown=appuser:appuser . .
 
-# Recursive chown covers node_modules/.vite and all other directories Vite
-# writes to at runtime — targeted chown keeps breaking as Vite adds new paths.
-RUN chown -R appuser:appuser /app
+# Give appuser write access to the three paths Vite needs at runtime:
+#   /app                    — vite.config.ts.timestamp-*.mjs temp files
+#   /app/node_modules       — creating the .vite cache directory
+#   /app/node_modules/.vite — dependency optimisation cache
+# Pre-creating .vite avoids a chown-R over node_modules on every cold start.
+RUN mkdir -p /app/node_modules/.vite \
+    && chown -R appuser:appuser /app/node_modules/.vite \
+    && chown appuser:appuser /app/node_modules \
+    && chown appuser:appuser /app
 
 USER appuser
 
