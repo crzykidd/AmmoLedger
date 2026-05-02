@@ -46,9 +46,11 @@ export default function AboutPage() {
   const displayVersion = versionData?.display_version ?? '…'
   const branch = versionData?.build?.branch
   const showBranch = isDev && !!branch && branch !== 'unknown'
-  const shortSha = versionData?.build_sha?.slice(0, 7) ?? null
-  const commitUrl = versionData?.build_sha
-    ? `${GH_BASE}/commit/${versionData.build_sha}`
+  const shortSha = versionData?.build?.sha ?? null
+  const fullSha = versionData?.build?.full_sha ?? null
+  const commitUrl = fullSha && fullSha !== 'unknown' ? `${GH_BASE}/commit/${fullSha}` : null
+  const releaseUrl = !isDev && versionData?.version
+    ? `${GH_BASE}/releases/tag/v${versionData.version}`
     : null
 
   return (
@@ -77,7 +79,21 @@ export default function AboutPage() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500 dark:text-gray-400">Version</span>
               <span className="text-sm font-mono font-semibold text-gray-900 dark:text-white">
-                {displayVersion}
+                {!isDev && releaseUrl ? (
+                  <a href={releaseUrl} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
+                    {displayVersion}
+                  </a>
+                ) : isDev && shortSha && commitUrl ? (
+                  <>
+                    {`v${versionData!.version}-dev (`}
+                    <a href={commitUrl} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
+                      {shortSha}
+                    </a>
+                    {')'}
+                  </>
+                ) : (
+                  displayVersion
+                )}
               </span>
             </div>
 

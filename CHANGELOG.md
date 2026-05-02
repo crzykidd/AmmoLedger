@@ -18,6 +18,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 - CSV importer now recognises `owner` (username → user lookup, falls back to importer with a warning), `created_at`, and `updated_at` (ISO datetime, falls back to current time with a warning); `id` column is recognised but always ignored (use `legacy_id` instead)
 - Build info in version display — dev builds (branch ≠ `main`) show `v0.1.x-dev (sha)`, local builds with no env vars show `v0.1.x-local`, release builds show clean `v0.1.x`
 - About page shows Branch and Commit rows for dev builds; commit SHA links to the GitHub commit
+- Version text is now a clickable link — release builds link to the GitHub release page; dev builds link the SHA to the exact commit; local builds show plain text
 - Sidebar footer shows `dev · abc1234` with a clickable GitHub commit link for dev builds
 - Startup log includes display version so dev vs release images are immediately identifiable in `docker logs`
 - Local dev builds (no `GIT_BRANCH`/`GIT_SHA` set) display as `v0.1.x-local`
