@@ -304,3 +304,21 @@ docker compose restart backend
 ### Why UID 1000?
 
 AmmoLedger runs as a non-root user (`appuser`, UID 1000) inside the container for security. Your host directory must be owned by UID 1000 so the container process can write to it.
+
+### Running as a different user
+
+By default AmmoLedger runs as UID 1000 (`appuser`). If your data directory is owned by a different user you can override this in `docker-compose.yml`:
+
+```yaml
+services:
+  backend:
+    user: "1001:1001"
+  frontend:
+    user: "1001:1001"
+```
+
+Replace `1001` with the UID/GID that owns your data directory. Check with:
+
+```bash
+ls -ln /var/docker/ammoledger/data
+```
