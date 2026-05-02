@@ -9,6 +9,7 @@ import type {
   ExpendRequest,
   ExpendResponse,
   ExpenditureRead,
+  RecentExpenditure,
 } from '@/types'
 
 export const listAmmo = (params?: { search?: string; show_archived?: boolean; show_empty?: boolean }) => {
@@ -37,3 +38,6 @@ export const expendAmmo = (boxId: number, data: ExpendRequest) =>
 
 export const getAmmoHistory = (boxId: number) =>
   api.get<ExpenditureRead[]>(`/ammo/${boxId}/history`)
+
+export const getRecentExpenditure = () =>
+  api.get<RecentExpenditure[]>('/expenditures/recent')

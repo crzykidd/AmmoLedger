@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useAuth } from '@/contexts/AuthContext'
-import { listAmmo } from '@/api/ammo'
+import { listAmmo, getRecentExpenditure } from '@/api/ammo'
 import { getInvites } from '@/api/invites'
 import { getUsers } from '@/api/users'
 import { fetchLowStock, fetchDefaultThreshold } from '@/api/thresholds'
@@ -283,16 +283,10 @@ export default function DashboardPage() {
 
   const totalInventoryRounds = caliberSummary.reduce((sum, cs) => sum + cs.total_rounds, 0)
 
-  const recentActivity = useMemo(
-    () =>
-      [...boxes]
-        .sort(
-          (a, b) =>
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-        )
-        .slice(0, 5),
-    [boxes],
-  )
+  const { data: recentActivity } = useQuery({
+    queryKey: ['expenditures', 'recent'],
+    queryFn: getRecentExpenditure,
+  })
 
   const thresholdsCustomized = (defaultThreshold?.rounds ?? 200) !== 200
 
@@ -538,48 +532,44 @@ export default function DashboardPage() {
             Recent Activity
           </h2>
           <Card>
-            {recentActivity.length === 0 ? (
+            {!recentActivity || recentActivity.length === 0 ? (
               <CardContent className="py-8 text-center text-sm text-gray-400">
-                No recent activity
+                No rounds logged yet. Use the inventory to log your first range session.
               </CardContent>
             ) : (
               <CardContent className="p-0">
                 <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {recentActivity.map((box) => {
-                    const caliberName = caliberMap.get(box.caliber_id) ?? '—'
-                    const diffMs = Math.abs(
-                      new Date(box.updated_at).getTime() -
-                        new Date(box.created_at).getTime(),
-                    )
-                    const action = diffMs < 60_000 ? 'Added' : 'Updated'
-                    return (
-                      <div key={box.id} className="flex items-center gap-3 px-4 py-3">
-                        <div className="flex-1 min-w-0">
+                  {recentActivity.map((entry) => (
+                    <button
+                      key={entry.id}
+                      className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
+                      onClick={() => navigate('/inventory')}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-1.5 flex-wrap">
                           <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {caliberName}
+                            {entry.caliber_name}
                           </span>
-                          {box.product_name && (
-                            <span className="text-sm text-gray-500 ml-1.5">
-                              {box.product_name}
-                            </span>
-                          )}
+                          <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                            {entry.product_name
+                              ? `${entry.manufacturer_name} / ${entry.product_name}`
+                              : entry.manufacturer_name}
+                          </span>
                         </div>
-                        <span
-                          className={cn(
-                            'text-xs px-2 py-0.5 rounded-full shrink-0',
-                            action === 'Added'
-                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-                          )}
-                        >
-                          {action}
-                        </span>
-                        <span className="text-xs text-gray-400 shrink-0 w-12 text-right">
-                          {format(parseISO(box.updated_at), 'MMM d')}
-                        </span>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                          Logged by {entry.logged_by_name}
+                        </div>
                       </div>
-                    )
-                  })}
+                      <div className="shrink-0 text-right">
+                        <div className="text-sm font-semibold tabular-nums text-red-500 dark:text-red-400">
+                          -{entry.rounds_used.toLocaleString()} rds
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {format(parseISO(entry.date), 'MMM d')}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </CardContent>
             )}

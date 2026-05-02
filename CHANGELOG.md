@@ -12,6 +12,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- `GET /expenditures/recent` endpoint returning the last 10 expend-type log entries with caliber name, manufacturer, product name, rounds used, date, and who logged them
 - Empty boxes (qty_remaining=0) are now hidden in the inventory list by default; "Show Empty" toggle in the toolbar reveals them; toggle state saved to localStorage
 - `show_empty` query parameter on `GET /ammo` — defaults to false; independent of `show_archived`
 - Checkbox multi-select in inventory table — select individual boxes, groups, or all filtered boxes at once
@@ -39,6 +40,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- Dashboard Recent Activity now shows the last 10 expenditure log entries (who logged it, caliber, rounds, date) instead of recently updated boxes
 - Dashboard second stat card now shows Total Value instead of Total Boxes; when some boxes have no cost set a partial sum is shown with an asterisk and subtitle
 - Legacy ID no longer shown as subtitle when it matches the box ID — avoids redundant display for imported boxes that used legacy ID mode
 

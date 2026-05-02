@@ -215,6 +215,18 @@ export interface AmmoListResponse {
   total_value: number | null
 }
 
+export interface RecentExpenditure {
+  id: number
+  ammo_box_id: number
+  caliber_name: string
+  manufacturer_name: string
+  product_name: string | null
+  rounds_used: number
+  date: string
+  logged_by_name: string
+  notes: string | null
+}
+
 export interface AmmoBoxCreate {
   caliber_id: number
   manufacturer_id: number

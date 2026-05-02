@@ -358,6 +358,22 @@ class LowStockResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Recent expenditure schema
+# ---------------------------------------------------------------------------
+
+class RecentExpenditureRead(BaseModel):
+    id: int
+    ammo_box_id: int
+    caliber_name: str
+    manufacturer_name: str
+    product_name: Optional[str]
+    rounds_used: int
+    date: date
+    logged_by_name: str
+    notes: Optional[str]
+
+
+# ---------------------------------------------------------------------------
 # Notification schemas
 # ---------------------------------------------------------------------------
 
