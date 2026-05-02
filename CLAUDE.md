@@ -72,10 +72,21 @@ Current release: v0.1.3 (2026-05-02)
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 
+## Git Workflow
+
+- Work on `dev` branch for all changes
+- Push to dev freely — builds `:dev` images
+- When ready to release:
+  - Create PR `dev` → `main` on GitHub
+  - Merge after CI passes
+  - Tag release from `main`
+- Never push directly to `main`
+- Do NOT add Co-authored-by to commits
+
 ## Release Process
 
-- Commit and push freely to `main` — GitHub Actions automatically builds and pushes
-  `:dev` and `:sha-<short>` images to GHCR
+- Push to `dev` — GitHub Actions builds and pushes `:dev` and `:sha-<short>` images to GHCR
+- Push to `main` (via PR from dev) — GitHub Actions builds and pushes `:latest` and `:sha-<short>` images
 - When the build is stable and ready to ship:
   1. GitHub → Releases → Draft new release
   2. Create a new tag in `v1.0.0` format

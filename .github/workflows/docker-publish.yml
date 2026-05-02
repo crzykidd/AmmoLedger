@@ -1,13 +1,14 @@
 name: Build and publish Docker images
 
 # Trigger matrix:
-#   push → main          builds :dev and :sha-<short> (development, may not be stable)
+#   push → dev           builds :dev and :sha-<short> (work-in-progress)
+#   push → main          builds :latest and :sha-<short> (pre-release, CI-verified)
 #   release published    builds :latest, :<semver>, :<major> (production-ready)
 #   pull_request → main  build only — no push (catches Dockerfile errors before merge)
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   release:
     types: [published]
   pull_request:
@@ -45,10 +46,13 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}-backend
           flavor: latest=false
           tags: |
-            # Push to main — development build
-            type=raw,value=dev,enable=${{ github.event_name == 'push' }}
+            # Push to dev branch — work-in-progress image
+            type=raw,value=dev,enable=${{ github.event_name == 'push' && github.ref_name == 'dev' }}
+            # Push to main branch — CI-verified pre-release image
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref_name == 'main' }}
+            # All pushes — SHA tag for exact version pinning
             type=sha,prefix=sha-,format=short,enable=${{ github.event_name == 'push' }}
-            # Release published — stable build
+            # Release published — stable versioned build
             type=raw,value=latest,enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
@@ -74,7 +78,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ steps.version.outputs.value }}
             GIT_SHA=${{ github.sha }}
             GIT_BRANCH=${{ github.ref_name }}
 
@@ -133,10 +136,13 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}-frontend
           flavor: latest=false
           tags: |
-            # Push to main — development build
-            type=raw,value=dev,enable=${{ github.event_name == 'push' }}
+            # Push to dev branch — work-in-progress image
+            type=raw,value=dev,enable=${{ github.event_name == 'push' && github.ref_name == 'dev' }}
+            # Push to main branch — CI-verified pre-release image
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref_name == 'main' }}
+            # All pushes — SHA tag for exact version pinning
             type=sha,prefix=sha-,format=short,enable=${{ github.event_name == 'push' }}
-            # Release published — stable build
+            # Release published — stable versioned build
             type=raw,value=latest,enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
@@ -162,7 +168,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ steps.version.outputs.value }}
             GIT_SHA=${{ github.sha }}
             GIT_BRANCH=${{ github.ref_name }}
 

@@ -126,7 +126,7 @@ docker pull ghcr.io/YOURUSERNAME/ammologger-backend:dev
 docker pull ghcr.io/YOURUSERNAME/ammologger-frontend:dev
 ```
 
-> `:latest` only advances when an official release is published on GitHub. `:dev` tracks the tip of `main` and may include incomplete or in-progress changes.
+> For stable releases use the `:latest` tag. For development builds use the `:dev` tag. `:latest` advances on every merge to `main` and on every published release. `:dev` tracks the `dev` branch and may include work-in-progress changes.
 
 ### Upgrading
 
