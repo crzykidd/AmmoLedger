@@ -46,12 +46,15 @@ def list_ammo(
     product_name: Optional[str] = Query(default=None, description="Partial match on product name"),
     legacy_id: Optional[str] = Query(default=None, description="Partial match on legacy ID"),
     show_archived: bool = Query(default=False, description="Include archived boxes in results"),
+    show_empty: bool = Query(default=False, description="Include empty (qty_remaining=0) boxes in results"),
     user: User = Depends(require_auth),
     db: Session = Depends(get_session),
 ):
     stmt = _visibility_filter(select(AmmoBox), user)
     if not show_archived:
         stmt = stmt.where(AmmoBox.is_archived == False)  # noqa: E712
+    if not show_empty:
+        stmt = stmt.where(AmmoBox.qty_remaining > 0)
     if search:
         stmt = stmt.where(
             or_(

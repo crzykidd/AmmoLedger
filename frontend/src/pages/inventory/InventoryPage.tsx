@@ -114,6 +114,9 @@ export default function InventoryPage() {
 
   // Global search / view state
   const [search, setSearch] = useState('')
+  const [showEmpty, setShowEmpty] = useState(
+    () => localStorage.getItem('inventory_show_empty') === 'true',
+  )
   const [showArchived, setShowArchived] = useState(false)
   const [conditionFilter, setConditionFilter] = useState<string>('')
 
@@ -148,7 +151,7 @@ export default function InventoryPage() {
   // Clear selection when filters or groupBy change
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [columnFilters, groupBy, conditionFilter, search, showArchived])
+  }, [columnFilters, groupBy, conditionFilter, search, showEmpty, showArchived])
 
   const lookups = useInventoryLookups()
   const { getLowItems, getCaliberSummary } = useThresholds()
@@ -184,8 +187,8 @@ export default function InventoryPage() {
   })
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['ammo', { search, showArchived }],
-    queryFn: () => listAmmo({ search: search || undefined, show_archived: showArchived }),
+    queryKey: ['ammo', { search, showEmpty, showArchived }],
+    queryFn: () => listAmmo({ search: search || undefined, show_empty: showEmpty, show_archived: showArchived }),
   })
 
   const allBoxes = data?.boxes ?? []
@@ -384,6 +387,20 @@ export default function InventoryPage() {
               />
             </div>
 
+            {/* Show Empty toggle */}
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none shrink-0">
+              <input
+                type="checkbox"
+                checked={showEmpty}
+                onChange={(e) => {
+                  setShowEmpty(e.target.checked)
+                  localStorage.setItem('inventory_show_empty', String(e.target.checked))
+                }}
+                className="accent-gold"
+              />
+              Show Empty
+            </label>
+
             {/* Archived toggle */}
             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none shrink-0">
               <input
@@ -578,9 +595,11 @@ export default function InventoryPage() {
               <p className="text-gray-500 dark:text-gray-400 font-medium">
                 {search || conditionFilter
                   ? 'No results match your search.'
-                  : 'No ammo boxes yet.'}
+                  : !showEmpty
+                    ? 'No boxes with rounds remaining. Check "Show Empty" to see empty boxes.'
+                    : 'No ammo boxes yet.'}
               </p>
-              {canAdd && !search && !conditionFilter && (
+              {canAdd && !search && !conditionFilter && showEmpty && (
                 <Button onClick={openAdd} size="sm">
                   <Plus className="h-4 w-4 mr-1.5" />
                   Add your first box

@@ -11,10 +11,11 @@ import type {
   ExpenditureRead,
 } from '@/types'
 
-export const listAmmo = (params?: { search?: string; show_archived?: boolean }) => {
+export const listAmmo = (params?: { search?: string; show_archived?: boolean; show_empty?: boolean }) => {
   const qs = new URLSearchParams()
   if (params?.search) qs.set('search', params.search)
   if (params?.show_archived) qs.set('show_archived', 'true')
+  if (params?.show_empty) qs.set('show_empty', 'true')
   const query = qs.toString()
   return api.get<AmmoListResponse>(`/ammo${query ? `?${query}` : ''}`)
 }
