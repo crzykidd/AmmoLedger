@@ -14,6 +14,14 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 - `AL_BACKEND_URL` environment variable for the frontend — configures the container-internal URL used to proxy API requests to the backend (default: `http://backend:8000`); useful when the backend runs on a custom service name or port
 
+### Fixed
+
+- Startup no longer crashes with `PermissionError` when `/data` is owned by root and the container runs as a non-root user
+- `ensure_data_dirs()` logs a warning and continues if `/data/backups` or `/data/uploads` cannot be created — these directories are only required when a backup or upload is actually triggered
+- `_ensure_defaults_yaml()` logs a warning and skips the file copy if `/data` is not writable; seed sync falls back to the bundled `defaults.yaml` inside the image
+- `sync_yaml_seeds()` falls back to the bundled `defaults.yaml` if `DEFAULTS_PATH` is missing or unreadable
+- First-run setup message correctly handles the case where the config template cannot be written to `/data` — instructs the user to use `AL_SESSION_SECRET` via environment variable instead
+
 ## [0.1.1] — 2026-05-02
 
 ### Added

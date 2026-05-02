@@ -75,15 +75,37 @@ def _apply_env_overrides(config: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def ensure_data_dirs() -> None:
-    Path(BACKUP_PATH).mkdir(parents=True, exist_ok=True)
-    Path(UPLOADS_PATH).mkdir(parents=True, exist_ok=True)
+    for path_str, label in [(BACKUP_PATH, "backups"), (UPLOADS_PATH, "uploads")]:
+        try:
+            Path(path_str).mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            print(
+                f"WARNING: Cannot create {label} directory {path_str} — permission denied. "
+                "Backup and upload operations will fail until directory permissions are fixed.",
+                flush=True,
+            )
 
 
 def _ensure_defaults_yaml() -> None:
     dest = Path(DEFAULTS_PATH)
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        print(
+            f"WARNING: Cannot create data directory {dest.parent} — permission denied. "
+            f"Using bundled defaults from {_BUNDLED_DEFAULTS}.",
+            flush=True,
+        )
+        return
     if not dest.exists():
-        shutil.copy2(_BUNDLED_DEFAULTS, dest)
+        try:
+            shutil.copy2(_BUNDLED_DEFAULTS, dest)
+        except PermissionError:
+            print(
+                f"WARNING: Cannot write defaults.yaml to {dest} — permission denied. "
+                f"Using bundled defaults from {_BUNDLED_DEFAULTS}.",
+                flush=True,
+            )
 
 
 def get_setting(session, key: str) -> Optional[str]:
@@ -325,12 +347,21 @@ def load_and_validate_config() -> dict:
                 config = yaml.safe_load(f) or {}
             print("  Config: no config.yaml — using AL_* environment variables", flush=True)
         else:
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(_BUNDLED_TEMPLATE, config_path)
+            try:
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(_BUNDLED_TEMPLATE, config_path)
+                config_written = True
+            except PermissionError:
+                config_written = False
+
             print("\n" + "=" * 64)
             print("  AmmoLedger — first-time setup required")
             print("=" * 64)
-            print(f"\n  A default config has been written to:\n    {config_path}\n")
+            if config_written:
+                print(f"\n  A default config has been written to:\n    {config_path}\n")
+            else:
+                print(f"\n  NOTE: Could not write config to {config_path} (permission denied).")
+                print("  Use Option B below — no config file needed.\n")
             print("  Option A — edit config.yaml:")
             print("    Set security.session_secret to a random value:")
             print()

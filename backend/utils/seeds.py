@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 from utils.logging import get_logger
 import yaml
 from sqlalchemy import func
@@ -5,7 +8,7 @@ from sqlmodel import Session, select
 
 from database import engine
 from models import AmmoCondition, AmmoType, Caliber, Category, Dealer, Manufacturer
-from utils.config import DEFAULTS_PATH, get_setting, set_setting
+from utils.config import DEFAULTS_PATH, _BUNDLED_DEFAULTS, get_setting, set_setting
 
 logger = get_logger(__name__)
 
@@ -143,7 +146,18 @@ def _sync_dealers(db: Session, yaml_dealers: list,
 
 
 def sync_yaml_seeds(config: dict) -> None:
-    with open(DEFAULTS_PATH) as f:
+    defaults_path = Path(DEFAULTS_PATH)
+    if defaults_path.exists() and os.access(defaults_path, os.R_OK):
+        read_path = defaults_path
+    else:
+        logger.warning(
+            "Cannot read %s — permission denied or file missing. "
+            "Using bundled defaults from %s.",
+            DEFAULTS_PATH, _BUNDLED_DEFAULTS,
+        )
+        read_path = _BUNDLED_DEFAULTS
+
+    with open(read_path) as f:
         data = yaml.safe_load(f)
 
     yaml_version = str(data.get("version", "unknown"))
