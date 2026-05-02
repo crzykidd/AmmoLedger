@@ -3,16 +3,16 @@ name: Build and publish Docker images
 # Trigger matrix:
 #   push → dev           builds :dev and :sha-<short> (work-in-progress)
 #   push → main          builds :latest and :sha-<short> (pre-release, CI-verified)
-#   release published    builds :latest, :<semver>, :<major> (production-ready)
 #   pull_request → main  build only — no push (catches Dockerfile errors before merge)
+#   release published    builds :latest, :<semver>, :<major> (production-ready)
 
 on:
   push:
     branches: [main, dev]
-  release:
-    types: [published]
   pull_request:
     branches: [main]
+  release:
+    types: [published]
 
 env:
   REGISTRY: ghcr.io
@@ -80,6 +80,7 @@ jobs:
           build-args: |
             GIT_SHA=${{ github.sha }}
             GIT_BRANCH=${{ github.ref_name }}
+        # PRs: build only (no push) — verifies Dockerfile compiles without pushing to GHCR
 
   cleanup:
     runs-on: ubuntu-latest
@@ -170,4 +171,5 @@ jobs:
           build-args: |
             GIT_SHA=${{ github.sha }}
             GIT_BRANCH=${{ github.ref_name }}
+        # PRs: build only (no push) — verifies Dockerfile compiles without pushing to GHCR
 
