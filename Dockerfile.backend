@@ -18,7 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=appuser:appuser . .
 
 ARG VERSION=dev
-ENV APP_VERSION=$VERSION
+ENV APP_VERSION=$VERSION \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 USER appuser
 

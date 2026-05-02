@@ -11,17 +11,19 @@ def setup_logging() -> None:
         return
 
     is_production = os.getenv("APP_ENV", "development") == "production"
-    level = logging.INFO if is_production else logging.DEBUG
-    fmt = "%(asctime)s | %(levelname)-8s | %(module)s | %(message)s"
-    datefmt = "%Y-%m-%d %H:%M:%S"
+    level = logging.DEBUG if not is_production else logging.INFO
 
-    logging.basicConfig(
-        level=level,
-        format=fmt,
-        datefmt=datefmt,
-        stream=sys.stdout,
-        force=True,
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(level)
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
+    handler.setFormatter(formatter)
+
+    root = logging.getLogger()
+    root.setLevel(level)
+    root.addHandler(handler)
 
     # Silence noisy third-party loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)

@@ -1,4 +1,6 @@
 import os
+import sys
+import traceback
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException
@@ -60,12 +62,11 @@ _config: dict = {}
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.error(
-        "Unhandled exception on %s %s",
-        request.method,
-        request.url.path,
-        exc_info=exc,
-    )
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    msg = f"Unhandled: {request.method} {request.url.path}\n{tb}"
+    logger.error(msg)
+    # Fallback: write directly to stderr in case logging is misconfigured
+    print(msg, file=sys.stderr, flush=True)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error — check server logs"},
