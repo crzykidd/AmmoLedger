@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.4] — 2026-05-02
+
 ### Added
 
 - **Export CSV** button in the Inventory toolbar — exports currently visible boxes (respects active search and Archived/Empty filters) as a CSV file; confirmation dialog shows the row count before downloading
