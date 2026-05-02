@@ -79,7 +79,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_SHA=${{ github.sha }}
-            GIT_BRANCH=${{ github.ref_name }}
+            GIT_BRANCH=${{ github.event_name == 'release' && 'main' || github.ref_name }}
         # PRs: build only (no push) — verifies Dockerfile compiles without pushing to GHCR
 
   cleanup:
@@ -170,6 +170,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_SHA=${{ github.sha }}
-            GIT_BRANCH=${{ github.ref_name }}
+            GIT_BRANCH=${{ github.event_name == 'release' && 'main' || github.ref_name }}
         # PRs: build only (no push) — verifies Dockerfile compiles without pushing to GHCR
 
