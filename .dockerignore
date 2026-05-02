@@ -14,3 +14,4 @@ frontend/build/
 docs/
 CLAUDE.md
 migrations/versions/__pycache__/
+/app/ammoledger.db
