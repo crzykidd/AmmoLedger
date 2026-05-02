@@ -110,11 +110,11 @@ export default function Sidebar() {
   // Build the version display string
   const versionLabel = (() => {
     if (!versionData) return null
-    const { version, build_sha } = versionData
-    const isDev = !!build_sha || version.includes('dev')
-    if (isDev && build_sha) return `dev · ${build_sha.slice(0, 7)}`
+    const isDev = versionData.build?.is_dev ?? !!versionData.build_sha
+    const shortSha = versionData.build_sha?.slice(0, 7) ?? null
+    if (isDev && shortSha) return `dev · ${shortSha}`
     if (isDev) return 'dev'
-    return `v${version}`
+    return versionData.display_version ?? `v${versionData.version}`
   })()
 
   const shaLink = versionData?.build_sha

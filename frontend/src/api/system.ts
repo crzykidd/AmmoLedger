@@ -1,7 +1,16 @@
 import { api } from './client'
 
+export interface BuildInfo {
+  version: string
+  branch: string
+  sha: string
+  is_dev: boolean
+}
+
 export interface SystemVersionResponse {
   version: string
+  display_version: string
+  build: BuildInfo
   latest_version: string | null
   update_available: boolean
   build_sha: string | null

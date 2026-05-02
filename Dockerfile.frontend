@@ -23,6 +23,11 @@ RUN mkdir -p /app/node_modules/.vite \
     && chown appuser:appuser /app/node_modules \
     && chown appuser:appuser /app
 
+ARG GIT_SHA=unknown
+ARG GIT_BRANCH=main
+ENV GIT_SHA=$GIT_SHA \
+    GIT_BRANCH=$GIT_BRANCH
+
 USER appuser
 
 EXPOSE 5173

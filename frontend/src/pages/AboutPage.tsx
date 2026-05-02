@@ -15,11 +15,6 @@ const LINKS = [
   { label: 'Documentation', href: `${GH_BASE}/blob/main/docs/PRD.md` },
 ]
 
-function versionDisplay(version: string, buildSha: string | null): string {
-  if (version.includes('dev')) return version
-  return `v${version}`
-}
-
 function formatLastChecked(iso: string | null): string {
   if (!iso) return 'Never'
   try {
@@ -47,14 +42,14 @@ export default function AboutPage() {
     },
   })
 
-  const isDev =
-    !!versionData?.build_sha || (versionData?.version ?? '').includes('dev')
-
-  const displayVersion = versionData
-    ? versionDisplay(versionData.version, versionData.build_sha)
-    : '…'
-
+  const isDev = versionData?.build?.is_dev ?? false
+  const displayVersion = versionData?.display_version ?? '…'
+  const branch = versionData?.build?.branch
+  const showBranch = isDev && !!branch && branch !== 'unknown'
   const shortSha = versionData?.build_sha?.slice(0, 7) ?? null
+  const commitUrl = versionData?.build_sha
+    ? `${GH_BASE}/commit/${versionData.build_sha}`
+    : null
 
   return (
     <AppShell>
@@ -83,13 +78,31 @@ export default function AboutPage() {
               <span className="text-sm text-gray-500 dark:text-gray-400">Version</span>
               <span className="text-sm font-mono font-semibold text-gray-900 dark:text-white">
                 {displayVersion}
-                {isDev && shortSha && (
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    · {shortSha}
-                  </span>
-                )}
               </span>
             </div>
+
+            {showBranch && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Branch</span>
+                <span className="text-sm font-mono text-gray-600 dark:text-gray-400">
+                  {branch}
+                </span>
+              </div>
+            )}
+
+            {isDev && shortSha && commitUrl && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Commit</span>
+                <a
+                  href={commitUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-mono text-gold hover:underline"
+                >
+                  {shortSha}
+                </a>
+              </div>
+            )}
 
             {versionData?.update_available && versionData.latest_version ? (
               <div className="flex items-center gap-2.5 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg px-3 py-2.5">

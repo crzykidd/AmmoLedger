@@ -18,7 +18,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=appuser:appuser . .
 
 ARG VERSION=dev
+ARG GIT_SHA=unknown
+ARG GIT_BRANCH=main
 ENV APP_VERSION=$VERSION \
+    GIT_SHA=$GIT_SHA \
+    GIT_BRANCH=$GIT_BRANCH \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 

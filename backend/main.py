@@ -32,7 +32,7 @@ from utils.logging import get_logger, setup_logging
 from utils.rbac import require_auth, require_role
 from utils.scheduler import reschedule, start_scheduler, stop_scheduler
 from utils.seeds import sync_yaml_seeds
-from version import __version__
+from version import __version__, get_build_info, get_display_version
 
 setup_logging()
 logger = get_logger(__name__)
@@ -280,8 +280,8 @@ def on_startup():
         )
         raise SystemExit(1)
 
-    logger.info("AmmoLedger v%s starting...", __version__)
-    print(f"✓ AmmoLedger v{__version__} starting", flush=True)
+    logger.info("AmmoLedger %s starting...", get_display_version())
+    print(f"✓ AmmoLedger {get_display_version()} starting", flush=True)
     _config = load_and_validate_config()
     logger.info("Config loaded from %s", CONFIG_PATH)
     print("✓ Config loaded", flush=True)
@@ -297,7 +297,7 @@ def on_startup():
     logger.info("Scheduler started")
     print("✓ Scheduler started", flush=True)
     logger.info("Server ready")
-    print(f"✓ AmmoLedger v{__version__} ready", flush=True)
+    print(f"✓ AmmoLedger {get_display_version()} ready", flush=True)
 
 
 @app.on_event("shutdown")
@@ -330,6 +330,8 @@ def system_version(user=Depends(require_auth), db=Depends(get_session)):
     upgraded_from = get_setting(db, "upgraded_from") or None
     return {
         "version": __version__,
+        "display_version": get_display_version(),
+        "build": get_build_info(),
         "latest_version": latest,
         "update_available": update_available,
         "build_sha": os.environ.get("GIT_SHA") or None,
@@ -349,6 +351,8 @@ def force_version_check(_=Depends(require_role("admin")), db=Depends(get_session
     upgraded_from = get_setting(db, "upgraded_from") or None
     return {
         "version": __version__,
+        "display_version": get_display_version(),
+        "build": get_build_info(),
         "latest_version": latest,
         "update_available": update_available,
         "build_sha": os.environ.get("GIT_SHA") or None,

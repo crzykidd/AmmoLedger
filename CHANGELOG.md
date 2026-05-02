@@ -10,6 +10,14 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Added
+
+- Build info in version display — dev builds (branch ≠ `main`) show `v0.1.x-dev (sha)`, local builds with no env vars show `v0.1.x-local`, release builds show clean `v0.1.x`
+- About page shows Branch and Commit rows for dev builds; commit SHA links to the GitHub commit
+- Sidebar footer shows `dev · abc1234` with a clickable GitHub commit link for dev builds
+- Startup log includes display version so dev vs release images are immediately identifiable in `docker logs`
+- Local dev builds (no `GIT_BRANCH`/`GIT_SHA` set) display as `v0.1.x-local`
+
 ### Fixed
 
 - Frontend no longer rejects requests from reverse proxy hostnames (Traefik, Nginx, Caddy, etc.) — Vite's host check is disabled so the app works behind any user-configured proxy
