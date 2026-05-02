@@ -12,8 +12,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from utils.config import BACKUP_PATH
+from utils.logging import get_logger
 from utils.rbac import require_role
 from version import __version__
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/backup", tags=["backup"])
 
@@ -139,7 +142,12 @@ def trigger_backup(_: Any = Depends(require_role("admin"))):
     try:
         shutil.copy2(str(db_path), str(dest))
     except OSError as exc:
+        logger.error("Backup failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Backup failed: {exc}") from exc
+
+    stat = dest.stat()
+    logger.info("Manual backup triggered: %s", filename)
+    logger.info("Backup complete: %s, %d bytes", filename, stat.st_size)
 
     try:
         from database import engine  # noqa: PLC0415
@@ -199,6 +207,7 @@ def delete_backup(filename: str, _: Any = Depends(require_role("admin"))):
     path = _validate_filename(filename)
     try:
         path.unlink()
+        logger.warning("Backup file deleted: %s", filename)
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Delete failed: {exc}") from exc
 
@@ -246,6 +255,7 @@ def export_backup(_: Any = Depends(require_role("admin"))):
     dest = backup_dir / filename
     dest.write_text(json.dumps(payload, default=str, indent=2))
 
+    logger.info("JSON export created: %s", filename)
     return _file_meta(dest)
 
 
@@ -296,16 +306,19 @@ async def restore_sqlite(
 
     # Replace the main DB
     db_path = _db_path()
+    logger.info("Restore started from: %s", file.filename or "unknown")
     try:
         shutil.move(str(temp_path), str(db_path))
     except OSError as exc:
         temp_path.unlink(missing_ok=True)
+        logger.error("Restore failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Could not replace database: {exc}") from exc
 
     # Flush all pooled SQLAlchemy connections so the next request opens the new file
     from database import engine  # noqa: PLC0415
     engine.dispose()
 
+    logger.info("Restore complete")
     return {"success": True, "message": "Database restored successfully. Please reload the application."}
 
 

@@ -8,7 +8,10 @@ from sqlmodel import Session, select
 from database import get_session
 from models import AmmoBox, User
 from schemas import AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, AmmoListResponse, BulkUpdateRequest, BulkUpdateResponse
+from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/ammo", tags=["ammo"])
 
@@ -70,6 +73,7 @@ def list_ammo(
     total_rounds = sum(b.qty_remaining for b in boxes)
     costs = [b.qty_remaining * b.cost_per_round for b in boxes if b.cost_per_round is not None]
     total_value = round(sum(costs), 2) if len(costs) == len(boxes) else None
+    logger.debug("GET /ammo: %d boxes returned (archived=%s, empty=%s)", len(boxes), show_archived, show_empty)
     return AmmoListResponse(
         boxes=boxes,
         total_boxes=len(boxes),
@@ -110,6 +114,7 @@ def create_ammo(
     db.add(box)
     db.commit()
     db.refresh(box)
+    logger.debug("POST /ammo: box created id=%d", box.id)
     return box
 
 
@@ -157,6 +162,7 @@ def bulk_update_ammo(
         updated += 1
 
     db.commit()
+    logger.info("Bulk update: %d boxes updated by %s", updated, user.email or user.username)
     return BulkUpdateResponse(updated=updated, failed=0)
 
 
@@ -188,6 +194,7 @@ def update_ammo(
     db.add(box)
     db.commit()
     db.refresh(box)
+    logger.debug("PATCH /ammo/%d: updated", box_id)
     return box
 
 
@@ -201,3 +208,4 @@ def delete_ammo(
     _check_write(box, user)
     db.delete(box)
     db.commit()
+    logger.debug("DELETE /ammo/%d: deleted by %s", box_id, user.email or user.username)

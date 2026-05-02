@@ -5,6 +5,10 @@ from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 _DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/ammoledger.db")
 BACKUP_PATH = os.getenv("BACKUP_PATH", "/data/backups")
 
@@ -25,21 +29,23 @@ def _run_backup_job(retention_days: int) -> None:
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     if not db_path.is_file():
-        print(f"[scheduler] DB not found at {db_path} — skipping backup")
+        logger.error("Scheduled backup failed: DB not found at %s", db_path)
         return
 
+    logger.info("Scheduled backup started")
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
     filename = f"ammoledger_{ts}.db"
     dest = backup_dir / filename
 
     try:
         shutil.copy2(str(db_path), str(dest))
-        print(f"[scheduler] Backup created: {filename}")
+        logger.info("Scheduled backup complete: %s", filename)
     except Exception as e:
-        print(f"[scheduler] Backup failed: {e}")
+        logger.error("Scheduled backup failed: %s", e)
         return
 
     # Prune files older than retention_days
+    pruned = 0
     try:
         cutoff = datetime.now().timestamp() - retention_days * 86400
         for f in sorted(backup_dir.glob("ammoledger_*.db"), key=lambda x: x.stat().st_mtime):
@@ -47,9 +53,11 @@ def _run_backup_job(retention_days: int) -> None:
                 continue
             if f.stat().st_mtime < cutoff:
                 f.unlink()
-                print(f"[scheduler] Pruned: {f.name}")
+                pruned += 1
+        if pruned:
+            logger.info("Pruned %d old backup%s", pruned, "s" if pruned != 1 else "")
     except Exception as e:
-        print(f"[scheduler] Prune failed: {e}")
+        logger.error("Prune failed: %s", e)
 
     # Record timestamp in app_settings
     try:
@@ -61,7 +69,7 @@ def _run_backup_job(retention_days: int) -> None:
             set_setting(session, "last_backup_file", filename)
             session.commit()
     except Exception as e:
-        print(f"[scheduler] Failed to update last_backup_at: {e}")
+        logger.error("Failed to update last_backup_at: %s", e)
 
 
 def start_scheduler(config: dict) -> None:
@@ -69,7 +77,7 @@ def start_scheduler(config: dict) -> None:
 
     backup_cfg = config.get("backup") or {}
     if not backup_cfg.get("enabled", False):
-        print("[scheduler] Scheduled backups disabled")
+        logger.info("Scheduled backups disabled")
         return
 
     schedule = str(backup_cfg.get("schedule", "03:00"))
@@ -79,7 +87,7 @@ def start_scheduler(config: dict) -> None:
         hour_str, minute_str = schedule.split(":")
         hour, minute = int(hour_str), int(minute_str)
     except (ValueError, AttributeError):
-        print(f"[scheduler] Invalid schedule '{schedule}' — defaulting to 03:00")
+        logger.warning("Invalid schedule '%s' — defaulting to 03:00", schedule)
         hour, minute = 3, 0
 
     _scheduler = AsyncIOScheduler()
@@ -93,7 +101,7 @@ def start_scheduler(config: dict) -> None:
         replace_existing=True,
     )
     _scheduler.start()
-    print(f"[scheduler] Scheduled backup at {hour:02d}:{minute:02d}, retention {retention_days}d")
+    logger.info("Scheduler started — next backup at %02d:%02d, retention %dd", hour, minute, retention_days)
 
 
 def stop_scheduler() -> None:

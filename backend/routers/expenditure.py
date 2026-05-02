@@ -9,7 +9,10 @@ from database import get_session
 from models import AmmoBox, Caliber, ExpenditureLog, Manufacturer, User
 from routers.ammo import _get_visible_box
 from schemas import ExpenditureRead, ExpendRequest, ExpendResponse, RecentExpenditureRead
+from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/ammo", tags=["expenditure"])
 expenditures_router = APIRouter(prefix="/expenditures", tags=["expenditure"])
@@ -46,8 +49,12 @@ def expend_ammo(
             detail=f"Cannot expend {payload.rounds_used} rounds — only {box.qty_remaining} remaining",
         )
 
+    prev_remaining = box.qty_remaining
     box.qty_remaining -= payload.rounds_used
     box.updated_at = datetime.utcnow()
+
+    logger.info("Expend: box %d, %d rounds by %s", box_id, payload.rounds_used, user.email or user.username)
+    logger.debug("Box %d remaining: %d → %d", box_id, prev_remaining, box.qty_remaining)
 
     log = ExpenditureLog(
         ammo_box_id=box.id,

@@ -17,8 +17,11 @@ from password_utils import (
 )
 from schemas import InvitationCreate, InviteRead, RegisterRequest
 from utils.config import load_config
+from utils.logging import get_logger
 from utils.rbac import require_role
 from utils.security import hash_password, verify_password
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -152,6 +155,7 @@ def setup(body: SetupRequest, request: Request, db: Session = Depends(get_sessio
     db.commit()
     db.refresh(user)
 
+    logger.info("User created: %s via setup", body.email)
     request.session["user_id"] = user.id
     request.session["role"] = user.role
 
@@ -166,12 +170,15 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_sessio
     dummy_hash = "$2b$12$KIXBcOnfQjSal7uHuV5yj.LnBjZQkXZv5cFwX5bQ9vBzFJpQHBnHG"
     if not user:
         verify_password(body.password, dummy_hash)
+        logger.warning("User login: %s — failed (invalid credentials)", body.email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if not verify_password(body.password, user.password_hash):
+        logger.warning("User login: %s — failed (invalid credentials)", body.email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if not user.is_active:
+        logger.warning("User login: %s — failed (account deactivated)", body.email)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
 
     request.session["user_id"] = user.id
@@ -182,6 +189,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_sessio
     db.commit()
     db.refresh(user)
 
+    logger.info("User login: %s — success", body.email)
     return _user_response(user)
 
 
@@ -327,6 +335,7 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
     db.commit()
     db.refresh(user)
 
+    logger.info("User created: %s via invite", body.email)
     request.session["user_id"] = user.id
     request.session["role"] = user.role
 
@@ -387,6 +396,7 @@ def generate_reset_token(
     db.add(prt)
     db.commit()
 
+    logger.info("Password reset token generated for user %d", user_id)
     return {"reset_url": f"{BASE_URL}/reset?token={token_str}"}
 
 
@@ -420,6 +430,7 @@ def validate_reset_token(token: str, db: Session = Depends(get_session)):
     if config_token and token == config_token:
         return ResetTokenInfo(source="config")
 
+    logger.warning("Invalid reset token attempted")
     raise _api_error(status.HTTP_404_NOT_FOUND, "TOKEN_INVALID", "Reset link is invalid or has expired")
 
 
@@ -491,3 +502,4 @@ def reset_password(body: PasswordResetRequest, db: Session = Depends(get_session
         db.add(prt)
 
     db.commit()
+    logger.info("Password reset completed for %s", user.email or user.username)

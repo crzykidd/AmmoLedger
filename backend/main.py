@@ -1,12 +1,19 @@
 import os
 
+import yaml
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlmodel import Session
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.requests import Request
 
 from database import engine, get_session, run_migrations
+from routers import auth, ammo, expenditure, lookups, users
+from routers.backup import router as backup_router
+from routers.importer import router as import_router
+from routers.thresholds import router as thresholds_router
 from utils.config import (
     CONFIG_PATH,
     ensure_data_dirs,
@@ -15,16 +22,14 @@ from utils.config import (
     set_setting,
     validate_config,
 )
-from utils.seeds import sync_yaml_seeds
-from utils.scheduler import reschedule, start_scheduler, stop_scheduler
-from routers import auth, ammo, expenditure, lookups, users
-from routers.backup import router as backup_router
-from routers.importer import router as import_router
-from routers.thresholds import router as thresholds_router
+from utils.logging import get_logger, setup_logging
 from utils.rbac import require_auth, require_role
+from utils.scheduler import reschedule, start_scheduler, stop_scheduler
+from utils.seeds import sync_yaml_seeds
 from version import __version__
 
-import yaml
+setup_logging()
+logger = get_logger(__name__)
 
 SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
 
@@ -53,12 +58,25 @@ app.include_router(thresholds_router, prefix="/thresholds")
 _config: dict = {}
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.error(
+        "Unhandled exception on %s %s",
+        request.method,
+        request.url.path,
+        exc_info=exc,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error — check server logs"},
+    )
+
+
 def _record_version() -> None:
-    """Store current version in app_settings; log upgrades."""
     with Session(engine) as db:
         last_seen = get_setting(db, "last_seen_version")
         if last_seen and last_seen != __version__:
-            print(f"AmmoLedger upgraded: {last_seen} → {__version__}")
+            logger.info("AmmoLedger upgraded: %s → %s", last_seen, __version__)
         set_setting(db, "last_seen_version", __version__)
         set_setting(db, "current_version", __version__)
         db.commit()
@@ -67,13 +85,17 @@ def _record_version() -> None:
 @app.on_event("startup")
 def on_startup():
     global _config
-    print(f"AmmoLedger v{__version__} starting...")
-    _config = load_and_validate_config()  # validate config first — exits if invalid in production
-    run_migrations()                      # apply pending Alembic migrations
-    ensure_data_dirs()                    # create /data/backups and /data/uploads
-    sync_yaml_seeds(_config)             # versioned smart sync from defaults.yaml
-    _record_version()                     # store version in app_settings; detect upgrades
-    start_scheduler(_config)             # start nightly backup scheduler
+    logger.info("AmmoLedger v%s starting...", __version__)
+    _config = load_and_validate_config()
+    logger.info("Config loaded from %s", CONFIG_PATH)
+    run_migrations()
+    logger.info("Migrations complete")
+    ensure_data_dirs()
+    sync_yaml_seeds(_config)
+    logger.info("Defaults synced")
+    _record_version()
+    start_scheduler(_config)
+    logger.info("Server ready")
 
 
 @app.on_event("shutdown")
@@ -132,7 +154,6 @@ def save_system_config(body: dict, _=Depends(require_role("admin"))):
     """Persist backup config changes to config.yaml and reschedule the backup job."""
     incoming = (body.get("backup") or {}) if isinstance(body, dict) else {}
 
-    # Validate the incoming values before writing
     patch = {
         "enabled": bool(incoming.get("enabled", True)),
         "schedule": str(incoming.get("schedule", "03:00")),
@@ -144,7 +165,6 @@ def save_system_config(body: dict, _=Depends(require_role("admin"))):
     if backup_errors:
         raise HTTPException(status_code=400, detail="; ".join(backup_errors))
 
-    # Load, patch, and write config.yaml
     try:
         with open(CONFIG_PATH) as f:
             cfg = yaml.safe_load(f) or {}
@@ -161,7 +181,6 @@ def save_system_config(body: dict, _=Depends(require_role("admin"))):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not write config.yaml: {exc}") from exc
 
-    # Restart the scheduler with new settings
     reschedule(cfg)
 
     return {"backup": patch}

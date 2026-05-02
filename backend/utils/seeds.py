@@ -1,5 +1,4 @@
-import logging
-
+from utils.logging import get_logger
 import yaml
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -8,7 +7,7 @@ from database import engine
 from models import AmmoCondition, AmmoType, Caliber, Category, Dealer, Manufacturer
 from utils.config import DEFAULTS_PATH, get_setting, set_setting
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Simple lookup tables: (yaml_key, Model)
 _SIMPLE_TABLES = [
@@ -31,7 +30,7 @@ def _sync_simple(db: Session, section: str, Model, yaml_names: list,
 
         if not existing:
             db.add(Model(name=yaml_name, source="yaml"))
-            logger.info("Added %s: %s", section, yaml_name)
+            logger.debug("Added %s to %s", yaml_name, section)
             added += 1
         elif existing.source == "user":
             skipped += 1
@@ -49,7 +48,7 @@ def _sync_simple(db: Session, section: str, Model, yaml_names: list,
             if row.name.lower() not in yaml_lower:
                 row.is_active = False
                 db.add(row)
-                logger.info("Deactivated %s: %s", section, row.name)
+                logger.debug("Deactivated %s from %s", row.name, section)
                 deactivated += 1
 
     return added, skipped, deactivated
@@ -75,7 +74,7 @@ def _sync_manufacturers(db: Session, yaml_entries: list,
 
         if not existing:
             db.add(Manufacturer(name=item["name"], url=item["url"], source="yaml"))
-            logger.info("Added manufacturers: %s", item["name"])
+            logger.debug("Added %s to manufacturers", item["name"])
             added += 1
         elif existing.source == "user":
             skipped += 1
@@ -100,7 +99,7 @@ def _sync_manufacturers(db: Session, yaml_entries: list,
             if row.name.lower() not in yaml_lower:
                 row.is_active = False
                 db.add(row)
-                logger.info("Deactivated manufacturers: %s", row.name)
+                logger.debug("Deactivated %s from manufacturers", row.name)
                 deactivated += 1
 
     return added, skipped, deactivated
@@ -118,7 +117,7 @@ def _sync_dealers(db: Session, yaml_dealers: list,
 
         if not existing:
             db.add(Dealer(name=item["name"], url=item.get("url"), source="yaml"))
-            logger.info("Added dealers: %s", item["name"])
+            logger.debug("Added %s to dealers", item["name"])
             added += 1
         elif existing.source == "user":
             skipped += 1
@@ -137,7 +136,7 @@ def _sync_dealers(db: Session, yaml_dealers: list,
             if row.name.lower() not in yaml_lower:
                 row.is_active = False
                 db.add(row)
-                logger.info("Deactivated dealers: %s", row.name)
+                logger.debug("Deactivated %s from dealers", row.name)
                 deactivated += 1
 
     return added, skipped, deactivated
@@ -156,34 +155,32 @@ def sync_yaml_seeds(config: dict) -> None:
     with Session(engine) as db:
         db_version = get_setting(db, "defaults_version")
 
+        logger.info("Defaults sync: version %s", yaml_version)
+
         if db_version == yaml_version and not sync_on_startup:
-            logger.info("Defaults up to date (v%s), skipping sync", yaml_version)
+            logger.debug("Defaults up to date (v%s), skipping sync", yaml_version)
             return
 
         total_added = total_skipped = total_deactivated = 0
 
         for section, Model in _SIMPLE_TABLES:
-            a, s, d = _sync_simple(
-                db, section, Model,
-                data.get(section, []),
-                update_existing, allow_removal,
-            )
+            entries = data.get(section, [])
+            logger.debug("Seeding %s: %d entries", section, len(entries))
+            a, s, d = _sync_simple(db, section, Model, entries, update_existing, allow_removal)
             total_added += a
             total_skipped += s
             total_deactivated += d
 
-        a, s, d = _sync_manufacturers(
-            db, data.get("manufacturers", []),
-            update_existing, allow_removal,
-        )
+        mfr_entries = data.get("manufacturers", [])
+        logger.debug("Seeding manufacturers: %d entries", len(mfr_entries))
+        a, s, d = _sync_manufacturers(db, mfr_entries, update_existing, allow_removal)
         total_added += a
         total_skipped += s
         total_deactivated += d
 
-        a, s, d = _sync_dealers(
-            db, data.get("dealers", []),
-            update_existing, allow_removal,
-        )
+        dealer_entries = data.get("dealers", [])
+        logger.debug("Seeding dealers: %d entries", len(dealer_entries))
+        a, s, d = _sync_dealers(db, dealer_entries, update_existing, allow_removal)
         total_added += a
         total_skipped += s
         total_deactivated += d
@@ -192,6 +189,6 @@ def sync_yaml_seeds(config: dict) -> None:
         db.commit()
 
     logger.info(
-        "Defaults sync complete: %d added, %d skipped, %d deactivated. Version: %s",
+        "Defaults sync complete: %d added, %d skipped, %d deactivated (v%s)",
         total_added, total_skipped, total_deactivated, yaml_version,
     )

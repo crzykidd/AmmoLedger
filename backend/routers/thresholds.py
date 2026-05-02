@@ -19,8 +19,11 @@ from schemas import (
     ThresholdDefaultUpdate,
 )
 from utils.config import get_setting, set_setting
+from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
 from sqlalchemy import text
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["thresholds"])
 
@@ -53,6 +56,7 @@ def update_default(
         raise HTTPException(status_code=400, detail="rounds must be >= 0")
     set_setting(db, "threshold_default_rounds", str(body.rounds))
     db.commit()
+    logger.info("Default threshold updated to %d", body.rounds)
     return {"rounds": body.rounds}
 
 
@@ -118,6 +122,8 @@ def upsert_caliber_threshold(
         db.add(CaliberThreshold(caliber_id=body.caliber_id, owner_id=user.id, rounds=body.rounds))
 
     db.commit()
+    caliber_obj = db.get(Caliber, body.caliber_id)
+    logger.info("Caliber threshold set: %s = %d rounds", caliber_obj.name if caliber_obj else body.caliber_id, body.rounds)
     return {"caliber_id": body.caliber_id, "rounds": body.rounds}
 
 
@@ -200,6 +206,8 @@ def upsert_location_threshold(
         db.add(LocationThreshold(location_id=body.location_id, owner_id=user.id, rounds=body.rounds))
 
     db.commit()
+    location_obj = db.get(Location, body.location_id)
+    logger.info("Location threshold set: %s = %d rounds", location_obj.name if location_obj else body.location_id, body.rounds)
     return {"location_id": body.location_id, "rounds": body.rounds}
 
 

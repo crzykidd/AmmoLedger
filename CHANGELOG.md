@@ -12,6 +12,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Structured logging throughout the backend — all key operations logged with timestamps, level, and module name
+- DEBUG level logging in development mode for detailed request tracing (import rows, box counts, seed entries)
+- INFO level logging in production for operational visibility (logins, imports, backups, threshold changes)
+- Global exception handler ensures all unhandled errors produce a full traceback in `docker logs` even without per-endpoint try/except
 - Invite User modal integrated into Admin → Users page — role, optional email hint, and expiry in one dialog; success state shows the generated link with a copy button
 - Active Invitations section on the Users page — pending invites with Copy Link and Revoke actions
 - Invitation History section on the Users page — expired, used, and revoked invites from the last 30 days; older entries expandable

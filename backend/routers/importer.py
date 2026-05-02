@@ -22,8 +22,11 @@ from models import (
     Manufacturer,
 )
 from utils.config import get_setting, set_setting
+from utils.logging import get_logger
 from utils.pre_import_backup import trigger_pre_import_backup
 from utils.rbac import require_auth
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["import"])
 
@@ -375,46 +378,65 @@ async def validate_import(
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
-    content = await file.read()
-    rows, _headers = _parse_csv(content)
+    try:
+        content = await file.read()
+        logger.info("Import validate started: %s, %d bytes", file.filename or "unknown", len(content))
 
-    if not rows:
-        raise HTTPException(status_code=422, detail="CSV file contains no data rows")
+        rows, _headers = _parse_csv(content)
+        logger.debug("Parsed %d rows, %d headers found", len(rows), len(_headers))
 
-    all_errors: list[dict] = []
-    all_warnings: list[dict] = []
-    importable = 0
+        if not rows:
+            raise HTTPException(status_code=422, detail="CSV file contains no data rows")
 
-    for i, row in enumerate(rows, start=2):  # row 1 = header
-        errs, warns = _validate_row(row, i)
-        all_errors.extend(errs)
-        all_warnings.extend(warns)
-        if not errs:
-            importable += 1
+        all_errors: list[dict] = []
+        all_warnings: list[dict] = []
+        importable = 0
 
-    if importable == 0:
-        raise HTTPException(status_code=422, detail="No importable rows found — all rows have errors")
+        for i, row in enumerate(rows, start=2):  # row 1 = header
+            errs, warns = _validate_row(row, i)
+            all_errors.extend(errs)
+            all_warnings.extend(warns)
+            if not errs:
+                importable += 1
 
-    lookup_values = _collect_lookup_values(rows)
-    new_values, fuzzy_warnings = _check_new_values(db, lookup_values)
-    all_warnings.extend(fuzzy_warnings)
+        if importable == 0:
+            raise HTTPException(status_code=422, detail="No importable rows found — all rows have errors")
 
-    legacy_id_mode = _analyze_legacy_ids(rows, db)
-    token, expires_at = _generate_token(db, importable)
+        lookup_values = _collect_lookup_values(rows)
+        new_values, fuzzy_warnings = _check_new_values(db, lookup_values)
+        all_warnings.extend(fuzzy_warnings)
 
-    return {
-        "valid": len(all_errors) == 0,
-        "total_rows": len(rows),
-        "importable_rows": importable,
-        "error_rows": len(rows) - importable,
-        "warning_count": len(all_warnings),
-        "new_values": new_values,
-        "errors": all_errors,
-        "warnings": all_warnings,
-        "legacy_id_mode": legacy_id_mode,
-        "validation_token": token,
-        "token_expires_at": expires_at.isoformat(),
-    }
+        legacy_id_mode = _analyze_legacy_ids(rows, db)
+        logger.debug(
+            "Legacy ID analysis: all_integers=%s, conflicts=%d, eligible=%s",
+            legacy_id_mode["all_integers"],
+            legacy_id_mode["conflict_count"],
+            legacy_id_mode["eligible"],
+        )
+        token, expires_at = _generate_token(db, importable)
+
+        logger.info(
+            "Import validate complete: %d valid, %d errors, %d warnings",
+            importable, len(all_errors), len(all_warnings),
+        )
+        return {
+            "valid": len(all_errors) == 0,
+            "total_rows": len(rows),
+            "importable_rows": importable,
+            "error_rows": len(rows) - importable,
+            "warning_count": len(all_warnings),
+            "new_values": new_values,
+            "errors": all_errors,
+            "warnings": all_warnings,
+            "legacy_id_mode": legacy_id_mode,
+            "validation_token": token,
+            "token_expires_at": expires_at.isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Import validate failed for %s", file.filename or "unknown", exc_info=True)
+        raise
 
 
 @router.post("/confirm")
@@ -426,165 +448,183 @@ async def confirm_import(
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
-    _validate_token(db, validation_token)
-
-    content = await file.read()
-    rows, _headers = _parse_csv(content)
-
-    # Guard: if caller requested legacy ID mode, verify eligibility against fresh data
-    if use_legacy_ids:
-        analysis = _analyze_legacy_ids(rows, db)
-        if not analysis["eligible"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Legacy ID mode not available — conflicts exist or IDs are not all integers",
-            )
-
-    # Pre-import backup — block if it fails
     try:
-        backup_filename = trigger_pre_import_backup()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=f"Pre-import backup failed: {exc}") from exc
-
-    _consume_token(db, validation_token)
-
-    imported = 0
-    skipped = 0
-    lookup_values_created = 0
-    warnings: list[dict] = []
-    autoincrement_reset_to: int | None = None
-
-    with Session(engine) as import_db:
-        for i, row in enumerate(rows, start=2):
-            errs, row_warns = _validate_row(row, i)
-            warnings.extend(row_warns)
-            if errs:
-                skipped += 1
-                continue
-
-            # Resolve required lookups
-            caliber_id = _resolve_or_create(import_db, Caliber, _get(row, "caliber"))
-
-            manufacturer_raw = _get(row, "manufacturer")
-            manufacturer_id = _resolve_or_create(import_db, Manufacturer, manufacturer_raw) if manufacturer_raw else None
-
-            # Optional lookups
-            type_raw = _get(row, "type")
-            type_id = _resolve_or_create(import_db, AmmoType, type_raw) if type_raw else None
-
-            category_raw = _get(row, "category")
-            category_id = _resolve_or_create(import_db, Category, category_raw) if category_raw else None
-
-            condition_raw = _get(row, "ammo_condition")
-            condition_id = _resolve_or_create(import_db, AmmoCondition, condition_raw) if condition_raw else None
-
-            dealer_raw = _get(row, "dealer")
-            dealer_id = _resolve_or_create(import_db, Dealer, dealer_raw) if dealer_raw else None
-
-            location_raw = _get(row, "location")
-            location_id = _resolve_location(import_db, location_raw) if location_raw else None
-
-            container_raw = _get(row, "container")
-            container_id = _resolve_container(import_db, container_raw, location_id) if container_raw else None
-
-            # Field values
-            qty_original = _parse_int(_get(row, "qty_original")) or 1
-            qty_remaining = _parse_int(_get(row, "qty_remaining"))
-            if qty_remaining is None:
-                qty_remaining = qty_original
-
-            gr_oz_raw = _get(row, "gr_oz")
-            gr_oz = _parse_float(gr_oz_raw) if gr_oz_raw else None
-
-            weight_unit_raw = _get(row, "weight_unit").upper()
-            weight_unit = weight_unit_raw if weight_unit_raw in ("GR", "OZ") else "GR"
-
-            purchase_date_raw = _get(row, "purchase_date")
-            purchase_date = _parse_date(purchase_date_raw)
-
-            cost_raw = _get(row, "cost_per_round")
-            cost_per_round = _parse_float(cost_raw) if cost_raw else None
-            if cost_per_round is None and cost_raw:
-                cost_per_round = 0.0
-
-            is_archived_raw = _get(row, "is_archived").lower()
-            is_archived = is_archived_raw == "true"
-
-            # Manufacturer is required in model but CSV may omit it — guard
-            if manufacturer_id is None:
-                skipped += 1
-                continue
-
-            # Determine explicit ID when in legacy mode
-            legacy_id_val = _get(row, "legacy_id") or None
-            explicit_id: int | None = None
-            if use_legacy_ids and legacy_id_val:
-                parsed_lid = _parse_int(legacy_id_val)
-                if parsed_lid and parsed_lid > 0:
-                    explicit_id = parsed_lid
-
-            box = AmmoBox(
-                id=explicit_id,  # None → auto-increment; int → explicit primary key
-                owner_id=user.id,
-                is_shared=is_shared,
-                caliber_id=caliber_id,
-                manufacturer_id=manufacturer_id,
-                product_name=_get(row, "product_name") or None,
-                gr_oz=gr_oz,
-                weight_unit=weight_unit,
-                type_id=type_id,
-                ammo_condition_id=condition_id,
-                category_id=category_id,
-                qty_original=qty_original,
-                qty_remaining=qty_remaining,
-                purchase_date=purchase_date,
-                cost_per_round=cost_per_round,
-                dealer_id=dealer_id,
-                container_id=container_id,
-                legacy_id=legacy_id_val,
-                notes=_get(row, "notes") or None,
-                is_archived=is_archived,
-                archive_reason="manual" if is_archived else None,
-            )
-            import_db.add(box)
-            imported += 1
-
-        import_db.commit()
-
-        # After legacy ID mode inserts, reset autoincrement so future boxes
-        # continue from MAX(id)+1 rather than the pre-import sequence value.
-        if use_legacy_ids:
-            import_db.execute(
-                text(
-                    "UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM ammo_box) "
-                    "WHERE name = 'ammo_box'"
-                )
-            )
-            import_db.commit()
-            result = import_db.execute(text("SELECT MAX(id) FROM ammo_box")).first()
-            autoincrement_reset_to = result[0] if result and result[0] is not None else 0
-
-        import_db.execute(text("ANALYZE"))
-        import_db.commit()
-
-        # Count newly created lookup entries
-        lookup_values_created = sum(
-            len(import_db.exec(select(Model).where(Model.source == "user")).all())
-            for Model in [Caliber, Manufacturer, AmmoType, AmmoCondition, Category, Dealer]
+        content = await file.read()
+        logger.info(
+            "Import confirm started: %s, use_legacy_ids=%s, is_shared=%s",
+            file.filename or "unknown", use_legacy_ids, is_shared,
         )
 
-    response: dict = {
-        "success": True,
-        "imported": imported,
-        "skipped": skipped,
-        "new_lookup_values_created": lookup_values_created,
-        "pre_import_backup": backup_filename,
-        "legacy_id_mode_used": use_legacy_ids,
-        "warnings": warnings,
-    }
-    if use_legacy_ids:
-        response["autoincrement_reset_to"] = autoincrement_reset_to
-    return response
+        _validate_token(db, validation_token)
+
+        rows, _headers = _parse_csv(content)
+
+        # Guard: if caller requested legacy ID mode, verify eligibility against fresh data
+        if use_legacy_ids:
+            analysis = _analyze_legacy_ids(rows, db)
+            if not analysis["eligible"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Legacy ID mode not available — conflicts exist or IDs are not all integers",
+                )
+
+        # Pre-import backup — block if it fails
+        try:
+            backup_filename = trigger_pre_import_backup()
+            logger.info("Pre-import backup created: %s", backup_filename)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=f"Pre-import backup failed: {exc}") from exc
+
+        _consume_token(db, validation_token)
+
+        imported = 0
+        skipped = 0
+        lookup_values_created = 0
+        warnings: list[dict] = []
+        autoincrement_reset_to: int | None = None
+        total_rows = len(rows)
+
+        with Session(engine) as import_db:
+            for i, row in enumerate(rows, start=2):
+                errs, row_warns = _validate_row(row, i)
+                warnings.extend(row_warns)
+                if errs:
+                    skipped += 1
+                    continue
+
+                # Resolve required lookups
+                caliber_id = _resolve_or_create(import_db, Caliber, _get(row, "caliber"))
+
+                manufacturer_raw = _get(row, "manufacturer")
+                manufacturer_id = _resolve_or_create(import_db, Manufacturer, manufacturer_raw) if manufacturer_raw else None
+
+                # Optional lookups
+                type_raw = _get(row, "type")
+                type_id = _resolve_or_create(import_db, AmmoType, type_raw) if type_raw else None
+
+                category_raw = _get(row, "category")
+                category_id = _resolve_or_create(import_db, Category, category_raw) if category_raw else None
+
+                condition_raw = _get(row, "ammo_condition")
+                condition_id = _resolve_or_create(import_db, AmmoCondition, condition_raw) if condition_raw else None
+
+                dealer_raw = _get(row, "dealer")
+                dealer_id = _resolve_or_create(import_db, Dealer, dealer_raw) if dealer_raw else None
+
+                location_raw = _get(row, "location")
+                location_id = _resolve_location(import_db, location_raw) if location_raw else None
+
+                container_raw = _get(row, "container")
+                container_id = _resolve_container(import_db, container_raw, location_id) if container_raw else None
+
+                # Field values
+                qty_original = _parse_int(_get(row, "qty_original")) or 1
+                qty_remaining = _parse_int(_get(row, "qty_remaining"))
+                if qty_remaining is None:
+                    qty_remaining = qty_original
+
+                gr_oz_raw = _get(row, "gr_oz")
+                gr_oz = _parse_float(gr_oz_raw) if gr_oz_raw else None
+
+                weight_unit_raw = _get(row, "weight_unit").upper()
+                weight_unit = weight_unit_raw if weight_unit_raw in ("GR", "OZ") else "GR"
+
+                purchase_date_raw = _get(row, "purchase_date")
+                purchase_date = _parse_date(purchase_date_raw)
+
+                cost_raw = _get(row, "cost_per_round")
+                cost_per_round = _parse_float(cost_raw) if cost_raw else None
+                if cost_per_round is None and cost_raw:
+                    cost_per_round = 0.0
+
+                is_archived_raw = _get(row, "is_archived").lower()
+                is_archived = is_archived_raw == "true"
+
+                # Manufacturer is required in model but CSV may omit it — guard
+                if manufacturer_id is None:
+                    skipped += 1
+                    continue
+
+                # Determine explicit ID when in legacy mode
+                legacy_id_val = _get(row, "legacy_id") or None
+                explicit_id: int | None = None
+                if use_legacy_ids and legacy_id_val:
+                    parsed_lid = _parse_int(legacy_id_val)
+                    if parsed_lid and parsed_lid > 0:
+                        explicit_id = parsed_lid
+
+                box = AmmoBox(
+                    id=explicit_id,  # None → auto-increment; int → explicit primary key
+                    owner_id=user.id,
+                    is_shared=is_shared,
+                    caliber_id=caliber_id,
+                    manufacturer_id=manufacturer_id,
+                    product_name=_get(row, "product_name") or None,
+                    gr_oz=gr_oz,
+                    weight_unit=weight_unit,
+                    type_id=type_id,
+                    ammo_condition_id=condition_id,
+                    category_id=category_id,
+                    qty_original=qty_original,
+                    qty_remaining=qty_remaining,
+                    purchase_date=purchase_date,
+                    cost_per_round=cost_per_round,
+                    dealer_id=dealer_id,
+                    container_id=container_id,
+                    legacy_id=legacy_id_val,
+                    notes=_get(row, "notes") or None,
+                    is_archived=is_archived,
+                    archive_reason="manual" if is_archived else None,
+                )
+                import_db.add(box)
+                imported += 1
+                if imported % 100 == 0:
+                    logger.debug("Inserting box %d of %d", imported, total_rows)
+
+            import_db.commit()
+
+            # After legacy ID mode inserts, reset autoincrement so future boxes
+            # continue from MAX(id)+1 rather than the pre-import sequence value.
+            if use_legacy_ids:
+                import_db.execute(
+                    text(
+                        "UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM ammo_box) "
+                        "WHERE name = 'ammo_box'"
+                    )
+                )
+                import_db.commit()
+                result = import_db.execute(text("SELECT MAX(id) FROM ammo_box")).first()
+                autoincrement_reset_to = result[0] if result and result[0] is not None else 0
+
+            import_db.execute(text("ANALYZE"))
+            import_db.commit()
+
+            # Count newly created lookup entries
+            lookup_values_created = sum(
+                len(import_db.exec(select(Model).where(Model.source == "user")).all())
+                for Model in [Caliber, Manufacturer, AmmoType, AmmoCondition, Category, Dealer]
+            )
+            logger.debug("Created %d new lookup values", lookup_values_created)
+
+        logger.info("Import complete: %d imported, %d skipped", imported, skipped)
+
+        response: dict = {
+            "success": True,
+            "imported": imported,
+            "skipped": skipped,
+            "new_lookup_values_created": lookup_values_created,
+            "pre_import_backup": backup_filename,
+            "legacy_id_mode_used": use_legacy_ids,
+            "warnings": warnings,
+        }
+        if use_legacy_ids:
+            response["autoincrement_reset_to"] = autoincrement_reset_to
+        return response
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Import confirm failed for %s", file.filename or "unknown", exc_info=True)
+        raise
 
 
 @router.get("/template")
