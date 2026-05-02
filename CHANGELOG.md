@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-05-02
+
 ### Fixed
 
 - Clear actionable error message when `/data` is not writable — shows the exact `chown` command needed and links to the troubleshooting guide; container exits immediately rather than failing partway through startup
