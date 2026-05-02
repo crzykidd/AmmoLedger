@@ -8,7 +8,9 @@
       "Bash(npm install *)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(pip show *)",
-      "Bash(python -m ruff check backend/)"
+      "Bash(python -m ruff check backend/)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
