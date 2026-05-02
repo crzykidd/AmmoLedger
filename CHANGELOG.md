@@ -12,6 +12,9 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Invite User modal integrated into Admin → Users page — role, optional email hint, and expiry in one dialog; success state shows the generated link with a copy button
+- Active Invitations section on the Users page — pending invites with Copy Link and Revoke actions
+- Invitation History section on the Users page — expired, used, and revoked invites from the last 30 days; older entries expandable
 - Help page at `/help` with a searchable FAQ covering Getting Started, Inventory, Thresholds, Import, Backup, User Management, and About — accessible from the sidebar
 - Collapsible section and Q&A item accordion on the Help page; TOC sidebar on desktop; search highlights matching text
 - Contextual help tooltips on key form fields — hover or click the ⓘ icon next to a label to see a brief description
@@ -44,6 +47,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Removed
 
+- Separate Invitations page (`/admin/invites`) and sidebar link — invitation management is now part of the Users page; the old URL redirects automatically
 - Box-level low-stock detection removed from dashboard Running Low section; replaced by caliber-total and location-total approach
 
 ### Fixed

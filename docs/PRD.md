@@ -38,6 +38,7 @@
 | 2.9 | April 2026 | Bulk checkbox select and edit — checkbox column in inventory table, bulk action toolbar, Bulk Edit side panel, `PATCH /ammo/bulk-update` endpoint. §9.2 updated. |
 | 3.0 | May 2026 | Password reset — admin-generated one-time links (UI) and config-token admin self-recovery (emergency). §4.3 rewritten to cover both flows. |
 | 3.1 | May 2026 | Help system — §9.12 added: Help page with searchable FAQ and collapsible Q&A sections; HelpTip contextual tooltips on form fields and key UI elements. |
+| 3.2 | May 2026 | Merged Invitations into Users page — §9.5 rewritten with three sections (users, active invitations, invitation history) and inline Invite User modal. Separate Invitations sidebar link and `/admin/invites` page removed. |
 
 ---
 
@@ -1114,19 +1115,38 @@ Results in under 200ms for up to 10,000 box records, relying on the indexes defi
 
 ### 9.5 User Management (Admin)
 
-- List all accounts: username, role, status, last login
-- Create new account: username, email (optional), role, temporary password
-- Edit role or deactivate an account
-- Reset any user's password (forced reset flags the account with `must_change_password`)
-- Deactivated accounts cannot log in; records are preserved with original `owner_id`
+Single unified page at `/admin/users` combining user administration and invitation management.
 
-#### Invite link management
+#### Users section
 
-- **Invite User** button opens a modal: select role, optional email hint, set expiry (default 72 hours)
-- Generated link is displayed with a copy-to-clipboard button; link is never stored in plaintext after display
-- **Pending Invites** table shows: email hint, role, created at, expires at, status (Valid / Expired / Revoked)
-- Admin can revoke any pending invite; used invites are read-only
-- Expired and used invites older than 30 days are hidden by default (expandable)
+- List all accounts: name, email, role, status, last login
+- Change a user's role via inline dropdown
+- Activate or deactivate an account (deactivated accounts cannot log in; records preserved)
+- Generate a one-time password reset link (24h expiry) — Link icon per row
+- Reset a user's password directly (admin sets it, flags `must_change_password`) — Key icon per row
+
+#### Active Invitations section
+
+- Lists only `valid` (pending) invitations
+- Columns: email hint, role, created at, expires with days-remaining
+- **Copy Link** button per row to re-copy the invite URL
+- **Revoke** button to invalidate a pending invite
+- Empty state prompts admin to use Invite User
+
+#### Invitation History section
+
+- Shows expired, used, and revoked invites from the last 30 days
+- **Show older** expands to include invites beyond 30 days (displayed at reduced opacity)
+- Columns: email hint, role, created, status badge
+
+#### Invite User modal
+
+- **Invite User** button in top-bar opens modal
+- Fields: role (Member default), email hint (optional), expires in (72 h default)
+- Success state displays the generated URL with copy button and expiry timestamp
+- On success, Active Invitations table refreshes automatically; Done closes the modal and resets the form
+
+The old `/admin/invites` URL redirects to `/admin/users`.
 
 ### 9.6 Settings
 

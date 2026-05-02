@@ -58,6 +58,7 @@
   - 8.8 — Bulk select and edit: COMPLETE
   - 8.9 — Password reset (admin-generated links + config token self-recovery): COMPLETE
   - 8.10 — Help page with searchable FAQ and contextual HelpTip tooltips: COMPLETE
+  - 8.11 — Merge invitations into Users page, remove separate Invitations page: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 

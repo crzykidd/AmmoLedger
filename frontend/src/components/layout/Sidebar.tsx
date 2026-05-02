@@ -8,7 +8,6 @@ import {
   SlidersHorizontal,
   User,
   Users,
-  Mail,
   DatabaseBackup,
   List,
   Info,
@@ -58,7 +57,6 @@ const NAV_SECTIONS: NavSection[] = [
     adminOnly: true,
     items: [
       { label: 'Users', icon: Users, href: '/admin/users' },
-      { label: 'Invitations', icon: Mail, href: '/admin/invites' },
       { label: 'Backup', icon: DatabaseBackup, href: '/admin/backup' },
       { label: 'Lookups', icon: List, href: '/admin/lookups' },
     ],
