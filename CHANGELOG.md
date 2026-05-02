@@ -12,6 +12,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Password reset via admin-generated links — admin clicks "Generate Reset Link" on any user in Admin → Users, copies the URL, and sends it; link expires in 24 hours and is single-use
+- Emergency admin self-recovery via config token — set `security.reset_token` in `config.yaml`, visit `/reset?token=<value>` to reset your admin password without email
+- `POST /auth/reset-token/{user_id}` — admin-only endpoint that creates a one-time reset token and returns the reset URL
+- `GET /auth/reset?token=` and `POST /auth/reset` — public endpoints for validating and consuming reset tokens (DB or config)
 - `GET /expenditures/recent` endpoint returning the last 10 expend-type log entries with caliber name, manufacturer, product name, rounds used, date, and who logged them
 - Empty boxes (qty_remaining=0) are now hidden in the inventory list by default; "Show Empty" toggle in the toolbar reveals them; toggle state saved to localStorage
 - `show_empty` query parameter on `GET /ammo` — defaults to false; independent of `show_archived`

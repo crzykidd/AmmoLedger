@@ -36,6 +36,7 @@
 | 2.7 | April 2026 | Inventory Group By and per-column filters — §9.2 expanded with Group By spec (8 options, collapsible group headers with summary stats, localStorage persistence) and per-column filter row spec (always visible, AND logic, numeric operators for Remaining/Value). |
 | 2.8 | April 2026 | Three-tier threshold system — global default + per-caliber + per-location thresholds stored server-side in DB; new `/thresholds/*` API endpoints; dashboard Running Low shows caliber totals and location totals; Add Box defaults shared; CSV import ownership toggle. §8.1 rewritten. |
 | 2.9 | April 2026 | Bulk checkbox select and edit — checkbox column in inventory table, bulk action toolbar, Bulk Edit side panel, `PATCH /ammo/bulk-update` endpoint. §9.2 updated. |
+| 3.0 | May 2026 | Password reset — admin-generated one-time links (UI) and config-token admin self-recovery (emergency). §4.3 rewritten to cover both flows. |
 
 ---
 
@@ -176,14 +177,35 @@ On first launch with an empty database, the app redirects to a setup screen to c
 
 ### 4.3 Password Reset
 
-For users who are locked out, recovery is handled via the server configuration file — no email dependency required.
+Two flows are supported — no email server required.
+
+#### Admin-generated user reset links (UI)
+
+1. Admin opens Admin → Users and clicks the link icon (↗) next to a user
+2. Backend creates a single-use `PasswordResetToken` (expires 24 h) and returns a URL
+3. Admin copies the URL and sends it to the user out-of-band
+4. User visits `/reset?token=<uuid>`, sets a new password, and signs in
+5. Token is marked used; any previous unused tokens for that user are invalidated
+
+#### Admin self-recovery (config token)
+
+Emergency access when the admin account is locked out — no UI interaction needed:
 
 ```yaml
 # config.yaml
-reset_token: "your-secret-token-here"
+security:
+  reset_token: "your-secret-token-here"  # generate with: openssl rand -hex 32
 ```
 
-Visit `/reset?token=your-secret-token-here` to access a password reset form. Remove the token from `config.yaml` after use. Admins can also reset any user's password from the Admin panel.
+Visit `/reset?token=your-secret-token-here`, enter your admin email, and set a new password. **Clear `reset_token` from `config.yaml` and restart immediately after use.** Only works for admin-role accounts.
+
+#### Shared `/reset` page
+
+- Token type (DB or config) is detected server-side from the same URL pattern
+- DB token: email is pre-filled and read-only
+- Config token: email field is editable (admin enters their own email)
+- Password strength and history rules apply to both flows
+- On success: redirects to `/login`
 
 ### 4.4 Invitation System
 

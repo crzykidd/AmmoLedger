@@ -215,6 +215,14 @@ export interface AmmoListResponse {
   total_value: number | null
 }
 
+export interface ResetTokenInfo {
+  source: 'db' | 'config'
+  user_id: number | null
+  email: string | null
+  first_name: string | null
+  last_name: string | null
+}
+
 export interface RecentExpenditure {
   id: number
   ammo_box_id: number

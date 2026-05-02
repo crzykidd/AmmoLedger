@@ -1,7 +1,7 @@
 import os
 import uuid
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -9,12 +9,14 @@ from sqlmodel import Session, select
 from starlette.requests import Request
 
 from database import get_session
-from models import Invitation, User
+from models import Invitation, PasswordResetToken, User
 from password_utils import (
+    check_password_history,
     save_password_history,
     validate_password_strength,
 )
 from schemas import InvitationCreate, InviteRead, RegisterRequest
+from utils.config import load_config
 from utils.rbac import require_role
 from utils.security import hash_password, verify_password
 
@@ -26,6 +28,20 @@ BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:5173")
 # ---------------------------------------------------------------------------
 # Request / response schemas
 # ---------------------------------------------------------------------------
+
+class ResetTokenInfo(BaseModel):
+    source: str  # "db" | "config"
+    user_id: Optional[int] = None
+    email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
+class PasswordResetRequest(BaseModel):
+    token: str
+    new_password: str
+    email: Optional[str] = None  # required when source=="config"
+
 
 class SetupRequest(BaseModel):
     email: str
@@ -334,3 +350,144 @@ def revoke_invite(
     db.commit()
 
     return {"message": "Invitation revoked"}
+
+
+# ---------------------------------------------------------------------------
+# Password reset routes
+# ---------------------------------------------------------------------------
+
+@router.post("/reset-token/{user_id}", status_code=status.HTTP_201_CREATED)
+def generate_reset_token(
+    user_id: int,
+    current_user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    """Admin only — generate a one-time password reset link for the given user."""
+    target = db.get(User, user_id)
+    if not target:
+        raise _api_error(status.HTTP_404_NOT_FOUND, "USER_NOT_FOUND", "User not found")
+
+    # Invalidate any existing unused tokens for this user
+    existing = db.exec(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user_id)
+        .where(PasswordResetToken.used_at.is_(None))
+    ).all()
+    for t in existing:
+        t.expires_at = datetime.utcnow()
+        db.add(t)
+
+    token_str = str(uuid.uuid4())
+    prt = PasswordResetToken(
+        token=token_str,
+        user_id=user_id,
+        created_by=current_user.id,
+        expires_at=datetime.utcnow() + timedelta(hours=24),
+    )
+    db.add(prt)
+    db.commit()
+
+    return {"reset_url": f"{BASE_URL}/reset?token={token_str}"}
+
+
+@router.get("/reset", response_model=ResetTokenInfo)
+def validate_reset_token(token: str, db: Session = Depends(get_session)):
+    """Public — validate a reset token (DB or config) and return target user info."""
+    prt = db.exec(
+        select(PasswordResetToken).where(PasswordResetToken.token == token)
+    ).first()
+
+    if prt:
+        if prt.used_at is not None:
+            raise _api_error(status.HTTP_410_GONE, "TOKEN_USED", "This reset link has already been used")
+        if prt.expires_at < datetime.utcnow():
+            raise _api_error(status.HTTP_410_GONE, "TOKEN_EXPIRED", "This reset link has expired")
+
+        user = db.get(User, prt.user_id)
+        if not user:
+            raise _api_error(status.HTTP_404_NOT_FOUND, "USER_NOT_FOUND", "User not found")
+
+        return ResetTokenInfo(
+            source="db",
+            user_id=user.id,
+            email=user.email or user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )
+
+    config = load_config()
+    config_token = (config.get("security") or {}).get("reset_token", "")
+    if config_token and token == config_token:
+        return ResetTokenInfo(source="config")
+
+    raise _api_error(status.HTTP_404_NOT_FOUND, "TOKEN_INVALID", "Reset link is invalid or has expired")
+
+
+@router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(body: PasswordResetRequest, db: Session = Depends(get_session)):
+    """Public — reset a user's password using a valid DB or config token."""
+    prt = db.exec(
+        select(PasswordResetToken).where(PasswordResetToken.token == body.token)
+    ).first()
+
+    if prt:
+        if prt.used_at is not None:
+            raise _api_error(status.HTTP_410_GONE, "TOKEN_USED", "This reset link has already been used")
+        if prt.expires_at < datetime.utcnow():
+            raise _api_error(status.HTTP_410_GONE, "TOKEN_EXPIRED", "This reset link has expired")
+
+        user = db.get(User, prt.user_id)
+        if not user:
+            raise _api_error(status.HTTP_404_NOT_FOUND, "USER_NOT_FOUND", "User not found")
+    else:
+        config = load_config()
+        config_token = (config.get("security") or {}).get("reset_token", "")
+        if not config_token or body.token != config_token:
+            raise _api_error(status.HTTP_404_NOT_FOUND, "TOKEN_INVALID", "Reset link is invalid or has expired")
+
+        if not body.email:
+            raise _api_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "EMAIL_REQUIRED",
+                "Email is required when using a config reset token",
+            )
+
+        user = db.exec(select(User).where(User.email == body.email)).first()
+        if not user:
+            raise _api_error(status.HTTP_404_NOT_FOUND, "USER_NOT_FOUND", "No account found with that email")
+
+        if user.role != "admin":
+            raise _api_error(
+                status.HTTP_403_FORBIDDEN,
+                "NOT_ADMIN",
+                "Config token can only be used to reset admin accounts",
+            )
+        prt = None
+
+    identifier = user.email or user.username
+    password_errors = validate_password_strength(body.new_password, identifier=identifier)
+    if password_errors:
+        raise _api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "PASSWORD_TOO_WEAK",
+            "; ".join(password_errors),
+        )
+
+    if not check_password_history(user.id, body.new_password, db):
+        raise _api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "PASSWORD_REUSED",
+            "Password has been used recently. Please choose a different password.",
+        )
+
+    new_hash = hash_password(body.new_password)
+    user.password_hash = new_hash
+    user.must_change_password = False
+    db.add(user)
+    save_password_history(user.id, new_hash, db)
+
+    if prt is not None:
+        prt.used_at = datetime.utcnow()
+        db.add(prt)
+
+    db.commit()

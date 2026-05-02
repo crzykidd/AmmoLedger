@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { format, parseISO } from 'date-fns'
-import { KeyRound } from 'lucide-react'
+import { KeyRound, Link2 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import { getUsers, updateUser, resetUserPassword } from '@/api/users'
+import { generateResetToken } from '@/api/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -58,6 +59,78 @@ function statusBadge(active: boolean) {
     <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
       Inactive
     </span>
+  )
+}
+
+function GenerateResetLinkDialog({
+  target,
+  onClose,
+}: {
+  target: UserRead
+  onClose: () => void
+}) {
+  const [resetUrl, setResetUrl] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: () => generateResetToken(target.id),
+    onSuccess: (data) => setResetUrl(data.reset_url),
+    onError: (err: unknown) => {
+      const e = err as { detail?: { message?: string } | string }
+      const detail = e?.detail
+      if (detail && typeof detail === 'object' && detail.message) {
+        setError(detail.message)
+      } else {
+        setError('Failed to generate reset link')
+      }
+    },
+  })
+
+  useEffect(() => { mutation.mutate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const copyUrl = async () => {
+    if (!resetUrl) return
+    await navigator.clipboard.writeText(resetUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>Password Reset Link</DialogTitle>
+      </DialogHeader>
+      <p className="text-sm text-gray-500 dark:text-gray-400 -mt-3 mb-2">
+        For <span className="font-medium text-gray-700 dark:text-gray-300">{target.first_name} {target.last_name}</span>
+      </p>
+      {mutation.isPending ? (
+        <div className="py-6 text-center text-sm text-gray-400">Generating link…</div>
+      ) : error ? (
+        <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>
+      ) : resetUrl ? (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Send this link to the user. It expires in 24 hours and can only be used once.
+          </p>
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 text-xs font-mono text-gray-700 dark:text-gray-300 break-all select-all">
+            {resetUrl}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => { void copyUrl() }}
+          >
+            {copied ? 'Copied!' : 'Copy link'}
+          </Button>
+        </div>
+      ) : null}
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
+      </DialogFooter>
+    </DialogContent>
   )
 }
 
@@ -151,6 +224,7 @@ export default function UserManagementPage() {
   const { user: currentUser } = useAuth()
   const qc = useQueryClient()
   const [resetTarget, setResetTarget] = useState<UserRead | null>(null)
+  const [linkTarget, setLinkTarget] = useState<UserRead | null>(null)
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
@@ -245,7 +319,18 @@ export default function UserManagementPage() {
                             {u.is_active ? 'Deactivate' : 'Reactivate'}
                           </Button>
 
-                          {/* Reset password */}
+                          {/* Generate reset link */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                            title="Generate reset link"
+                            onClick={() => setLinkTarget(u)}
+                          >
+                            <Link2 className="w-3.5 h-3.5" />
+                          </Button>
+
+                          {/* Reset password (admin sets password directly) */}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -269,6 +354,12 @@ export default function UserManagementPage() {
       <Dialog open={resetTarget !== null} onOpenChange={(open) => { if (!open) setResetTarget(null) }}>
         {resetTarget && (
           <ResetPasswordDialog target={resetTarget} onClose={() => setResetTarget(null)} />
+        )}
+      </Dialog>
+
+      <Dialog open={linkTarget !== null} onOpenChange={(open) => { if (!open) setLinkTarget(null) }}>
+        {linkTarget && (
+          <GenerateResetLinkDialog target={linkTarget} onClose={() => setLinkTarget(null)} />
         )}
       </Dialog>
     </AppShell>

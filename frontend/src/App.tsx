@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/toaster'
 import LoginPage from '@/pages/auth/LoginPage'
 import SetupPage from '@/pages/auth/SetupPage'
 import RegisterPage from '@/pages/auth/RegisterPage'
+import ResetPage from '@/pages/auth/ResetPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
 import InventoryPage from '@/pages/inventory/InventoryPage'
 import ThresholdSettingsPage from '@/pages/settings/ThresholdSettingsPage'
@@ -61,6 +62,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/setup" element={<SetupRoute />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/reset" element={<ResetPage />} />
       <Route
         path="/dashboard"
         element={

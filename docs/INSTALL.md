@@ -140,6 +140,44 @@ For access from phones or outside your home network, see [docs/PRD.md §12](PRD.
 
 ---
 
+## Password Recovery
+
+AmmoLedger supports two password reset flows — no email server required.
+
+### Admin generates a reset link for a user
+
+1. Go to **Admin → Users**
+2. Click the link icon (↗) next to the user
+3. Copy the generated URL and send it to the user
+4. The link expires after 24 hours and can only be used once
+
+### Admin self-recovery (locked out of your account)
+
+If you cannot log in as admin, set a temporary recovery token in `config.yaml`:
+
+```bash
+# Edit config.yaml inside the container
+docker compose cp backend:/data/config.yaml ./config.yaml
+```
+
+Add a random token under the `security` section:
+
+```yaml
+security:
+  reset_token: "your-random-token-here"  # generate with: openssl rand -hex 32
+```
+
+Copy it back and restart:
+
+```bash
+docker compose cp ./config.yaml backend:/data/config.yaml
+docker compose restart backend
+```
+
+Visit `http://localhost:5173/reset?token=your-random-token-here`, enter your admin email, and set a new password. **Clear the token from `config.yaml` immediately after use** and restart the backend.
+
+---
+
 ## Backup and Restore
 
 **Manual backup:** Admin panel → Settings → Backup Now

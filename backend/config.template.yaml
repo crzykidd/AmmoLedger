@@ -24,8 +24,9 @@ security:
   # Or on Windows: python -c "import secrets; print(secrets.token_hex(32))"
   session_secret: "change-this-to-a-random-string"
 
-  # Set a token here to enable password reset at /reset?token=<your-token>.
-  # Remove or clear this value immediately after use.
+  # Emergency admin self-recovery: set a strong random value here, visit
+  # /reset?token=<value> to reset your admin password, then clear this field.
+  # Only works for admin accounts. Generate a value with: openssl rand -hex 32
   reset_token: ""
 
   # Registration mode controls who can create a new account.
