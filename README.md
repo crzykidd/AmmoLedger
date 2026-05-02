@@ -107,6 +107,8 @@ Docker will automatically pull the latest images from GitHub Container Registry.
 - You will be prompted to create an admin account
 - Set a secure password (12+ characters required)
 - Edit `data/config.yaml` to configure backup schedule, notifications, and other settings
+- Most settings can also be set via environment variables in `docker-compose.yml` — see [Configuration Options](docs/INSTALL.md#configuration-options)
+- `AL_BACKEND_URL` (default `http://backend:8000`) controls how the frontend reaches the backend — most users will never need to change this
 
 ### Pulling a specific version
 

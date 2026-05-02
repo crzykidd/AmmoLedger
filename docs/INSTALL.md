@@ -166,6 +166,7 @@ ENV values always take priority over `config.yaml` when both are present.
 | `AL_BACKUP_SCHEDULE` | `backup.schedule` | `03:00` | Nightly backup time (HH:MM, 24-hour) |
 | `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | `30` | Days to keep old backup files |
 | `AL_BACKUP_PATH` | `backup.path` | `/data/backups` | Backup storage directory |
+| `AL_BACKEND_URL` | (frontend only) | `http://backend:8000` | Container-internal URL the frontend proxy uses to reach the backend. Change only if your backend runs on a different service name or port. |
 
 ---
 

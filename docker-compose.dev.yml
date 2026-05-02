@@ -37,7 +37,7 @@ services:
       - ./frontend:/app         # live reload your React code
       - /app/node_modules       # keep node_modules inside container
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - AL_BACKEND_URL=http://backend:8000
     depends_on:
       - backend
     restart: unless-stopped
