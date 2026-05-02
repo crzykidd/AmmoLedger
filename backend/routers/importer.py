@@ -20,6 +20,7 @@ from models import (
     Dealer,
     Location,
     Manufacturer,
+    Product,
     User,
 )
 from utils.config import get_setting, set_setting
@@ -57,6 +58,21 @@ def _levenshtein(a: str, b: str) -> int:
             curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (ch_a != ch_b)))
         prev = curr
     return prev[-1]
+
+
+# ---------------------------------------------------------------------------
+# Product matching helpers
+# ---------------------------------------------------------------------------
+
+def _product_key(caliber_id, manufacturer_id, product_name, gr_oz, type_id) -> tuple:
+    """COALESCE-style key for null-safe product deduplication matching."""
+    return (
+        caliber_id,
+        manufacturer_id,
+        (product_name or "").strip().lower(),
+        gr_oz if gr_oz is not None else -1,
+        type_id if type_id is not None else -1,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -497,11 +513,14 @@ async def confirm_import(
         imported = 0
         skipped = 0
         lookup_values_created = 0
+        product_links = 0
         warnings: list[dict] = []
         autoincrement_reset_to: int | None = None
         total_rows = len(rows)
 
         with Session(engine) as import_db:
+            imported_boxes: list[AmmoBox] = []
+
             for i, row in enumerate(rows, start=2):
                 errs, row_warns = _validate_row(row, i)
                 warnings.extend(row_warns)
@@ -632,11 +651,36 @@ async def confirm_import(
                 if updated_at is not None:
                     box.updated_at = updated_at
                 import_db.add(box)
+                imported_boxes.append(box)
                 imported += 1
                 if imported % 100 == 0:
                     logger.debug("Inserting box %d of %d", imported, total_rows)
 
             import_db.commit()
+
+            # Link imported boxes to matching products (caliber+manufacturer+product_name+gr_oz+type)
+            all_products = import_db.exec(
+                select(Product).where(
+                    (Product.is_shared == True) | (Product.owner_id == user.id)  # noqa: E712
+                )
+            ).all()
+            if all_products:
+                product_map = {
+                    _product_key(p.caliber_id, p.manufacturer_id, p.product_name, p.gr_oz, p.type_id): p.id
+                    for p in all_products
+                }
+                for box in imported_boxes:
+                    if box.product_id is not None:
+                        continue
+                    key = _product_key(box.caliber_id, box.manufacturer_id, box.product_name, box.gr_oz, box.type_id)
+                    matched_id = product_map.get(key)
+                    if matched_id is not None:
+                        box.product_id = matched_id
+                        import_db.add(box)
+                        product_links += 1
+                if product_links > 0:
+                    import_db.commit()
+                    logger.debug("Linked %d imported boxes to products", product_links)
 
             # After legacy ID mode inserts, reset autoincrement so future boxes
             # continue from MAX(id)+1 rather than the pre-import sequence value.
@@ -682,6 +726,7 @@ async def confirm_import(
             "imported": imported,
             "skipped": skipped,
             "new_lookup_values_created": lookup_values_created,
+            "product_links": product_links,
             "pre_import_backup": backup_filename,
             "legacy_id_mode_used": use_legacy_ids,
             "warnings": warnings,

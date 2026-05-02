@@ -10,6 +10,18 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Added
+
+- **Product catalog** — a dedicated Products page at `/products` for creating and managing product templates; each product captures caliber, manufacturer, product name, bullet weight, type, category, condition, default cost, UPC, and an optional image
+- Product images — upload a jpg/jpeg/png/webp image (up to 5 MB) per product; displayed on the product card and in the Add Box form
+- **Auto-fill from product** — when adding a new ammo box, select a product from the search-as-you-type selector at the top of the form; caliber, manufacturer, product name, weight, type, category, condition, and cost auto-populate from the product
+- **Add Box from Products page** — each product card has an "Add Box" button that opens Inventory pre-filled with the selected product
+- **Save as Template** — after manually adding a box with no product selected, a dialog offers to save the box's details as a new product template for future reuse
+- **Auto-generate products** — admin-only button on the Products page that groups existing inventory boxes by their unique caliber + manufacturer + product name + weight + type combination and creates a product for each group; also back-fills `product_id` on all matching boxes
+- Product visibility follows the same shared/private ownership model as ammo boxes — shared products are visible to all users; private products are visible to the owner and admins
+- CSV import now auto-links imported boxes to matching products by comparing caliber, manufacturer, product name, gr/oz, and type; unmatched boxes are left unlinked and can be wired up by running Auto-Generate later
+- `product_id` FK on ammo_box — boxes can be linked to a product; the link is set automatically on add/edit when a product is selected, on CSV import when a match exists, and on auto-generate
+
 ## [0.1.5] — 2026-05-02
 
 ### Fixed

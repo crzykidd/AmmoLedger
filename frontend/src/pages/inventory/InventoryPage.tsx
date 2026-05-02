@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload, Download } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
@@ -117,6 +117,7 @@ const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
 export default function InventoryPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const qc = useQueryClient()
 
   // Global search / view state
@@ -142,6 +143,23 @@ export default function InventoryPage() {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
+
+  // Pre-selected product from /products?product_id=X
+  const [initialProductId, setInitialProductId] = useState<number | null>(null)
+
+  useEffect(() => {
+    const pid = searchParams.get('product_id')
+    if (pid) {
+      const id = parseInt(pid)
+      if (!isNaN(id)) {
+        setInitialProductId(id)
+        setEditBox(null)
+        setPanelOpen(true)
+      }
+      setSearchParams({}, { replace: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Panel / dialog state
   const [panelOpen, setPanelOpen] = useState(false)
@@ -331,6 +349,7 @@ export default function InventoryPage() {
 
   function openAdd() {
     setEditBox(null)
+    setInitialProductId(null)
     setPanelOpen(true)
   }
 
@@ -699,8 +718,12 @@ export default function InventoryPage() {
       {/* Form panel */}
       <AmmoFormPanel
         open={panelOpen}
-        onOpenChange={setPanelOpen}
+        onOpenChange={(o) => {
+          setPanelOpen(o)
+          if (!o) setInitialProductId(null)
+        }}
         editBox={editBox}
+        initialProductId={initialProductId}
         user={user!}
         calibers={lookups.calibers}
         manufacturers={lookups.manufacturers}

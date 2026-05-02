@@ -135,11 +135,39 @@ class AmmoBox(SQLModel, table=True):
     dealer_id: Optional[int] = Field(default=None, foreign_key="dealers.id")
     location_id: Optional[int] = Field(default=None, foreign_key="locations.id")
     container_id: Optional[int] = Field(default=None, foreign_key="containers.id")
+    product_id: Optional[int] = Field(default=None, foreign_key="products.id")
     legacy_id: Optional[str] = None
     notes: Optional[str] = None
     split_from_id: Optional[int] = Field(default=None, foreign_key="ammo_box.id")
     is_archived: bool = Field(default=False)
     archive_reason: Optional[str] = None  # split | empty | manual
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Product Catalog
+# ---------------------------------------------------------------------------
+
+class Product(SQLModel, table=True):
+    __tablename__ = "products"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    caliber_id: int = Field(foreign_key="calibers.id")
+    manufacturer_id: int = Field(foreign_key="manufacturers.id")
+    product_name: Optional[str] = None
+    gr_oz: Optional[float] = None
+    weight_unit: Optional[str] = Field(default="GR")
+    type_id: Optional[int] = Field(default=None, foreign_key="ammo_types.id")
+    category_id: Optional[int] = Field(default=None, foreign_key="categories.id")
+    ammo_condition_id: Optional[int] = Field(default=None, foreign_key="ammo_conditions.id")
+    default_cost: Optional[float] = None
+    upc: Optional[str] = None
+    image_path: Optional[str] = None
+    notes: Optional[str] = None
+    owner_id: int = Field(foreign_key="users.id")
+    is_shared: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

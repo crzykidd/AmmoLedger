@@ -100,6 +100,74 @@ class LookupUpdate(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Product schemas
+# ---------------------------------------------------------------------------
+
+class ProductRead(_OrmBase):
+    id: int
+    name: str
+    caliber_id: int
+    manufacturer_id: int
+    product_name: Optional[str]
+    gr_oz: Optional[float]
+    weight_unit: Optional[str]
+    type_id: Optional[int]
+    category_id: Optional[int]
+    ammo_condition_id: Optional[int]
+    default_cost: Optional[float]
+    upc: Optional[str]
+    image_path: Optional[str]
+    notes: Optional[str]
+    owner_id: int
+    is_shared: bool
+    created_at: datetime
+    updated_at: datetime
+    # Joined names (populated in router)
+    caliber_name: Optional[str] = None
+    manufacturer_name: Optional[str] = None
+    type_name: Optional[str] = None
+    category_name: Optional[str] = None
+    condition_name: Optional[str] = None
+    usage_count: int = 0
+
+
+class ProductCreate(BaseModel):
+    caliber_id: int
+    manufacturer_id: int
+    product_name: Optional[str] = None
+    gr_oz: Optional[float] = None
+    weight_unit: Optional[str] = "GR"
+    type_id: Optional[int] = None
+    category_id: Optional[int] = None
+    ammo_condition_id: Optional[int] = None
+    default_cost: Optional[float] = None
+    upc: Optional[str] = None
+    notes: Optional[str] = None
+    is_shared: bool = True
+
+
+class ProductUpdate(BaseModel):
+    caliber_id: Optional[int] = None
+    manufacturer_id: Optional[int] = None
+    product_name: Optional[str] = None
+    gr_oz: Optional[float] = None
+    weight_unit: Optional[str] = None
+    type_id: Optional[int] = None
+    category_id: Optional[int] = None
+    ammo_condition_id: Optional[int] = None
+    default_cost: Optional[float] = None
+    upc: Optional[str] = None
+    notes: Optional[str] = None
+    is_shared: Optional[bool] = None
+
+
+class AutoGenerateResponse(BaseModel):
+    products_created: int
+    boxes_linked: int
+    boxes_unlinked: int
+
+
+# ---------------------------------------------------------------------------
 # Ammo box schemas
 # ---------------------------------------------------------------------------
 
@@ -107,6 +175,7 @@ class AmmoBoxRead(_OrmBase):
     id: int
     owner_id: int
     is_shared: bool
+    product_id: Optional[int]
     caliber_id: int
     manufacturer_id: int
     product_name: Optional[str]
@@ -134,6 +203,7 @@ class AmmoBoxRead(_OrmBase):
 class AmmoBoxCreate(BaseModel):
     caliber_id: int
     manufacturer_id: int
+    product_id: Optional[int] = None
     product_name: Optional[str] = None
     qty_original: int
     qty_remaining: Optional[int] = None  # defaults to qty_original if omitted
@@ -154,6 +224,7 @@ class AmmoBoxCreate(BaseModel):
 
 class AmmoBoxUpdate(BaseModel):
     is_shared: Optional[bool] = None
+    product_id: Optional[int] = None
     caliber_id: Optional[int] = None
     manufacturer_id: Optional[int] = None
     product_name: Optional[str] = None

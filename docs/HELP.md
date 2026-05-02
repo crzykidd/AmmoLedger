@@ -58,6 +58,36 @@ Go to **Settings → Thresholds** and scroll to **Per-Caliber Thresholds**. Sele
 
 Go to **Settings → Thresholds** and scroll to **Per-Location Thresholds**. Select a storage location, enter the total round count that should trigger a low-stock alert across all calibers in that location, and click **Add**. Useful for tracking overall readiness at a specific safe or storage area.
 
+## Products
+
+### What are products?
+
+Products are reusable templates for ammo boxes. Each product stores a caliber, manufacturer, product name, bullet weight, type, category, condition, default cost, and an optional photo. When you add a new box, you can select a product to auto-fill those fields instantly instead of typing them each time.
+
+### How do I create a product?
+
+Go to **Products** in the sidebar and click **Add Product**. Fill in at minimum a caliber — all other fields are optional. You can also upload a product image (jpg, png, or webp, up to 5 MB) by clicking the image area or dragging a file onto it.
+
+### How do I add a box from a product?
+
+On the Products page, find the product card and click **Add Box**. This opens the Add Box form in Inventory with all matching fields pre-filled from the product. Adjust any values as needed and save.
+
+### Can I auto-fill a product when adding a box manually?
+
+Yes. In the Add Box form, a product selector appears at the top. Type part of the caliber, manufacturer, or product name to search your product catalog. Select a match and all compatible fields fill automatically. You can also click **Enter details manually** to skip the selector and fill the form yourself.
+
+### What is "Save as Template"?
+
+When you add a box manually without selecting a product, AmmoLedger offers to save those details as a new product after you click Add Box. Click **Save as Template** in the dialog to create a product from the box you just added, or **Skip** to continue without creating one.
+
+### What is Auto-Generate?
+
+Auto-Generate (admin only, via the **Auto-Generate** button on the Products page) scans your existing inventory and creates a product for each unique combination of caliber, manufacturer, product name, bullet weight, and type. It also links any matching boxes to the new products automatically. Use it to bootstrap your product catalog from existing inventory.
+
+### Can products be shared or private?
+
+Yes — the same shared/private ownership model applies to products. Shared products are visible to all users; private products are only visible to the owner and admins. The Shared toggle appears in the Add/Edit Product form.
+
 ## Import
 
 ### What CSV format does AmmoLedger use?

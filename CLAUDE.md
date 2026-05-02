@@ -69,6 +69,7 @@ Current release: v0.1.5 (2026-05-02)
   - 8.9 — Password reset (admin-generated links + config token self-recovery): COMPLETE
   - 8.10 — Help page with searchable FAQ and contextual HelpTip tooltips: COMPLETE
   - 8.11 — Merge invitations into Users page, remove separate Invitations page: COMPLETE
+- Phase 8.12 — Product catalog with images, auto-generate, and Add Box auto-fill: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 

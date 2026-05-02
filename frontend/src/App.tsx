@@ -15,6 +15,7 @@ import UserManagementPage from '@/pages/admin/UserManagementPage'
 import BackupPage from '@/pages/admin/BackupPage'
 import LookupsPage from '@/pages/admin/LookupsPage'
 import ImportPage from '@/pages/ImportPage'
+import ProductsPage from '@/pages/ProductsPage'
 import AboutPage from '@/pages/AboutPage'
 import HelpPage from '@/pages/HelpPage'
 import WhatsNewModal from '@/components/WhatsNewModal'
@@ -77,6 +78,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <InventoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/products"
+        element={
+          <ProtectedRoute>
+            <ProductsPage />
           </ProtectedRoute>
         }
       />

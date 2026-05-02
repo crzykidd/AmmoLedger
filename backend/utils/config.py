@@ -75,7 +75,12 @@ def _apply_env_overrides(config: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def ensure_data_dirs() -> None:
-    for path_str, label in [(BACKUP_PATH, "backups"), (UPLOADS_PATH, "uploads")]:
+    dirs = [
+        (BACKUP_PATH, "backups"),
+        (UPLOADS_PATH, "uploads"),
+        (str(Path(UPLOADS_PATH) / "products"), "uploads/products"),
+    ]
+    for path_str, label in dirs:
         try:
             Path(path_str).mkdir(parents=True, exist_ok=True)
         except PermissionError:

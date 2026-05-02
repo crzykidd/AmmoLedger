@@ -194,6 +194,7 @@ export interface AmmoBoxRead {
   id: number
   owner_id: number
   is_shared: boolean
+  product_id: number | null
   caliber_id: number
   manufacturer_id: number
   product_name: string | null
@@ -248,6 +249,7 @@ export interface RecentExpenditure {
 export interface AmmoBoxCreate {
   caliber_id: number
   manufacturer_id: number
+  product_id?: number | null
   qty_original: number
   product_name?: string
   qty_remaining?: number
@@ -269,6 +271,7 @@ export interface AmmoBoxCreate {
 export interface AmmoBoxUpdate {
   caliber_id?: number
   manufacturer_id?: number
+  product_id?: number | null
   product_name?: string
   qty_original?: number
   qty_remaining?: number
@@ -315,6 +318,73 @@ export interface BulkUpdateRequest {
 export interface BulkUpdateResponse {
   updated: number
   failed: number
+}
+
+// ---------------------------------------------------------------------------
+// Product catalog types
+// ---------------------------------------------------------------------------
+
+export interface ProductRead {
+  id: number
+  name: string
+  caliber_id: number
+  manufacturer_id: number
+  product_name: string | null
+  gr_oz: number | null
+  weight_unit: string | null
+  type_id: number | null
+  category_id: number | null
+  ammo_condition_id: number | null
+  default_cost: number | null
+  upc: string | null
+  image_path: string | null
+  notes: string | null
+  owner_id: number
+  is_shared: boolean
+  created_at: string
+  updated_at: string
+  caliber_name: string | null
+  manufacturer_name: string | null
+  type_name: string | null
+  category_name: string | null
+  condition_name: string | null
+  usage_count: number
+}
+
+export interface ProductCreate {
+  caliber_id: number
+  manufacturer_id: number
+  product_name?: string | null
+  gr_oz?: number | null
+  weight_unit?: string | null
+  type_id?: number | null
+  category_id?: number | null
+  ammo_condition_id?: number | null
+  default_cost?: number | null
+  upc?: string | null
+  notes?: string | null
+  is_shared?: boolean
+}
+
+export interface ProductUpdate {
+  caliber_id?: number
+  manufacturer_id?: number
+  product_name?: string | null
+  gr_oz?: number | null
+  weight_unit?: string | null
+  type_id?: number | null
+  category_id?: number | null
+  ammo_condition_id?: number | null
+  default_cost?: number | null
+  upc?: string | null
+  notes?: string | null
+  is_shared?: boolean
+}
+
+export interface AutoGenerateResponse {
+  products_created: number
+  boxes_linked: number
+  boxes_unlinked: number
 }
 
 // ---------------------------------------------------------------------------

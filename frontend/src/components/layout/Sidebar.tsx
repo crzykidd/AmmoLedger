@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard,
   Package,
+  BookOpen,
   FileUp,
   SlidersHorizontal,
   User,
@@ -42,6 +43,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Inventory', icon: Package, href: '/inventory' },
+      { label: 'Products', icon: BookOpen, href: '/products' },
       { label: 'Import', icon: FileUp, href: '/import' },
     ],
   },
