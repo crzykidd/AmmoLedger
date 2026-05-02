@@ -10,6 +10,13 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.5] — 2026-05-02
+
+### Fixed
+
+- Tagged release images now display the clean version string (e.g. `v0.1.5`) instead of `v0.1.5-dev` — `github.ref_name` returns the tag name on release events, so `GIT_BRANCH` is now explicitly set to `main` for release builds in CI
+- Dev branch CI checks (lint, migration, YAML validation) now run on every push to `dev` as well as `main`, so PR status checks are always current when opening a `dev → main` pull request
+
 ## [0.1.4] — 2026-05-02
 
 ### Added
