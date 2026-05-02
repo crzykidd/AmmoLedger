@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { format, parseISO } from 'date-fns'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon } from 'lucide-react'
+import { HelpTip } from '@/components/HelpTip'
 import { createAmmo, updateAmmo } from '@/api/ammo'
 import {
   Sheet,
@@ -112,16 +113,21 @@ const inputCls =
 
 function Field({
   label,
+  help,
   error,
   children,
 }: {
   label: string
+  help?: string
   error?: string
   children: React.ReactNode
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
+      <div className="flex items-center gap-1">
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
+        {help && <HelpTip text={help} />}
+      </div>
       {children}
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
@@ -130,6 +136,7 @@ function Field({
 
 interface SelectFieldProps {
   label: string
+  help?: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
@@ -140,6 +147,7 @@ interface SelectFieldProps {
 
 function SelectField({
   label,
+  help,
   value,
   onChange,
   placeholder,
@@ -148,7 +156,7 @@ function SelectField({
   optional,
 }: SelectFieldProps) {
   return (
-    <Field label={label} error={error}>
+    <Field label={label} help={help} error={error}>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger>
           <SelectValue placeholder={placeholder ?? `Select ${label.toLowerCase()}`} />
@@ -339,6 +347,7 @@ export default function AmmoFormPanel({
             render={({ field }) => (
               <SelectField
                 label="Caliber *"
+                help="The cartridge size (e.g. 9mm Luger, .223 Remington, 12 Gauge)"
                 value={field.value}
                 onChange={field.onChange}
                 items={calibers}
@@ -353,6 +362,7 @@ export default function AmmoFormPanel({
             render={({ field }) => (
               <SelectField
                 label="Manufacturer *"
+                help="The brand that made the ammunition"
                 value={field.value}
                 onChange={field.onChange}
                 items={manufacturers}
@@ -361,7 +371,7 @@ export default function AmmoFormPanel({
             )}
           />
 
-          <Field label="Product Name" error={errors.product_name?.message}>
+          <Field label="Product Name" help="The specific product line (e.g. American Eagle, Gold Dot, X-TAC)" error={errors.product_name?.message}>
             <input
               {...register('product_name')}
               placeholder="e.g. Federal HST 147gr"
@@ -370,7 +380,7 @@ export default function AmmoFormPanel({
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Qty Original *" error={errors.qty_original?.message}>
+            <Field label="Qty Original *" help="Number of rounds when the box was full or purchased" error={errors.qty_original?.message}>
               <input
                 {...register('qty_original', { valueAsNumber: true })}
                 type="number"
@@ -378,7 +388,7 @@ export default function AmmoFormPanel({
                 className={inputCls}
               />
             </Field>
-            <Field label="Qty Remaining" error={errors.qty_remaining?.message}>
+            <Field label="Qty Remaining" help="Current number of rounds in the box" error={errors.qty_remaining?.message}>
               <input
                 {...register('qty_remaining')}
                 type="number"
@@ -390,7 +400,7 @@ export default function AmmoFormPanel({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Weight" error={errors.gr_oz?.message}>
+            <Field label="Weight" help="Bullet weight in grains or shot weight in ounces" error={errors.gr_oz?.message}>
               <input
                 {...register('gr_oz')}
                 type="number"
@@ -425,6 +435,7 @@ export default function AmmoFormPanel({
             render={({ field }) => (
               <SelectField
                 label="Type"
+                help="Bullet type (e.g. FMJ, JHP, Slug, Shot)"
                 value={field.value ?? ''}
                 onChange={field.onChange}
                 items={ammoTypes}
@@ -440,6 +451,7 @@ export default function AmmoFormPanel({
             render={({ field }) => (
               <SelectField
                 label="Condition"
+                help="Production origin — Factory New, Remanufactured, Military Surplus, etc."
                 value={field.value ?? ''}
                 onChange={field.onChange}
                 items={ammoConditions}
@@ -455,6 +467,7 @@ export default function AmmoFormPanel({
             render={({ field }) => (
               <SelectField
                 label="Category"
+                help="Intended use (e.g. Defense, Target / Range, Hunting)"
                 value={field.value ?? ''}
                 onChange={field.onChange}
                 items={categories}
@@ -501,7 +514,7 @@ export default function AmmoFormPanel({
                 }}
               />
             </Field>
-            <Field label="Cost / Round ($)" error={errors.cost_per_round?.message}>
+            <Field label="Cost / Round ($)" help="Price per individual round. Divide the box price by the round count." error={errors.cost_per_round?.message}>
               <input
                 {...register('cost_per_round')}
                 type="number"
@@ -530,9 +543,12 @@ export default function AmmoFormPanel({
 
           {user.role === 'admin' && (
             <div className="flex items-center justify-between py-1">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Shared (visible to all members)
-              </label>
+              <div className="flex items-center gap-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Shared (visible to all members)
+                </label>
+                <HelpTip text="When on, all household members can see this box. When off, only you and admins can see it." />
+              </div>
               <Controller
                 name="is_shared"
                 control={control}
@@ -543,7 +559,7 @@ export default function AmmoFormPanel({
             </div>
           )}
 
-          <Field label="Legacy ID" error={errors.legacy_id?.message}>
+          <Field label="Legacy ID" help="Optional — if this box has an ID number from a previous tracking system" error={errors.legacy_id?.message}>
             <input
               {...register('legacy_id')}
               placeholder="e.g. B23, #637, LOT-2024"

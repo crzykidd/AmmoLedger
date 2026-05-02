@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Check, Trash2 } from 'lucide-react'
+import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
@@ -141,9 +142,12 @@ export default function ThresholdSettingsPage() {
           ) : (
             <div className="flex items-end gap-3">
               <div className="w-40">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Low rounds threshold
-                </label>
+                <div className="flex items-center gap-1 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Low rounds threshold
+                  </label>
+                  <HelpTip text="Alert when any caliber's total rounds drop below this number. Overridden by caliber-specific thresholds." />
+                </div>
                 <Input
                   type="number"
                   min={0}
@@ -169,9 +173,12 @@ export default function ThresholdSettingsPage() {
 
         {/* Section 2: Caliber Thresholds */}
         <section>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-            Per-Caliber Thresholds
-          </h2>
+          <div className="flex items-center gap-1.5 mb-1">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              Per-Caliber Thresholds
+            </h2>
+            <HelpTip text="Set a specific round count alert for a caliber. Overrides the global default threshold for that caliber." />
+          </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Override the global default for specific calibers. The global default still applies to all others.
           </p>
@@ -269,9 +276,12 @@ export default function ThresholdSettingsPage() {
 
         {/* Section 3: Location Thresholds */}
         <section>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-            Per-Location Thresholds
-          </h2>
+          <div className="flex items-center gap-1.5 mb-1">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              Per-Location Thresholds
+            </h2>
+            <HelpTip text="Alert when total rounds stored in a location drop below this number. Counts all calibers in that location." />
+          </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Alert when total rounds at a storage location fall below a minimum.
             Only locations with a threshold set will trigger low-stock alerts.

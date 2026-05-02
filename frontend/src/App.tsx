@@ -17,6 +17,7 @@ import BackupPage from '@/pages/admin/BackupPage'
 import LookupsPage from '@/pages/admin/LookupsPage'
 import ImportPage from '@/pages/ImportPage'
 import AboutPage from '@/pages/AboutPage'
+import HelpPage from '@/pages/HelpPage'
 
 const queryClient = new QueryClient()
 
@@ -140,6 +141,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AboutPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/help"
+        element={
+          <ProtectedRoute>
+            <HelpPage />
           </ProtectedRoute>
         }
       />

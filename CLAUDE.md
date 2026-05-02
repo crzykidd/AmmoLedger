@@ -57,6 +57,7 @@
   - 8.7 — Three-tier threshold system, dashboard low stock by caliber/location, import ownership toggle: COMPLETE
   - 8.8 — Bulk select and edit: COMPLETE
   - 8.9 — Password reset (admin-generated links + config token self-recovery): COMPLETE
+  - 8.10 — Help page with searchable FAQ and contextual HelpTip tooltips: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 

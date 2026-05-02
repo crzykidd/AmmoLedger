@@ -12,6 +12,7 @@ import {
   DatabaseBackup,
   List,
   Info,
+  HelpCircle,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -208,8 +209,8 @@ export default function Sidebar() {
           )}
         </button>
 
-        {/* About link */}
-        <div className="px-2 border-t border-white/10 py-1">
+        {/* About + Help links */}
+        <div className="px-2 border-t border-white/10 py-1 space-y-0.5">
           <Link
             to="/about"
             className={cn(
@@ -221,6 +222,18 @@ export default function Sidebar() {
           >
             <Info className="w-4 h-4 shrink-0" />
             {!collapsed && <span>About</span>}
+          </Link>
+          <Link
+            to="/help"
+            className={cn(
+              'flex items-center gap-3 px-2 py-2 rounded-lg text-xs text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors',
+              isActive('/help', location.pathname) && 'bg-gold/10 text-gold/70',
+              collapsed && 'justify-center',
+            )}
+            title={collapsed ? 'Help' : undefined}
+          >
+            <HelpCircle className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>Help</span>}
           </Link>
         </div>
 

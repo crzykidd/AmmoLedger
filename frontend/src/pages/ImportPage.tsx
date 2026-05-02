@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileUp, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight, Download, RotateCcw, ArrowLeft, Info } from 'lucide-react'
+import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
@@ -210,6 +211,7 @@ function LegacyIdSection({
         <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
           <Info className="h-4 w-4 text-blue-500 shrink-0" />
           ID Assignment
+          <HelpTip text="When all your legacy IDs are numbers with no conflicts, AmmoLedger can use them as the actual box IDs so your existing labels still work." />
         </p>
         <div className="space-y-2">
           <label className="flex items-start gap-2 cursor-pointer">
@@ -485,7 +487,10 @@ function ValidationState({
 
       {/* Ownership */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 space-y-3">
-        <p className="text-sm font-medium text-gray-900 dark:text-white">Ownership</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">Ownership</p>
+          <HelpTip text="Shared boxes are visible to all household members. Private boxes are only visible to you and admins." />
+        </div>
         <div className="space-y-2">
           <label className="flex items-start gap-2 cursor-pointer">
             <input

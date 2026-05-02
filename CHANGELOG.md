@@ -12,6 +12,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Help page at `/help` with a searchable FAQ covering Getting Started, Inventory, Thresholds, Import, Backup, User Management, and About — accessible from the sidebar
+- Collapsible section and Q&A item accordion on the Help page; TOC sidebar on desktop; search highlights matching text
+- Contextual help tooltips on key form fields — hover or click the ⓘ icon next to a label to see a brief description
+- HelpTip tooltips added to: Add Ammo Box form fields (Caliber, Manufacturer, Product Name, Qty, Weight, Type, Condition, Category, Cost, Shared, Legacy ID), Inventory toolbar (Group By, Show Empty, Archived), Stock Thresholds page, and Import page (Ownership, ID Assignment)
 - Password reset via admin-generated links — admin clicks "Generate Reset Link" on any user in Admin → Users, copies the URL, and sends it; link expires in 24 hours and is single-use
 - Emergency admin self-recovery via config token — set `security.reset_token` in `config.yaml`, visit `/reset?token=<value>` to reset your admin password without email
 - `POST /auth/reset-token/{user_id}` — admin-only endpoint that creates a one-time reset token and returns the reset URL

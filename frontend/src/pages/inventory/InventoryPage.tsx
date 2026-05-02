@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare } from 'lucide-react'
+import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
@@ -361,6 +362,7 @@ export default function InventoryPage() {
               <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
                 Group By
               </label>
+              <HelpTip text="Organize your inventory into collapsible groups by caliber, manufacturer, location, or other fields" />
               <select
                 value={groupBy}
                 onChange={(e) => handleGroupByChange(e.target.value as GroupByField)}
@@ -399,6 +401,7 @@ export default function InventoryPage() {
                 className="accent-gold"
               />
               Show Empty
+              <HelpTip text="Show boxes with zero rounds remaining" />
             </label>
 
             {/* Archived toggle */}
@@ -410,6 +413,7 @@ export default function InventoryPage() {
                 className="accent-gold"
               />
               Archived
+              <HelpTip text="Show boxes that have been archived and removed from active tracking" />
             </label>
 
             {/* Condition filter */}

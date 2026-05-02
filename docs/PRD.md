@@ -37,6 +37,7 @@
 | 2.8 | April 2026 | Three-tier threshold system — global default + per-caliber + per-location thresholds stored server-side in DB; new `/thresholds/*` API endpoints; dashboard Running Low shows caliber totals and location totals; Add Box defaults shared; CSV import ownership toggle. §8.1 rewritten. |
 | 2.9 | April 2026 | Bulk checkbox select and edit — checkbox column in inventory table, bulk action toolbar, Bulk Edit side panel, `PATCH /ammo/bulk-update` endpoint. §9.2 updated. |
 | 3.0 | May 2026 | Password reset — admin-generated one-time links (UI) and config-token admin self-recovery (emergency). §4.3 rewritten to cover both flows. |
+| 3.1 | May 2026 | Help system — §9.12 added: Help page with searchable FAQ and collapsible Q&A sections; HelpTip contextual tooltips on form fields and key UI elements. |
 
 ---
 
@@ -1397,6 +1398,25 @@ Single source of truth for the entire app. Docker image built with this version 
 - Archived boxes hidden from inventory by default
 - Separate toggle: **Show archived boxes**
 - Archived boxes are never deleted automatically — all expenditure history is preserved
+
+### 9.12 Help System
+
+#### Help Page (`/help`)
+
+- Accessible to all authenticated roles via sidebar (HelpCircle icon, below About)
+- Content defined in `docs/HELP.md`; mirrored as a structured TypeScript constant in the page component
+- Two-column desktop layout: sticky TOC sidebar (## section headings as anchor links) + scrollable main content
+- Search input at top — filters to sections and items matching the query; highlights matching text
+- Collapsible sections (## headings) — click to expand/collapse all items in a section
+- Collapsible Q&A items (### headings) — individual accordion, auto-expanded when a search is active
+- Covers: Getting Started, Inventory, Stock Thresholds, Import, Backup & Restore, User Management, About
+
+#### Contextual Help Tooltips (HelpTip component)
+
+- Reusable `HelpTip` component renders a small ⓘ icon (Info, 14px, muted gray)
+- Popover opens on hover (150ms close delay) or click; dismisses on click-outside
+- Dark background, light text; max-width 250px; positioned above trigger with auto-flip
+- Placed next to field labels in: Add/Edit Ammo Box form (12 fields), Inventory toolbar (Group By, Show Empty, Archived), Stock Thresholds page (3 threshold labels), Import page (Ownership and ID Assignment sections)
 
 ---
 
