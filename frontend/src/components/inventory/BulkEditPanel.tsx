@@ -94,6 +94,7 @@ export default function BulkEditPanel({
   const [categoryId, setCategoryId] = useState('')
   const [conditionId, setConditionId] = useState('')
   const [dealerId, setDealerId] = useState('')
+  const [locationId, setLocationId] = useState('')
   const [filterLocId, setFilterLocId] = useState('')
   const [containerId, setContainerId] = useState('')
   const [isShared, setIsShared] = useState('') // '' | 'true' | 'false'
@@ -110,6 +111,7 @@ export default function BulkEditPanel({
       setCategoryId(commonIdValue(selectedBoxes, (b) => b.category_id))
       setConditionId(commonIdValue(selectedBoxes, (b) => b.ammo_condition_id))
       setDealerId(commonIdValue(selectedBoxes, (b) => b.dealer_id))
+      setLocationId(commonIdValue(selectedBoxes, (b) => b.location_id ?? null))
       setContainerId(commonIdValue(selectedBoxes, (b) => b.container_id))
       setFilterLocId('')
       setIsShared('')
@@ -143,6 +145,7 @@ export default function BulkEditPanel({
     if (categoryId) updates.category_id = Number(categoryId)
     if (conditionId) updates.ammo_condition_id = Number(conditionId)
     if (dealerId) updates.dealer_id = Number(dealerId)
+    if (locationId) updates.location_id = Number(locationId)
     if (containerId) updates.container_id = Number(containerId)
     if (isShared === 'true') updates.is_shared = true
     if (isShared === 'false') updates.is_shared = false
@@ -158,6 +161,7 @@ export default function BulkEditPanel({
     if (categoryId) fields.push('Category')
     if (conditionId) fields.push('Condition')
     if (dealerId) fields.push('Dealer')
+    if (locationId) fields.push('Location')
     if (containerId) fields.push('Container')
     if (isShared !== '') fields.push('Shared status')
     if (costPerRound) fields.push('Cost per Round')
@@ -309,10 +313,32 @@ export default function BulkEditPanel({
               </select>
             </div>
 
-            {/* Location filter → Container */}
+            {/* Location — bulk editable */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Location (filters containers)
+                Location
+                {isMixed(selectedBoxes, (b) => b.location_id ?? null) && (
+                  <span className="ml-1.5 text-xs text-gray-400 font-normal">Mixed</span>
+                )}
+              </label>
+              <select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">— Unchanged —</option>
+                {locations.filter((l) => l.is_active).map((l) => (
+                  <option key={l.id} value={String(l.id)}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Container filter by location */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Filter containers by location
               </label>
               <select
                 value={filterLocId}

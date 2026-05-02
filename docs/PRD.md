@@ -42,6 +42,7 @@
 | 3.3 | May 2026 | Added logging and error handling spec — §15.3 added: log levels, what gets logged, global exception handler, log format. |
 | 3.4 | May 2026 | Admin Lookups page redesigned — accordion layout with all 8 lookup tables, per-section search, usage counts, hide (YAML) / delete (user) actions, active_only filter on all lookup GET endpoints, is_active and source fields added to locations and containers. §9.6 updated. |
 | 3.5 | May 2026 | Version check against GitHub releases and post-upgrade What's New modal — GET /system/version now checks GitHub API with 24h cache; POST /system/version/check (admin force-refresh); GET /system/changelog (GitHub Releases first, CHANGELOG.md fallback); POST /system/version/dismiss-upgrade; WhatsNewModal shown on upgrade; About page updated with Check Now button and last-checked timestamp. §9.10 updated. |
+| 3.6 | May 2026 | Direct location assignment on ammo_box — location_id FK added to ammo_box table; location and container are now independent; CSV import sets location_id directly; Group By Location and location thresholds use ammo_box.location_id; Location dropdown added to Add/Edit form and Bulk Edit panel. §4.1 and §6.3 updated. |
 
 ---
 
@@ -370,6 +371,7 @@ ammo_box
 ├── purchase_date    DATE       Date purchased; nullable
 ├── cost_per_round   DECIMAL    Cost per round; box total derived in UI
 ├── dealer_id        INTEGER    FK → dealers; nullable
+├── location_id      INTEGER    FK → locations; nullable — direct location assignment, independent of container
 ├── container_id     INTEGER    FK → containers; nullable
 ├── legacy_id        TEXT       Optional user-supplied ID from a prior tracking system; nullable
 ├── notes            TEXT       Free text; nullable

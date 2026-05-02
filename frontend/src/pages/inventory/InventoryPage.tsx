@@ -684,6 +684,7 @@ export default function InventoryPage() {
         ammoTypes={lookups.ammoTypes}
         ammoConditions={lookups.ammoConditions}
         categories={lookups.categories}
+        locations={lookups.locations}
         containers={lookups.containers}
       />
 

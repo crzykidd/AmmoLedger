@@ -570,6 +570,7 @@ async def confirm_import(
                     purchase_date=purchase_date,
                     cost_per_round=cost_per_round,
                     dealer_id=dealer_id,
+                    location_id=location_id,
                     container_id=container_id,
                     legacy_id=legacy_id_val,
                     notes=_get(row, "notes") or None,

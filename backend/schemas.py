@@ -120,6 +120,7 @@ class AmmoBoxRead(_OrmBase):
     purchase_date: Optional[date]
     cost_per_round: Optional[float]
     dealer_id: Optional[int]
+    location_id: Optional[int]
     container_id: Optional[int]
     legacy_id: Optional[str]
     notes: Optional[str]
@@ -145,6 +146,7 @@ class AmmoBoxCreate(BaseModel):
     purchase_date: Optional[date] = None
     cost_per_round: Optional[float] = None
     dealer_id: Optional[int] = None
+    location_id: Optional[int] = None
     container_id: Optional[int] = None
     legacy_id: Optional[str] = None
     notes: Optional[str] = None
@@ -165,6 +167,7 @@ class AmmoBoxUpdate(BaseModel):
     purchase_date: Optional[date] = None
     cost_per_round: Optional[float] = None
     dealer_id: Optional[int] = None
+    location_id: Optional[int] = None
     container_id: Optional[int] = None
     legacy_id: Optional[str] = None
     notes: Optional[str] = None
@@ -299,6 +302,7 @@ class BulkAmmoUpdate(BaseModel):
     category_id: Optional[int] = None
     ammo_condition_id: Optional[int] = None
     dealer_id: Optional[int] = None
+    location_id: Optional[int] = None
     container_id: Optional[int] = None
     is_shared: Optional[bool] = None
     cost_per_round: Optional[float] = None

@@ -27,7 +27,7 @@ import { Switch } from '@/components/ui/switch'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import type { AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, ContainerItem, LookupItem, User } from '@/types'
+import type { AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, ContainerItem, LocationItem, LookupItem, User } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -48,6 +48,7 @@ const formSchema = z.object({
   purchase_date: z.string().optional(),
   cost_per_round: z.string().optional(),
   dealer_id: z.string().optional(),
+  location_id: z.string().optional(),
   container_id: z.string().optional(),
   legacy_id: z.string().optional(),
   notes: z.string().optional(),
@@ -70,6 +71,7 @@ const DEFAULT_VALUES: FormValues = {
   purchase_date: '',
   cost_per_round: '',
   dealer_id: '',
+  location_id: '',
   container_id: '',
   legacy_id: '',
   notes: '',
@@ -194,6 +196,7 @@ interface Props {
   ammoTypes: LookupItem[]
   ammoConditions: LookupItem[]
   categories: LookupItem[]
+  locations: LocationItem[]
   containers: ContainerItem[]
 }
 
@@ -211,6 +214,7 @@ export default function AmmoFormPanel({
   ammoTypes,
   ammoConditions,
   categories,
+  locations,
   containers,
 }: Props) {
   const queryClient = useQueryClient()
@@ -245,6 +249,7 @@ export default function AmmoFormPanel({
         purchase_date: editBox.purchase_date ?? '',
         cost_per_round: editBox.cost_per_round != null ? String(editBox.cost_per_round) : '',
         dealer_id: toIntStr(editBox.dealer_id),
+        location_id: toIntStr(editBox.location_id),
         container_id: toIntStr(editBox.container_id),
         legacy_id: editBox.legacy_id ?? '',
         notes: editBox.notes ?? '',
@@ -294,6 +299,7 @@ export default function AmmoFormPanel({
           ? { cost_per_round: toNum(values.cost_per_round) }
           : {}),
         ...(hasId(values.dealer_id) ? { dealer_id: parseInt(values.dealer_id) } : {}),
+        ...(hasId(values.location_id) ? { location_id: parseInt(values.location_id) } : {}),
         ...(hasId(values.container_id) ? { container_id: parseInt(values.container_id) } : {}),
         ...(values.legacy_id ? { legacy_id: values.legacy_id } : {}),
         ...(values.notes ? { notes: values.notes } : {}),
@@ -317,6 +323,7 @@ export default function AmmoFormPanel({
           ? { cost_per_round: toNum(values.cost_per_round) }
           : {}),
         ...(hasId(values.dealer_id) ? { dealer_id: parseInt(values.dealer_id) } : {}),
+        ...(hasId(values.location_id) ? { location_id: parseInt(values.location_id) } : {}),
         ...(hasId(values.container_id) ? { container_id: parseInt(values.container_id) } : {}),
         ...(values.legacy_id ? { legacy_id: values.legacy_id } : {}),
         ...(values.notes ? { notes: values.notes } : {}),
@@ -525,6 +532,21 @@ export default function AmmoFormPanel({
               />
             </Field>
           </div>
+
+          <Controller
+            name="location_id"
+            control={control}
+            render={({ field }) => (
+              <SelectField
+                label="Location"
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                items={locations}
+                optional
+                error={errors.location_id?.message}
+              />
+            )}
+          />
 
           <Controller
             name="container_id"

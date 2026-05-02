@@ -52,13 +52,8 @@ _COUNT_SQL: dict[str, str] = {
         "SELECT dealer_id, COUNT(*) FROM ammo_box WHERE is_archived=0 AND dealer_id IS NOT NULL GROUP BY dealer_id",
     "containers":
         "SELECT container_id, COUNT(*) FROM ammo_box WHERE is_archived=0 AND container_id IS NOT NULL GROUP BY container_id",
-    "locations": (
-        "SELECT c.location_id, COUNT(ab.id) "
-        "FROM ammo_box ab "
-        "JOIN containers c ON ab.container_id = c.id "
-        "WHERE ab.is_archived=0 AND c.location_id IS NOT NULL "
-        "GROUP BY c.location_id"
-    ),
+    "locations":
+        "SELECT location_id, COUNT(*) FROM ammo_box WHERE is_archived=0 AND location_id IS NOT NULL GROUP BY location_id",
 }
 
 _SINGLE_COUNT_SQL: dict[str, str] = {
@@ -69,11 +64,8 @@ _SINGLE_COUNT_SQL: dict[str, str] = {
     "ammo-conditions": "SELECT COUNT(*) FROM ammo_box WHERE ammo_condition_id=:id AND is_archived=0",
     "dealers": "SELECT COUNT(*) FROM ammo_box WHERE dealer_id=:id AND is_archived=0",
     "containers": "SELECT COUNT(*) FROM ammo_box WHERE container_id=:id AND is_archived=0",
-    "locations": (
-        "SELECT COUNT(ab.id) FROM ammo_box ab "
-        "JOIN containers c ON ab.container_id = c.id "
-        "WHERE c.location_id=:id AND ab.is_archived=0"
-    ),
+    "locations":
+        "SELECT COUNT(*) FROM ammo_box WHERE location_id=:id AND is_archived=0",
 }
 
 

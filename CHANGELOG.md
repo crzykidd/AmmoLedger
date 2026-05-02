@@ -12,6 +12,9 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- `location_id` field directly on ammo_box — boxes can be assigned to a location without requiring a container; location and container are now independent
+- Location dropdown in the Add/Edit Ammo Box form, positioned above the Container field
+- Location as a bulk-editable field in the Bulk Edit panel
 - Version check against GitHub Releases — the backend checks for the latest release on every `/system/version` call with a 24-hour cache; the About page shows whether the installation is up to date
 - **Check Now** button on the About page (admin only) — forces a fresh GitHub version check immediately, bypassing the cache
 - Last-checked timestamp displayed on the About page version card
@@ -48,6 +51,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Changed
 
+- Group By Location and location threshold logic now use `ammo_box.location_id` directly instead of joining through containers
+- CSV import maps the `location` column directly to `ammo_box.location_id`
 - Admin Lookups page redesigned as eight collapsible accordion sections (Calibers, Manufacturers, Ammo Types, Categories, Ammo Conditions, Dealers, Locations, Containers)
 - Each Lookups section shows a live entry count in the header and a real-time search input when expanded
 - Every lookup entry now shows its usage count (number of non-archived ammo boxes using it)

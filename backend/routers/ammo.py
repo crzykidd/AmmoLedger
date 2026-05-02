@@ -107,6 +107,7 @@ def create_ammo(
         purchase_date=payload.purchase_date,
         cost_per_round=payload.cost_per_round,
         dealer_id=payload.dealer_id,
+        location_id=payload.location_id,
         container_id=payload.container_id,
         legacy_id=payload.legacy_id,
         notes=payload.notes,

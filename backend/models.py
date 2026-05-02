@@ -133,6 +133,7 @@ class AmmoBox(SQLModel, table=True):
     purchase_date: Optional[date] = None
     cost_per_round: Optional[float] = None
     dealer_id: Optional[int] = Field(default=None, foreign_key="dealers.id")
+    location_id: Optional[int] = Field(default=None, foreign_key="locations.id")
     container_id: Optional[int] = Field(default=None, foreign_key="containers.id")
     legacy_id: Optional[str] = None
     notes: Optional[str] = None

@@ -162,10 +162,9 @@ def list_location_thresholds(
         loc = db.get(Location, t.location_id)
         row = db.execute(
             text("""
-                SELECT COALESCE(SUM(ab.qty_remaining), 0)
-                FROM ammo_box ab
-                JOIN containers c ON ab.container_id = c.id
-                WHERE c.location_id = :loc_id AND ab.is_archived = 0
+                SELECT COALESCE(SUM(qty_remaining), 0)
+                FROM ammo_box
+                WHERE location_id = :loc_id AND is_archived = 0
             """),
             {"loc_id": t.location_id},
         ).fetchone()
@@ -278,10 +277,9 @@ def get_low_stock(
     for lt in loc_thresholds:
         row = db.execute(
             text("""
-                SELECT COALESCE(SUM(ab.qty_remaining), 0)
-                FROM ammo_box ab
-                JOIN containers c ON ab.container_id = c.id
-                WHERE c.location_id = :loc_id AND ab.is_archived = 0
+                SELECT COALESCE(SUM(qty_remaining), 0)
+                FROM ammo_box
+                WHERE location_id = :loc_id AND is_archived = 0
             """),
             {"loc_id": lt.location_id},
         ).fetchone()

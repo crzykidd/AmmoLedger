@@ -207,6 +207,7 @@ export interface AmmoBoxRead {
   purchase_date: string | null   // ISO date string
   cost_per_round: number | null
   dealer_id: number | null
+  location_id: number | null
   container_id: number | null
   legacy_id: string | null
   notes: string | null
@@ -259,6 +260,7 @@ export interface AmmoBoxCreate {
   purchase_date?: string
   cost_per_round?: number
   dealer_id?: number
+  location_id?: number
   container_id?: number
   legacy_id?: string
   notes?: string
@@ -279,6 +281,7 @@ export interface AmmoBoxUpdate {
   purchase_date?: string
   cost_per_round?: number
   dealer_id?: number
+  location_id?: number
   container_id?: number
   legacy_id?: string
   notes?: string
@@ -296,6 +299,7 @@ export interface BulkAmmoUpdate {
   category_id?: number | null
   ammo_condition_id?: number | null
   dealer_id?: number | null
+  location_id?: number | null
   container_id?: number | null
   is_shared?: boolean | null
   cost_per_round?: number | null

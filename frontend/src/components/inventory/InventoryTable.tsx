@@ -354,14 +354,9 @@ export default function InventoryTable({
         case 'container':
           name = box.container_id != null ? (containerMap.get(box.container_id) ?? null) : null
           break
-        case 'location': {
-          const locId =
-            box.container_id != null
-              ? (containerLocationMap.get(box.container_id) ?? null)
-              : null
-          name = locId != null ? (locationMap.get(locId) ?? null) : null
+        case 'location':
+          name = box.location_id != null ? (locationMap.get(box.location_id) ?? null) : null
           break
-        }
       }
 
       if (name) {
@@ -392,7 +387,6 @@ export default function InventoryTable({
     conditionMap,
     containerMap,
     locationMap,
-    containerLocationMap,
   ])
 
   const groupsRef = useRef<GroupEntry[]>(groups)
@@ -692,6 +686,12 @@ export default function InventoryTable({
                     <div>
                       <span className="text-gray-500">Dealer: </span>
                       {dealerMap.get(box.dealer_id) ?? box.dealer_id}
+                    </div>
+                  )}
+                  {box.location_id != null && (
+                    <div>
+                      <span className="text-gray-500">Location: </span>
+                      {locationMap.get(box.location_id) ?? box.location_id}
                     </div>
                   )}
                   {box.container_id != null && (
