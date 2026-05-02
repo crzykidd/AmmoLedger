@@ -97,3 +97,7 @@
 - On release: move [Unreleased] to new version section with today's date
 - GitHub release body = that version's CHANGELOG section (single source of truth)
 - In-app About page fetches release notes from GitHub Releases API
+
+## Git Rules
+
+- Do NOT add "Co-authored-by" lines to commit messages
