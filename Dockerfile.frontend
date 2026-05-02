@@ -6,19 +6,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create user before any files exist so all subsequent COPYs land with correct ownership
 RUN adduser --disabled-password --gecos "" appuser
 
-# Install dependencies as appuser — files are owned correctly from the start
-COPY --chown=appuser:appuser package*.json ./
+COPY package*.json ./
 RUN npm install
 
-# Copy remaining source files
-COPY --chown=appuser:appuser . .
+COPY . .
 
-# /app is created by WORKDIR as root; give appuser write access so Vite can
-# create its config timestamp files (vite.config.ts.timestamp-*.mjs) at startup.
-RUN chown appuser:appuser /app
+# Recursive chown covers node_modules/.vite and all other directories Vite
+# writes to at runtime — targeted chown keeps breaking as Vite adds new paths.
+RUN chown -R appuser:appuser /app
 
 USER appuser
 

@@ -13,6 +13,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 ### Fixed
 
 - Frontend no longer rejects requests from reverse proxy hostnames (Traefik, Nginx, Caddy, etc.) — Vite's host check is disabled so the app works behind any user-configured proxy
+- Frontend container no longer crashes with `EACCES` on `node_modules/.vite/deps_temp_*` at startup — switched to a recursive `chown -R` over `/app` after `npm install` so Vite can write to all cache directories
 
 ## [0.1.3] — 2026-05-02
 
