@@ -54,3 +54,13 @@ docker-compose.override.yml
 logs/
 # Claude Code
 .claude/settings.local.json
+
+# Claude Code
+.claude/settings.local.json
+
+# Vexp runtime files
+.vexp/daemon.pid
+.vexp/daemon.pipe
+.vexp/healthy
+.vexp/index.db-shm
+.vexp/index.db-wal
