@@ -267,17 +267,15 @@ def export_backup(_: Any = Depends(require_role("admin"))):
 @router.get("/export/csv")
 def export_csv_all(_: Any = Depends(require_role("admin")), db=Depends(get_session)):
     """Export all ammo boxes (including archived) as CSV. Admin only."""
-    import csv  # noqa: PLC0415
     import io  # noqa: PLC0415
 
     from fastapi.responses import StreamingResponse  # noqa: PLC0415
-    from sqlmodel import Session, select  # noqa: PLC0415
+    from sqlmodel import select  # noqa: PLC0415
 
     from models import (  # noqa: PLC0415
-        AmmoBox, AmmoCondition, AmmoType, Caliber, Category,
-        Container, Dealer, Location, Manufacturer, User,
+        AmmoBox,
     )
-    from routers.ammo import _build_csv, _CSV_COLUMNS  # noqa: PLC0415
+    from routers.ammo import _build_csv  # noqa: PLC0415
 
     boxes = list(db.exec(select(AmmoBox)).all())
     csv_bytes = _build_csv(boxes, db)
