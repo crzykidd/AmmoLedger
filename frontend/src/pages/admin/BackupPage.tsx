@@ -7,6 +7,7 @@ import {
   Trash2,
   DatabaseBackup,
   FileJson,
+  FileSpreadsheet,
   Clock,
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
@@ -28,6 +29,7 @@ import { cn } from '@/lib/utils'
 import {
   triggerBackup,
   exportBackup,
+  exportCsvAll,
   listBackups,
   deleteBackup,
   restoreSqlite,
@@ -295,6 +297,23 @@ export default function BackupPage() {
                 <span className="ml-2 text-gray-400">({fmtBytes(lastExportFile.size_bytes)})</span>
               </p>
             )}
+          </Section>
+
+          {/* CSV Export */}
+          <Section
+            title="CSV Export"
+            description="Export all ammo boxes (including archived) as a CSV spreadsheet. Includes all fields — owner, timestamps, and lookup values."
+          >
+            <Button
+              variant="outline"
+              onClick={() => { window.location.href = exportCsvAll() }}
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Export All to CSV
+            </Button>
+            <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+              The downloaded file can be re-imported via the CSV importer on the Import page.
+            </p>
           </Section>
 
           {/* Scheduled Backup */}

@@ -32,6 +32,7 @@ export interface BackupConfig {
 
 // JSON body endpoints — use the typed API client
 export const triggerBackup = () => api.post<BackupFile>('/backup/trigger')
+export const exportCsvAll = () => '/api/backup/export/csv'
 export const exportBackup = () => api.post<BackupFile>('/backup/export')
 export const listBackups = () => api.get<BackupFile[]>('/backup/list')
 export const deleteBackup = (filename: string) => api.delete<void>(`/backup/${filename}`)

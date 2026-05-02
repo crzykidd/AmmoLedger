@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload } from 'lucide-react'
+import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload, Download } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -17,7 +17,11 @@ import BulkEditPanel from '@/components/inventory/BulkEditPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
 import ExpendDialog from '@/components/inventory/ExpendDialog'
 import { useAuth } from '@/contexts/AuthContext'
-import { listAmmo, updateAmmo } from '@/api/ammo'
+import { listAmmo, updateAmmo, exportAmmoCsv } from '@/api/ammo'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useThresholds } from '@/hooks/useThresholds'
 import { toast } from '@/hooks/use-toast'
@@ -150,6 +154,7 @@ export default function InventoryPage() {
     () => sessionStorage.getItem(BANNER_DISMISS_KEY) === '1',
   )
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [exportCsvOpen, setExportCsvOpen] = useState(false)
 
   // Clear selection when filters or groupBy change
   useEffect(() => {
@@ -435,13 +440,23 @@ export default function InventoryPage() {
               </select>
             )}
 
-            {/* Add Box — pushed to the right */}
-            {canAdd && (
-              <Button onClick={openAdd} size="sm" className="ml-auto shrink-0">
-                <Plus className="h-4 w-4 mr-1.5" />
-                Add Box
+            {/* Export CSV + Add Box — pushed to the right */}
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportCsvOpen(true)}
+              >
+                <Download className="h-4 w-4 mr-1.5" />
+                Export CSV
               </Button>
-            )}
+              {canAdd && (
+                <Button onClick={openAdd} size="sm">
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Add Box
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Row 2: filter controls + stats */}
@@ -716,6 +731,34 @@ export default function InventoryPage() {
         }}
         calibers={lookups.calibers}
       />
+
+      {/* Export CSV confirmation */}
+      <AlertDialog open={exportCsvOpen} onOpenChange={setExportCsvOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Export to CSV</AlertDialogTitle>
+            <AlertDialogDescription>
+              Export {filteredStats.totalBoxes} box{filteredStats.totalBoxes !== 1 ? 'es' : ''} to CSV?
+              Current filters and view settings will be applied.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                window.location.href = exportAmmoCsv({
+                  search: search || undefined,
+                  show_archived: showArchived,
+                  show_empty: showEmpty,
+                })
+              }}
+            >
+              <Download className="h-4 w-4 mr-1.5" />
+              Download CSV
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   )
 }

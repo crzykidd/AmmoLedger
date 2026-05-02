@@ -76,6 +76,18 @@ If your CSV has a `legacy_id` column containing numeric values from a previous t
 
 If your CSV contains calibers, manufacturers, or other lookup values that don't exist in AmmoLedger, they are created automatically during import. The validation step shows you exactly which new values will be added so you can review them before confirming.
 
+### How do I export my inventory to CSV?
+
+In the Inventory toolbar, click **Export CSV**. A confirmation dialog shows how many boxes will be included, then downloads a CSV file with all visible boxes (filtered by your current search and toggles). To export everything including archived boxes, check **Archived** first. Admins can also export all boxes including archived ones via **Admin → Backup → Export All to CSV**.
+
+### Can I reimport a CSV export?
+
+Yes. The CSV export includes `owner`, `created_at`, and `updated_at` columns which the importer understands. On import, the `owner` column sets each box's owner by username (falls back to your user if the username doesn't exist). Timestamps are preserved as-is if they are valid ISO datetimes. This makes CSV a round-trip format — you can export, edit rows in a spreadsheet, and import back.
+
+### What happens to the owner field on import?
+
+If the CSV `owner` column contains a username that exists in AmmoLedger, the imported box is assigned to that user. If the username is blank or not found, the box is assigned to the user performing the import and a warning is added to the import result.
+
 ## Backup & Restore
 
 ### How do I back up my data?

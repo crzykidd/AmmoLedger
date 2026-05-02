@@ -20,6 +20,7 @@ from models import (
     Dealer,
     Location,
     Manufacturer,
+    User,
 )
 from utils.config import get_setting, set_setting
 from utils.logging import get_logger
@@ -31,10 +32,11 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["import"])
 
 VALID_COLUMNS = {
-    "ammologger_version", "legacy_id", "caliber", "manufacturer",
+    "ammologger_version", "id", "legacy_id", "caliber", "manufacturer",
     "product_name", "gr_oz", "weight_unit", "type", "category",
     "ammo_condition", "qty_original", "qty_remaining", "purchase_date",
     "cost_per_round", "dealer", "location", "container", "is_archived", "notes",
+    "owner", "created_at", "updated_at",
 }
 
 TOKEN_TTL_MINUTES = 15
@@ -82,6 +84,13 @@ def _parse_float(val: str) -> float | None:
 def _parse_date(val: str) -> date_type | None:
     try:
         return date_type.fromisoformat(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_datetime(val: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(val)
     except (ValueError, TypeError):
         return None
 
@@ -392,6 +401,14 @@ async def validate_import(
         all_warnings: list[dict] = []
         importable = 0
 
+        headers_lower = [h.lower().strip() for h in _headers]
+        if "id" in headers_lower:
+            all_warnings.append({
+                "row": None,
+                "field": "id",
+                "message": "id column found — ignored (use legacy_id for ID mapping)",
+            })
+
         for i, row in enumerate(rows, start=2):  # row 1 = header
             errs, warns = _validate_row(row, i)
             all_errors.extend(errs)
@@ -553,9 +570,42 @@ async def confirm_import(
                     if parsed_lid and parsed_lid > 0:
                         explicit_id = parsed_lid
 
+                # Owner resolution
+                owner_raw = _get(row, "owner")
+                resolved_owner_id = user.id
+                if owner_raw:
+                    owner_user = import_db.exec(select(User).where(User.username == owner_raw)).first()
+                    if owner_user:
+                        resolved_owner_id = owner_user.id
+                    else:
+                        warnings.append({
+                            "row": i,
+                            "field": "owner",
+                            "message": f"User '{owner_raw}' not found — assigned to current user",
+                        })
+
+                # Timestamp parsing
+                created_at_raw = _get(row, "created_at")
+                created_at = _parse_datetime(created_at_raw) if created_at_raw else None
+                if created_at_raw and created_at is None:
+                    warnings.append({
+                        "row": i,
+                        "field": "created_at",
+                        "message": "created_at not a valid ISO datetime — will use current time",
+                    })
+
+                updated_at_raw = _get(row, "updated_at")
+                updated_at = _parse_datetime(updated_at_raw) if updated_at_raw else None
+                if updated_at_raw and updated_at is None:
+                    warnings.append({
+                        "row": i,
+                        "field": "updated_at",
+                        "message": "updated_at not a valid ISO datetime — will use current time",
+                    })
+
                 box = AmmoBox(
                     id=explicit_id,  # None → auto-increment; int → explicit primary key
-                    owner_id=user.id,
+                    owner_id=resolved_owner_id,
                     is_shared=is_shared,
                     caliber_id=caliber_id,
                     manufacturer_id=manufacturer_id,
@@ -577,6 +627,10 @@ async def confirm_import(
                     is_archived=is_archived,
                     archive_reason="manual" if is_archived else None,
                 )
+                if created_at is not None:
+                    box.created_at = created_at
+                if updated_at is not None:
+                    box.updated_at = updated_at
                 import_db.add(box)
                 imported += 1
                 if imported % 100 == 0:
@@ -649,6 +703,7 @@ def get_template(user=Depends(require_auth)):
         "gr_oz", "weight_unit", "type", "ammo_condition", "category",
         "qty_original", "qty_remaining", "purchase_date", "cost_per_round",
         "dealer", "location", "container", "is_archived", "notes",
+        "id", "owner", "created_at", "updated_at",
     ]
 
     example_rows = [
@@ -672,6 +727,10 @@ def get_template(user=Depends(require_auth)):
             "container": "Ammo Can #1",
             "is_archived": "false",
             "notes": "carry ammo",
+            "id": "",
+            "owner": "",
+            "created_at": "",
+            "updated_at": "",
         },
         {
             "ammologger_version": "1.1",
@@ -693,6 +752,10 @@ def get_template(user=Depends(require_auth)):
             "container": "",
             "is_archived": "false",
             "notes": "",
+            "id": "",
+            "owner": "",
+            "created_at": "",
+            "updated_at": "",
         },
     ]
 

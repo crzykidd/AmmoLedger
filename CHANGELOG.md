@@ -12,6 +12,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **Export CSV** button in the Inventory toolbar — exports currently visible boxes (respects active search and Archived/Empty filters) as a CSV file; confirmation dialog shows the row count before downloading
+- **Export All to CSV** in Admin → Backup — exports every ammo box (including archived) as a full CSV; suitable for migrations and spreadsheet review
+- CSV export includes `owner`, `created_at`, and `updated_at` columns — exported files can be round-tripped back through the CSV importer
+- CSV importer now recognises `owner` (username → user lookup, falls back to importer with a warning), `created_at`, and `updated_at` (ISO datetime, falls back to current time with a warning); `id` column is recognised but always ignored (use `legacy_id` instead)
 - Build info in version display — dev builds (branch ≠ `main`) show `v0.1.x-dev (sha)`, local builds with no env vars show `v0.1.x-local`, release builds show clean `v0.1.x`
 - About page shows Branch and Commit rows for dev builds; commit SHA links to the GitHub commit
 - Sidebar footer shows `dev · abc1234` with a clickable GitHub commit link for dev builds

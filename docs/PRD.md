@@ -44,6 +44,7 @@
 | 3.5 | May 2026 | Version check against GitHub releases and post-upgrade What's New modal — GET /system/version now checks GitHub API with 24h cache; POST /system/version/check (admin force-refresh); GET /system/changelog (GitHub Releases first, CHANGELOG.md fallback); POST /system/version/dismiss-upgrade; WhatsNewModal shown on upgrade; About page updated with Check Now button and last-checked timestamp. §9.10 updated. |
 | 3.6 | May 2026 | Direct location assignment on ammo_box — location_id FK added to ammo_box table; location and container are now independent; CSV import sets location_id directly; Group By Location and location thresholds use ammo_box.location_id; Location dropdown added to Add/Edit form and Bulk Edit panel. §4.1 and §6.3 updated. |
 | 3.7 | May 2026 | Environment variable config support — AL_* env vars override config.yaml; app can start without config.yaml if AL_SESSION_SECRET is set; startup logs which values came from ENV; §15.1 updated with configuration sources priority. |
+| 3.8 | May 2026 | CSV export — GET /ammo/export/csv (filtered, all users) and GET /backup/export/csv (all boxes, admin). Export CSV toolbar button in §9.2 with confirmation dialog. CSV importer extended to handle owner/created_at/updated_at/id columns. §9.2, §9.8, §11.3 updated. |
 
 ---
 
@@ -958,6 +959,15 @@ Always-visible filter row directly below the column headers. All filters are AND
 - Stats row (Boxes / Rounds / Value) reflects currently visible filtered rows, not total inventory
 - Column filters reset on page refresh; Group By persists
 
+#### Export CSV (Toolbar)
+
+- **Export CSV** button in the inventory toolbar (outline style, with Download icon), right of the search row
+- Opens a confirmation dialog: "Export N boxes to CSV?" — N reflects currently filtered row count
+- On confirm: `window.location.href` navigates to `GET /ammo/export/csv` with current `search`, `show_archived`, and `show_empty` query params
+- Downloaded file: `ammoledger_export_YYYY-MM-DD.csv`
+- All users with inventory access can export (respects RBAC visibility filter — members only export boxes they can see)
+- Column layout and content identical to the importer template — file is round-trip importable
+
 #### Expanded Row
 
 Two-column layout inside a `<tr>` below the main row:
@@ -1263,7 +1273,10 @@ Before any data is written the system automatically triggers a backup:
 ##### Import behaviour
 
 - New lookup values (calibers, manufacturers, etc.) are created first with `source="user"`
-- Ammo boxes are created with `owner_id` = importing user; `is_shared` defaults to `false`
+- Ammo boxes are created with `owner_id` = importing user by default; `is_shared` defaults to `false`
+- `owner` column (optional): username → user lookup; if not found, falls back to importing user + per-row warning
+- `created_at` / `updated_at` columns (optional): ISO datetime; if invalid, falls back to current time + per-row warning
+- `id` column (optional): always ignored — use `legacy_id` for ID mapping; presence generates a one-time validation warning
 - Duplicate detection: `caliber + manufacturer + purchase_date + cost_per_round` — duplicates are skipped, not errored
 - Fuzzy-matched values use the existing DB entry, not the raw imported string
 - Returns import summary: `X rows imported, Y duplicates skipped, Z warnings`
@@ -1674,6 +1687,13 @@ Admin panel shows both options:
 - Full structured export of all data
 - Download link provided after completion
 - Good for: migrations, moving servers, reading your own data
+
+**CSV Export:**
+
+- `GET /backup/export/csv` — admin-only; exports all boxes including archived as a CSV download
+- Filename: `ammoledger_full_export_YYYY-MM-DD.csv`
+- Column layout identical to the CSV import template — file is round-trip importable
+- Includes `owner`, `created_at`, `updated_at` columns for full fidelity restore via the CSV importer
 
 Last backup and last export timestamps shown.
 

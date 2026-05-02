@@ -1,12 +1,26 @@
+import csv
+import io
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from database import get_session
-from models import AmmoBox, User
+from models import (
+    AmmoBox,
+    AmmoCondition,
+    AmmoType,
+    Caliber,
+    Category,
+    Container,
+    Dealer,
+    Location,
+    Manufacturer,
+    User,
+)
 from schemas import AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, AmmoListResponse, BulkUpdateRequest, BulkUpdateResponse
 from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
@@ -165,6 +179,91 @@ def bulk_update_ammo(
     db.commit()
     logger.info("Bulk update: %d boxes updated by %s", updated, user.email or user.username)
     return BulkUpdateResponse(updated=updated, failed=0)
+
+
+_CSV_COLUMNS = [
+    "ammologger_version", "id", "legacy_id", "caliber", "manufacturer",
+    "product_name", "gr_oz", "weight_unit", "type", "category", "ammo_condition",
+    "qty_original", "qty_remaining", "purchase_date", "cost_per_round",
+    "dealer", "location", "container", "is_archived", "is_shared",
+    "notes", "owner", "created_at", "updated_at",
+]
+
+
+def _build_csv(boxes: list[AmmoBox], db: Session) -> bytes:
+    calibers = {r.id: r.name for r in db.exec(select(Caliber)).all()}
+    manufacturers = {r.id: r.name for r in db.exec(select(Manufacturer)).all()}
+    ammo_types = {r.id: r.name for r in db.exec(select(AmmoType)).all()}
+    conditions = {r.id: r.name for r in db.exec(select(AmmoCondition)).all()}
+    categories = {r.id: r.name for r in db.exec(select(Category)).all()}
+    dealers = {r.id: r.name for r in db.exec(select(Dealer)).all()}
+    locations = {r.id: r.name for r in db.exec(select(Location)).all()}
+    containers = {r.id: r.name for r in db.exec(select(Container)).all()}
+    users = {r.id: r.username for r in db.exec(select(User)).all()}
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=_CSV_COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    for box in boxes:
+        writer.writerow({
+            "ammologger_version": "1.0",
+            "id": box.id,
+            "legacy_id": box.legacy_id or "",
+            "caliber": calibers.get(box.caliber_id, ""),
+            "manufacturer": manufacturers.get(box.manufacturer_id, ""),
+            "product_name": box.product_name or "",
+            "gr_oz": box.gr_oz if box.gr_oz is not None else "",
+            "weight_unit": box.weight_unit or "",
+            "type": ammo_types.get(box.type_id, "") if box.type_id else "",
+            "category": categories.get(box.category_id, "") if box.category_id else "",
+            "ammo_condition": conditions.get(box.ammo_condition_id, "") if box.ammo_condition_id else "",
+            "qty_original": box.qty_original,
+            "qty_remaining": box.qty_remaining,
+            "purchase_date": box.purchase_date.isoformat() if box.purchase_date else "",
+            "cost_per_round": box.cost_per_round if box.cost_per_round is not None else "",
+            "dealer": dealers.get(box.dealer_id, "") if box.dealer_id else "",
+            "location": locations.get(box.location_id, "") if box.location_id else "",
+            "container": containers.get(box.container_id, "") if box.container_id else "",
+            "is_archived": str(box.is_archived).lower(),
+            "is_shared": str(box.is_shared).lower(),
+            "notes": box.notes or "",
+            "owner": users.get(box.owner_id, ""),
+            "created_at": box.created_at.isoformat() if box.created_at else "",
+            "updated_at": box.updated_at.isoformat() if box.updated_at else "",
+        })
+    return output.getvalue().encode("utf-8")
+
+
+@router.get("/export/csv")
+def export_ammo_csv(
+    search: Optional[str] = Query(default=None),
+    show_archived: bool = Query(default=False),
+    show_empty: bool = Query(default=False),
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = _visibility_filter(select(AmmoBox), user)
+    if not show_archived:
+        stmt = stmt.where(AmmoBox.is_archived == False)  # noqa: E712
+    if not show_empty:
+        stmt = stmt.where(AmmoBox.qty_remaining > 0)
+    if search:
+        stmt = stmt.where(
+            or_(
+                AmmoBox.product_name.ilike(f"%{search}%"),
+                AmmoBox.legacy_id.ilike(f"%{search}%"),
+            )
+        )
+    boxes = list(db.exec(stmt).all())
+    csv_bytes = _build_csv(boxes, db)
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    filename = f"ammoledger_export_{date_str}.csv"
+    logger.info("CSV export: %d boxes for %s", len(boxes), user.email or user.username)
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.get("/{box_id}", response_model=AmmoBoxRead)

@@ -11,6 +11,7 @@ from alembic.config import Config as AlembicConfig
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from database import get_session
 from utils.config import BACKUP_PATH
 from utils.logging import get_logger
 from utils.rbac import require_role
@@ -257,6 +258,37 @@ def export_backup(_: Any = Depends(require_role("admin"))):
 
     logger.info("JSON export created: %s", filename)
     return _file_meta(dest)
+
+
+# ---------------------------------------------------------------------------
+# GET /backup/export/csv
+# ---------------------------------------------------------------------------
+
+@router.get("/export/csv")
+def export_csv_all(_: Any = Depends(require_role("admin")), db=Depends(get_session)):
+    """Export all ammo boxes (including archived) as CSV. Admin only."""
+    import csv  # noqa: PLC0415
+    import io  # noqa: PLC0415
+
+    from fastapi.responses import StreamingResponse  # noqa: PLC0415
+    from sqlmodel import Session, select  # noqa: PLC0415
+
+    from models import (  # noqa: PLC0415
+        AmmoBox, AmmoCondition, AmmoType, Caliber, Category,
+        Container, Dealer, Location, Manufacturer, User,
+    )
+    from routers.ammo import _build_csv, _CSV_COLUMNS  # noqa: PLC0415
+
+    boxes = list(db.exec(select(AmmoBox)).all())
+    csv_bytes = _build_csv(boxes, db)
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    filename = f"ammoledger_full_export_{date_str}.csv"
+    logger.info("Full CSV export: %d boxes", len(boxes))
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 # ---------------------------------------------------------------------------
