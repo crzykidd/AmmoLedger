@@ -108,18 +108,22 @@ export default function Sidebar() {
   const roleMeta = ROLE_META[user?.role ?? 'member'] ?? ROLE_META.member
 
   // Build the version display string
+  const isDev = versionData?.build?.is_dev ?? false
+  const shortSha = versionData?.build?.sha ?? null
+  const fullSha = versionData?.build?.full_sha ?? null
+  const shaLink = fullSha && fullSha !== 'unknown'
+    ? `https://github.com/crzykidd/AmmoLedger/commit/${fullSha}`
+    : null
+  const releaseUrl = !isDev && versionData?.version
+    ? `https://github.com/crzykidd/AmmoLedger/releases/tag/v${versionData.version}`
+    : null
+
   const versionLabel = (() => {
     if (!versionData) return null
-    const isDev = versionData.build?.is_dev ?? !!versionData.build_sha
-    const shortSha = versionData.build_sha?.slice(0, 7) ?? null
-    if (isDev && shortSha) return `dev · ${shortSha}`
+    if (isDev && shortSha && shortSha !== 'unknown') return shortSha
     if (isDev) return 'dev'
     return versionData.display_version ?? `v${versionData.version}`
   })()
-
-  const shaLink = versionData?.build_sha
-    ? `https://github.com/crzykidd/AmmoLedger/commit/${versionData.build_sha}`
-    : null
 
   return (
     <>
@@ -269,20 +273,25 @@ export default function Sidebar() {
           </button>
 
           {/* Version display — expanded only */}
-          {!collapsed && versionLabel && (
-            <div className="mt-2 px-2 text-center">
-              {shaLink ? (
-                <a
-                  href={shaLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-white/25 hover:text-white/40 transition-colors"
-                >
+          {!collapsed && versionData && (
+            <div className="mt-2 px-2 text-center text-xs text-white/25">
+              {!isDev && releaseUrl ? (
+                // Release: whole label links to release page
+                <a href={releaseUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white/40 transition-colors">
                   {versionLabel}
                 </a>
-              ) : (
-                <span className="text-xs text-white/25">{versionLabel}</span>
-              )}
+              ) : isDev && shortSha && shortSha !== 'unknown' && shaLink ? (
+                // Dev: "dev · " plain, SHA linked
+                <span>
+                  {'dev · '}
+                  <a href={shaLink} target="_blank" rel="noopener noreferrer" className="hover:text-white/40 transition-colors">
+                    {shortSha}
+                  </a>
+                </span>
+              ) : isDev ? (
+                // Local dev: plain "dev" or label
+                <span>{versionLabel ?? 'dev'}</span>
+              ) : null}
             </div>
           )}
         </div>

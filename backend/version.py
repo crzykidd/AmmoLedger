@@ -1,6 +1,6 @@
 import os
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 
 def get_display_version() -> str:
@@ -20,5 +20,6 @@ def get_build_info() -> dict:
         "version": __version__,
         "branch": os.environ.get("GIT_BRANCH", "unknown"),
         "sha": os.environ.get("GIT_SHA", "unknown")[:7],
+        "full_sha": os.environ.get("GIT_SHA", "unknown"),
         "is_dev": os.environ.get("GIT_BRANCH", "unknown") != "main",
     }

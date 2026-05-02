@@ -4,6 +4,7 @@ export interface BuildInfo {
   version: string
   branch: string
   sha: string
+  full_sha: string
   is_dev: boolean
 }
 
