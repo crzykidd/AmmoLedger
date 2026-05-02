@@ -12,5 +12,10 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python -m ruff check backend/ --fix)"
+    ]
   }
 }
