@@ -15,7 +15,7 @@
 # AmmoLedger
 
 This app is very early and still in development
-
+ 
 > **⚠️ Disclaimer**
 >
 > This project is primarily *vibe coded* — optimized for momentum over perfection.
