@@ -6,7 +6,9 @@
       "Bash(python -m ruff check backend/routers/auth.py backend/models.py)",
       "WebFetch(domain:localhost)",
       "Bash(npm install *)",
-      "Bash(./node_modules/.bin/tsc --noEmit)"
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(pip show *)",
+      "Bash(python -m ruff check backend/)"
     ]
   }
 }

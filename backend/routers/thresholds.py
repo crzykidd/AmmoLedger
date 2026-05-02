@@ -7,7 +7,7 @@ from sqlalchemy import select as sa_select
 from sqlmodel import Session, select
 
 from database import get_session
-from models import AmmoBox, CaliberThreshold, Caliber, Container, Location, LocationThreshold
+from models import AmmoBox, CaliberThreshold, Caliber, Location, LocationThreshold
 from schemas import (
     CaliberThresholdCreate,
     CaliberThresholdRead,
