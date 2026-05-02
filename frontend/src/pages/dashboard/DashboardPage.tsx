@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Check, ChevronRight, Crosshair, DollarSign, Layers, Package } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Crosshair, DollarSign, Layers, Package, Upload } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo, getRecentExpenditure } from '@/api/ammo'
 import { getInvites } from '@/api/invites'
 import { getUsers } from '@/api/users'
-import { fetchLowStock, fetchDefaultThreshold } from '@/api/thresholds'
+import { fetchLowStock, fetchDefaultThreshold, fetchCaliberThresholds, fetchLocationThresholds } from '@/api/thresholds'
 import { cn } from '@/lib/utils'
 import iconInventory from '@/assets/brand/icon-inventory-dark.png'
 
@@ -76,6 +76,14 @@ function formatCurrency(value: number): string {
 // Getting started panel
 // ---------------------------------------------------------------------------
 
+type WizardItem = {
+  label: string
+  done: boolean
+  path: string | null
+  optional?: boolean
+  subButtons?: { label: string; path: string }[]
+}
+
 function GettingStartedCard({
   hasBoxes,
   thresholdsCustomized,
@@ -91,16 +99,26 @@ function GettingStartedCard({
   onDismiss: () => void
   onNavigate: (path: string) => void
 }) {
-  const items = [
+  const items: WizardItem[] = [
     { label: 'Create your account', done: true, path: null },
     { label: 'Add your first ammo box', done: hasBoxes, path: '/inventory' },
+    {
+      label: 'Import your existing data',
+      done: false,
+      optional: true,
+      path: null,
+      subButtons: [
+        { label: 'Import CSV', path: '/import' },
+        { label: 'Restore Backup', path: '/admin/backup' },
+      ],
+    },
     { label: 'Set stock thresholds', done: thresholdsCustomized, path: '/settings/thresholds' },
     ...(isAdmin
-      ? [{ label: 'Invite a family member', done: hasInvitedUsers, path: '/admin/invites' }]
+      ? [{ label: 'Invite a family member', done: hasInvitedUsers, path: '/admin/users' }]
       : []),
   ]
 
-  const allDone = items.every((i) => i.done)
+  const allDone = items.filter((i) => !i.optional).every((i) => i.done)
 
   return (
     <Card className="border-gold/30">
@@ -119,44 +137,69 @@ function GettingStartedCard({
             </span>
           </div>
         ) : (
-          items.map((item) => (
-            <div
-              key={item.label}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
-                !item.done && item.path
-                  ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
-                  : '',
-              )}
-              onClick={() => {
-                if (!item.done && item.path) onNavigate(item.path)
-              }}
-            >
-              <div
-                className={cn(
-                  'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0',
-                  item.done
-                    ? 'border-emerald-500 bg-emerald-500 text-white'
-                    : 'border-gray-300 dark:border-gray-600',
-                )}
-              >
-                {item.done && <Check className="h-3 w-3" />}
+          items.map((item) =>
+            item.subButtons ? (
+              <div key={item.label} className="flex items-start gap-3 px-3 py-2 rounded-lg">
+                <div className="h-5 w-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{item.label}</span>
+                    <span className="text-xs text-gray-400">(optional)</span>
+                  </div>
+                  <div className="flex gap-2 mt-1.5">
+                    {item.subButtons.map((btn) => (
+                      <Button
+                        key={btn.label}
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2.5"
+                        onClick={() => onNavigate(btn.path)}
+                      >
+                        {btn.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <span
+            ) : (
+              <div
+                key={item.label}
                 className={cn(
-                  'text-sm flex-1',
-                  item.done
-                    ? 'line-through text-gray-400'
-                    : 'text-gray-700 dark:text-gray-300',
+                  'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+                  !item.done && item.path
+                    ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
+                    : '',
                 )}
+                onClick={() => {
+                  if (!item.done && item.path) onNavigate(item.path)
+                }}
               >
-                {item.label}
-              </span>
-              {!item.done && item.path && (
-                <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
-              )}
-            </div>
-          ))
+                <div
+                  className={cn(
+                    'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0',
+                    item.done
+                      ? 'border-emerald-500 bg-emerald-500 text-white'
+                      : 'border-gray-300 dark:border-gray-600',
+                  )}
+                >
+                  {item.done && <Check className="h-3 w-3" />}
+                </div>
+                <span
+                  className={cn(
+                    'text-sm flex-1',
+                    item.done
+                      ? 'line-through text-gray-400'
+                      : 'text-gray-700 dark:text-gray-300',
+                  )}
+                >
+                  {item.label}
+                </span>
+                {!item.done && item.path && (
+                  <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                )}
+              </div>
+            ),
+          )
         )}
         <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
           <button
@@ -218,6 +261,18 @@ export default function DashboardPage() {
   const { data: defaultThreshold } = useQuery({
     queryKey: ['thresholds', 'default'],
     queryFn: fetchDefaultThreshold,
+    enabled: !dismissed,
+  })
+
+  const { data: caliberThresholds } = useQuery({
+    queryKey: ['thresholds', 'calibers'],
+    queryFn: fetchCaliberThresholds,
+    enabled: !dismissed,
+  })
+
+  const { data: locationThresholds } = useQuery({
+    queryKey: ['thresholds', 'locations'],
+    queryFn: fetchLocationThresholds,
     enabled: !dismissed,
   })
 
@@ -288,7 +343,10 @@ export default function DashboardPage() {
     queryFn: getRecentExpenditure,
   })
 
-  const thresholdsCustomized = (defaultThreshold?.rounds ?? 200) !== 200
+  const thresholdsCustomized =
+    (defaultThreshold?.rounds ?? 200) !== 200 ||
+    (caliberThresholds?.length ?? 0) > 0 ||
+    (locationThresholds?.length ?? 0) > 0
 
   const hasInvitedUsers =
     (allUsers?.length ?? 0) > 1 ||
@@ -343,10 +401,16 @@ export default function DashboardPage() {
                 Add your first box to see dashboard stats.
               </p>
             </div>
-            <Button size="sm" onClick={() => navigate('/inventory')}>
-              <Package className="h-4 w-4 mr-1.5" />
-              Add Ammo Box
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => navigate('/inventory')}>
+                <Package className="h-4 w-4 mr-1.5" />
+                Add Ammo Box
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate('/import')}>
+                <Upload className="h-4 w-4 mr-1.5" />
+                Import from CSV
+              </Button>
+            </div>
           </div>
         </div>
       </AppShell>

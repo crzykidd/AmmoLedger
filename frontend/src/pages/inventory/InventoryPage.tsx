@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare } from 'lucide-react'
+import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -111,6 +112,7 @@ const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
 
 export default function InventoryPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const qc = useQueryClient()
 
   // Global search / view state
@@ -604,10 +606,16 @@ export default function InventoryPage() {
                     : 'No ammo boxes yet.'}
               </p>
               {canAdd && !search && !conditionFilter && showEmpty && (
-                <Button onClick={openAdd} size="sm">
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Add your first box
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={openAdd} size="sm">
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Add your first box
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate('/import')}>
+                    <Upload className="h-4 w-4 mr-1.5" />
+                    Import from CSV
+                  </Button>
+                </div>
               )}
             </div>
           ) : (

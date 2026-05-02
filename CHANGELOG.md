@@ -12,6 +12,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Getting Started wizard now includes an "Import your existing data" item with quick-access buttons for Import CSV and Restore Backup
+- Empty dashboard state now shows two action buttons — Add Ammo Box (primary) and Import from CSV (secondary) — when no inventory exists
+- Empty inventory state now shows Import from CSV alongside Add Ammo Box when no boxes have been added yet
+- Getting Started thresholds item marked complete if any per-caliber or per-location thresholds have been set, not only if the global default has been changed
 - `location_id` field directly on ammo_box — boxes can be assigned to a location without requiring a container; location and container are now independent
 - Location dropdown in the Add/Edit Ammo Box form, positioned above the Container field
 - Location as a bulk-editable field in the Bulk Edit panel
@@ -51,6 +55,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Changed
 
+- Getting Started wizard invite link corrected to `/admin/users`
 - Group By Location and location threshold logic now use `ammo_box.location_id` directly instead of joining through containers
 - CSV import maps the `location` column directly to `ammo_box.location_id`
 - Admin Lookups page redesigned as eight collapsible accordion sections (Calibers, Manufacturers, Ammo Types, Categories, Ammo Conditions, Dealers, Locations, Containers)
