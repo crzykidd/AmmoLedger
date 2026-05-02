@@ -17,6 +17,7 @@ import LookupsPage from '@/pages/admin/LookupsPage'
 import ImportPage from '@/pages/ImportPage'
 import AboutPage from '@/pages/AboutPage'
 import HelpPage from '@/pages/HelpPage'
+import WhatsNewModal from '@/components/WhatsNewModal'
 
 const queryClient = new QueryClient()
 
@@ -156,6 +157,7 @@ export default function App() {
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
+          <WhatsNewModal />
           <Toaster />
         </AuthProvider>
       </ThemeProvider>

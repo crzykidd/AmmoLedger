@@ -12,6 +12,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- Version check against GitHub Releases — the backend checks for the latest release on every `/system/version` call with a 24-hour cache; the About page shows whether the installation is up to date
+- **Check Now** button on the About page (admin only) — forces a fresh GitHub version check immediately, bypassing the cache
+- Last-checked timestamp displayed on the About page version card
+- **What's New** modal shown automatically after an upgrade — lists release notes for all versions between the old and new installation; fetches notes from GitHub Releases API with CHANGELOG.md as fallback; dismissible with a "Got it" button
 - Structured logging throughout the backend — all key operations logged with timestamps, level, and module name
 - DEBUG level logging in development mode for detailed request tracing (import rows, box counts, seed entries)
 - INFO level logging in production for operational visibility (logins, imports, backups, threshold changes)

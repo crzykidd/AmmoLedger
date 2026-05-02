@@ -41,6 +41,7 @@
 | 3.2 | May 2026 | Merged Invitations into Users page — §9.5 rewritten with three sections (users, active invitations, invitation history) and inline Invite User modal. Separate Invitations sidebar link and `/admin/invites` page removed. |
 | 3.3 | May 2026 | Added logging and error handling spec — §15.3 added: log levels, what gets logged, global exception handler, log format. |
 | 3.4 | May 2026 | Admin Lookups page redesigned — accordion layout with all 8 lookup tables, per-section search, usage counts, hide (YAML) / delete (user) actions, active_only filter on all lookup GET endpoints, is_active and source fields added to locations and containers. §9.6 updated. |
+| 3.5 | May 2026 | Version check against GitHub releases and post-upgrade What's New modal — GET /system/version now checks GitHub API with 24h cache; POST /system/version/check (admin force-refresh); GET /system/changelog (GitHub Releases first, CHANGELOG.md fallback); POST /system/version/dismiss-upgrade; WhatsNewModal shown on upgrade; About page updated with Check Now button and last-checked timestamp. §9.10 updated. |
 
 ---
 
@@ -1404,30 +1405,50 @@ notifications:
 
 #### About Page
 
-Accessible from the nav bar. Shows: AmmoLedger logo and tagline, current installed version (e.g. `v1.2.0`), link to that specific release on GitHub, release notes for the current version, links to the GitHub repo, issues, and documentation, and an update-available indicator if a newer release exists.
+Accessible from the nav bar. Shows: AmmoLedger logo and tagline, current installed version (e.g. `v1.2.0`), update status (up-to-date or newer version available with a link to GitHub releases), last-checked timestamp, links to GitHub repo, issues, changelog, and documentation.
+
+Admin users see a **Check Now** button next to the last-checked time that forces a fresh GitHub version check bypassing the 24-hour cache. Clicking it spins while the check runs and updates the status immediately.
 
 #### Update Detection
 
-On startup and every 24 hours the backend checks:
+`GET /system/version` checks the GitHub API on every call, using a 24-hour cache stored in `app_settings`:
+
+| Setting key | Value |
+| --- | --- |
+| `latest_version` | Latest release tag (stripped of `v` prefix) |
+| `update_available` | `"true"` or `"false"` |
+| `version_last_checked` | ISO 8601 timestamp of last check |
 
 ```text
-GET https://api.github.com/repos/OWNER/AmmoLedger/releases/latest
+GET https://api.github.com/repos/crzykidd/AmmoLedger/releases/latest
 ```
 
-The latest release tag is compared to the current installed version. Result stored in `app_settings`: `latest_version`, `update_available`, `update_checked_at`. If an update is available: subtle indicator in the nav bar and a notification of type `update_available`.
+If the GitHub API call fails (network error, rate limit), the previously cached values are returned unchanged. Never sends any user data — read-only public API.
 
-Controlled by config flag:
-
-```yaml
-app:
-  check_for_updates: true
-```
-
-Never sends any user data — only reads the GitHub public API.
+`POST /system/version/check` (admin-only) forces a fresh check regardless of cache age, returns the same shape as `GET /system/version`.
 
 #### Release Notes on Upgrade
 
-On first startup after a version change, compare the current version to `last_seen_version` in `app_settings`. If different: show a release notes modal to Admin users (once per version per user; dismissible). Release notes sourced from the GitHub release body.
+On startup, `_record_version()` compares `__version__` to `last_seen_version` in `app_settings`. If the version changed, the old version is stored in `upgraded_from`.
+
+`GET /system/version` returns `upgraded_from` (non-null after an upgrade, null after dismissal).
+
+When `upgraded_from` is set, a **What's New** modal is shown to any authenticated user. The modal:
+
+- Fetches `GET /system/changelog?from_version=<upgraded_from>&to_version=<current>` for release notes
+- Tries GitHub Releases API first; falls back to parsing `CHANGELOG.md` from the filesystem; returns empty if neither is available
+- Has an **X** button in the header and a **Got it** button in the footer — both call `POST /system/version/dismiss-upgrade` which clears `upgraded_from`
+
+`GET /system/changelog?from_version=&to_version=` returns:
+
+```json
+{
+  "source": "github" | "local" | "unavailable",
+  "sections": [
+    { "version": "0.2.0", "date": "2024-01-15", "body": "### Added\n- ..." }
+  ]
+}
+```
 
 #### Version Storage
 

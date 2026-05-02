@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
-import { ArrowUpCircle, ExternalLink } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowUpCircle, CheckCircle, ExternalLink, RefreshCw } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import logoFull from '@/assets/brand/logo-full-dark.png'
-import { getSystemVersion } from '@/api/system'
+import { forceVersionCheck, getSystemVersion } from '@/api/system'
+import { useAuth } from '@/contexts/AuthContext'
 
 const GH_BASE = 'https://github.com/crzykidd/AmmoLedger'
 
@@ -19,11 +20,31 @@ function versionDisplay(version: string, buildSha: string | null): string {
   return `v${version}`
 }
 
+function formatLastChecked(iso: string | null): string {
+  if (!iso) return 'Never'
+  try {
+    return new Date(iso).toLocaleString()
+  } catch {
+    return iso
+  }
+}
+
 export default function AboutPage() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const isAdmin = user?.role === 'admin'
+
   const { data: versionData } = useQuery({
     queryKey: ['system-version'],
     queryFn: getSystemVersion,
     retry: false,
+  })
+
+  const checkMut = useMutation({
+    mutationFn: forceVersionCheck,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['system-version'], data)
+    },
   })
 
   const isDev =
@@ -70,7 +91,7 @@ export default function AboutPage() {
               </span>
             </div>
 
-            {versionData?.update_available && versionData.latest_version && (
+            {versionData?.update_available && versionData.latest_version ? (
               <div className="flex items-center gap-2.5 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg px-3 py-2.5">
                 <ArrowUpCircle className="h-4 w-4 shrink-0" />
                 <span className="flex-1">
@@ -85,7 +106,29 @@ export default function AboutPage() {
                   View on GitHub
                 </a>
               </div>
-            )}
+            ) : versionData?.latest_version ? (
+              <div className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-gray-400">
+                <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
+                <span>Up to date</span>
+              </div>
+            ) : null}
+
+            {/* Last checked + Check Now */}
+            <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-800">
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                Last checked: {formatLastChecked(versionData?.last_checked ?? null)}
+              </span>
+              {isAdmin && (
+                <button
+                  onClick={() => checkMut.mutate()}
+                  disabled={checkMut.isPending}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${checkMut.isPending ? 'animate-spin' : ''}`} />
+                  {checkMut.isPending ? 'Checking…' : 'Check Now'}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Links */}
