@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-05-02
+
 ### Added
 
 - `AL_BACKEND_URL` environment variable for the frontend — configures the container-internal URL used to proxy API requests to the backend (default: `http://backend:8000`); useful when the backend runs on a custom service name or port
