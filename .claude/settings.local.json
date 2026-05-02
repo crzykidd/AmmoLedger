@@ -10,7 +10,8 @@
       "Bash(pip show *)",
       "Bash(python -m ruff check backend/)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(docker compose *)"
     ]
   }
 }
