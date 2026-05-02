@@ -9,6 +9,7 @@ services:
       - DEFAULTS_PATH=/data/defaults.yaml
       - BACKUP_PATH=/data/backups
       - UPLOADS_PATH=/data/uploads
+      - PYTHONUNBUFFERED=1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

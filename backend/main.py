@@ -241,16 +241,23 @@ def _record_version() -> None:
 def on_startup():
     global _config
     logger.info("AmmoLedger v%s starting...", __version__)
+    print(f"✓ AmmoLedger v{__version__} starting", flush=True)
     _config = load_and_validate_config()
     logger.info("Config loaded from %s", CONFIG_PATH)
+    print("✓ Config loaded", flush=True)
     run_migrations()
     logger.info("Migrations complete")
+    print("✓ Migrations complete", flush=True)
     ensure_data_dirs()
     sync_yaml_seeds(_config)
     logger.info("Defaults synced")
+    print("✓ Defaults synced", flush=True)
     _record_version()
     start_scheduler(_config)
+    logger.info("Scheduler started")
+    print("✓ Scheduler started", flush=True)
     logger.info("Server ready")
+    print(f"✓ AmmoLedger v{__version__} ready", flush=True)
 
 
 @app.on_event("shutdown")
