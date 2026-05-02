@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: process.env.AL_BACKEND_URL || 'http://backend:8000',

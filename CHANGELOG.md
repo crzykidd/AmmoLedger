@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Fixed
+
+- Frontend no longer rejects requests from reverse proxy hostnames (Traefik, Nginx, Caddy, etc.) — Vite's host check is disabled so the app works behind any user-configured proxy
+
 ## [0.1.3] — 2026-05-02
 
 ### Fixed
