@@ -19,6 +19,56 @@ _BUNDLED_TEMPLATE = Path(__file__).parent.parent / "config.template.yaml"
 _DEFAULT_SECRET = "change-this-to-a-random-string"
 _VALID_REGISTRATION_MODES = {"invite_only", "open", "disabled"}
 
+# ---------------------------------------------------------------------------
+# Environment variable → config key mapping
+# ---------------------------------------------------------------------------
+# Each entry: (ENV_VAR_NAME, config_key_path, python_type)
+# ENV values always take priority over config.yaml when both are present.
+# ---------------------------------------------------------------------------
+
+_ENV_MAP: tuple[tuple[str, list[str], type], ...] = (
+    ("AL_SESSION_SECRET",        ["security", "session_secret"],    str),
+    ("AL_RESET_TOKEN",           ["security", "reset_token"],       str),
+    ("AL_APP_NAME",              ["app",      "name"],              str),
+    ("AL_BASE_URL",              ["app",      "base_url"],          str),
+    ("AL_BACKUP_ENABLED",        ["backup",   "enabled"],           bool),
+    ("AL_BACKUP_SCHEDULE",       ["backup",   "schedule"],          str),
+    ("AL_BACKUP_RETENTION_DAYS", ["backup",   "retention_days"],    int),
+    ("AL_BACKUP_PATH",           ["backup",   "path"],              str),
+)
+
+
+def _coerce_env(raw: str, typ: type):
+    """Convert a raw env-var string to the target Python type."""
+    if typ is bool:
+        return raw.lower() in ("1", "true", "yes", "on")
+    if typ is int:
+        return int(raw)
+    return raw
+
+
+def _apply_env_overrides(config: dict) -> list[str]:
+    """
+    Apply AL_* env vars onto config dict in-place.
+    Returns a list of short descriptions for each override that was applied.
+    """
+    applied: list[str] = []
+    for env_key, path, typ in _ENV_MAP:
+        raw = os.environ.get(env_key)
+        if raw is None:
+            continue
+        node = config
+        for segment in path[:-1]:
+            if not isinstance(node.get(segment), dict):
+                node[segment] = {}
+            node = node[segment]
+        try:
+            node[path[-1]] = _coerce_env(raw, typ)
+            applied.append(f"{env_key} → {'.'.join(path)}")
+        except (ValueError, TypeError) as exc:
+            print(f"WARNING: ENV override {env_key} ignored — {exc}", flush=True)
+    return applied
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -247,10 +297,17 @@ def validate_config(config: dict) -> dict:
 
 def load_and_validate_config() -> dict:
     """
-    Load, validate, and return config.yaml.
+    Load, validate, and return the merged configuration.
 
-    - Missing config: copies the bundled template, prints setup instructions,
-      and exits with code 1 so the operator edits it before restarting.
+    Priority (highest wins):
+      1. AL_* environment variables
+      2. /data/config.yaml
+      3. Built-in defaults (bundled config.template.yaml)
+
+    - No config.yaml + AL_SESSION_SECRET set: starts from bundled defaults,
+      applies ENV overrides, skips the setup-required exit.
+    - No config.yaml + no AL_SESSION_SECRET: copies the template, prints
+      setup instructions, and exits with code 1.
     - YAML syntax error: prints the line number and exits with code 1.
     - Validation errors in production (app.env='production'): exits with code 1.
     - Validation errors in development: logs them as warnings and continues.
@@ -260,43 +317,56 @@ def load_and_validate_config() -> dict:
     """
     config_path = Path(CONFIG_PATH)
 
-    # Step 1 — Config file must exist
+    # Step 1 — Determine config source
     if not config_path.exists():
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(_BUNDLED_TEMPLATE, config_path)
-        print("\n" + "=" * 64)
-        print("  AmmoLedger — first-time setup required")
-        print("=" * 64)
-        print(f"\n  A default config has been written to:\n    {config_path}\n")
-        print("  Before restarting you MUST set a secret session key:")
-        print()
-        print("    Linux / macOS:")
-        print("      openssl rand -hex 32")
-        print()
-        print("    Windows PowerShell:")
-        print('      python -c "import secrets; print(secrets.token_hex(32))"')
-        print()
-        print("  Paste the output as the value of security.session_secret")
-        print("  in config.yaml, then restart the container.")
-        print("=" * 64 + "\n")
-        raise SystemExit(1)
-
-    # Step 2 — Parse YAML
-    try:
-        with open(config_path) as f:
-            config = yaml.safe_load(f) or {}
-    except yaml.YAMLError as exc:
-        mark = getattr(exc, "problem_mark", None)
-        location = f" (line {mark.line + 1})" if mark else ""
-        problem = getattr(exc, "problem", str(exc))
-        print(f"\nERROR: config.yaml has a YAML syntax error{location}: {problem}")
-        print("Fix the syntax and restart.\n")
-        raise SystemExit(1)
+        if os.environ.get("AL_SESSION_SECRET"):
+            # ENV-only mode — load bundled template as base, overrides applied below
+            with open(_BUNDLED_TEMPLATE) as f:
+                config = yaml.safe_load(f) or {}
+            print("  Config: no config.yaml — using AL_* environment variables", flush=True)
+        else:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(_BUNDLED_TEMPLATE, config_path)
+            print("\n" + "=" * 64)
+            print("  AmmoLedger — first-time setup required")
+            print("=" * 64)
+            print(f"\n  A default config has been written to:\n    {config_path}\n")
+            print("  Option A — edit config.yaml:")
+            print("    Set security.session_secret to a random value:")
+            print()
+            print("      Linux / macOS:  openssl rand -hex 32")
+            print('      Windows:        python -c "import secrets; print(secrets.token_hex(32))"')
+            print()
+            print("    Paste the output into config.yaml, then restart the container.")
+            print()
+            print("  Option B — use an environment variable (no config.yaml needed):")
+            print("    Add to your docker-compose.yml environment section:")
+            print("      AL_SESSION_SECRET=<your-random-secret>")
+            print("    then restart the container.")
+            print("=" * 64 + "\n")
+            raise SystemExit(1)
+    else:
+        # Step 2 — Parse YAML
+        try:
+            with open(config_path) as f:
+                config = yaml.safe_load(f) or {}
+        except yaml.YAMLError as exc:
+            mark = getattr(exc, "problem_mark", None)
+            location = f" (line {mark.line + 1})" if mark else ""
+            problem = getattr(exc, "problem", str(exc))
+            print(f"\nERROR: config.yaml has a YAML syntax error{location}: {problem}")
+            print("Fix the syntax and restart.\n")
+            raise SystemExit(1)
 
     # Ensure defaults.yaml is available for the seeds step
     _ensure_defaults_yaml()
 
-    # Step 3 — Validate
+    # Step 3 — Apply ENV overrides
+    overrides = _apply_env_overrides(config)
+    for desc in overrides:
+        print(f"  ENV override: {desc}", flush=True)
+
+    # Step 4 — Validate
     result = validate_config(config)
     env = str((config.get("app") or {}).get("env", "development"))
 
@@ -308,11 +378,11 @@ def load_and_validate_config() -> dict:
             print(f"ERROR:   {e}")
 
         if env == "production":
-            print("\nconfig.yaml has errors. Fix them and restart the container.\n")
+            print("\nConfig has errors. Fix them and restart the container.\n")
             raise SystemExit(1)
 
         print(
-            f"\nconfig.yaml has {len(result['errors'])} error(s) — "
+            f"\nConfig has {len(result['errors'])} error(s) — "
             "running in development mode, continuing with caution.\n"
         )
 

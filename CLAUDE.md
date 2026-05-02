@@ -23,6 +23,14 @@
   - `docker-compose.yml` — production (GHCR images, named volume)
   - `docker-compose.dev.yml` — development (build from source, volume mounts for live reload)
 
+## Configuration
+
+- Settings live in `/data/config.yaml` (mounted from the `ammoledger_data` volume)
+- `AL_*` environment variables override any config.yaml value (ENV always wins)
+- `AL_SESSION_SECRET` alone is sufficient to start without a config.yaml file
+- Full ENV reference: `docs/INSTALL.md` → Configuration Options → Environment Variable Reference
+- Config template with all options and comments: `backend/config.template.yaml`
+
 ## Project Documentation
 
 - Full PRD is at docs/PRD.md — read this before starting any phase

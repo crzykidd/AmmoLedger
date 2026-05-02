@@ -10,6 +10,20 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Added
+
+- Environment variable support for all key config settings — set `AL_SESSION_SECRET`, `AL_BASE_URL`, `AL_BACKUP_ENABLED`, and others directly in `docker-compose.yml` without editing `config.yaml`
+- ENV variables override `config.yaml` values when both are present (ENV always wins)
+- App can start without `config.yaml` when `AL_SESSION_SECRET` is set via environment — built-in defaults are used for all other settings; no file editing required
+- Config source logging on startup — each `AL_*` override is printed to `docker logs` so it is clear which values came from environment variables
+- Full ENV variable reference table in `docs/INSTALL.md` with three configuration options (config.yaml, ENV-only, mixed)
+- `config.template.yaml` updated with ENV override comments on every supported field and a header block listing all `AL_*` variables
+- `app.name` config field — display name for the application (default `AmmoLedger`), overridable with `AL_APP_NAME`
+
+### Changed
+
+- First-run setup message now explains both options: edit `config.yaml` or set `AL_SESSION_SECRET` in the compose file
+
 ## [0.1.0] — 2026-05-02
 
 ### Added

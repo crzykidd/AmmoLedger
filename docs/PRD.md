@@ -43,6 +43,7 @@
 | 3.4 | May 2026 | Admin Lookups page redesigned — accordion layout with all 8 lookup tables, per-section search, usage counts, hide (YAML) / delete (user) actions, active_only filter on all lookup GET endpoints, is_active and source fields added to locations and containers. §9.6 updated. |
 | 3.5 | May 2026 | Version check against GitHub releases and post-upgrade What's New modal — GET /system/version now checks GitHub API with 24h cache; POST /system/version/check (admin force-refresh); GET /system/changelog (GitHub Releases first, CHANGELOG.md fallback); POST /system/version/dismiss-upgrade; WhatsNewModal shown on upgrade; About page updated with Check Now button and last-checked timestamp. §9.10 updated. |
 | 3.6 | May 2026 | Direct location assignment on ammo_box — location_id FK added to ammo_box table; location and container are now independent; CSV import sets location_id directly; Group By Location and location thresholds use ammo_box.location_id; Location dropdown added to Add/Edit form and Bulk Edit panel. §4.1 and §6.3 updated. |
+| 3.7 | May 2026 | Environment variable config support — AL_* env vars override config.yaml; app can start without config.yaml if AL_SESSION_SECRET is set; startup logs which values came from ENV; §15.1 updated with configuration sources priority. |
 
 ---
 
@@ -1852,9 +1853,57 @@ The About page fetches the release body from the GitHub Releases API. The CHANGE
 - All schema changes versioned in Alembic — no manual database surgery required
 - First run setup completes in under 2 minutes
 
-### 15.1 Configuration Validation
+### 15.1 Configuration
 
-`config.yaml` is validated on every startup before any other initialisation step. All checks run before reporting so the operator sees every problem at once.
+#### Configuration Sources
+
+AmmoLedger merges configuration from three sources in priority order (highest wins):
+
+| Priority | Source | Notes |
+| --- | --- | --- |
+| 1 (highest) | `AL_*` environment variables | Set in `docker-compose.yml` environment section |
+| 2 | `/data/config.yaml` | Mounted from the `ammoledger_data` Docker volume |
+| 3 (lowest) | Built-in defaults | Bundled `config.template.yaml` values |
+
+This allows simple deployments to use `config.yaml` for all settings, and container orchestration tools (Komodo, Portainer, Kubernetes) to inject secrets via environment variables without a config file on disk.
+
+If `AL_SESSION_SECRET` is set, `config.yaml` is **not required**. The app loads `config.template.yaml` as the base configuration, applies all `AL_*` overrides, and starts normally.
+
+#### Supported ENV Variables
+
+| ENV Variable | config.yaml key | Type | Description |
+| --- | --- | --- | --- |
+| `AL_SESSION_SECRET` | `security.session_secret` | string | Session signing key (min 32 chars) |
+| `AL_RESET_TOKEN` | `security.reset_token` | string | Emergency admin password reset token |
+| `AL_APP_NAME` | `app.name` | string | Application display name |
+| `AL_BASE_URL` | `app.base_url` | string | Public URL for links and QR codes |
+| `AL_BACKUP_ENABLED` | `backup.enabled` | boolean | Enable nightly scheduled backups |
+| `AL_BACKUP_SCHEDULE` | `backup.schedule` | string | Backup time in HH:MM format |
+| `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | integer | Days to keep old backup files |
+| `AL_BACKUP_PATH` | `backup.path` | string | Backup storage directory path |
+
+Boolean ENV values accept `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off` (case-insensitive).
+
+#### Startup Config Source Logging
+
+On every startup, the backend logs which configuration source supplied each overridden value:
+
+```text
+  Config: loaded from /data/config.yaml
+  ENV override: AL_SESSION_SECRET → security.session_secret
+  ENV override: AL_BASE_URL → app.base_url
+```
+
+Or in ENV-only mode:
+
+```text
+  Config: no config.yaml — using AL_* environment variables
+  ENV override: AL_SESSION_SECRET → security.session_secret
+```
+
+#### Configuration Validation
+
+`config.yaml` (or the merged result) is validated on every startup before any other initialisation step. All checks run before reporting so the operator sees every problem at once.
 
 #### Check categories
 

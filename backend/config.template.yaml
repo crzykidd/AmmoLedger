@@ -1,6 +1,23 @@
 # AmmoLedger Configuration Template
 # Copy this file to /data/config.yaml and edit before first startup.
 # WARNING: This file may contain secrets. It is git-ignored — never commit it.
+#
+# Environment variable overrides
+# ─────────────────────────────────────────────────────────────────────────────
+# Any setting below can be overridden by an AL_* environment variable set in
+# your docker-compose.yml. ENV values always take priority over this file.
+# If AL_SESSION_SECRET is set, config.yaml is not required at all.
+#
+# Key ENV variables:
+#   AL_SESSION_SECRET     — security.session_secret  (required if no config.yaml)
+#   AL_RESET_TOKEN        — security.reset_token
+#   AL_APP_NAME           — app.name
+#   AL_BASE_URL           — app.base_url
+#   AL_BACKUP_ENABLED     — backup.enabled
+#   AL_BACKUP_SCHEDULE    — backup.schedule
+#   AL_BACKUP_RETENTION_DAYS — backup.retention_days
+#   AL_BACKUP_PATH        — backup.path
+# ─────────────────────────────────────────────────────────────────────────────
 
 app:
   # Runtime environment — controls how validation errors are handled.
@@ -8,11 +25,16 @@ app:
   # "production" exits immediately on any config error.
   env: "development"  # development | production
 
+  # Application display name shown in the UI.
+  # Override with AL_APP_NAME env var.
+  name: "AmmoLedger"
+
   # How long a login session stays active before the user must re-authenticate.
   session_timeout_hours: 8  # 1-720
 
   # Base URL used to build QR code links on printed labels (v2.0).
   # Change to your external URL if accessing from other devices.
+  # Override with AL_BASE_URL env var.
   base_url: "http://localhost:5173"
 
   # Check GitHub releases for available updates on startup and every 24 hours.
@@ -22,11 +44,13 @@ security:
   # Secret key used to sign session cookies. MUST be changed before production use.
   # Generate a strong value with: openssl rand -hex 32
   # Or on Windows: python -c "import secrets; print(secrets.token_hex(32))"
+  # Override with AL_SESSION_SECRET env var (recommended for container deployments).
   session_secret: "change-this-to-a-random-string"
 
   # Emergency admin self-recovery: set a strong random value here, visit
   # /reset?token=<value> to reset your admin password, then clear this field.
   # Only works for admin accounts. Generate a value with: openssl rand -hex 32
+  # Override with AL_RESET_TOKEN env var.
   reset_token: ""
 
   # Registration mode controls who can create a new account.
@@ -68,11 +92,15 @@ import:
   backup_block_hours: 168
 
 backup:
+  # Override with AL_BACKUP_ENABLED env var.
   enabled: true
   # Time of day for the nightly backup (24-hour HH:MM, server local time).
+  # Override with AL_BACKUP_SCHEDULE env var.
   schedule: "03:00"
   # Number of days to retain backup files before pruning. 1-365.
+  # Override with AL_BACKUP_RETENTION_DAYS env var.
   retention_days: 30
+  # Override with AL_BACKUP_PATH env var.
   path: /data/backups
 
 smtp:

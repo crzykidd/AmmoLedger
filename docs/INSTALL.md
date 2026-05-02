@@ -11,7 +11,7 @@ End users only need the `docker-compose.yml` file — no source code required. I
 
 ### Steps
 
-**1. Download the compose file**
+#### 1. Download the compose file
 
 ```bash
 curl -O https://raw.githubusercontent.com/crzykidd/AmmoLedger/main/docker-compose.yml
@@ -19,7 +19,7 @@ curl -O https://raw.githubusercontent.com/crzykidd/AmmoLedger/main/docker-compos
 
 Or copy `docker-compose.yml` from the repository root manually.
 
-**2. Start the app**
+#### 2. Start the app
 
 ```bash
 docker compose up -d
@@ -27,7 +27,7 @@ docker compose up -d
 
 Docker pulls the latest images from GHCR automatically on first run.
 
-**3. First startup**
+#### 3. First startup
 
 On first launch, the backend generates `/data/config.yaml` from the bundled template and then exits with instructions. You must set a secure session secret before the app will accept connections:
 
@@ -45,11 +45,11 @@ docker compose cp ./config.yaml backend:/data/config.yaml
 docker compose restart backend
 ```
 
-**4. Create your admin account**
+#### 4. Create your admin account
 
 Visit [http://localhost:5173](http://localhost:5173). On first launch you will be prompted to create the initial admin account — enter a name, email, and password, then click **Create Account**.
 
-**5. Configure the app**
+#### 5. Configure the app
 
 Adjust settings inside `data/config.yaml` (inside the `ammoledger_data` Docker volume):
 
@@ -98,6 +98,77 @@ Alembic migrations run automatically on startup. No manual database work require
 
 ---
 
+## Configuration Options
+
+AmmoLedger supports three configuration approaches. All share the same settings; pick whichever fits your deployment:
+
+### Option A — config.yaml (default)
+
+Edit the config file that is generated on first startup. This is the recommended approach for home-server deployments.
+
+```bash
+# Copy the config out, edit it, copy it back
+docker compose cp backend:/data/config.yaml ./config.yaml
+# Set security.session_secret to the output of: openssl rand -hex 32
+docker compose cp ./config.yaml backend:/data/config.yaml
+docker compose restart backend
+```
+
+### Option B — Environment variables
+
+Set configuration via environment variables in your `docker-compose.yml`. Useful for container management tools like Komodo, Portainer, or Kubernetes — secrets never touch the filesystem.
+
+```yaml
+services:
+  backend:
+    image: ghcr.io/crzykidd/ammoledger-backend:latest
+    environment:
+      - AL_SESSION_SECRET=your-64-char-random-secret-here
+      - AL_BASE_URL=https://ammo.example.com
+      - AL_BACKUP_ENABLED=true
+      - AL_BACKUP_SCHEDULE=03:00
+      - AL_BACKUP_RETENTION_DAYS=30
+```
+
+When `AL_SESSION_SECRET` is set, `config.yaml` is **not required**. The app starts using built-in defaults for all other settings.
+
+### Option C — Mixed (recommended for production)
+
+Keep non-sensitive settings in `config.yaml` and supply secrets via environment variables:
+
+```yaml
+# docker-compose.yml — secrets only
+environment:
+  - AL_SESSION_SECRET=your-64-char-random-secret-here
+```
+
+```yaml
+# config.yaml — everything else
+app:
+  env: "production"
+  base_url: "https://ammo.example.com"
+backup:
+  schedule: "02:30"
+  retention_days: 60
+```
+
+ENV values always take priority over `config.yaml` when both are present.
+
+### Environment Variable Reference
+
+| Variable | config.yaml equivalent | Default | Description |
+| --- | --- | --- | --- |
+| `AL_SESSION_SECRET` | `security.session_secret` | (required) | Session signing key — min 32 chars; generate with `openssl rand -hex 32` |
+| `AL_RESET_TOKEN` | `security.reset_token` | `""` | Emergency admin password reset token; clear after use |
+| `AL_APP_NAME` | `app.name` | `AmmoLedger` | Application display name |
+| `AL_BASE_URL` | `app.base_url` | `http://localhost:5173` | Public URL used in invite links and QR codes |
+| `AL_BACKUP_ENABLED` | `backup.enabled` | `true` | Enable nightly scheduled backups |
+| `AL_BACKUP_SCHEDULE` | `backup.schedule` | `03:00` | Nightly backup time (HH:MM, 24-hour) |
+| `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | `30` | Days to keep old backup files |
+| `AL_BACKUP_PATH` | `backup.path` | `/data/backups` | Backup storage directory |
+
+---
+
 ## Configuration Reference
 
 The full config file with all options and comments is bundled in the backend image at `/app/config.template.yaml`. Extract it with:
@@ -108,12 +179,14 @@ docker compose run --rm backend cat /app/config.template.yaml
 
 ### Generating a secure session secret
 
-**Linux / macOS:**
+Linux / macOS:
+
 ```bash
 openssl rand -hex 32
 ```
 
-**Windows PowerShell:**
+Windows PowerShell:
+
 ```powershell
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
@@ -124,7 +197,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 FastAPI auto-generates interactive API docs at:
 
-```
+```text
 http://localhost:5173/api/docs
 ```
 
