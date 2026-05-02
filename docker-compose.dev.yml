@@ -16,6 +16,8 @@ services:
       - DEFAULTS_PATH=/data/defaults.yaml
       - BACKUP_PATH=/data/backups
       - UPLOADS_PATH=/data/uploads
+      - APP_ENV=development
+      - LOG_LEVEL=DEBUG
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
