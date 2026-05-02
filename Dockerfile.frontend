@@ -16,6 +16,10 @@ RUN npm install
 # Copy remaining source files
 COPY --chown=appuser:appuser . .
 
+# /app is created by WORKDIR as root; give appuser write access so Vite can
+# create its config timestamp files (vite.config.ts.timestamp-*.mjs) at startup.
+RUN chown appuser:appuser /app
+
 USER appuser
 
 EXPOSE 5173

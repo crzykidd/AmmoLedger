@@ -14,6 +14,7 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 - Clear actionable error message when `/data` is not writable — shows the exact `chown` command needed and links to the troubleshooting guide; container exits immediately rather than failing partway through startup
 - Troubleshooting section added to `docs/INSTALL.md` covering the `/data` permission denied error and UID 1000 requirement
+- Frontend container no longer fails with `EACCES` when Vite tries to write its config timestamp file (`vite.config.ts.timestamp-*.mjs`) on startup — `/app` directory ownership corrected so the container user can write to it
 
 ## [0.1.2] — 2026-05-02
 
