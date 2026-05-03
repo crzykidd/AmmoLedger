@@ -253,11 +253,41 @@ export default function InventoryTable({
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [openPopoverBoxId, setOpenPopoverBoxId] = useState<number | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [startCollapsed, setStartCollapsed] = useState(true)
 
-  // Reset group collapse when groupBy changes
+  const collapseKey = (g: string) => `inventory_collapsed_${g}`
+
+  // When groupBy changes: restore sessionStorage state or plan to start collapsed
   useEffect(() => {
-    setCollapsedGroups(new Set())
+    if (groupBy === 'none') {
+      setCollapsedGroups(new Set())
+      return
+    }
+    const saved = sessionStorage.getItem(collapseKey(groupBy))
+    if (saved) {
+      try {
+        setCollapsedGroups(new Set(JSON.parse(saved) as string[]))
+        setStartCollapsed(false)
+        return
+      } catch { /* fall through to default */ }
+    }
+    setStartCollapsed(true)
   }, [groupBy])
+
+  // Once groups are known and startCollapsed is set, collapse all groups
+  useEffect(() => {
+    if (startCollapsed && groups.length > 0) {
+      setCollapsedGroups(new Set(groups.map((g) => g.name)))
+      setStartCollapsed(false)
+    }
+  }, [groups, startCollapsed])
+
+  // Persist collapse state to sessionStorage whenever it changes
+  useEffect(() => {
+    if (groupBy !== 'none') {
+      sessionStorage.setItem(collapseKey(groupBy), JSON.stringify([...collapsedGroups]))
+    }
+  }, [collapsedGroups, groupBy])
 
   // Lookup maps
   const caliberMap = useMemo(
@@ -325,6 +355,10 @@ export default function InventoryTable({
   // Grouping
   const groups = useMemo((): GroupEntry[] => {
     if (groupBy === 'none') return []
+
+    // Wait for lookup data before grouping to avoid false "No Location" / "No Container" groups
+    if (groupBy === 'location' && locations.length === 0 && sorted.some((b) => b.location_id !== null)) return []
+    if (groupBy === 'container' && containers.length === 0 && sorted.some((b) => b.container_id !== null)) return []
 
     const groupMap = new Map<string, AmmoBoxRead[]>()
     const ungrouped: AmmoBoxRead[] = []
@@ -671,8 +705,8 @@ export default function InventoryTable({
         {/* Expanded detail row */}
         {isExpanded && (
           <TableRow className="bg-gray-50/50 dark:bg-gray-800/20 hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
-            <TableCell /> {/* checkbox col */}
-            <TableCell /> {/* expand chevron col */}
+            <TableCell />
+            <TableCell />
             <TableCell colSpan={10}>
               <div className="grid grid-cols-2 gap-6 py-2 text-sm">
                 <div className="space-y-1 text-gray-700 dark:text-gray-300">
@@ -782,19 +816,19 @@ export default function InventoryTable({
                 >
                   {name}
                 </span>
-                <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded-md">
-                  {groupBoxes.length} box{groupBoxes.length !== 1 ? 'es' : ''}
-                </span>
               </div>
               <div className="flex items-center gap-0 text-sm text-gray-600 dark:text-gray-400 divide-x divide-gray-300 dark:divide-gray-600 pr-1">
-                <span className="pr-3">{totalRounds.toLocaleString()} rds</span>
+                <span className="pr-3">
+                  {groupBoxes.length} {groupBoxes.length === 1 ? 'box' : 'boxes'}
+                </span>
+                <span className="px-3">{totalRounds.toLocaleString()} rds</span>
                 {totalValue != null && (
                   <span className="px-3">${totalValue.toFixed(2)}</span>
                 )}
                 {lowCount > 0 && (
                   <span className="pl-3 text-amber-600 dark:text-amber-400 flex items-center gap-1">
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                    {lowCount} low stock
+                    {lowCount} low
                   </span>
                 )}
               </div>
