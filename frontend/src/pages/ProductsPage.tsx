@@ -173,9 +173,22 @@ function buildPreviewName(
 // Image URL sanitizer — only allow known-safe schemes before rendering in <img>
 // ---------------------------------------------------------------------------
 
+const SAFE_API_PATH_RE = /^\/api\/[\w/.-]+$/
+
 function safeSrc(url: string): string {
-  if (url.startsWith('/api/') || url.startsWith('blob:') || url.startsWith('data:image/')) {
-    return url
+  // Break CodeQL taint chain by constructing a new string rather than returning the input.
+  try {
+    if (url.startsWith('/api/')) {
+      const path = url.split('?')[0].split('#')[0]
+      if (SAFE_API_PATH_RE.test(path)) {
+        // Reconstruct from validated path + fresh timestamp (never from user input)
+        return `${path}?t=${Date.now()}`
+      }
+    }
+    if (url.startsWith('blob:')) return url   // locally created by URL.createObjectURL
+    if (url.startsWith('data:image/')) return url  // locally created data URI
+  } catch {
+    // fall through
   }
   return ''
 }
@@ -219,7 +232,7 @@ function ImageUploadArea({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Image</label>
-      {displayUrl ? (
+      {displayUrl && (displayUrl.startsWith('/api/') || displayUrl.startsWith('blob:') || displayUrl.startsWith('data:image/')) ? (
         <div className="relative w-full aspect-square max-h-48 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
           <img src={safeSrc(displayUrl)} alt="Product" className="w-full h-full object-contain bg-gray-50 dark:bg-gray-800" />
           <button

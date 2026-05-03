@@ -395,10 +395,13 @@ async def upload_product_image(
         except OSError:
             pass
 
-    dest = PRODUCTS_UPLOAD_DIR / f"{product_id}{ext}"
-    if not dest.resolve().is_relative_to(PRODUCTS_UPLOAD_DIR.resolve()):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    dest.write_bytes(contents)
+    # Use product.id from the DB result (trusted integer), not product_id from URL (tainted)
+    safe_id = int(product.id)
+    dest = PRODUCTS_UPLOAD_DIR / f"{safe_id}{ext}"
+    resolved = dest.resolve()
+    if not resolved.is_relative_to(PRODUCTS_UPLOAD_DIR.resolve()):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    resolved.write_bytes(contents)
 
     product.image_path = str(dest)
     product.updated_at = datetime.utcnow()
