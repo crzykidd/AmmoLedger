@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo, getRecentExpenditure } from '@/api/ammo'
 import { getInvites } from '@/api/invites'
 import { getUsers } from '@/api/users'
-import { fetchLowStock, fetchDefaultThreshold, fetchCaliberThresholds, fetchLocationThresholds } from '@/api/thresholds'
+import { useThresholdStatus } from '@/hooks/useThresholdStatus'
 import { cn } from '@/lib/utils'
 import iconInventory from '@/assets/brand/icon-inventory-dark.png'
 
@@ -253,28 +253,7 @@ export default function DashboardPage() {
     queryFn: () => listAmmo(),
   })
 
-  const { data: lowStockData } = useQuery({
-    queryKey: ['thresholds', 'low-stock'],
-    queryFn: fetchLowStock,
-  })
-
-  const { data: defaultThreshold } = useQuery({
-    queryKey: ['thresholds', 'default'],
-    queryFn: fetchDefaultThreshold,
-    enabled: !dismissed,
-  })
-
-  const { data: caliberThresholds } = useQuery({
-    queryKey: ['thresholds', 'calibers'],
-    queryFn: fetchCaliberThresholds,
-    enabled: !dismissed,
-  })
-
-  const { data: locationThresholds } = useQuery({
-    queryKey: ['thresholds', 'locations'],
-    queryFn: fetchLocationThresholds,
-    enabled: !dismissed,
-  })
+  const { status: thresholdStatus } = useThresholdStatus()
 
   // Admin-only queries for getting-started wizard
   const { data: invites } = useQuery({
@@ -332,8 +311,8 @@ export default function DashboardPage() {
   }, [boxes, caliberMap])
 
   const lowCaliberIds = useMemo(
-    () => new Set((lowStockData?.calibers ?? []).map((c) => c.caliber_id)),
-    [lowStockData],
+    () => new Set(thresholdStatus.calibers.filter((c) => c.is_low).map((c) => c.caliber_id)),
+    [thresholdStatus],
   )
 
   const totalInventoryRounds = caliberSummary.reduce((sum, cs) => sum + cs.total_rounds, 0)
@@ -344,16 +323,16 @@ export default function DashboardPage() {
   })
 
   const thresholdsCustomized =
-    (defaultThreshold?.rounds ?? 200) !== 200 ||
-    (caliberThresholds?.length ?? 0) > 0 ||
-    (locationThresholds?.length ?? 0) > 0
+    thresholdStatus.default_rounds !== 200 ||
+    thresholdStatus.calibers.length > 0 ||
+    thresholdStatus.locations.length > 0
 
   const hasInvitedUsers =
     (allUsers?.length ?? 0) > 1 ||
     (invites?.some((i) => i.used_at !== null) ?? false)
 
-  const lowCalibersCount = lowStockData?.calibers.length ?? 0
-  const lowLocationsCount = lowStockData?.locations.length ?? 0
+  const lowCalibersCount = thresholdStatus.calibers.filter((c) => c.is_low).length
+  const lowLocationsCount = thresholdStatus.locations.filter((l) => l.is_low).length
   const lowStockCount = lowCalibersCount + lowLocationsCount
 
   function dismiss() {
@@ -484,11 +463,11 @@ export default function DashboardPage() {
                       </span>
                     </div>
                   )}
-                  {(lowStockData?.calibers ?? []).map((item) => (
+                  {thresholdStatus.calibers.filter((c) => c.is_low).map((item) => (
                     <button
                       key={item.caliber_id}
                       className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
-                      onClick={() => navigate('/inventory')}
+                      onClick={() => navigate(`/inventory?searchField=caliber&search=${encodeURIComponent(item.caliber_name)}`)}
                     >
                       <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -514,11 +493,11 @@ export default function DashboardPage() {
                       </span>
                     </div>
                   )}
-                  {(lowStockData?.locations ?? []).map((item) => (
+                  {thresholdStatus.locations.filter((l) => l.is_low).map((item) => (
                     <button
                       key={item.location_id}
                       className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
-                      onClick={() => navigate('/inventory')}
+                      onClick={() => navigate(`/inventory?searchField=location&search=${encodeURIComponent(item.location_name)}`)}
                     >
                       <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                       <div className="flex-1 min-w-0">

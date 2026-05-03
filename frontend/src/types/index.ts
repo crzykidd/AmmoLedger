@@ -132,26 +132,30 @@ export interface CommunityContribute {
 }
 
 // ---------------------------------------------------------------------------
-// Threshold types (stored client-side in localStorage)
+// Threshold types (server-side API)
 // ---------------------------------------------------------------------------
 
-export interface ThresholdConfig {
-  default_rounds: number
-  default_boxes: number
-  caliber_overrides: Record<string, { rounds?: number; boxes?: number }>
-}
-
-export interface CaliberSummary {
+export interface CaliberStatus {
   caliber_id: number
   caliber_name: string
-  total_rounds: number
-  box_count: number
+  rounds_on_hand: number
+  threshold: number
   is_low: boolean
 }
 
-// ---------------------------------------------------------------------------
-// Threshold types (server-side API)
-// ---------------------------------------------------------------------------
+export interface LocationStatus {
+  location_id: number
+  location_name: string
+  rounds_on_hand: number
+  threshold: number
+  is_low: boolean
+}
+
+export interface ThresholdStatusResponse {
+  calibers: CaliberStatus[]
+  locations: LocationStatus[]
+  default_rounds: number
+}
 
 export interface CaliberThreshold {
   id: number

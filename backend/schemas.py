@@ -456,6 +456,28 @@ class LowStockResponse(BaseModel):
     locations: List[LowStockLocationItem]
 
 
+class CaliberStatus(BaseModel):
+    caliber_id: int
+    caliber_name: str
+    rounds_on_hand: int
+    threshold: int
+    is_low: bool
+
+
+class LocationStatus(BaseModel):
+    location_id: int
+    location_name: str
+    rounds_on_hand: int
+    threshold: int
+    is_low: bool
+
+
+class ThresholdStatusResponse(BaseModel):
+    calibers: List[CaliberStatus]
+    locations: List[LocationStatus]
+    default_rounds: int
+
+
 # ---------------------------------------------------------------------------
 # Recent expenditure schema
 # ---------------------------------------------------------------------------

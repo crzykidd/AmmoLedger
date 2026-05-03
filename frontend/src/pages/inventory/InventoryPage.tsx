@@ -23,7 +23,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
-import { useThresholds } from '@/hooks/useThresholds'
+import { useThresholdStatus } from '@/hooks/useThresholdStatus'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import type { AmmoBoxRead } from '@/types'
@@ -223,7 +223,7 @@ export default function InventoryPage() {
   }, [columnFilters, groupBy, conditionFilter, search, searchField, showEmpty, showArchived])
 
   const lookups = useInventoryLookups()
-  const { getLowItems } = useThresholds()
+  const { status: thresholdStatus } = useThresholdStatus()
 
   // Lookup maps used for column filtering and field-scoped search
   const caliberMap = useMemo(
@@ -287,13 +287,16 @@ export default function InventoryPage() {
 
   const canAdd = user?.role !== 'read_only'
 
-  // Low-stock computed from all boxes (inventory health indicator, not filtered)
-  const lowItems = useMemo(
-    () => getLowItems(boxes, lookups.calibers),
-    [boxes, lookups.calibers, getLowItems],
+  // Low-stock: caliber IDs below threshold (server-side, caliber totals)
+  const lowCaliberIds = useMemo(
+    () => new Set<number>(thresholdStatus.calibers.filter((c) => c.is_low).map((c) => c.caliber_id)),
+    [thresholdStatus],
   )
-  const lowSet = useMemo(() => new Set(lowItems.map((b) => b.id)), [lowItems])
-  const lowCaliberIds = useMemo(() => new Set(lowItems.map((b) => b.caliber_id)), [lowItems])
+  // Box-level set for row highlighting: any box whose caliber is low
+  const lowSet = useMemo(
+    () => new Set<number>(boxes.filter((b) => lowCaliberIds.has(b.caliber_id)).map((b) => b.id)),
+    [boxes, lowCaliberIds],
+  )
 
   // Client-side field-scoped search (active when searchField !== 'all')
   const searchedBoxes = useMemo(() => {
@@ -715,12 +718,12 @@ export default function InventoryPage() {
         {/* ── Content ── */}
         <div className="flex-1 overflow-auto px-4 sm:px-6 py-4 space-y-4">
           {/* Low-stock alert banner */}
-          {!bannerDismissed && lowItems.length > 0 && (
+          {!bannerDismissed && lowCaliberIds.size > 0 && (
             <Alert variant="warning" className="flex items-start gap-3 pr-10 relative">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <div>
                 <AlertTitle>
-                  Low stock on {lowItems.length} item{lowItems.length !== 1 ? 's' : ''}
+                  Low stock on {lowCaliberIds.size} caliber{lowCaliberIds.size !== 1 ? 's' : ''}
                 </AlertTitle>
                 <AlertDescription>
                   Some calibers are below your configured thresholds.{' '}

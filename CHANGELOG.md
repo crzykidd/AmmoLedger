@@ -23,6 +23,9 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Changed
 
+- **Threshold system unified** — low-stock alerts are now driven entirely by server-side caliber totals; the previous localStorage-based threshold system has been removed; thresholds compare total rounds across all boxes for a caliber (not per-box quantity), matching how the dashboard always worked
+- **Threshold settings are admin-only** — only admins can add, edit, or delete thresholds; members and read-only users see the current settings in a read-only view
+- Low-stock nav on the dashboard Running Low panel now links directly to Inventory filtered by the affected caliber or location
 - **Orphan demotion on community sync** — entries previously sourced from the community YAML that are no longer present in the upstream file are automatically demoted to `local` source instead of remaining as stale community entries
 - **Rename demotes community → local** — editing a community entry's name demotes it to `local` source and clears its community key, making it independently editable
 - Community entries demoted to `local` show a purple badge (distinct from blue community and gold user badges)

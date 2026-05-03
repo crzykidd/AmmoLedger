@@ -43,6 +43,7 @@ DB will be resest any data added to db before release will be lost on upgrade.
 | Phase 8.12 | ✅ Complete | Product catalog with images and Add Box auto-fill |
 | Phase 8.13 | ✅ Complete | Admin Tasks page with job registry and Run Now |
 | Phase 8.14 | ✅ Complete | Community-maintained lookup tables synced from GitHub |
+| Phase 8.15 | ✅ Complete | Unified threshold system — server-side caliber totals, admin-only writes |
 
 ## Community Data
 
