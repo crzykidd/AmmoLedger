@@ -24,7 +24,9 @@
       "PowerShell(python -m ruff check \"d:\\\\projects\\\\AmmoLedger\\\\backend\\\\\" 2>&1)",
       "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" status --short)",
       "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" add backend/requirements.txt backend/routers/community.py backend/routers/products.py frontend/package.json)",
-      "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" commit -m \"security: update python-multipart, pytest, vite, esbuild for vulnerability fixes\")"
+      "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" commit -m \"security: update python-multipart, pytest, vite, esbuild for vulnerability fixes\")",
+      "PowerShell(docker compose -f \"d:\\\\projects\\\\AmmoLedger\\\\docker-compose.dev.yml\" exec frontend npm ls esbuild 2>&1)",
+      "PowerShell(docker compose -f \"d:\\\\projects\\\\AmmoLedger\\\\docker-compose.dev.yml\" ps 2>&1)"
     ]
   },
   "hooks": {
