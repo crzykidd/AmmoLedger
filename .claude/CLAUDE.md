@@ -48,11 +48,22 @@ Only use Read when you need exact raw content to edit a specific line.
 - **Change Coupling**: co-changed files included as related context
 
 ### Advanced Parameters
+
 - `preset: "debug"` — forces debug mode (capsule+tests+impact+memory)
 - `preset: "refactor"` — deep impact analysis (depth 5)
 - `max_tokens: 12000` — increase total budget for complex tasks
 - `include_tests: true` — include test files in results
 - `include_file_content: false` — omit full file content (lighter response)
+
+## Development Environment
+
+- Host OS: Windows (PowerShell)
+- Use PowerShell-compatible commands when
+  running on host (not inside Docker containers)
+- Inside Docker containers Linux commands are fine
+- Use Remove-Item instead of rm -rf
+- Use Select-String instead of grep
+- Use Get-ChildItem instead of ls/find
 
 ### Multi-Repo Workspaces
 `run_pipeline` auto-queries all indexed repos. Use `repos: ["alias"]` to scope.
