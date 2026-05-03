@@ -31,6 +31,13 @@
 - Full ENV reference: `docs/INSTALL.md` → Configuration Options → Environment Variable Reference
 - Config template with all options and comments: `backend/config.template.yaml`
 
+## Code Context
+
+- Always use vexp index when available for
+  file lookups and understanding the codebase
+- Read relevant source files before making
+  changes — don't assume structure
+
 ## Project Documentation
 
 - Full PRD is at docs/PRD.md — read this before starting any phase
