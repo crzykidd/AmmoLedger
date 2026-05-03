@@ -123,8 +123,14 @@ def _version_check_fn() -> dict:
 
 
 def _community_sync_fn() -> dict:
-    logger.info("Community sync: not yet implemented")
-    return {"status": "placeholder"}
+    from database import engine  # noqa: PLC0415
+    from sqlmodel import Session  # noqa: PLC0415
+    from utils.community_sync import check_first_run, sync_all  # noqa: PLC0415
+
+    with Session(engine) as session:
+        first_run = check_first_run(session)
+        results = sync_all(session, first_run=first_run)
+    return results
 
 
 def _db_analyze_fn() -> dict:

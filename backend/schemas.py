@@ -19,6 +19,8 @@ class LookupRead(_OrmBase):
     name: str
     is_active: bool
     source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
     usage_count: int = 0
 
 
@@ -32,6 +34,8 @@ class ManufacturerRead(_OrmBase):
     url: Optional[str]
     is_active: bool
     source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
     usage_count: int = 0
 
 
@@ -51,6 +55,12 @@ class DealerRead(_OrmBase):
     url: Optional[str]
     is_active: bool
     source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    types: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
+    is_standard_geo: bool = True
     usage_count: int = 0
 
 

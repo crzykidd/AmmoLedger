@@ -47,6 +47,7 @@
 | 3.8 | May 2026 | CSV export — GET /ammo/export/csv (filtered, all users) and GET /backup/export/csv (all boxes, admin). Export CSV toolbar button in §9.2 with confirmation dialog. CSV importer extended to handle owner/created_at/updated_at/id columns. §9.2, §9.8, §11.3 updated. |
 | 3.9 | May 2026 | Product catalog — §6.9 added: products table with COALESCE unique index, image storage, product_id FK on ammo_box. §9.13 added: Products page (grid/list, add/edit sheet, image upload, auto-generate), Add Box product selector, Save as Template dialog, CSV import product auto-linking. |
 | 3.10 | May 2026 | Admin Tasks page — §9.14 added: task_registry and task_history tables, 5 registered tasks (version_check, scheduled_backup, backup_cleanup, community_sync, db_analyze), task runner with two-session pattern, APScheduler integration, /tasks API (list, history, run now, patch), TasksPage with status badges, Run Now button, per-task history, and enable/interval editing. |
+| 3.11 | May 2026 | Community-maintained lookup tables — §8.2 and §9.15 added: community/ YAML directory, community_sync utility (GitHub fetch + bundled fallback), community_key + is_imported + dealer geo fields (migration 0020), /community/\* and /geo/\* API routes, pending-import review flow, source badges, Contribute dialog, Check for Updates button on Lookups page. defaults.yaml stripped of calibers/manufacturers/ammo_types/dealers; acquisition_sources replaces non-commercial dealer seeds. |
 
 ---
 

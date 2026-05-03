@@ -78,6 +78,7 @@ Current release: v0.1.5 (2026-05-02)
   - 8.11 — Merge invitations into Users page, remove separate Invitations page: COMPLETE
 - Phase 8.12 — Product catalog with images, auto-generate, and Add Box auto-fill: COMPLETE
 - Phase 8.13 — Admin Tasks page with job registry, execution history, and Run Now: COMPLETE
+- Phase 8.14 — Community-maintained lookup tables synced from GitHub: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 

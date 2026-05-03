@@ -7,15 +7,14 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from database import engine
-from models import AmmoCondition, AmmoType, Caliber, Category, Dealer, Manufacturer
+from models import AmmoCondition, Category, Dealer
 from utils.config import DEFAULTS_PATH, _BUNDLED_DEFAULTS, get_setting, set_setting
 
 logger = get_logger(__name__)
 
 # Simple lookup tables: (yaml_key, Model)
+# Calibers, ammo_types, manufacturers, and dealers are now community-managed.
 _SIMPLE_TABLES = [
-    ("calibers", Caliber),
-    ("ammo_types", AmmoType),
     ("ammo_conditions", AmmoCondition),
     ("categories", Category),
 ]
@@ -57,92 +56,20 @@ def _sync_simple(db: Session, section: str, Model, yaml_names: list,
     return added, skipped, deactivated
 
 
-def _sync_manufacturers(db: Session, yaml_entries: list,
-                        update_existing: bool, allow_removal: bool) -> tuple[int, int, int]:
-    """Sync manufacturers — entries can be plain strings or dicts with name+url."""
-    added = skipped = deactivated = 0
-
-    def _normalise(entry) -> dict:
-        if isinstance(entry, str):
-            return {"name": entry, "url": None}
-        return {"name": entry["name"], "url": entry.get("url") or None}
-
-    items = [_normalise(e) for e in yaml_entries]
-    yaml_lower = {item["name"].lower(): item for item in items}
-
-    for item in items:
+def _sync_acquisition_sources(db: Session, sources: list, update_existing: bool) -> tuple[int, int]:
+    """Seed acquisition sources (Gift, Found, etc.) into the dealers table as source='yaml'."""
+    added = skipped = 0
+    for name in sources:
         existing = db.exec(
-            select(Manufacturer).where(func.lower(Manufacturer.name) == item["name"].lower())
+            select(Dealer).where(func.lower(Dealer.name) == name.lower())
         ).first()
-
         if not existing:
-            db.add(Manufacturer(name=item["name"], url=item["url"], source="yaml"))
-            logger.debug("Added %s to manufacturers", item["name"])
+            db.add(Dealer(name=name, url=None, source="yaml", is_imported=True))
+            logger.debug("Added acquisition source: %s", name)
             added += 1
-        elif existing.source == "user":
+        else:
             skipped += 1
-        else:  # source == "yaml"
-            changed = False
-            if update_existing and existing.name != item["name"]:
-                existing.name = item["name"]
-                changed = True
-            # Update url if DB has none and yaml provides one
-            if existing.url is None and item["url"]:
-                existing.url = item["url"]
-                changed = True
-            if changed:
-                db.add(existing)
-            skipped += 1
-
-    if allow_removal:
-        yaml_rows = db.exec(
-            select(Manufacturer).where(Manufacturer.source == "yaml").where(Manufacturer.is_active)
-        ).all()
-        for row in yaml_rows:
-            if row.name.lower() not in yaml_lower:
-                row.is_active = False
-                db.add(row)
-                logger.debug("Deactivated %s from manufacturers", row.name)
-                deactivated += 1
-
-    return added, skipped, deactivated
-
-
-def _sync_dealers(db: Session, yaml_dealers: list,
-                  update_existing: bool, allow_removal: bool) -> tuple[int, int, int]:
-    added = skipped = deactivated = 0
-    yaml_lower = {item["name"].lower(): item for item in yaml_dealers}
-
-    for item in yaml_dealers:
-        existing = db.exec(
-            select(Dealer).where(func.lower(Dealer.name) == item["name"].lower())
-        ).first()
-
-        if not existing:
-            db.add(Dealer(name=item["name"], url=item.get("url"), source="yaml"))
-            logger.debug("Added %s to dealers", item["name"])
-            added += 1
-        elif existing.source == "user":
-            skipped += 1
-        else:  # source == "yaml"
-            if update_existing:
-                existing.name = item["name"]
-                existing.url = item.get("url")
-                db.add(existing)
-            skipped += 1
-
-    if allow_removal:
-        yaml_rows = db.exec(
-            select(Dealer).where(Dealer.source == "yaml").where(Dealer.is_active)
-        ).all()
-        for row in yaml_rows:
-            if row.name.lower() not in yaml_lower:
-                row.is_active = False
-                db.add(row)
-                logger.debug("Deactivated %s from dealers", row.name)
-                deactivated += 1
-
-    return added, skipped, deactivated
+    return added, skipped
 
 
 def sync_yaml_seeds(config: dict) -> None:
@@ -185,19 +112,12 @@ def sync_yaml_seeds(config: dict) -> None:
             total_skipped += s
             total_deactivated += d
 
-        mfr_entries = data.get("manufacturers", [])
-        logger.debug("Seeding manufacturers: %d entries", len(mfr_entries))
-        a, s, d = _sync_manufacturers(db, mfr_entries, update_existing, allow_removal)
-        total_added += a
-        total_skipped += s
-        total_deactivated += d
-
-        dealer_entries = data.get("dealers", [])
-        logger.debug("Seeding dealers: %d entries", len(dealer_entries))
-        a, s, d = _sync_dealers(db, dealer_entries, update_existing, allow_removal)
-        total_added += a
-        total_skipped += s
-        total_deactivated += d
+        acq_sources = data.get("acquisition_sources", [])
+        if acq_sources:
+            logger.debug("Seeding acquisition sources: %d entries", len(acq_sources))
+            a, s = _sync_acquisition_sources(db, acq_sources, update_existing)
+            total_added += a
+            total_skipped += s
 
         set_setting(db, "defaults_version", yaml_version)
         db.commit()

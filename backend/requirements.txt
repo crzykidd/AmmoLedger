@@ -9,3 +9,4 @@ pyyaml==6.0.2
 pytest==8.2.0
 httpx==0.27.0
 apscheduler==3.10.4
+pycountry==24.6.1

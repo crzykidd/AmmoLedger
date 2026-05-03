@@ -14,7 +14,9 @@ class Caliber(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column_kwargs={"unique": True})
     is_active: bool = Field(default=True)
-    source: str = Field(default="user")  # yaml | user
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
 
 
 class Manufacturer(SQLModel, table=True):
@@ -24,7 +26,9 @@ class Manufacturer(SQLModel, table=True):
     name: str = Field(sa_column_kwargs={"unique": True})
     url: Optional[str] = None
     is_active: bool = Field(default=True)
-    source: str = Field(default="user")
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
 
 
 class AmmoType(SQLModel, table=True):
@@ -33,7 +37,9 @@ class AmmoType(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column_kwargs={"unique": True})
     is_active: bool = Field(default=True)
-    source: str = Field(default="user")
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
 
 
 class AmmoCondition(SQLModel, table=True):
@@ -61,7 +67,13 @@ class Dealer(SQLModel, table=True):
     name: str = Field(sa_column_kwargs={"unique": True})
     url: Optional[str] = None
     is_active: bool = Field(default=True)
-    source: str = Field(default="user")
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+    types: Optional[str] = None  # JSON array: '["online","local"]'
+    country: Optional[str] = Field(default="US")
+    state: Optional[str] = None
+    is_standard_geo: bool = Field(default=True)
 
 
 # ---------------------------------------------------------------------------

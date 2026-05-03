@@ -40,6 +40,20 @@ DB will be resest any data added to db before release will be lost on upgrade.
 | Phase 6 | ✅ Complete | CSV Import + ammo_condition |
 | Phase 7 | ✅ Complete | User management + invitations |
 | Phase 8 | ✅ Complete | UI polish — sidebar, about, help, lookups |
+| Phase 8.12 | ✅ Complete | Product catalog with images and Add Box auto-fill |
+| Phase 8.13 | ✅ Complete | Admin Tasks page with job registry and Run Now |
+| Phase 8.14 | ✅ Complete | Community-maintained lookup tables synced from GitHub |
+
+## Community Data
+
+AmmoLedger ships with community-maintained lookup tables for dealers, manufacturers, calibers, and ammo types. These are synced automatically from the `community/` directory in this repository.
+
+- On startup, AmmoLedger fetches the latest YAML files from GitHub (falls back to bundled files if offline)
+- New entries appear as **pending** on the Admin → Lookups page; admins review and import them
+- Admins can also click **Check for Updates** on the Lookups page to pull the latest at any time
+- User-created entries can be contributed back via the **Contribute** button on each lookup section
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add dealers, manufacturers, calibers, or ammo types.
 
 ## Features
 
@@ -59,7 +73,9 @@ DB will be resest any data added to db before release will be lost on upgrade.
 - **About page with version check** — displays current version, checks GitHub Releases API for updates (24-hour cache), shows update-available banner
 - **Post-upgrade What's New modal** — automatically shows release notes between the previous and current version after an upgrade; dismissible
 - **Structured backend logging** — timestamps, log level, and module name on every entry; full tracebacks in `docker logs` for unhandled errors
-- **Admin Lookups** — accordion UI covering all 8 lookup tables; live search per section, usage counts, hide/unhide and delete entries, inline URL editing for manufacturers and dealers
+- **Admin Lookups** — accordion UI covering all 8 lookup tables; live search per section, usage counts, hide/unhide and delete entries, inline URL editing for manufacturers and dealers; source badges (community/user/yaml); pending-import banner with cherry-pick dialog; Contribute button to export user-created entries as YAML for pull request submission
+- **Community-maintained lookup data** — dealers, manufacturers, calibers, and ammo types synced from GitHub on startup; new entries queued as pending for admin review; admin can trigger manual sync with "Check for Updates"
+- **Admin Tasks page** — view all scheduled background jobs, trigger any task on demand with Run Now, edit task intervals, and browse full execution history with expandable error details
 - **Docker Compose deployment** — single `docker-compose.yml` pulls pre-built images from GHCR; no source code required
 - **GHCR image registry** — images published to `ghcr.io/crzykidd/ammoledger-backend` and `ghcr.io/crzykidd/ammoledger-frontend`
 

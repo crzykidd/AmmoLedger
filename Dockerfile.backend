@@ -10,12 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 RUN adduser --disabled-password --gecos "" appuser \
     && mkdir -p /data && chown appuser:appuser /data
 
-# Install dependencies as appuser — files are owned correctly from the start
-COPY --chown=appuser:appuser requirements.txt .
+# Install dependencies — path relative to repo root (build context is .)
+COPY --chown=appuser:appuser backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app code
-COPY --chown=appuser:appuser . .
+# Copy backend app code
+COPY --chown=appuser:appuser backend/ .
+
+# Bundle community YAML files for air-gapped installs
+COPY --chown=appuser:appuser community/ /app/community/
 
 ARG VERSION=dev
 ARG GIT_SHA=unknown

@@ -21,6 +21,19 @@ Versioning: [Semantic Versioning](https://semver.org)
 - Database Optimize task runs SQLite `ANALYZE` daily at 04:00 to keep query planner statistics current
 - Community Sync task registered as a placeholder for the upcoming defaults-from-GitHub feature
 
+- **Community-maintained lookup tables** — dealers, manufacturers, calibers, and ammo types are now synced automatically from the `community/` directory in the GitHub repository on every startup; falls back to bundled YAML files when GitHub is unreachable (offline installs always have a baseline dataset)
+- **Pending import review** — on first startup all community entries are imported automatically; on subsequent syncs new entries are queued as pending and shown in a banner on the Admin → Lookups page; admins can cherry-pick which entries to import or hide
+- **Check for Updates** button on the Lookups page (admin only) — triggers an on-demand community sync and shows how many new entries are pending across all four tables
+- **Source badges** on every lookup entry — blue badge for community-maintained entries, gold for user-created entries, gray for YAML-seeded entries
+- **Contribute button** on each community-managed lookup section — generates a YAML snippet of all user-created entries in that table and provides a direct link to open a pull request on GitHub
+- **Review & Import dialog** — checklist of all pending community entries for a table; import selected, hide rejected, or dismiss to decide later
+- `community_key` field on calibers, manufacturers, ammo types, and dealers — stable slugified identifier used to match community entries across syncs without relying on exact name spelling
+- `is_imported` flag on community-managed tables — unimported entries are excluded from all form dropdowns until an admin approves them
+- **Dealer geo fields** — `types` (online/local/auction/gun_show), `country` (ISO alpha-2), `state` (subdivision code), `is_standard_geo` flag added to the dealer model; community YAML includes these fields for all entries
+- `/geo/countries` and `/geo/subdivisions/{code}` endpoints — return country and state/province lists for dealer add/edit form dropdowns (powered by pycountry)
+- `acquisition_sources` section in `defaults.yaml` — non-commercial sources (Gift, Found, Gun Show, Inherited, Local Gun Shop, Reloaded) are now seeded separately from community dealer data
+- Alembic migration 0020 — adds `community_key`, `is_imported`, and dealer geo columns to the relevant tables
+
 - **Product catalog** — a dedicated Products page at `/products` for creating and managing product templates; each product captures caliber, manufacturer, product name, bullet weight, type, category, condition, default cost, UPC, and an optional image
 - Product images — upload a jpg/jpeg/png/webp image (up to 5 MB) per product; displayed on the product card and in the Add Box form
 - **Auto-fill from product** — when adding a new ammo box, select a product from the search-as-you-type selector at the top of the form; caliber, manufacturer, product name, weight, type, category, condition, and cost auto-populate from the product

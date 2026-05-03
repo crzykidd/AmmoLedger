@@ -18,6 +18,8 @@ from starlette.requests import Request
 from database import engine, get_session, run_migrations
 from routers import auth, ammo, expenditure, lookups, users
 from routers.backup import router as backup_router
+from routers.community import router as community_router
+from routers.geo import router as geo_router
 from routers.importer import router as import_router
 from routers.products import router as products_router
 from routers.tasks import router as tasks_router
@@ -61,6 +63,8 @@ app.include_router(expenditure.router)
 app.include_router(expenditure.expenditures_router)
 app.include_router(lookups.router)
 app.include_router(backup_router)
+app.include_router(community_router, prefix="/community")
+app.include_router(geo_router, prefix="/geo")
 app.include_router(import_router, prefix="/import")
 app.include_router(products_router, prefix="/products")
 app.include_router(tasks_router, prefix="/tasks")
@@ -332,6 +336,19 @@ def on_startup():
     logger.info("Task registry ready")
     print("✓ Task registry ready", flush=True)
     _record_version()
+
+    # Community sync — auto-import on first run, add pending on subsequent runs
+    try:
+        from utils.community_sync import check_first_run, sync_all  # noqa: PLC0415
+        with Session(engine) as _csync_session:
+            _first_run = check_first_run(_csync_session)
+            sync_all(_csync_session, first_run=_first_run)
+        logger.info("Community sync complete (first_run=%s)", _first_run)
+        print("✓ Community sync complete", flush=True)
+    except Exception as _csync_err:
+        logger.warning("Community sync failed on startup: %s", _csync_err)
+        print(f"⚠ Community sync failed: {_csync_err}", flush=True)
+
     start_scheduler(_config)
     logger.info("Scheduler started")
     print("✓ Scheduler started", flush=True)

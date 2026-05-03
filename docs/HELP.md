@@ -172,6 +172,34 @@ Go to **Admin → Users** and click the link icon next to the user. Copy the gen
 
 If you're locked out of your admin account, edit `config.yaml` inside the container, set `security.reset_token` to a random string, restart the backend, and visit `/reset?token=your-value`. Enter your admin email and set a new password. Remove the token from `config.yaml` immediately after use. See the Installation Guide for step-by-step instructions.
 
+## Community Lookup Data
+
+### What is community lookup data?
+
+AmmoLedger maintains a shared dataset of dealers, manufacturers, calibers, and ammo types that is synced automatically from the project's GitHub repository. This means your lookup tables stay current with new dealers and manufacturers without any manual data entry.
+
+### How does the sync work?
+
+On every startup, AmmoLedger fetches the latest community YAML files from GitHub. New entries are added as **pending** — they do not appear in form dropdowns until an admin reviews and imports them. If GitHub is unreachable, the app falls back to the YAML files bundled inside the Docker image.
+
+### Where do I review pending community entries?
+
+Go to **Admin → Lookups**. Any lookup section that has pending community entries shows a yellow banner with the count of new items. Click **Review & Import** to open a checklist of pending entries — check the ones you want to import and uncheck any you want to hide. Click **Import Selected** to apply your choices.
+
+### How do I trigger a manual sync?
+
+On the **Admin → Lookups** page, click **Check for Updates** in the top-right toolbar. This immediately pulls the latest community YAML files from GitHub and shows how many new entries are available across all four tables. The pending count badge updates in real time.
+
+### What do the colored badges on lookup entries mean?
+
+- **Blue** — community-maintained entry synced from GitHub
+- **Gold** — entry you created manually in AmmoLedger
+- **Gray** — entry seeded from the built-in `defaults.yaml` file
+
+### How do I contribute a new dealer or manufacturer to the community list?
+
+On the **Admin → Lookups** page, expand the Dealers or Manufacturers section and click **Contribute**. This generates a YAML snippet of all your user-created entries and provides a link to open a pull request on GitHub. Copy the YAML into the pull request and the maintainers will review it. See [CONTRIBUTING.md](https://github.com/crzykidd/AmmoLedger/blob/main/CONTRIBUTING.md) for the full contribution guide.
+
 ## About
 
 ### How do I check for updates?

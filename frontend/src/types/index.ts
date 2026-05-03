@@ -60,6 +60,8 @@ export interface LookupItem {
   name: string
   is_active: boolean
   source: string
+  community_key?: string | null
+  is_imported: boolean
   usage_count: number
 }
 
@@ -88,6 +90,8 @@ export interface ManufacturerItem {
   url: string | null
   is_active: boolean
   source: string
+  community_key?: string | null
+  is_imported: boolean
   usage_count: number
 }
 
@@ -97,7 +101,34 @@ export interface DealerItem {
   url: string | null
   is_active: boolean
   source: string
+  community_key?: string | null
+  is_imported: boolean
+  types?: string | null
+  country?: string | null
+  state?: string | null
+  is_standard_geo: boolean
   usage_count: number
+}
+
+export interface CommunityTableStatus {
+  total: number
+  imported: number
+  pending: number
+  hidden: number
+  last_synced: string | null
+}
+
+export interface CommunityStatus {
+  dealers: CommunityTableStatus
+  manufacturers: CommunityTableStatus
+  calibers: CommunityTableStatus
+  ammo_types: CommunityTableStatus
+}
+
+export interface CommunityContribute {
+  yaml: string
+  count: number
+  github_url: string
 }
 
 // ---------------------------------------------------------------------------
