@@ -12,6 +12,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **Field-scoped search** — a dropdown next to the search box lets users narrow results to a specific field: Caliber, Manufacturer, Ammo Type, Category, Condition, Dealer, Location, Container, or Product Name; "All Fields" mode keeps the existing full-text API search behavior
+- **Dynamic summary panel** — the Caliber Summary panel now reflects the active Group By setting; switching to "Manufacturer" Group By shows a Manufacturer Summary, etc.; summary cells are clickable and apply the corresponding field search; low-stock highlighting is preserved when the caliber grouping is active
+- **Filter results counter** — when any filter is active the StatsBar highlights with a gold border and shows "Boxes X / Y" (filtered vs. total) so it's immediately clear how many items a filter matched
+
 - **Datasets page** (renamed from "Lookups") — sidebar nav item, route, and page title updated; `/admin/lookups` redirects to `/admin/datasets` for backward compatibility
 - **Pending count badge on sidebar** — amber badge on the Datasets nav item shows total pending community entries; dot indicator when sidebar is collapsed
 - **Collapse All / Expand All** button in the Datasets page toolbar; section open/closed state persists across page visits via localStorage (default: all collapsed)

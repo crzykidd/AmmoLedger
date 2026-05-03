@@ -66,16 +66,24 @@ function StatsBar({
   totalBoxes,
   totalRounds,
   totalValue,
+  unfilteredTotal,
 }: {
   totalBoxes: number
   totalRounds: number
   totalValue: number | null
+  unfilteredTotal?: number
 }) {
+  const isFiltered = unfilteredTotal != null && unfilteredTotal !== totalBoxes
   return (
-    <div className="flex gap-4 text-sm">
+    <div className={cn(
+      'flex gap-4 text-sm',
+      isFiltered && 'bg-gold/10 dark:bg-gold/5 px-3 py-1 rounded-lg border border-gold/20',
+    )}>
       <div>
         <span className="text-gray-500 dark:text-gray-400">Boxes </span>
-        <span className="font-semibold text-gray-900 dark:text-white">{totalBoxes}</span>
+        <span className="font-semibold text-gray-900 dark:text-white">
+          {isFiltered ? `${totalBoxes} / ${unfilteredTotal}` : totalBoxes}
+        </span>
       </div>
       <div>
         <span className="text-gray-500 dark:text-gray-400">Rounds </span>
@@ -110,6 +118,31 @@ const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
   { value: 'condition', label: 'Condition' },
 ]
 
+const SEARCH_FIELD_OPTIONS = [
+  { value: 'all', label: 'All Fields' },
+  { value: 'caliber', label: 'Caliber' },
+  { value: 'manufacturer', label: 'Manufacturer' },
+  { value: 'type', label: 'Ammo Type' },
+  { value: 'category', label: 'Category' },
+  { value: 'condition', label: 'Condition' },
+  { value: 'dealer', label: 'Dealer' },
+  { value: 'location', label: 'Location' },
+  { value: 'container', label: 'Container' },
+  { value: 'product', label: 'Product Name' },
+]
+
+// ---------------------------------------------------------------------------
+// Field summary type
+// ---------------------------------------------------------------------------
+
+interface FieldSummary {
+  key: number | string
+  name: string
+  total_rounds: number
+  box_count: number
+  total_value: number | null
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -122,6 +155,7 @@ export default function InventoryPage() {
 
   // Global search / view state
   const [search, setSearch] = useState('')
+  const [searchField, setSearchField] = useState<string>('all')
   const [showEmpty, setShowEmpty] = useState(
     () => localStorage.getItem('inventory_show_empty') === 'true',
   )
@@ -149,11 +183,8 @@ export default function InventoryPage() {
 
   useEffect(() => {
     const pid = searchParams.get('product_id')
-    const caliber = searchParams.get('caliber')
-    const manufacturer = searchParams.get('manufacturer')
-    const type = searchParams.get('type')
-    const category = searchParams.get('category')
-    const searchQ = searchParams.get('search')
+    const sf = searchParams.get('searchField')
+    const searchVal = searchParams.get('search')
 
     if (pid) {
       const id = parseInt(pid)
@@ -164,21 +195,10 @@ export default function InventoryPage() {
       }
     }
 
-    if (caliber || manufacturer || type || category) {
-      setColumnFilters((prev) => ({
-        ...prev,
-        ...(caliber ? { caliber } : {}),
-        ...(manufacturer ? { manufacturer } : {}),
-        ...(type ? { type } : {}),
-        ...(category ? { category } : {}),
-      }))
-    }
+    if (sf) setSearchField(sf)
+    if (searchVal) setSearch(searchVal)
 
-    if (searchQ) {
-      setSearch(searchQ)
-    }
-
-    if (pid || caliber || manufacturer || type || category || searchQ) {
+    if (pid || sf || searchVal) {
       setSearchParams({}, { replace: true })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -200,12 +220,12 @@ export default function InventoryPage() {
   // Clear selection when filters or groupBy change
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [columnFilters, groupBy, conditionFilter, search, showEmpty, showArchived])
+  }, [columnFilters, groupBy, conditionFilter, search, searchField, showEmpty, showArchived])
 
   const lookups = useInventoryLookups()
-  const { getLowItems, getCaliberSummary } = useThresholds()
+  const { getLowItems } = useThresholds()
 
-  // Lookup maps used for column filtering
+  // Lookup maps used for column filtering and field-scoped search
   const caliberMap = useMemo(
     () => new Map(lookups.calibers.map((c) => [c.id, c.name])),
     [lookups.calibers],
@@ -222,6 +242,22 @@ export default function InventoryPage() {
     () => new Map(lookups.categories.map((c) => [c.id, c.name])),
     [lookups.categories],
   )
+  const conditionMap = useMemo(
+    () => new Map(lookups.ammoConditions.map((c) => [c.id, c.name])),
+    [lookups.ammoConditions],
+  )
+  const dealerMap = useMemo(
+    () => new Map(lookups.dealers.map((d) => [d.id, d.name])),
+    [lookups.dealers],
+  )
+  const locationMap = useMemo(
+    () => new Map(lookups.locations.map((l) => [l.id, l.name])),
+    [lookups.locations],
+  )
+  const containerMap = useMemo(
+    () => new Map(lookups.containers.map((c) => [c.id, c.name])),
+    [lookups.containers],
+  )
 
   const archiveMutation = useMutation({
     mutationFn: (box: AmmoBoxRead) =>
@@ -235,9 +271,10 @@ export default function InventoryPage() {
     },
   })
 
+  const apiSearch = searchField === 'all' ? (search || undefined) : undefined
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['ammo', { search, showEmpty, showArchived }],
-    queryFn: () => listAmmo({ search: search || undefined, show_empty: showEmpty, show_archived: showArchived }),
+    queryKey: ['ammo', { search: apiSearch, showEmpty, showArchived }],
+    queryFn: () => listAmmo({ search: apiSearch, show_empty: showEmpty, show_archived: showArchived }),
   })
 
   const allBoxes = data?.boxes ?? []
@@ -256,19 +293,45 @@ export default function InventoryPage() {
     [boxes, lookups.calibers, getLowItems],
   )
   const lowSet = useMemo(() => new Set(lowItems.map((b) => b.id)), [lowItems])
+  const lowCaliberIds = useMemo(() => new Set(lowItems.map((b) => b.caliber_id)), [lowItems])
 
-  const caliberSummary = useMemo(
-    () => getCaliberSummary(boxes, lookups.calibers),
-    [boxes, lookups.calibers, getCaliberSummary],
-  )
+  // Client-side field-scoped search (active when searchField !== 'all')
+  const searchedBoxes = useMemo(() => {
+    if (!search.trim() || searchField === 'all') return boxes
+    const q = search.trim().toLowerCase()
+    return boxes.filter((box) => {
+      switch (searchField) {
+        case 'caliber':
+          return (caliberMap.get(box.caliber_id) ?? '').toLowerCase().includes(q)
+        case 'manufacturer':
+          return (manufacturerMap.get(box.manufacturer_id) ?? '').toLowerCase().includes(q)
+        case 'type':
+          return box.type_id != null && (typeMap.get(box.type_id) ?? '').toLowerCase().includes(q)
+        case 'category':
+          return box.category_id != null && (categoryMap.get(box.category_id) ?? '').toLowerCase().includes(q)
+        case 'condition':
+          return box.ammo_condition_id != null && (conditionMap.get(box.ammo_condition_id) ?? '').toLowerCase().includes(q)
+        case 'dealer':
+          return box.dealer_id != null && (dealerMap.get(box.dealer_id) ?? '').toLowerCase().includes(q)
+        case 'location':
+          return box.location_id != null && (locationMap.get(box.location_id) ?? '').toLowerCase().includes(q)
+        case 'container':
+          return box.container_id != null && (containerMap.get(box.container_id) ?? '').toLowerCase().includes(q)
+        case 'product':
+          return (box.product_name ?? '').toLowerCase().includes(q)
+        default:
+          return true
+      }
+    })
+  }, [boxes, search, searchField, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, dealerMap, locationMap, containerMap])
 
-  // Apply column filters — AND logic with the global search + condition filter above
+  // Apply column filters — AND logic with field search + condition filter above
   const filteredBoxes = useMemo(() => {
     const cf = columnFilters
     const hasAny = Object.values(cf).some((v) => v !== '')
-    if (!hasAny) return boxes
+    if (!hasAny) return searchedBoxes
 
-    return boxes.filter((box) => {
+    return searchedBoxes.filter((box) => {
       // ID — partial match on numeric id or legacy_id string
       if (cf.id) {
         const q = cf.id.toLowerCase()
@@ -323,7 +386,7 @@ export default function InventoryPage() {
       }
       return true
     })
-  }, [boxes, columnFilters, caliberMap, manufacturerMap, typeMap, categoryMap])
+  }, [searchedBoxes, columnFilters, caliberMap, manufacturerMap, typeMap, categoryMap])
 
   // Boxes currently selected (intersection with visible filtered set)
   const selectedBoxes = useMemo(
@@ -351,6 +414,70 @@ export default function InventoryPage() {
     () => Object.values(columnFilters).filter((v) => v !== '').length,
     [columnFilters],
   )
+
+  // Dynamic summary — reflects active groupBy field (defaults to caliber when 'none')
+  const summaryLabel = groupBy === 'none' ? 'Caliber' : GROUP_BY_OPTIONS.find(o => o.value === groupBy)?.label ?? 'Caliber'
+
+  const fieldSummary = useMemo<FieldSummary[]>(() => {
+    const field = groupBy === 'none' ? 'caliber' : groupBy
+
+    type IdExtractor = (box: AmmoBoxRead) => number | null
+    type NameResolver = (id: number) => string
+
+    let getId: IdExtractor
+    let getName: NameResolver
+
+    switch (field) {
+      case 'caliber':
+        getId = (b) => b.caliber_id
+        getName = (id) => caliberMap.get(id) ?? 'Unknown'
+        break
+      case 'manufacturer':
+        getId = (b) => b.manufacturer_id
+        getName = (id) => manufacturerMap.get(id) ?? 'Unknown'
+        break
+      case 'type':
+        getId = (b) => b.type_id
+        getName = (id) => typeMap.get(id) ?? 'Unknown'
+        break
+      case 'category':
+        getId = (b) => b.category_id
+        getName = (id) => categoryMap.get(id) ?? 'Unknown'
+        break
+      case 'condition':
+        getId = (b) => b.ammo_condition_id
+        getName = (id) => conditionMap.get(id) ?? 'Unknown'
+        break
+      case 'location':
+        getId = (b) => b.location_id
+        getName = (id) => locationMap.get(id) ?? 'Unknown'
+        break
+      case 'container':
+        getId = (b) => b.container_id
+        getName = (id) => containerMap.get(id) ?? 'Unknown'
+        break
+      default:
+        getId = (b) => b.caliber_id
+        getName = (id) => caliberMap.get(id) ?? 'Unknown'
+    }
+
+    const byKey = new Map<number, FieldSummary>()
+    for (const box of filteredBoxes) {
+      const id = getId(box)
+      if (id == null) continue
+      if (!byKey.has(id)) {
+        byKey.set(id, { key: id, name: getName(id), total_rounds: 0, box_count: 0, total_value: 0 })
+      }
+      const entry = byKey.get(id)!
+      entry.total_rounds += box.qty_remaining
+      entry.box_count += 1
+      if (box.cost_per_round != null) {
+        entry.total_value = (entry.total_value ?? 0) + (box.qty_remaining * box.cost_per_round)
+      }
+    }
+
+    return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [groupBy, filteredBoxes, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, locationMap, containerMap])
 
   function handleColumnFilterChange(key: keyof ColumnFilters, value: string) {
     setColumnFilters((prev) => ({ ...prev, [key]: value }))
@@ -426,16 +553,28 @@ export default function InventoryPage() {
               </select>
             </div>
 
-            {/* Search */}
-            <div className="relative flex-1 min-w-[180px] max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="search"
-                placeholder="Search caliber, manufacturer, product…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gold focus:border-transparent"
-              />
+            {/* Search with field selector */}
+            <div className="flex flex-1 min-w-[180px] max-w-sm">
+              <select
+                value={searchField}
+                onChange={(e) => setSearchField(e.target.value)}
+                className="h-9 rounded-l-md border border-r-0 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs text-gray-600 dark:text-gray-400 px-2 focus:outline-none focus:ring-2 focus:ring-gold shrink-0"
+                aria-label="Search field"
+              >
+                {SEARCH_FIELD_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="search"
+                  placeholder={searchField === 'all' ? 'Search all fields…' : `Search ${SEARCH_FIELD_OPTIONS.find(o => o.value === searchField)?.label ?? ''}…`}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 h-9 rounded-r-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gold focus:border-transparent"
+                />
+              </div>
             </div>
 
             {/* Show Empty toggle */}
@@ -542,11 +681,12 @@ export default function InventoryPage() {
               )}
             </div>
 
-            {/* Stats — reflect filtered rows */}
+            {/* Stats — reflect filtered rows, compare against unfiltered total */}
             <StatsBar
               totalBoxes={filteredStats.totalBoxes}
               totalRounds={filteredStats.totalRounds}
               totalValue={filteredStats.totalValue}
+              unfilteredTotal={allBoxes.length}
             />
           </div>
         </div>
@@ -602,14 +742,14 @@ export default function InventoryPage() {
             </Alert>
           )}
 
-          {/* Caliber summary */}
-          {caliberSummary.length > 0 && (
+          {/* Dynamic field summary — label and grouping follow the active Group By */}
+          {fieldSummary.length > 0 && (
             <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
               <button
                 className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
                 onClick={() => setSummaryOpen((v) => !v)}
               >
-                <span>Caliber Summary</span>
+                <span>{summaryLabel} Summary</span>
                 {summaryOpen ? (
                   <ChevronUp className="h-4 w-4 text-gray-400" />
                 ) : (
@@ -618,28 +758,36 @@ export default function InventoryPage() {
               </button>
               {summaryOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-px bg-gray-200 dark:bg-gray-800">
-                  {caliberSummary.map((cs) => (
-                    <div
-                      key={cs.caliber_id}
-                      className={cn(
-                        'px-4 py-3 bg-white dark:bg-gray-900',
-                        cs.is_low && 'bg-amber-50 dark:bg-amber-950/20',
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        {cs.is_low && (
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  {fieldSummary.map((fs) => {
+                    const isLow = groupBy === 'none' && lowCaliberIds.has(fs.key as number)
+                    return (
+                      <button
+                        key={fs.key}
+                        onClick={() => {
+                          const field = groupBy === 'none' ? 'caliber' : groupBy
+                          setSearchField(field)
+                          setSearch(fs.name)
+                        }}
+                        className={cn(
+                          'px-4 py-3 bg-white dark:bg-gray-900 text-left w-full hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer',
+                          isLow && 'bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/40',
                         )}
-                        <span className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
-                          {cs.caliber_name}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {cs.total_rounds.toLocaleString()} rds · {cs.box_count} box
-                        {cs.box_count !== 1 ? 'es' : ''}
-                      </div>
-                    </div>
-                  ))}
+                      >
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          {isLow && (
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          )}
+                          <span className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
+                            {fs.name}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {fs.total_rounds.toLocaleString()} rds · {fs.box_count} box
+                          {fs.box_count !== 1 ? 'es' : ''}
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>

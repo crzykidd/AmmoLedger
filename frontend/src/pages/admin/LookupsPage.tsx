@@ -34,7 +34,6 @@ interface SectionConfig {
   label: string
   hasUrl: boolean
   communityManaged: boolean
-  inventoryFilterKey: string | null
   queryFn: () => Promise<AnyLookupItem[]>
   createFn: (name: string, url?: string | null) => Promise<AnyLookupItem>
 }
@@ -44,14 +43,14 @@ interface SectionConfig {
 // ---------------------------------------------------------------------------
 
 const SECTIONS: SectionConfig[] = [
-  { key: 'calibers',        label: 'Calibers',        hasUrl: false, communityManaged: true,  inventoryFilterKey: 'caliber',      queryFn: getCalibersAdmin,       createFn: (n) => createCalibersEntry(n) },
-  { key: 'manufacturers',   label: 'Manufacturers',   hasUrl: true,  communityManaged: true,  inventoryFilterKey: 'manufacturer', queryFn: getManufacturersAdmin,  createFn: (n, u) => createManufacturerEntry(n, u) },
-  { key: 'ammo-types',      label: 'Ammo Types',      hasUrl: false, communityManaged: true,  inventoryFilterKey: 'type',         queryFn: getAmmoTypesAdmin,      createFn: (n) => createAmmoTypeEntry(n) },
-  { key: 'categories',      label: 'Categories',      hasUrl: false, communityManaged: false, inventoryFilterKey: 'category',     queryFn: getCategoriesAdmin,     createFn: (n) => createCategoryEntry(n) },
-  { key: 'ammo-conditions', label: 'Ammo Conditions', hasUrl: false, communityManaged: false, inventoryFilterKey: null,           queryFn: getAmmoConditionsAdmin, createFn: (n) => createAmmoConditionEntry(n) },
-  { key: 'dealers',         label: 'Dealers',         hasUrl: true,  communityManaged: true,  inventoryFilterKey: null,           queryFn: getDealersAdmin,        createFn: (n, u) => createDealerEntry(n, u) },
-  { key: 'locations',       label: 'Locations',       hasUrl: false, communityManaged: false, inventoryFilterKey: null,           queryFn: getLocationsAdmin,      createFn: (n) => createLocationEntry(n) },
-  { key: 'containers',      label: 'Containers',      hasUrl: false, communityManaged: false, inventoryFilterKey: null,           queryFn: getContainersAdmin,     createFn: (n) => createContainerEntry(n) },
+  { key: 'calibers',        label: 'Calibers',        hasUrl: false, communityManaged: true,  queryFn: getCalibersAdmin,       createFn: (n) => createCalibersEntry(n) },
+  { key: 'manufacturers',   label: 'Manufacturers',   hasUrl: true,  communityManaged: true,  queryFn: getManufacturersAdmin,  createFn: (n, u) => createManufacturerEntry(n, u) },
+  { key: 'ammo-types',      label: 'Ammo Types',      hasUrl: false, communityManaged: true,  queryFn: getAmmoTypesAdmin,      createFn: (n) => createAmmoTypeEntry(n) },
+  { key: 'categories',      label: 'Categories',      hasUrl: false, communityManaged: false, queryFn: getCategoriesAdmin,     createFn: (n) => createCategoryEntry(n) },
+  { key: 'ammo-conditions', label: 'Ammo Conditions', hasUrl: false, communityManaged: false, queryFn: getAmmoConditionsAdmin, createFn: (n) => createAmmoConditionEntry(n) },
+  { key: 'dealers',         label: 'Dealers',         hasUrl: true,  communityManaged: true,  queryFn: getDealersAdmin,        createFn: (n, u) => createDealerEntry(n, u) },
+  { key: 'locations',       label: 'Locations',       hasUrl: false, communityManaged: false, queryFn: getLocationsAdmin,      createFn: (n) => createLocationEntry(n) },
+  { key: 'containers',      label: 'Containers',      hasUrl: false, communityManaged: false, queryFn: getContainersAdmin,     createFn: (n) => createContainerEntry(n) },
 ]
 
 // community table key used in /community/status (ammo-types → ammo_types)
@@ -273,12 +272,28 @@ function SourceBadge({ source }: { source: string }) {
 // ---------------------------------------------------------------------------
 
 function EntryRow({
-  entry, tableKey, hasUrl, inventoryFilterKey, onUpdated, onToggled, onDeleted,
+  entry, tableKey, hasUrl, onUpdated, onToggled, onDeleted,
 }: {
-  entry: AnyLookupItem; tableKey: string; hasUrl: boolean; inventoryFilterKey: string | null
+  entry: AnyLookupItem; tableKey: string; hasUrl: boolean
   onUpdated: () => void; onToggled: () => void; onDeleted: () => void
 }) {
   const navigate = useNavigate()
+
+  const handleUsageClick = () => {
+    if (entry.usage_count === 0) return
+    const fieldMap: Record<string, string> = {
+      'calibers': 'caliber',
+      'manufacturers': 'manufacturer',
+      'ammo-types': 'type',
+      'categories': 'category',
+      'ammo-conditions': 'condition',
+      'dealers': 'dealer',
+      'locations': 'location',
+      'containers': 'container',
+    }
+    const field = fieldMap[tableKey] ?? 'all'
+    navigate(`/inventory?searchField=${field}&search=${encodeURIComponent(entry.name)}`)
+  }
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(entry.name)
   const [url, setUrl] = useState('url' in entry ? (entry.url ?? '') : '')
@@ -375,12 +390,7 @@ function EntryRow({
         <td className="py-2 pr-3 text-xs tabular-nums">
           {entry.usage_count > 0 ? (
             <button
-              onClick={() => {
-                const param = inventoryFilterKey
-                  ? `${inventoryFilterKey}=${encodeURIComponent(entry.name)}`
-                  : `search=${encodeURIComponent(entry.name)}`
-                navigate(`/inventory?${param}`)
-              }}
+              onClick={handleUsageClick}
               className="text-blue-600 dark:text-blue-400 hover:underline tabular-nums"
             >
               {entry.usage_count} box{entry.usage_count === 1 ? '' : 'es'}
@@ -558,7 +568,6 @@ function AccordionSection({ config, communityStatus, isOpen, onToggle }: {
                   <tbody>
                     {filtered.map((entry) => (
                       <EntryRow key={entry.id} entry={entry} tableKey={config.key} hasUrl={config.hasUrl}
-                        inventoryFilterKey={config.inventoryFilterKey}
                         onUpdated={invalidate} onToggled={invalidate} onDeleted={invalidate} />
                     ))}
                   </tbody>
