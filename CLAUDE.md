@@ -31,6 +31,13 @@
 - Full ENV reference: `docs/INSTALL.md` → Configuration Options → Environment Variable Reference
 - Config template with all options and comments: `backend/config.template.yaml`
 
+## Code Context
+
+- Always use vexp index when available for
+  file lookups and understanding the codebase
+- Read relevant source files before making
+  changes — don't assume structure
+
 ## Project Documentation
 
 - Full PRD is at docs/PRD.md — read this before starting any phase
@@ -39,7 +46,7 @@
 
 ## Build Status
 
-Current release: v0.1.5 (2026-05-02)
+Current release: v0.1.6 (2026-05-03)
 
 - Phase 1 — Alembic + schema: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
@@ -69,6 +76,9 @@ Current release: v0.1.5 (2026-05-02)
   - 8.9 — Password reset (admin-generated links + config token self-recovery): COMPLETE
   - 8.10 — Help page with searchable FAQ and contextual HelpTip tooltips: COMPLETE
   - 8.11 — Merge invitations into Users page, remove separate Invitations page: COMPLETE
+- Phase 8.12 — Product catalog with images, auto-generate, and Add Box auto-fill: COMPLETE
+- Phase 8.13 — Admin Tasks page with job registry, execution history, and Run Now: COMPLETE
+- Phase 8.14 — Community-maintained lookup tables synced from GitHub: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 

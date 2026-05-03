@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import re
 import secrets
 from datetime import datetime, timedelta, date as date_type
 
@@ -20,6 +21,7 @@ from models import (
     Dealer,
     Location,
     Manufacturer,
+    Product,
     User,
 )
 from utils.config import get_setting, set_setting
@@ -57,6 +59,21 @@ def _levenshtein(a: str, b: str) -> int:
             curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (ch_a != ch_b)))
         prev = curr
     return prev[-1]
+
+
+# ---------------------------------------------------------------------------
+# Product matching helpers
+# ---------------------------------------------------------------------------
+
+def _product_key(caliber_id, manufacturer_id, product_name, gr_oz, type_id) -> tuple:
+    """COALESCE-style key for null-safe product deduplication matching."""
+    return (
+        caliber_id,
+        manufacturer_id,
+        (product_name or "").strip().lower(),
+        gr_oz if gr_oz is not None else -1,
+        type_id if type_id is not None else -1,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +162,54 @@ def _validate_row(row: dict[str, str], row_num: int) -> tuple[list[dict], list[d
 
 
 # ---------------------------------------------------------------------------
+# Caliber similarity helpers
+# ---------------------------------------------------------------------------
+
+def _normalize_caliber(name: str) -> str:
+    """Strip leading dot, collapse whitespace, lowercase — '45 ACP' == '.45 ACP'."""
+    return re.sub(r'\s+', ' ', name.lstrip('.')).strip().lower()
+
+
+def _extract_caliber_number(name: str) -> str | None:
+    """Return the leading numeric token from a caliber name, or None."""
+    m = re.match(r'\.?\s*(\d+(?:\.\d+)?)', name.strip())
+    return m.group(1) if m else None
+
+
+def _extract_trailing_number(name: str) -> str | None:
+    """Return the normalized trailing number from a name, or None.
+
+    Handles: 'Ammo Can #1' → '1', 'AmmoCan 03' → '3', 'Safe-2' → '2'.
+    Leading zeros are stripped so '01' == '1'.
+    """
+    m = re.search(r'[#\-]?\s*(\d+)\s*$', name.strip())
+    return (m.group(1).lstrip('0') or '0') if m else None
+
+
+COMMUNITY_FIELDS = {"caliber", "manufacturer", "type", "dealer"}
+
+
+def _is_similar(val: str, existing: str, column: str) -> bool:
+    """Return True if val looks like a typo of existing but is not an exact match."""
+    if column == "caliber":
+        if _normalize_caliber(val) == _normalize_caliber(existing):
+            return False
+        n_val = _extract_caliber_number(val)
+        n_existing = _extract_caliber_number(existing)
+        if n_val is not None and n_existing is not None and n_val != n_existing:
+            return False
+    else:
+        # Numbered items (containers, locations, etc.) must share the same trailing number
+        num_val = _extract_trailing_number(val)
+        num_existing = _extract_trailing_number(existing)
+        if num_val is not None and num_existing is not None and num_val != num_existing:
+            return False
+    max_dist = 1 if (len(val) <= 6 or len(existing) <= 6) else 2
+    dist = _levenshtein(val, existing)
+    return 0 < dist <= max_dist
+
+
+# ---------------------------------------------------------------------------
 # Lookup resolution helpers
 # ---------------------------------------------------------------------------
 
@@ -190,10 +255,10 @@ def _check_new_values(
     """
     Returns:
       new_values: {table_key: [new values not yet in DB]}
-      fuzzy_warnings: [{row: None, field: col, message: "..."}]
+      similarity_matches: [{field, csv_value, existing_value, table_key}]
     """
     new_values: dict[str, list[str]] = {}
-    fuzzy_warnings: list[dict] = []
+    similarity_matches: list[dict] = []
 
     for col, (table_key, Model) in COLUMN_TO_LOOKUP.items():
         incoming = lookup_values.get(col, set())
@@ -203,27 +268,43 @@ def _check_new_values(
         existing_rows = db.exec(select(Model)).all()
         existing_names = [r.name for r in existing_rows]
         existing_lower = {n.lower(): n for n in existing_names}
+        existing_normalized = (
+            {_normalize_caliber(n): n for n in existing_names}
+            if col == "caliber" else {}
+        )
 
         col_new: list[str] = []
         for val in sorted(incoming):
             if val.lower() in existing_lower:
                 continue
+            if col == "caliber" and _normalize_caliber(val) in existing_normalized:
+                continue
             col_new.append(val)
             # fuzzy check against all existing
             for existing_name in existing_names:
-                dist = _levenshtein(val, existing_name)
-                if 0 < dist <= 2:
-                    fuzzy_warnings.append({
-                        "row": None,
+                if _is_similar(val, existing_name, col):
+                    similarity_matches.append({
                         "field": col,
-                        "message": f"'{val}' is similar to existing '{existing_name}' — verify these are the same",
+                        "csv_value": val,
+                        "existing_value": existing_name,
+                        "table_key": table_key,
+                        "default_action": "use_existing" if col in COMMUNITY_FIELDS else "import_new",
                     })
                     break
 
         if col_new:
             new_values[table_key] = col_new
 
-    return new_values, fuzzy_warnings
+    return new_values, similarity_matches
+
+
+# ---------------------------------------------------------------------------
+# Remap helper
+# ---------------------------------------------------------------------------
+
+def _apply_remap(value: str, column: str, remaps: dict[str, dict[str, str]]) -> str:
+    """If a remap exists for this column+value, return the mapped value; otherwise return as-is."""
+    return remaps.get(column, {}).get(value, value)
 
 
 # ---------------------------------------------------------------------------
@@ -420,8 +501,7 @@ async def validate_import(
             raise HTTPException(status_code=422, detail="No importable rows found — all rows have errors")
 
         lookup_values = _collect_lookup_values(rows)
-        new_values, fuzzy_warnings = _check_new_values(db, lookup_values)
-        all_warnings.extend(fuzzy_warnings)
+        new_values, similarity_matches = _check_new_values(db, lookup_values)
 
         legacy_id_mode = _analyze_legacy_ids(rows, db)
         logger.debug(
@@ -443,6 +523,7 @@ async def validate_import(
             "error_rows": len(rows) - importable,
             "warning_count": len(all_warnings),
             "new_values": new_values,
+            "similarity_matches": similarity_matches,
             "errors": all_errors,
             "warnings": all_warnings,
             "legacy_id_mode": legacy_id_mode,
@@ -462,6 +543,7 @@ async def confirm_import(
     validation_token: str = Form(...),
     use_legacy_ids: bool = Form(False),
     is_shared: bool = Form(True),
+    value_remaps: str = Form("{}"),
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
@@ -471,6 +553,11 @@ async def confirm_import(
             "Import confirm started: %s, use_legacy_ids=%s, is_shared=%s",
             file.filename or "unknown", use_legacy_ids, is_shared,
         )
+
+        try:
+            remaps: dict[str, dict[str, str]] = json.loads(value_remaps)
+        except (json.JSONDecodeError, TypeError):
+            remaps = {}
 
         _validate_token(db, validation_token)
 
@@ -497,11 +584,14 @@ async def confirm_import(
         imported = 0
         skipped = 0
         lookup_values_created = 0
+        product_links = 0
         warnings: list[dict] = []
         autoincrement_reset_to: int | None = None
         total_rows = len(rows)
 
         with Session(engine) as import_db:
+            imported_boxes: list[AmmoBox] = []
+
             for i, row in enumerate(rows, start=2):
                 errs, row_warns = _validate_row(row, i)
                 warnings.extend(row_warns)
@@ -509,29 +599,30 @@ async def confirm_import(
                     skipped += 1
                     continue
 
-                # Resolve required lookups
-                caliber_id = _resolve_or_create(import_db, Caliber, _get(row, "caliber"))
+                # Resolve required lookups (apply user remaps before resolution)
+                caliber_raw = _apply_remap(_get(row, "caliber"), "caliber", remaps)
+                caliber_id = _resolve_or_create(import_db, Caliber, caliber_raw)
 
-                manufacturer_raw = _get(row, "manufacturer")
+                manufacturer_raw = _apply_remap(_get(row, "manufacturer"), "manufacturer", remaps)
                 manufacturer_id = _resolve_or_create(import_db, Manufacturer, manufacturer_raw) if manufacturer_raw else None
 
                 # Optional lookups
-                type_raw = _get(row, "type")
+                type_raw = _apply_remap(_get(row, "type"), "type", remaps)
                 type_id = _resolve_or_create(import_db, AmmoType, type_raw) if type_raw else None
 
-                category_raw = _get(row, "category")
+                category_raw = _apply_remap(_get(row, "category"), "category", remaps)
                 category_id = _resolve_or_create(import_db, Category, category_raw) if category_raw else None
 
-                condition_raw = _get(row, "ammo_condition")
+                condition_raw = _apply_remap(_get(row, "ammo_condition"), "ammo_condition", remaps)
                 condition_id = _resolve_or_create(import_db, AmmoCondition, condition_raw) if condition_raw else None
 
-                dealer_raw = _get(row, "dealer")
+                dealer_raw = _apply_remap(_get(row, "dealer"), "dealer", remaps)
                 dealer_id = _resolve_or_create(import_db, Dealer, dealer_raw) if dealer_raw else None
 
-                location_raw = _get(row, "location")
+                location_raw = _apply_remap(_get(row, "location"), "location", remaps)
                 location_id = _resolve_location(import_db, location_raw) if location_raw else None
 
-                container_raw = _get(row, "container")
+                container_raw = _apply_remap(_get(row, "container"), "container", remaps)
                 container_id = _resolve_container(import_db, container_raw, location_id) if container_raw else None
 
                 # Field values
@@ -632,11 +723,36 @@ async def confirm_import(
                 if updated_at is not None:
                     box.updated_at = updated_at
                 import_db.add(box)
+                imported_boxes.append(box)
                 imported += 1
                 if imported % 100 == 0:
                     logger.debug("Inserting box %d of %d", imported, total_rows)
 
             import_db.commit()
+
+            # Link imported boxes to matching products (caliber+manufacturer+product_name+gr_oz+type)
+            all_products = import_db.exec(
+                select(Product).where(
+                    (Product.is_shared == True) | (Product.owner_id == user.id)  # noqa: E712
+                )
+            ).all()
+            if all_products:
+                product_map = {
+                    _product_key(p.caliber_id, p.manufacturer_id, p.product_name, p.gr_oz, p.type_id): p.id
+                    for p in all_products
+                }
+                for box in imported_boxes:
+                    if box.product_id is not None:
+                        continue
+                    key = _product_key(box.caliber_id, box.manufacturer_id, box.product_name, box.gr_oz, box.type_id)
+                    matched_id = product_map.get(key)
+                    if matched_id is not None:
+                        box.product_id = matched_id
+                        import_db.add(box)
+                        product_links += 1
+                if product_links > 0:
+                    import_db.commit()
+                    logger.debug("Linked %d imported boxes to products", product_links)
 
             # After legacy ID mode inserts, reset autoincrement so future boxes
             # continue from MAX(id)+1 rather than the pre-import sequence value.
@@ -682,6 +798,7 @@ async def confirm_import(
             "imported": imported,
             "skipped": skipped,
             "new_lookup_values_created": lookup_values_created,
+            "product_links": product_links,
             "pre_import_backup": backup_filename,
             "legacy_id_mode_used": use_legacy_ids,
             "warnings": warnings,

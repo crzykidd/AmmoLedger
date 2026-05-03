@@ -1,107 +1,94 @@
-import os
-import shutil
-from datetime import datetime
-from pathlib import Path
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from utils.logging import get_logger
+from utils.task_definitions import TASK_FUNCTIONS
+from utils.task_runner import run_task
 
 logger = get_logger(__name__)
-
-_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/ammoledger.db")
-BACKUP_PATH = os.getenv("BACKUP_PATH", "/data/backups")
 
 _scheduler: AsyncIOScheduler | None = None
 
 
-def _db_path() -> Path:
-    url = _DATABASE_URL
-    if url.startswith("sqlite:///"):
-        return Path(url[len("sqlite:///"):])
-    return Path("/data/ammoledger.db")
+def _make_job(task_key: str, task_fn):
+    """Return a zero-arg callable that runs the task through the task_runner."""
+    def _job():
+        run_task(task_key, task_fn, triggered_by="scheduler")
+    _job.__name__ = f"job_{task_key}"
+    return _job
 
 
-def _run_backup_job(retention_days: int) -> None:
-    """Nightly backup job — runs as a sync function in APScheduler's thread pool."""
-    db_path = _db_path()
-    backup_dir = Path(BACKUP_PATH)
-    backup_dir.mkdir(parents=True, exist_ok=True)
-
-    if not db_path.is_file():
-        logger.error("Scheduled backup failed: DB not found at %s", db_path)
-        return
-
-    logger.info("Scheduled backup started")
-    ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    filename = f"ammoledger_{ts}.db"
-    dest = backup_dir / filename
-
+def _add_job(
+    scheduler: AsyncIOScheduler,
+    task_key: str,
+    task_fn,
+    interval_type: str,
+    interval_value: str,
+) -> None:
+    job_fn = _make_job(task_key, task_fn)
     try:
-        shutil.copy2(str(db_path), str(dest))
-        logger.info("Scheduled backup complete: %s", filename)
+        if interval_type == "hours":
+            hours = int(interval_value)
+            scheduler.add_job(
+                job_fn,
+                trigger="interval",
+                hours=hours,
+                id=task_key,
+                replace_existing=True,
+            )
+            logger.info("Scheduled %s every %d hours", task_key, hours)
+        elif interval_type == "daily":
+            hour, minute = map(int, interval_value.split(":"))
+            scheduler.add_job(
+                job_fn,
+                trigger="cron",
+                hour=hour,
+                minute=minute,
+                id=task_key,
+                replace_existing=True,
+            )
+            logger.info("Scheduled %s daily at %02d:%02d", task_key, hour, minute)
+        else:
+            logger.warning("Unknown interval_type '%s' for task %s", interval_type, task_key)
     except Exception as e:
-        logger.error("Scheduled backup failed: %s", e)
-        return
-
-    # Prune files older than retention_days
-    pruned = 0
-    try:
-        cutoff = datetime.now().timestamp() - retention_days * 86400
-        for f in sorted(backup_dir.glob("ammoledger_*.db"), key=lambda x: x.stat().st_mtime):
-            if "pre-import" in f.name:
-                continue
-            if f.stat().st_mtime < cutoff:
-                f.unlink()
-                pruned += 1
-        if pruned:
-            logger.info("Pruned %d old backup%s", pruned, "s" if pruned != 1 else "")
-    except Exception as e:
-        logger.error("Prune failed: %s", e)
-
-    # Record timestamp in app_settings
-    try:
-        from database import engine  # noqa: PLC0415
-        from sqlmodel import Session  # noqa: PLC0415
-        from utils.config import set_setting  # noqa: PLC0415
-        with Session(engine) as session:
-            set_setting(session, "last_backup_at", datetime.now().isoformat())
-            set_setting(session, "last_backup_file", filename)
-            session.commit()
-    except Exception as e:
-        logger.error("Failed to update last_backup_at: %s", e)
+        logger.error("Failed to schedule task %s: %s", task_key, e)
 
 
 def start_scheduler(config: dict) -> None:
     global _scheduler
 
-    backup_cfg = config.get("backup") or {}
-    if not backup_cfg.get("enabled", False):
-        logger.info("Scheduled backups disabled")
-        return
-
-    schedule = str(backup_cfg.get("schedule", "03:00"))
-    retention_days = int(backup_cfg.get("retention_days", 30))
-
-    try:
-        hour_str, minute_str = schedule.split(":")
-        hour, minute = int(hour_str), int(minute_str)
-    except (ValueError, AttributeError):
-        logger.warning("Invalid schedule '%s' — defaulting to 03:00", schedule)
-        hour, minute = 3, 0
+    from database import engine  # noqa: PLC0415
+    from models import TaskRegistry  # noqa: PLC0415
+    from sqlmodel import Session, select  # noqa: PLC0415
 
     _scheduler = AsyncIOScheduler()
-    _scheduler.add_job(
-        _run_backup_job,
-        trigger="cron",
-        hour=hour,
-        minute=minute,
-        kwargs={"retention_days": retention_days},
-        id="nightly_backup",
-        replace_existing=True,
-    )
+    scheduled_count = 0
+
+    with Session(engine) as db:
+        all_tasks = db.exec(select(TaskRegistry)).all()
+        task_map = {t.task_key: t for t in all_tasks}
+
+    for task_key, task_fn in TASK_FUNCTIONS.items():
+        task = task_map.get(task_key)
+        if task is None or not task.enabled:
+            continue
+
+        interval_value = task.interval_value
+
+        # scheduled_backup: honour config schedule if set
+        if task_key == "scheduled_backup":
+            backup_cfg = config.get("backup") or {}
+            if backup_cfg.get("enabled") is False:
+                logger.info("Scheduled backup disabled via config")
+                continue
+            cfg_schedule = str(backup_cfg.get("schedule", "")).strip()
+            if cfg_schedule:
+                interval_value = cfg_schedule
+
+        _add_job(_scheduler, task_key, task_fn, task.interval_type, interval_value)
+        scheduled_count += 1
+
     _scheduler.start()
-    logger.info("Scheduler started — next backup at %02d:%02d, retention %dd", hour, minute, retention_days)
+    logger.info("Scheduler started with %d task(s)", scheduled_count)
 
 
 def stop_scheduler() -> None:

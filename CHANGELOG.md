@@ -10,6 +10,48 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.6] — 2026-05-03
+
+### Added
+
+- **Product catalog** — a dedicated Products page at `/products` for creating and managing product templates; each product captures caliber, manufacturer, product name, bullet weight, type, category, condition, default cost, UPC, and an optional image
+- Product images — upload a jpg/jpeg/png/webp image (up to 5 MB) per product; displayed on the product card and in the Add Box form
+- **Auto-fill from product** — when adding a new ammo box, select a product from the search-as-you-type selector at the top of the form; caliber, manufacturer, product name, weight, type, category, condition, and cost auto-populate from the product
+- **Add Box from Products page** — each product card has an "Add Box" button that opens Inventory pre-filled with the selected product
+- **Save as Template** — after manually adding a box with no product selected, a dialog offers to save the box's details as a new product template for future reuse
+- **Auto-generate products** — admin-only button on the Products page that groups existing inventory boxes by their unique caliber + manufacturer + product name + weight + type combination and creates a product for each group; also back-fills all matching boxes
+- Product visibility follows the same shared/private ownership model as ammo boxes — shared products are visible to all users; private products are visible to the owner and admins
+- CSV import auto-links imported boxes to matching products by comparing caliber, manufacturer, product name, gr/oz, and type; unmatched boxes can be wired up by running Auto-Generate later
+- **Admin Tasks page** at `/admin/tasks` — view all scheduled jobs with last-run status, duration, and next scheduled time; manually trigger any task with Run Now; enable/disable individual tasks; change task intervals
+- **Task execution history** — every task run (scheduled or manual) records start time, end time, duration, status, and any error or stats details; history table is searchable by task with expandable rows for error messages and result details
+- Database Optimize, Version Check, Scheduled Backup, Backup Cleanup, and Community Sync tasks are all registered and controllable from the Tasks page
+- **Community-maintained lookup tables** — dealers, manufacturers, calibers, and ammo types are now synced automatically from the `community/` directory in the GitHub repository on every startup; falls back to bundled YAML files when GitHub is unreachable
+- **Pending import review** — on first startup all community entries are imported automatically; on subsequent syncs new entries are queued as pending and shown in a banner on the Admin → Lookups page; admins can cherry-pick which entries to import or hide
+- **Check for Updates** button on the Lookups page (admin only) — triggers an on-demand community sync and shows how many new entries are pending across all four tables
+- **Source badges** on every lookup entry — blue badge for community-maintained entries, gold for user-created entries, gray for YAML-seeded entries
+- **Contribute button** on each community-managed lookup section — generates a YAML snippet of all user-created entries in that table and provides a direct link to open a pull request on GitHub
+- **Review & Import dialog** — checklist of all pending community entries for a table; import selected, hide rejected, or dismiss to decide later
+- **Dealer geo fields** — type (online/local/auction/gun show), country, and state/province added to the dealer model; community YAML includes these fields for all entries; add/edit form has country and state dropdowns
+
+### Changed
+
+- CSV import similarity warnings replaced with an interactive resolution grid — when the validator detects values similar to existing entries, you can now choose per-match whether to map to the existing value or import as new; remapped values are excluded from the "new values will be created" list
+- Similarity resolution defaults are now context-aware — community-maintained fields (caliber, manufacturer, type, dealer) default to "Use existing" while user-local fields (location, container, category, condition) default to "Import as new"
+- Inventory Group By headers now show all stats (boxes, rounds, value, low stock) together on the right side for better readability
+- Groups now start collapsed when first selecting a Group By option, giving an overview before drilling in; expand/collapse state is preserved per group across page navigation within the session
+
+### Fixed
+
+- CSV import caliber fuzzy matching no longer flags unrelated calibers that share a suffix (e.g. `.25 ACP` vs `.45 ACP`); normalizes leading dots and compares numeric portions before applying Levenshtein distance
+- Container and location similarity matching now compares trailing numbers — `Ammo Can #1` no longer falsely matches `AmmoCan 11`
+- Group By Location and Container no longer shows all boxes under "No Location" / "No Container" on initial page load (race condition where grouping ran before lookup data arrived)
+
+### Security
+
+- Updated python-multipart (0.0.9 → 0.0.27) and pytest (8.2 → 9.0.3) for vulnerability fixes
+- Product image upload validates file extensions against an allowlist and uses database-sourced IDs for file path construction to prevent path traversal
+- Product image URLs are sanitized via regex extraction before rendering to prevent DOM XSS injection
+
 ## [0.1.5] — 2026-05-02
 
 ### Fixed

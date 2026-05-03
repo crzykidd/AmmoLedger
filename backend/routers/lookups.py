@@ -90,6 +90,9 @@ def _fetch_entries(model_class, table_name: str, active_only: bool, db: Session)
     stmt = select(model_class)
     if active_only:
         stmt = stmt.where(model_class.is_active == True)  # noqa: E712
+        # Community-synced tables: only show entries the admin has approved
+        if hasattr(model_class, "is_imported"):
+            stmt = stmt.where(model_class.is_imported == True)  # noqa: E712
     entries = db.exec(stmt).all()
 
     count_map = _get_count_map(table_name, db) if not active_only else {}

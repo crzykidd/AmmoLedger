@@ -1,13 +1,14 @@
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: ../Dockerfile.backend
+      context: .
+      dockerfile: Dockerfile.backend
     user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./backend:/app          # live reload your Python code
+      - ./community:/app/community  # live reload community YAML files
       - ./data:/data            # persist SQLite database, config, backups, uploads
     environment:
       - DATABASE_URL=sqlite:////data/ammoledger.db

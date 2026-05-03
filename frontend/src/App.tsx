@@ -14,7 +14,9 @@ import ProfilePage from '@/pages/settings/ProfilePage'
 import UserManagementPage from '@/pages/admin/UserManagementPage'
 import BackupPage from '@/pages/admin/BackupPage'
 import LookupsPage from '@/pages/admin/LookupsPage'
+import TasksPage from '@/pages/admin/TasksPage'
 import ImportPage from '@/pages/ImportPage'
+import ProductsPage from '@/pages/ProductsPage'
 import AboutPage from '@/pages/AboutPage'
 import HelpPage from '@/pages/HelpPage'
 import WhatsNewModal from '@/components/WhatsNewModal'
@@ -81,6 +83,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/products"
+        element={
+          <ProtectedRoute>
+            <ProductsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/import"
         element={
           <ProtectedRoute>
@@ -126,6 +136,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <LookupsPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/tasks"
+        element={
+          <AdminRoute>
+            <TasksPage />
           </AdminRoute>
         }
       />

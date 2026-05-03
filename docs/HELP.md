@@ -58,6 +58,36 @@ Go to **Settings → Thresholds** and scroll to **Per-Caliber Thresholds**. Sele
 
 Go to **Settings → Thresholds** and scroll to **Per-Location Thresholds**. Select a storage location, enter the total round count that should trigger a low-stock alert across all calibers in that location, and click **Add**. Useful for tracking overall readiness at a specific safe or storage area.
 
+## Products
+
+### What are products?
+
+Products are reusable templates for ammo boxes. Each product stores a caliber, manufacturer, product name, bullet weight, type, category, condition, default cost, and an optional photo. When you add a new box, you can select a product to auto-fill those fields instantly instead of typing them each time.
+
+### How do I create a product?
+
+Go to **Products** in the sidebar and click **Add Product**. Fill in at minimum a caliber — all other fields are optional. You can also upload a product image (jpg, png, or webp, up to 5 MB) by clicking the image area or dragging a file onto it.
+
+### How do I add a box from a product?
+
+On the Products page, find the product card and click **Add Box**. This opens the Add Box form in Inventory with all matching fields pre-filled from the product. Adjust any values as needed and save.
+
+### Can I auto-fill a product when adding a box manually?
+
+Yes. In the Add Box form, a product selector appears at the top. Type part of the caliber, manufacturer, or product name to search your product catalog. Select a match and all compatible fields fill automatically. You can also click **Enter details manually** to skip the selector and fill the form yourself.
+
+### What is "Save as Template"?
+
+When you add a box manually without selecting a product, AmmoLedger offers to save those details as a new product after you click Add Box. Click **Save as Template** in the dialog to create a product from the box you just added, or **Skip** to continue without creating one.
+
+### What is Auto-Generate?
+
+Auto-Generate (admin only, via the **Auto-Generate** button on the Products page) scans your existing inventory and creates a product for each unique combination of caliber, manufacturer, product name, bullet weight, and type. It also links any matching boxes to the new products automatically. Use it to bootstrap your product catalog from existing inventory.
+
+### Can products be shared or private?
+
+Yes — the same shared/private ownership model applies to products. Shared products are visible to all users; private products are only visible to the owner and admins. The Shared toggle appears in the Add/Edit Product form.
+
 ## Import
 
 ### What CSV format does AmmoLedger use?
@@ -106,6 +136,24 @@ AmmoLedger automatically backs up your data every night at the time set in `conf
 
 JSON export captures your inventory and expenditure data in a portable format that can be re-imported into AmmoLedger. SQLite backup is the raw database file — useful for developer recovery but not used by the restore UI. Use JSON export for routine backups.
 
+## Admin Tasks
+
+### What are scheduled tasks?
+
+AmmoLedger runs several background jobs automatically on a configurable schedule. Go to **Admin → Tasks** to see all registered tasks, their next scheduled run, last run status, and full execution history. Tasks include version checks, scheduled backups, backup cleanup, and database maintenance.
+
+### How do I manually run a task?
+
+Go to **Admin → Tasks** and click **Run Now** on any task row. The task runs immediately in the background — the status badge updates to show it is running, then flips to OK or Failed when it finishes. History is updated automatically without needing to refresh.
+
+### How do I change the backup schedule?
+
+Go to **Admin → Tasks**, find the **Scheduled Backup** row, and edit the interval field. Enter a number of hours (e.g. `24`) or a daily time in `HH:MM` format (e.g. `03:00`). Click **Save** to apply. The next scheduled run updates immediately.
+
+### What if a task fails?
+
+The task row shows a red **Failed** badge and the last error message. Click anywhere on the history row in the Recent History table to expand the full error detail. You can click **Run Now** to retry the task immediately. If a task fails repeatedly, check the Admin → Tasks history for the error and review your `config.yaml` settings (especially backup paths and retention values).
+
 ## User Management
 
 ### How do I invite a family member?
@@ -123,6 +171,34 @@ Go to **Admin → Users** and click the link icon next to the user. Copy the gen
 ### How do I recover my admin password?
 
 If you're locked out of your admin account, edit `config.yaml` inside the container, set `security.reset_token` to a random string, restart the backend, and visit `/reset?token=your-value`. Enter your admin email and set a new password. Remove the token from `config.yaml` immediately after use. See the Installation Guide for step-by-step instructions.
+
+## Community Lookup Data
+
+### What is community lookup data?
+
+AmmoLedger maintains a shared dataset of dealers, manufacturers, calibers, and ammo types that is synced automatically from the project's GitHub repository. This means your lookup tables stay current with new dealers and manufacturers without any manual data entry.
+
+### How does the sync work?
+
+On every startup, AmmoLedger fetches the latest community YAML files from GitHub. New entries are added as **pending** — they do not appear in form dropdowns until an admin reviews and imports them. If GitHub is unreachable, the app falls back to the YAML files bundled inside the Docker image.
+
+### Where do I review pending community entries?
+
+Go to **Admin → Lookups**. Any lookup section that has pending community entries shows a yellow banner with the count of new items. Click **Review & Import** to open a checklist of pending entries — check the ones you want to import and uncheck any you want to hide. Click **Import Selected** to apply your choices.
+
+### How do I trigger a manual sync?
+
+On the **Admin → Lookups** page, click **Check for Updates** in the top-right toolbar. This immediately pulls the latest community YAML files from GitHub and shows how many new entries are available across all four tables. The pending count badge updates in real time.
+
+### What do the colored badges on lookup entries mean?
+
+- **Blue** — community-maintained entry synced from GitHub
+- **Gold** — entry you created manually in AmmoLedger
+- **Gray** — entry seeded from the built-in `defaults.yaml` file
+
+### How do I contribute a new dealer or manufacturer to the community list?
+
+On the **Admin → Lookups** page, expand the Dealers or Manufacturers section and click **Contribute**. This generates a YAML snippet of all your user-created entries and provides a link to open a pull request on GitHub. Copy the YAML into the pull request and the maintainers will review it. See [CONTRIBUTING.md](https://github.com/crzykidd/AmmoLedger/blob/main/CONTRIBUTING.md) for the full contribution guide.
 
 ## About
 

@@ -45,6 +45,9 @@
 | 3.6 | May 2026 | Direct location assignment on ammo_box — location_id FK added to ammo_box table; location and container are now independent; CSV import sets location_id directly; Group By Location and location thresholds use ammo_box.location_id; Location dropdown added to Add/Edit form and Bulk Edit panel. §4.1 and §6.3 updated. |
 | 3.7 | May 2026 | Environment variable config support — AL_* env vars override config.yaml; app can start without config.yaml if AL_SESSION_SECRET is set; startup logs which values came from ENV; §15.1 updated with configuration sources priority. |
 | 3.8 | May 2026 | CSV export — GET /ammo/export/csv (filtered, all users) and GET /backup/export/csv (all boxes, admin). Export CSV toolbar button in §9.2 with confirmation dialog. CSV importer extended to handle owner/created_at/updated_at/id columns. §9.2, §9.8, §11.3 updated. |
+| 3.9 | May 2026 | Product catalog — §6.9 added: products table with COALESCE unique index, image storage, product_id FK on ammo_box. §9.13 added: Products page (grid/list, add/edit sheet, image upload, auto-generate), Add Box product selector, Save as Template dialog, CSV import product auto-linking. |
+| 3.10 | May 2026 | Admin Tasks page — §9.14 added: task_registry and task_history tables, 5 registered tasks (version_check, scheduled_backup, backup_cleanup, community_sync, db_analyze), task runner with two-session pattern, APScheduler integration, /tasks API (list, history, run now, patch), TasksPage with status badges, Run Now button, per-task history, and enable/interval editing. |
+| 3.11 | May 2026 | Community-maintained lookup tables — §8.2 and §9.15 added: community/ YAML directory, community_sync utility (GitHub fetch + bundled fallback), community_key + is_imported + dealer geo fields (migration 0020), /community/\* and /geo/\* API routes, pending-import review flow, source badges, Contribute dialog, Check for Updates button on Lookups page. defaults.yaml stripped of calibers/manufacturers/ammo_types/dealers; acquisition_sources replaces non-commercial dealer seeds. |
 
 ---
 
@@ -611,6 +614,74 @@ Split and adjust entries are **never** counted as rounds used in reports.
 - Example: logged 50 expended, only shot 30 — Admin creates adjust with `rounds_used = -20`; `qty_remaining` is restored
 - No expenditure_log entries can ever be deleted
 - `expend` and `split` entries are immutable after creation
+
+### 6.14 Product Catalog
+
+Products are reusable templates that can be linked to ammo boxes.
+
+#### products table
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `id` | INTEGER PK | auto |
+| `name` | TEXT | auto-generated from manufacturer + product_name + caliber + gr_oz + type |
+| `caliber_id` | FK → calibers | required |
+| `manufacturer_id` | FK → manufacturers | required |
+| `product_name` | TEXT nullable | e.g. "HST 147gr" |
+| `gr_oz` | FLOAT nullable | bullet weight |
+| `weight_unit` | TEXT | GR or OZ, default GR |
+| `type_id` | FK → ammo_types | nullable |
+| `category_id` | FK → categories | nullable |
+| `ammo_condition_id` | FK → ammo_conditions | nullable |
+| `default_cost` | FLOAT nullable | cost per round |
+| `upc` | TEXT nullable | barcode for future scanning |
+| `image_path` | TEXT nullable | relative path under `/data/uploads/products/` |
+| `notes` | TEXT nullable | |
+| `owner_id` | FK → users | creator |
+| `is_shared` | BOOLEAN | default true |
+| `created_at` | DATETIME | auto |
+| `updated_at` | DATETIME | auto |
+
+#### Unique constraint
+
+Products are deduplicated using a COALESCE-based expression index (standard UNIQUE cannot handle NULLs):
+
+```sql
+CREATE UNIQUE INDEX ix_product_unique
+ON products(caliber_id, manufacturer_id, COALESCE(product_name, ''), COALESCE(gr_oz, -1), COALESCE(type_id, -1))
+```
+
+#### ammo_box linkage
+
+`ammo_box.product_id` (FK → products, nullable) — set when a box is added from a product selector, created via auto-generate, or matched during CSV import.
+
+#### Auto-generate
+
+`POST /products/auto-generate` (admin only):
+
+1. Load all ammo boxes that have no `product_id` set
+2. Group by `(caliber_id, manufacturer_id, COALESCE(product_name, ''), COALESCE(gr_oz, -1), COALESCE(type_id, -1))`
+3. For each group: compute most-common category/condition and average cost; create product if key not already in products table
+4. Back-fill `product_id` on every box whose key matches
+5. Return counts: created, already_existed, boxes_linked
+
+#### Image storage
+
+Product images are stored at `/data/uploads/products/{id}.{ext}`. The extension is determined at upload time from the file's content type. Served by `GET /products/{id}/image`. Maximum size: 5 MB. Accepted types: jpg, jpeg, png, webp.
+
+#### API
+
+| Method | Path | Auth | Notes |
+| ------ | ---- | ---- | ----- |
+| GET | `/products` | any | list, supports `?search=`, `?caliber_id=`, `?my_only=` |
+| POST | `/products` | member+ | create |
+| GET | `/products/{id}` | any | single product with joined names and usage_count |
+| PUT | `/products/{id}` | owner or admin | update |
+| DELETE | `/products/{id}` | owner or admin | also deletes image file |
+| POST | `/products/{id}/image` | owner or admin | multipart upload |
+| DELETE | `/products/{id}/image` | owner or admin | removes file and clears image_path |
+| GET | `/products/{id}/image` | any | FileResponse |
+| POST | `/products/auto-generate` | admin | batch create from inventory |
 
 ---
 
@@ -1510,6 +1581,117 @@ Single source of truth for the entire app. Docker image built with this version 
 - Popover opens on hover (150ms close delay) or click; dismisses on click-outside
 - Dark background, light text; max-width 250px; positioned above trigger with auto-flip
 - Placed next to field labels in: Add/Edit Ammo Box form (12 fields), Inventory toolbar (Group By, Show Empty, Archived), Stock Thresholds page (3 threshold labels), Import page (Ownership and ID Assignment sections)
+
+### 9.13 Product Catalog
+
+#### Products Page (`/products`)
+
+- Accessible to all authenticated roles via sidebar (BookOpen icon, between Inventory and Import)
+- Two view modes: **Grid** (image card layout) and **List** (compact rows) — toggled by icon buttons, saved to localStorage
+- Search input filters by name, caliber, or manufacturer (client-side across loaded results)
+- Caliber filter dropdown to narrow list to a single caliber
+- **Add Product** button opens a Sheet drawer (member+ only)
+- Each product card/row shows: name, caliber, bullet weight+unit, type badge, usage count ("X boxes"), and product image (or placeholder icon)
+- Card actions: **Add Box** (navigates to `/inventory?product_id={id}`) and edit/delete (owner or admin)
+- Delete confirmation AlertDialog before removing a product
+- **Auto-Generate** button (admin only) — triggers `POST /products/auto-generate`; shows counts of created products and linked boxes in a success toast
+
+#### Product Form Sheet
+
+Fields: Name (auto-built, read-only), Caliber (required), Manufacturer (required), Product Name (free text), Gr/Oz + Unit toggle (GR/OZ), Type, Category, Condition, Default Cost per Round, UPC, Shared toggle, Notes, Image upload area
+
+Image upload area: click to browse or drag-and-drop; shows preview with remove button; accepts jpg/jpeg/png/webp ≤ 5 MB; uploaded after save via `POST /products/{id}/image`
+
+#### Add Box Integration
+
+- `AmmoFormPanel` shows a **Product Selector** at the top of the Add form (hidden in edit mode)
+- Selector: search-as-you-type input, dropdown of matching products, "Enter details manually →" link
+- Selecting a product calls `applyProduct()` — fills caliber, manufacturer, product_name, gr_oz, weight_unit, type, category, condition, cost_per_round from the product and switches to manual mode
+- In manual mode: shows selected product name in a muted chip with a ×Clear link
+- "Enter details manually" hides the selector and lets the user fill all fields themselves
+- When navigating from the Products page ("Add Box" button), the URL carries `?product_id={id}`; InventoryPage reads the param, opens the Add form, and passes `initialProductId` to `AmmoFormPanel` which fetches the product and auto-fills
+
+#### Save as Template Dialog
+
+- Shown after a successful manual box creation (no product selected)
+- `AlertDialog` with two actions: **Save as Template** and **Skip**
+- Save as Template calls `POST /products` with the box's caliber/manufacturer/product_name/gr_oz/weight_unit/type/category/condition/cost_per_round and `is_shared: true`
+- On success: invalidates the products query cache and shows a success toast
+
+#### CSV Import Product Linking
+
+After all boxes are committed in `POST /import/confirm`, a product-linking pass runs:
+
+1. Load all products visible to the importing user (shared + owner's private)
+2. Build a lookup dict keyed by `(caliber_id, manufacturer_id, COALESCE(product_name,'').lower(), gr_oz ?? -1, type_id ?? -1)`
+3. For each imported box with no `product_id`, compute its key and look up a match
+4. If found: set `product_id`; commit the updates
+5. Response includes `product_links` count; unmatched boxes can be linked later via Auto-Generate
+
+---
+
+### 9.14 Admin Tasks
+
+#### Task Registry
+
+All background jobs are registered in the `task_registry` table at startup. Each entry has:
+
+- `task_key` — unique string identifier (e.g. `version_check`)
+- `name`, `description` — display labels
+- `interval_type` — `hours` or `daily`
+- `interval_value` — `"24"` (hours count) or `"03:00"` (HH:MM for daily)
+- `enabled` — can be toggled per-task in the UI
+- `last_run_at`, `last_status`, `last_duration_ms`, `next_run_at` — updated after each run
+
+Startup seeding: `_seed_task_registry()` is called in `on_startup` after `sync_yaml_seeds`. Creates missing entries and updates name/description from `TASK_DEFINITIONS`, but preserves user-set interval and enabled values.
+
+#### Registered Tasks
+
+| Key | Default Interval | Description |
+| --- | --- | --- |
+| `version_check` | 24 h | Check GitHub releases API for a newer version; updates `app_settings.latest_version` and `update_available` |
+| `scheduled_backup` | daily 03:00 | Copy SQLite DB to `/data/backups/ammoledger_{ts}.db`; records `last_backup_at` in app_settings |
+| `backup_cleanup` | 24 h | Delete backup files older than `retention_days` (default 30) |
+| `community_sync` | 24 h | Placeholder for future community data sync (currently no-ops) |
+| `db_analyze` | 24 h | Run SQLite `ANALYZE` to keep query planner statistics current |
+
+#### Task Runner
+
+`run_task(task_key, task_fn, triggered_by, task_kwargs)` in `utils/task_runner.py`:
+
+1. **Session 1** — Create `TaskHistory` record with `status="running"`, commit, capture `history_id`, close session
+2. Run `task_fn(**task_kwargs)` outside any open session
+3. **Session 2** — Update `TaskHistory` (status/ended_at/duration_ms/details/error), update `TaskRegistry` (last_run_at/last_status/next_run_at), commit
+
+Returns `history_id` (int). The caller fetches the record from DB in its own session.
+
+#### Scheduler Integration
+
+`start_scheduler(config)` in `utils/scheduler.py`:
+
+- Reads all enabled `TaskRegistry` rows from DB on startup
+- For each: creates an APScheduler job with interval or cron trigger from `interval_type`/`interval_value`
+- `scheduled_backup` uses the schedule configured in `config.yaml` if present, otherwise the registry interval
+- `reschedule(config)` clears all jobs and re-adds them (called after interval changes)
+
+#### Tasks API (`/tasks`, admin only)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/tasks` | List all task registry entries, ordered by next_run_at |
+| GET | `/tasks/history` | List last 50 history records; optional `?task_key=` filter |
+| GET | `/tasks/{key}/history` | List last 50 history records for a specific task |
+| POST | `/tasks/{key}/run` | Run a task immediately; returns 409 if already running |
+| PATCH | `/tasks/{key}` | Update `enabled` and/or `interval_value` |
+
+#### Tasks UI (`/admin/tasks`)
+
+- **Task Registry** table: Name, Last Run, Duration, Status badge, Next Run, enabled Switch, Run Now button, interval edit field
+- **Recent History** table: Task name, Triggered By, Started At, Duration, Status icon; expandable row shows error message and details JSON
+- Status badges: Never (gray), Running (amber spinner), OK (green check), Failed (red X)
+- History auto-refreshes every 10 s; task list auto-refreshes every 15 s
+- Run Now locks button and adds task key to `runningKeys` Set; unlocks after mutation settles
+- History filter Select populated from task list (allows filtering history to one task)
 
 ---
 

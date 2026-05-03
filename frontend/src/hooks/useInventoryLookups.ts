@@ -31,6 +31,14 @@ export function useInventoryLookups() {
     dealers: dealers.data ?? [],
     locations: locations.data ?? [],
     containers: containers.data ?? [],
-    isLoading: calibers.isLoading || manufacturers.isLoading,
+    isLoading:
+      calibers.isLoading ||
+      manufacturers.isLoading ||
+      ammoTypes.isLoading ||
+      ammoConditions.isLoading ||
+      categories.isLoading ||
+      dealers.isLoading ||
+      locations.isLoading ||
+      containers.isLoading,
   }
 }

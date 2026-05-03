@@ -60,6 +60,8 @@ export interface LookupItem {
   name: string
   is_active: boolean
   source: string
+  community_key?: string | null
+  is_imported: boolean
   usage_count: number
 }
 
@@ -88,6 +90,8 @@ export interface ManufacturerItem {
   url: string | null
   is_active: boolean
   source: string
+  community_key?: string | null
+  is_imported: boolean
   usage_count: number
 }
 
@@ -97,7 +101,34 @@ export interface DealerItem {
   url: string | null
   is_active: boolean
   source: string
+  community_key?: string | null
+  is_imported: boolean
+  types?: string | null
+  country?: string | null
+  state?: string | null
+  is_standard_geo: boolean
   usage_count: number
+}
+
+export interface CommunityTableStatus {
+  total: number
+  imported: number
+  pending: number
+  hidden: number
+  last_synced: string | null
+}
+
+export interface CommunityStatus {
+  dealers: CommunityTableStatus
+  manufacturers: CommunityTableStatus
+  calibers: CommunityTableStatus
+  ammo_types: CommunityTableStatus
+}
+
+export interface CommunityContribute {
+  yaml: string
+  count: number
+  github_url: string
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +225,7 @@ export interface AmmoBoxRead {
   id: number
   owner_id: number
   is_shared: boolean
+  product_id: number | null
   caliber_id: number
   manufacturer_id: number
   product_name: string | null
@@ -248,6 +280,7 @@ export interface RecentExpenditure {
 export interface AmmoBoxCreate {
   caliber_id: number
   manufacturer_id: number
+  product_id?: number | null
   qty_original: number
   product_name?: string
   qty_remaining?: number
@@ -269,6 +302,7 @@ export interface AmmoBoxCreate {
 export interface AmmoBoxUpdate {
   caliber_id?: number
   manufacturer_id?: number
+  product_id?: number | null
   product_name?: string
   qty_original?: number
   qty_remaining?: number
@@ -318,6 +352,73 @@ export interface BulkUpdateResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Product catalog types
+// ---------------------------------------------------------------------------
+
+export interface ProductRead {
+  id: number
+  name: string
+  caliber_id: number
+  manufacturer_id: number
+  product_name: string | null
+  gr_oz: number | null
+  weight_unit: string | null
+  type_id: number | null
+  category_id: number | null
+  ammo_condition_id: number | null
+  default_cost: number | null
+  upc: string | null
+  image_path: string | null
+  notes: string | null
+  owner_id: number
+  is_shared: boolean
+  created_at: string
+  updated_at: string
+  caliber_name: string | null
+  manufacturer_name: string | null
+  type_name: string | null
+  category_name: string | null
+  condition_name: string | null
+  usage_count: number
+}
+
+export interface ProductCreate {
+  caliber_id: number
+  manufacturer_id: number
+  product_name?: string | null
+  gr_oz?: number | null
+  weight_unit?: string | null
+  type_id?: number | null
+  category_id?: number | null
+  ammo_condition_id?: number | null
+  default_cost?: number | null
+  upc?: string | null
+  notes?: string | null
+  is_shared?: boolean
+}
+
+export interface ProductUpdate {
+  caliber_id?: number
+  manufacturer_id?: number
+  product_name?: string | null
+  gr_oz?: number | null
+  weight_unit?: string | null
+  type_id?: number | null
+  category_id?: number | null
+  ammo_condition_id?: number | null
+  default_cost?: number | null
+  upc?: string | null
+  notes?: string | null
+  is_shared?: boolean
+}
+
+export interface AutoGenerateResponse {
+  products_created: number
+  boxes_linked: number
+  boxes_unlinked: number
+}
+
+// ---------------------------------------------------------------------------
 // Import types
 // ---------------------------------------------------------------------------
 
@@ -330,6 +431,14 @@ export interface LegacyIdMode {
   eligible: boolean
 }
 
+export interface SimilarityMatch {
+  field: string
+  csv_value: string
+  existing_value: string
+  table_key: string
+  default_action: 'use_existing' | 'import_new'
+}
+
 export interface ImportValidationResult {
   valid: boolean
   total_rows: number
@@ -337,6 +446,7 @@ export interface ImportValidationResult {
   error_rows: number
   warning_count: number
   new_values: Record<string, string[]>
+  similarity_matches: SimilarityMatch[]
   errors: { row: number; field: string; message: string }[]
   warnings: { row: number | null; field: string; message: string }[]
   legacy_id_mode: LegacyIdMode
@@ -353,4 +463,35 @@ export interface ImportConfirmResult {
   legacy_id_mode_used: boolean
   autoincrement_reset_to?: number
   warnings: { row: number | null; field: string; message: string }[]
+}
+
+// ---------------------------------------------------------------------------
+// Task types
+// ---------------------------------------------------------------------------
+
+export interface TaskHistory {
+  id: number
+  task_name: string
+  started_at: string
+  ended_at: string | null
+  duration_ms: number | null
+  status: 'running' | 'ok' | 'failed'
+  error_message: string | null
+  details: string | null
+  triggered_by: 'scheduler' | 'manual'
+}
+
+export interface TaskRegistry {
+  id: number
+  task_key: string
+  name: string
+  description: string | null
+  interval_type: 'hours' | 'daily' | 'cron'
+  interval_value: string
+  enabled: boolean
+  last_run_at: string | null
+  last_status: string | null
+  last_duration_ms: number | null
+  next_run_at: string | null
+  created_at: string
 }

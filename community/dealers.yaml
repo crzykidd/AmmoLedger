@@ -1,0 +1,124 @@
+version: 1
+dealers:
+  - name: "Academy Sports"
+    url: "https://www.academy.com"
+    types: ["online", "local"]
+    country: "US"
+  - name: "Ammo Men LLC"
+    url: "https://www.ammomenllc.com"
+    types: ["online"]
+    country: "US"
+  - name: "Ammo Supply Warehouse"
+    url: "https://www.ammosupplywarehouse.com"
+    types: ["online"]
+    country: "US"
+  - name: "Ammo.com"
+    url: "https://www.ammo.com"
+    types: ["online"]
+    country: "US"
+  - name: "Ammunition Depot"
+    url: "https://www.ammunitiondepot.com"
+    types: ["online"]
+    country: "US"
+  - name: "Bass Pro Shops"
+    url: "https://www.basspro.com"
+    types: ["online", "local"]
+    country: "US"
+  - name: "Bite the Bullet"
+    url: "https://www.bitethebullet.com"
+    types: ["online"]
+    country: "US"
+  - name: "Brownells"
+    url: "https://www.brownells.com"
+    types: ["online"]
+    country: "US"
+  - name: "Buds Gun Shop"
+    url: "https://www.budsgunshop.com"
+    types: ["online"]
+    country: "US"
+  - name: "Bulk Ammo"
+    url: "https://www.bulkammo.com"
+    types: ["online"]
+    country: "US"
+  - name: "Cabela's"
+    url: "https://www.cabelas.com"
+    types: ["online", "local"]
+    country: "US"
+  - name: "Cheaper Than Dirt"
+    url: "https://www.cheaperthandirt.com"
+    types: ["online"]
+    country: "US"
+  - name: "Freedom Munitions"
+    url: "https://freedommunitions.com"
+    types: ["online"]
+    country: "US"
+  - name: "Grafs"
+    url: "https://www.grafs.com"
+    types: ["online"]
+    country: "US"
+  - name: "Guns.com"
+    url: "https://www.guns.com"
+    types: ["online"]
+    country: "US"
+  - name: "Lucky Gunner"
+    url: "https://www.luckygunner.com"
+    types: ["online"]
+    country: "US"
+  - name: "MidwayUSA"
+    url: "https://www.midwayusa.com"
+    types: ["online"]
+    country: "US"
+  - name: "Natchez Shooter's Supplies"
+    url: "https://www.natchezss.com"
+    types: ["online"]
+    country: "US"
+  - name: "Outdoor Limited"
+    url: "https://outdoorlimited.com"
+    types: ["online"]
+    country: "US"
+  - name: "Palmetto State Armory"
+    url: "https://www.palmettostatearmory.com"
+    types: ["online", "local"]
+    country: "US"
+    state: "SC"
+  - name: "Rivertown Munitions"
+    url: ""
+    types: ["local"]
+    country: "US"
+  - name: "Rural King"
+    url: "https://www.ruralking.com"
+    types: ["online", "local"]
+    country: "US"
+  - name: "SG Ammo"
+    url: "https://www.sgammo.com"
+    types: ["online"]
+    country: "US"
+  - name: "Sportsman's Guide"
+    url: "https://www.sportsmansguide.com"
+    types: ["online"]
+    country: "US"
+  - name: "Sportsman's Warehouse"
+    url: "https://www.sportsmanswarehouse.com"
+    types: ["online", "local"]
+    country: "US"
+  - name: "Target Sports USA"
+    url: "https://www.targetsportsusa.com"
+    types: ["online"]
+    country: "US"
+  - name: "True Caliber"
+    url: "https://www.truecaliber.com"
+    types: ["online"]
+    country: "US"
+  - name: "Walmart"
+    url: "https://www.walmart.com"
+    types: ["local"]
+    country: "US"
+  - name: "West Coast Armory"
+    url: ""
+    types: ["local"]
+    country: "US"
+    state: "WA"
+  - name: "Wideners"
+    url: "https://www.wideners.com"
+    types: ["online"]
+    country: "US"

@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { confirmImport, getImportTemplateUrl, validateImport } from '@/api/import'
-import type { ImportConfirmResult, ImportValidationResult, LegacyIdMode } from '@/types'
+import type { ImportConfirmResult, ImportValidationResult, LegacyIdMode, SimilarityMatch } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Countdown timer hook
@@ -309,6 +309,98 @@ const TABLE_LABELS: Record<string, string> = {
   containers: 'Containers',
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  caliber: 'Caliber',
+  manufacturer: 'Manufacturer',
+  type: 'Ammo Type',
+  category: 'Category',
+  ammo_condition: 'Condition',
+  dealer: 'Dealer',
+  location: 'Location',
+  container: 'Container',
+}
+
+// ---------------------------------------------------------------------------
+// Similarity Resolution Grid
+// ---------------------------------------------------------------------------
+
+function SimilarityResolutionGrid({
+  matches,
+  decisions,
+  onChange,
+}: {
+  matches: SimilarityMatch[]
+  decisions: Record<string, string>
+  onChange: (key: string, value: string) => void
+}) {
+  if (!matches.length) return null
+  return (
+    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-900 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+          Similar values found — choose how to handle each match
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+              <th className="px-4 py-2 font-medium">Field</th>
+              <th className="px-4 py-2 font-medium">Your CSV Value</th>
+              <th className="px-4 py-2 font-medium">Existing Value</th>
+              <th className="px-4 py-2 font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {matches.map((m) => {
+              const key = `${m.field}:${m.csv_value}`
+              const decision = decisions[key] ?? m.default_action
+              return (
+                <tr key={key} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
+                    {FIELD_LABELS[m.field] ?? m.field}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                    {m.csv_value}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                    {m.existing_value}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={key}
+                          checked={decision === 'use_existing'}
+                          onChange={() => onChange(key, 'use_existing')}
+                          className="accent-gold"
+                        />
+                        <span className="text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">Use existing</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={key}
+                          checked={decision === 'import_new'}
+                          onChange={() => onChange(key, 'import_new')}
+                          className="accent-gold"
+                        />
+                        <span className="text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">Import as new</span>
+                      </label>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function ValidationState({
   result,
   file,
@@ -325,14 +417,33 @@ function ValidationState({
   const [importError, setImportError] = useState<string | null>(null)
   const [useLegacyIds, setUseLegacyIds] = useState(false)
   const [isShared, setIsShared] = useState(true)
+  const [similarityDecisions, setSimilarityDecisions] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {}
+    for (const m of result.similarity_matches ?? []) {
+      initial[`${m.field}:${m.csv_value}`] = m.default_action
+    }
+    return initial
+  })
   const countdown = useCountdown(result.token_expires_at)
   const expired = countdown !== null && countdown <= 0
 
+  const handleDecisionChange = (key: string, value: string) => {
+    setSimilarityDecisions((prev) => ({ ...prev, [key]: value }))
+  }
+
   const handleConfirmImport = async () => {
+    const valueRemaps: Record<string, Record<string, string>> = {}
+    for (const m of result.similarity_matches ?? []) {
+      const key = `${m.field}:${m.csv_value}`
+      if (similarityDecisions[key] === 'use_existing') {
+        if (!valueRemaps[m.field]) valueRemaps[m.field] = {}
+        valueRemaps[m.field][m.csv_value] = m.existing_value
+      }
+    }
     setImporting(true)
     setImportError(null)
     try {
-      const res = await confirmImport(file, result.validation_token, useLegacyIds, isShared)
+      const res = await confirmImport(file, result.validation_token, useLegacyIds, isShared, valueRemaps)
       onImported(res)
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Import failed')
@@ -341,8 +452,20 @@ function ValidationState({
     }
   }
 
-  const hasNewValues = Object.values(result.new_values).some((v) => v.length > 0)
-  const fuzzyWarnings = result.warnings.filter((w) => w.row === null)
+  // Build a per-table set of CSV values being remapped to existing (to filter from new_values display)
+  const remappedByTable: Record<string, Set<string>> = {}
+  for (const m of result.similarity_matches ?? []) {
+    const key = `${m.field}:${m.csv_value}`
+    if (similarityDecisions[key] === 'use_existing') {
+      if (!remappedByTable[m.table_key]) remappedByTable[m.table_key] = new Set()
+      remappedByTable[m.table_key].add(m.csv_value)
+    }
+  }
+
+  const hasNewValues = Object.entries(result.new_values).some(([table, items]) => {
+    const remapped = remappedByTable[table] ?? new Set()
+    return items.some((item) => !remapped.has(item))
+  })
   const rowWarnings = result.warnings.filter((w) => w.row !== null)
 
   return (
@@ -386,30 +509,26 @@ function ValidationState({
           <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
             New lookup values will be created:
           </p>
-          {Object.entries(result.new_values).map(([table, items]) =>
-            items.length > 0 ? (
+          {Object.entries(result.new_values).map(([table, items]) => {
+            const visibleItems = items.filter((item) => !remappedByTable[table]?.has(item))
+            return visibleItems.length > 0 ? (
               <ExpandableList
                 key={table}
                 label={TABLE_LABELS[table] ?? table}
-                items={items}
+                items={visibleItems}
               />
-            ) : null,
-          )}
+            ) : null
+          })}
         </div>
       )}
 
-      {/* Fuzzy warnings */}
-      {fuzzyWarnings.length > 0 && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-1.5">
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-            <AlertTriangle className="h-4 w-4" /> Similarity warnings — please verify:
-          </p>
-          {fuzzyWarnings.map((w, i) => (
-            <p key={i} className="text-xs text-amber-700 dark:text-amber-400 ml-5">
-              {w.message}
-            </p>
-          ))}
-        </div>
+      {/* Similarity resolution grid */}
+      {(result.similarity_matches ?? []).length > 0 && (
+        <SimilarityResolutionGrid
+          matches={result.similarity_matches}
+          decisions={similarityDecisions}
+          onChange={handleDecisionChange}
+        />
       )}
 
       {/* Row errors */}

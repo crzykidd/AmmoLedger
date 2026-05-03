@@ -4,12 +4,14 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard,
   Package,
+  BookOpen,
   FileUp,
   SlidersHorizontal,
   User,
   Users,
   DatabaseBackup,
   List,
+  ClipboardList,
   Info,
   HelpCircle,
   ChevronLeft,
@@ -42,6 +44,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Inventory', icon: Package, href: '/inventory' },
+      { label: 'Products', icon: BookOpen, href: '/products' },
       { label: 'Import', icon: FileUp, href: '/import' },
     ],
   },
@@ -59,6 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Users', icon: Users, href: '/admin/users' },
       { label: 'Backup', icon: DatabaseBackup, href: '/admin/backup' },
       { label: 'Lookups', icon: List, href: '/admin/lookups' },
+      { label: 'Tasks', icon: ClipboardList, href: '/admin/tasks' },
     ],
   },
 ]

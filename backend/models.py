@@ -14,7 +14,9 @@ class Caliber(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column_kwargs={"unique": True})
     is_active: bool = Field(default=True)
-    source: str = Field(default="user")  # yaml | user
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
 
 
 class Manufacturer(SQLModel, table=True):
@@ -24,7 +26,9 @@ class Manufacturer(SQLModel, table=True):
     name: str = Field(sa_column_kwargs={"unique": True})
     url: Optional[str] = None
     is_active: bool = Field(default=True)
-    source: str = Field(default="user")
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
 
 
 class AmmoType(SQLModel, table=True):
@@ -33,7 +37,9 @@ class AmmoType(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column_kwargs={"unique": True})
     is_active: bool = Field(default=True)
-    source: str = Field(default="user")
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
 
 
 class AmmoCondition(SQLModel, table=True):
@@ -61,7 +67,13 @@ class Dealer(SQLModel, table=True):
     name: str = Field(sa_column_kwargs={"unique": True})
     url: Optional[str] = None
     is_active: bool = Field(default=True)
-    source: str = Field(default="user")
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+    types: Optional[str] = None  # JSON array: '["online","local"]'
+    country: Optional[str] = Field(default="US")
+    state: Optional[str] = None
+    is_standard_geo: bool = Field(default=True)
 
 
 # ---------------------------------------------------------------------------
@@ -135,11 +147,39 @@ class AmmoBox(SQLModel, table=True):
     dealer_id: Optional[int] = Field(default=None, foreign_key="dealers.id")
     location_id: Optional[int] = Field(default=None, foreign_key="locations.id")
     container_id: Optional[int] = Field(default=None, foreign_key="containers.id")
+    product_id: Optional[int] = Field(default=None, foreign_key="products.id")
     legacy_id: Optional[str] = None
     notes: Optional[str] = None
     split_from_id: Optional[int] = Field(default=None, foreign_key="ammo_box.id")
     is_archived: bool = Field(default=False)
     archive_reason: Optional[str] = None  # split | empty | manual
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Product Catalog
+# ---------------------------------------------------------------------------
+
+class Product(SQLModel, table=True):
+    __tablename__ = "products"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    caliber_id: int = Field(foreign_key="calibers.id")
+    manufacturer_id: int = Field(foreign_key="manufacturers.id")
+    product_name: Optional[str] = None
+    gr_oz: Optional[float] = None
+    weight_unit: Optional[str] = Field(default="GR")
+    type_id: Optional[int] = Field(default=None, foreign_key="ammo_types.id")
+    category_id: Optional[int] = Field(default=None, foreign_key="categories.id")
+    ammo_condition_id: Optional[int] = Field(default=None, foreign_key="ammo_conditions.id")
+    default_cost: Optional[float] = None
+    upc: Optional[str] = None
+    image_path: Optional[str] = None
+    notes: Optional[str] = None
+    owner_id: int = Field(foreign_key="users.id")
+    is_shared: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -266,3 +306,38 @@ class AppSettings(SQLModel, table=True):
     key: str = Field(sa_column_kwargs={"unique": True})
     value: str
     updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Task Registry / History
+# ---------------------------------------------------------------------------
+
+class TaskHistory(SQLModel, table=True):
+    __tablename__ = "task_history"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_name: str
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    ended_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    status: str = Field(default="running")  # running | ok | failed
+    error_message: Optional[str] = None
+    details: Optional[str] = None  # JSON string for task-specific stats
+    triggered_by: str = Field(default="scheduler")  # scheduler | manual
+
+
+class TaskRegistry(SQLModel, table=True):
+    __tablename__ = "task_registry"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_key: str = Field(sa_column_kwargs={"unique": True})
+    name: str
+    description: Optional[str] = None
+    interval_type: str  # hours | daily | cron
+    interval_value: str  # "24", "03:00"
+    enabled: bool = Field(default=True)
+    last_run_at: Optional[datetime] = None
+    last_status: Optional[str] = None
+    last_duration_ms: Optional[int] = None
+    next_run_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
