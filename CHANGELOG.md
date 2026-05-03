@@ -49,8 +49,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 ### Security
 
 - Updated python-multipart (0.0.9 → 0.0.27) and pytest (8.2 → 9.0.3) for vulnerability fixes
-- Product image upload now validates file extensions and prevents path traversal
-- Product image display sanitizes URL schemes to prevent DOM XSS
+- Product image upload validates file extensions against an allowlist and uses database-sourced IDs for file path construction to prevent path traversal
+- Product image URLs are sanitized via regex extraction before rendering to prevent DOM XSS injection
 
 ## [0.1.5] — 2026-05-02
 
