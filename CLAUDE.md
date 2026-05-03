@@ -46,7 +46,7 @@
 
 ## Build Status
 
-Current release: v0.1.6 (2026-05-03)
+Current release: v0.1.7 (2026-05-03)
 
 - Phase 1 — Alembic + schema: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE

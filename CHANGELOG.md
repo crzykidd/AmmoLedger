@@ -10,6 +10,15 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.7] — 2026-05-03
+
+### Changed
+
+- **Community manufacturer list cleanup** — renamed "Estate" → "Estate Cartridge" (matches branding on boxes and official website), renamed "Yugo" → "Yugoslavian Military Surplus" (origin label, not a manufacturer), renamed "Privi Partizan" → "Prvi Partizan" (correct spelling)
+- Added missing manufacturer URLs: Copper Only Projectiles (warriorarms.com), Estate Cartridge (estatecartridge.com), ZSR (zsr.com.tr)
+- Added new manufacturers: Igman (Bosnian military/commercial), Pobjeda (historical Yugoslavian arsenal)
+- **Community dealer list cleanup** — added Rivertown Munitions URL, removed West Coast Armory (not a dealer)
+
 ## [0.1.6] — 2026-05-03
 
 ### Added
