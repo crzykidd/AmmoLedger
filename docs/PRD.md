@@ -49,6 +49,7 @@
 | 3.10 | May 2026 | Admin Tasks page — §9.14 added: task_registry and task_history tables, 5 registered tasks (version_check, scheduled_backup, backup_cleanup, community_sync, db_analyze), task runner with two-session pattern, APScheduler integration, /tasks API (list, history, run now, patch), TasksPage with status badges, Run Now button, per-task history, and enable/interval editing. |
 | 3.11 | May 2026 | Community-maintained lookup tables — §8.2 and §9.15 added: community/ YAML directory, community_sync utility (GitHub fetch + bundled fallback), community_key + is_imported + dealer geo fields (migration 0020), /community/\* and /geo/\* API routes, pending-import review flow, source badges, Contribute dialog, Check for Updates button on Lookups page. defaults.yaml stripped of calibers/manufacturers/ammo_types/dealers; acquisition_sources replaces non-commercial dealer seeds. |
 | 3.12 | May 2026 | Threshold system unified — §8.1 updated: GET /thresholds/status endpoint returns all calibers with totals and is_low; write endpoints locked to admin role; localStorage hook removed; inventory low-stock banner and row highlights use caliber totals (not per-box qty); dashboard Running Low links directly to filtered inventory; ThresholdSettingsPage shows read-only view for non-admins. |
+| 3.13 | May 2026 | Caliber threshold drawer — tap any caliber on dashboard or inventory to view and (admin) edit threshold inline; Dashboard By Caliber toggle between Mix (% of total) and Stock (proximity to threshold) views with color-coded bars; Running Low caliber rows open drawer instead of navigating to inventory; is_override field on CaliberStatus enables Reset to Default button. §9.1 updated. §5.2 updated with threshold-write and product management rows. §2 roadmap updated with v0.2.0 column. |
 
 ---
 
@@ -117,6 +118,10 @@ AmmoLedger is a self-hosted web application for tracking personal ammunition inv
 | Overview Dashboard | Stats: total rounds, caliber breakdown, value, low stock alerts | v1.0 |
 | DB Backup — Manual & Nightly | Admin-triggered or scheduled backup; configurable retention; re-importable JSON | v1.0 |
 | Alembic Migrations | Versioned schema migrations; automatic on startup | v1.0 |
+| Split Box | Split a box into two separate tracking records (partial split) | v0.2.0 |
+| Restock / Add Same | Quickly restock an existing product without re-entering all fields | v0.2.0 |
+| Notifications | Low-stock alerts and system events via Discord webhook or email | v0.2.0 |
+| Label Printing | Print QR-code labels for boxes; Avery sheet sizes; mobile expend via QR scan | v0.2.0 |
 | Firearms Registry | Track owned guns with shared/private ownership model | v2.0 |
 | Range Sessions | Log sessions: gun, ammo, rounds fired, date, location | v2.0 |
 | Target Photo Uploads | Attach target photos to range sessions | v2.0 |
@@ -328,6 +333,9 @@ security:
 | Configure backup schedule | ✓ | ✗ | ✗ | Admin only |
 | View system settings | ✓ | ✗ | ✗ | Admin only |
 | CSV import | ✓ | ✓ | ✗ | Imports into own account as private |
+| CSV export | ✓ | ✓ | ✓ | Exports currently visible inventory |
+| Write threshold overrides | ✓ | ✗ | ✗ | Admin only; global default, per-caliber, per-location |
+| Manage products | ✓ | ✓ | ✗ | Create / edit own products; admins see all |
 
 ### 5.3 Enforcement
 
@@ -869,43 +877,46 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 
 ### 9.1 Overview Dashboard
 
-#### Scope Selector
-
-Toggle at the top of the dashboard — controls which inventory all stats and widgets reflect:
-
-```text
-[ My Ammo ]  [ Shared ]  [ All ]   ← All visible to Admin only
-```
-
-Default: **My Ammo**. Device remembers last selected scope via `localStorage`.
-
 #### Stats Cards (row of 4)
 
 | Card | Value |
 | ---- | ----- |
-| Total Rounds | Sum of `qty_remaining` for leaf, non-archived boxes in scope |
-| Total Value | Sum of `qty_remaining × cost_per_round` for leaf, non-archived boxes in scope |
-| Calibers Tracked | Distinct caliber count for boxes in scope |
-| Running Low | Count of calibers below configured threshold in scope |
+| Total Rounds | Sum of `qty_remaining` for non-archived boxes |
+| Total Value | Sum of `qty_remaining × cost_per_round`; asterisk when some boxes have no cost |
+| Calibers Tracked | Distinct caliber count |
+| Running Low | Count of calibers below threshold + locations below threshold |
 
-All stats respect the leaf box definition from §6.13.
+#### By Caliber Section
 
-#### Caliber Breakdown Table
+Shows a bar per caliber with two view modes, toggled by the **Mix / Stock** button in the section header. Selection persists to `localStorage['dashboard_caliber_view']`.
 
-Per caliber in scope: caliber name, rounds on hand, number of boxes, estimated value, status indicator (healthy / low / empty).
+- **Mix view** — bar represents % of total inventory rounds for that caliber (existing behavior).
+- **Stock view** — bar represents rounds on hand relative to the caliber's threshold.
+  - Green (≥ 110% of threshold), yellow (90–110%), red (< 90%).
+  - Round count shown as "X rds / threshold Y" to make the comparison explicit.
+
+Tapping any caliber row in either view opens the **Caliber Threshold Drawer** (see below).
+
+#### Caliber Threshold Drawer
+
+Slide-out sheet accessible by tapping any caliber row on the dashboard or the caliber summary panel in the inventory page.
+
+- Shows: caliber name, rounds on hand, current threshold, threshold source (Global Default or Per-Caliber Override).
+- **Admin-only controls** — input to set a custom threshold for this caliber; Save button; "Reset to Default" button shown only when a per-caliber override exists (`is_override: true`).
+- Saving or resetting invalidates the `['thresholds', 'status']`, `['thresholds', 'calibers']`, and `['thresholds', 'low-stock']` query caches.
+
+#### Running Low Section
+
+Two subsections — By Caliber and By Location.
+
+- Each caliber row in **By Caliber** opens the Caliber Threshold Drawer on click.
+- Each location row in **By Location** links to Inventory filtered by that location.
 
 #### Recent Activity
 
-Last 10 `expenditure_log` entries where `log_type = 'expend'` — showing date, who logged it, Box ID, caliber, and rounds used.
+Last 10 `expenditure_log` entries where `log_type = 'expend'` — showing date, who logged it, caliber, manufacturer, and rounds used.
 
-#### Low Stock Alerts
-
-Running Low section shows two subsections:
-
-- **By Caliber** — calibers where total rounds on hand (across all non-archived boxes) are below the threshold. Threshold resolution: per-caliber override → global default.
-- **By Location** — locations where total rounds on hand (all non-archived boxes in containers at that location) are below the location's explicit threshold. Only locations with a threshold set appear here.
-
-The Low Stock Items stat card counts low calibers + low locations.
+#### Low Stock Thresholds
 
 Thresholds are stored server-side in the database and shared across all users. Three-tier resolution:
 
@@ -913,7 +924,7 @@ Thresholds are stored server-side in the database and shared across all users. T
 2. **Per-caliber** — `caliber_thresholds` table; overrides global default for a specific caliber.
 3. **Per-location** — `location_thresholds` table; independent of caliber thresholds; only triggers alerts when explicitly set.
 
-**API endpoints** (all require authentication):
+**API endpoints** (all require authentication; write endpoints require Admin role):
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
@@ -925,8 +936,8 @@ Thresholds are stored server-side in the database and shared across all users. T
 | GET | `/thresholds/locations` | List per-location thresholds with on-hand and status |
 | POST | `/thresholds/locations` | Create or update a location threshold (admin only) |
 | DELETE | `/thresholds/locations/{location_id}` | Remove a location threshold (admin only) |
-| GET | `/thresholds/status` | All calibers with totals, thresholds, and is_low; all location thresholds with status |
-| GET | `/thresholds/low-stock` | Combined low calibers + low locations (dashboard legacy) |
+| GET | `/thresholds/status` | All calibers with totals, thresholds, is_low, and is_override; all location thresholds with status |
+| GET | `/thresholds/low-stock` | Combined low calibers + low locations |
 
 #### Getting Started Guide
 

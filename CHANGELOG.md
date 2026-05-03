@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.8] — 2026-05-03
+
 ### Added
 
 - **Caliber threshold drawer** — tap any caliber on the dashboard or inventory summary panel to view its threshold details; admins can edit the threshold or reset to global default inline without leaving the page

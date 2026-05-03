@@ -46,7 +46,7 @@
 
 ## Build Status
 
-Current release: v0.1.7 (2026-05-03)
+Current release: v0.1.8 (2026-05-03)
 
 - Phase 1 — Alembic + schema: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
@@ -79,6 +79,8 @@ Current release: v0.1.7 (2026-05-03)
 - Phase 8.12 — Product catalog with images, auto-generate, and Add Box auto-fill: COMPLETE
 - Phase 8.13 — Admin Tasks page with job registry, execution history, and Run Now: COMPLETE
 - Phase 8.14 — Community-maintained lookup tables synced from GitHub: COMPLETE
+- Phase 8.15 — Unified threshold system — server-side caliber totals, admin-only writes: COMPLETE
+- Phase 8.16 — Caliber threshold drawer, dashboard By Caliber toggle (Mix/Stock views): COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 
