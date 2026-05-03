@@ -149,6 +149,12 @@ export default function InventoryPage() {
 
   useEffect(() => {
     const pid = searchParams.get('product_id')
+    const caliber = searchParams.get('caliber')
+    const manufacturer = searchParams.get('manufacturer')
+    const type = searchParams.get('type')
+    const category = searchParams.get('category')
+    const searchQ = searchParams.get('search')
+
     if (pid) {
       const id = parseInt(pid)
       if (!isNaN(id)) {
@@ -156,6 +162,23 @@ export default function InventoryPage() {
         setEditBox(null)
         setPanelOpen(true)
       }
+    }
+
+    if (caliber || manufacturer || type || category) {
+      setColumnFilters((prev) => ({
+        ...prev,
+        ...(caliber ? { caliber } : {}),
+        ...(manufacturer ? { manufacturer } : {}),
+        ...(type ? { type } : {}),
+        ...(category ? { category } : {}),
+      }))
+    }
+
+    if (searchQ) {
+      setSearch(searchQ)
+    }
+
+    if (pid || caliber || manufacturer || type || category || searchQ) {
       setSearchParams({}, { replace: true })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

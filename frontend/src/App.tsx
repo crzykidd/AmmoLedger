@@ -13,7 +13,7 @@ import ThresholdSettingsPage from '@/pages/settings/ThresholdSettingsPage'
 import ProfilePage from '@/pages/settings/ProfilePage'
 import UserManagementPage from '@/pages/admin/UserManagementPage'
 import BackupPage from '@/pages/admin/BackupPage'
-import LookupsPage from '@/pages/admin/LookupsPage'
+import DatasetsPage from '@/pages/admin/LookupsPage'
 import TasksPage from '@/pages/admin/TasksPage'
 import ImportPage from '@/pages/ImportPage'
 import ProductsPage from '@/pages/ProductsPage'
@@ -131,11 +131,12 @@ function AppRoutes() {
           </AdminRoute>
         }
       />
+      <Route path="/admin/lookups" element={<Navigate to="/admin/datasets" replace />} />
       <Route
-        path="/admin/lookups"
+        path="/admin/datasets"
         element={
           <AdminRoute>
-            <LookupsPage />
+            <DatasetsPage />
           </AdminRoute>
         }
       />

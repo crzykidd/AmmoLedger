@@ -10,6 +10,21 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Added
+
+- **Datasets page** (renamed from "Lookups") — sidebar nav item, route, and page title updated; `/admin/lookups` redirects to `/admin/datasets` for backward compatibility
+- **Pending count badge on sidebar** — amber badge on the Datasets nav item shows total pending community entries; dot indicator when sidebar is collapsed
+- **Collapse All / Expand All** button in the Datasets page toolbar; section open/closed state persists across page visits via localStorage (default: all collapsed)
+- **Clickable usage counts** — "In Use" counts in the Datasets table are now links that navigate to Inventory pre-filtered by that caliber, manufacturer, type, or category
+
+### Changed
+
+- **Orphan demotion on community sync** — entries previously sourced from the community YAML that are no longer present in the upstream file are automatically demoted to `local` source instead of remaining as stale community entries
+- **Rename demotes community → local** — editing a community entry's name demotes it to `local` source and clears its community key, making it independently editable
+- Community entries demoted to `local` show a purple badge (distinct from blue community and gold user badges)
+- `local` source entries can be hidden or permanently deleted just like user-created entries
+- Delete endpoint error message updated: "Cannot delete community entries — use Hide instead"
+
 ## [0.1.7] — 2026-05-03
 
 ### Changed

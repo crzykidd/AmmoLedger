@@ -377,7 +377,7 @@ export default function ThresholdSettingsPage() {
             </div>
           ) : locations.length === 0 ? (
             <p className="text-sm text-gray-400 dark:text-gray-500">
-              No locations defined yet. Add locations in the Lookups settings.
+              No locations defined yet. Add locations in the Datasets settings.
             </p>
           ) : (
             <p className="text-sm text-gray-400 dark:text-gray-500">
