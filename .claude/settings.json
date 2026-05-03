@@ -7,7 +7,24 @@
       "Bash(gh issue *)",
       "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" add CONTRIBUTING.md CHANGELOG.md CLAUDE.md README.md Dockerfile.backend docker-compose.dev.yml docs/HELP.md docs/PRD.md backend/defaults.yaml backend/main.py backend/models.py backend/requirements.txt backend/routers/lookups.py backend/schemas.py backend/utils/seeds.py backend/utils/task_definitions.py backend/migrations/versions/0020_community_sync_fields.py backend/routers/community.py backend/routers/geo.py backend/utils/community_sync.py community/ frontend/src/api/community.ts frontend/src/pages/admin/LookupsPage.tsx frontend/src/types/index.ts .github/workflows/docker-publish.yml)",
       "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" diff --staged --stat)",
-      "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" commit -m \"feat: community-maintained lookup tables - dealers, manufacturers, calibers, ammo types synced from GitHub\")"
+      "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" commit -m \"feat: community-maintained lookup tables - dealers, manufacturers, calibers, ammo types synced from GitHub\")",
+      "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" branch --show-current)",
+      "WebSearch",
+      "WebFetch(domain:registry.npmjs.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:releasebot.io)",
+      "PowerShell(docker compose -f \"d:\\\\projects\\\\AmmoLedger\\\\docker-compose.dev.yml\" build 2>&1)",
+      "PowerShell(docker compose -f \"d:\\\\projects\\\\AmmoLedger\\\\docker-compose.dev.yml\" up -d 2>&1)",
+      "PowerShell(docker compose -f \"d:\\\\projects\\\\AmmoLedger\\\\docker-compose.dev.yml\" logs --tail 20 2>&1)",
+      "PowerShell(docker compose -f \"d:\\\\projects\\\\AmmoLedger\\\\docker-compose.dev.yml\" exec backend ruff check backend/ 2>&1)",
+      "PowerShell(docker compose -f \"d:\\\\projects\\\\AmmoLedger\\\\docker-compose.dev.yml\" exec backend python -m ruff check . 2>&1)",
+      "PowerShell(python -m pip install ruff==0.4.4 --quiet 2>&1)",
+      "PowerShell(python -m ruff check \"d:\\\\projects\\\\AmmoLedger\\\\backend\\\\\" 2>&1)",
+      "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" status --short)",
+      "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" add backend/requirements.txt backend/routers/community.py backend/routers/products.py frontend/package.json)",
+      "PowerShell(git -C \"d:\\\\projects\\\\AmmoLedger\" commit -m \"security: update python-multipart, pytest, vite, esbuild for vulnerability fixes\")"
     ]
   },
   "hooks": {
