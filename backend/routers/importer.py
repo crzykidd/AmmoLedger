@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import re
 import secrets
 from datetime import datetime, timedelta, date as date_type
 
@@ -161,6 +162,35 @@ def _validate_row(row: dict[str, str], row_num: int) -> tuple[list[dict], list[d
 
 
 # ---------------------------------------------------------------------------
+# Caliber similarity helpers
+# ---------------------------------------------------------------------------
+
+def _normalize_caliber(name: str) -> str:
+    """Strip leading dot, collapse whitespace, lowercase — '45 ACP' == '.45 ACP'."""
+    return re.sub(r'\s+', ' ', name.lstrip('.')).strip().lower()
+
+
+def _extract_caliber_number(name: str) -> str | None:
+    """Return the leading numeric token from a caliber name, or None."""
+    m = re.match(r'\.?\s*(\d+(?:\.\d+)?)', name.strip())
+    return m.group(1) if m else None
+
+
+def _is_similar(val: str, existing: str, column: str) -> bool:
+    """Return True if val looks like a typo of existing but is not an exact match."""
+    if column == "caliber":
+        if _normalize_caliber(val) == _normalize_caliber(existing):
+            return False
+        n_val = _extract_caliber_number(val)
+        n_existing = _extract_caliber_number(existing)
+        if n_val is not None and n_existing is not None and n_val != n_existing:
+            return False
+    max_dist = 1 if (len(val) <= 6 or len(existing) <= 6) else 2
+    dist = _levenshtein(val, existing)
+    return 0 < dist <= max_dist
+
+
+# ---------------------------------------------------------------------------
 # Lookup resolution helpers
 # ---------------------------------------------------------------------------
 
@@ -219,16 +249,21 @@ def _check_new_values(
         existing_rows = db.exec(select(Model)).all()
         existing_names = [r.name for r in existing_rows]
         existing_lower = {n.lower(): n for n in existing_names}
+        existing_normalized = (
+            {_normalize_caliber(n): n for n in existing_names}
+            if col == "caliber" else {}
+        )
 
         col_new: list[str] = []
         for val in sorted(incoming):
             if val.lower() in existing_lower:
                 continue
+            if col == "caliber" and _normalize_caliber(val) in existing_normalized:
+                continue
             col_new.append(val)
             # fuzzy check against all existing
             for existing_name in existing_names:
-                dist = _levenshtein(val, existing_name)
-                if 0 < dist <= 2:
+                if _is_similar(val, existing_name, col):
                     fuzzy_warnings.append({
                         "row": None,
                         "field": col,

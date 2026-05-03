@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+### Fixed
+
+- CSV import similarity warnings — caliber fuzzy matching no longer flags unrelated calibers that share a suffix (e.g. `.25 ACP` vs `.45 ACP`); the checker now normalizes leading dots so `45 ACP` and `.45 ACP` are treated as the same entry, compares numeric portions to skip cross-number pairs, and uses tighter Levenshtein thresholds (max 1 edit for short strings, 2 for longer ones)
+
 ### Added
 
 - **Admin Tasks page** at `/admin/tasks` — view all scheduled jobs with last-run status, duration, and next scheduled time; manually trigger any task with Run Now; enable/disable individual tasks; change task intervals
