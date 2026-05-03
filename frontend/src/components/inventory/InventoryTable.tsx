@@ -274,14 +274,6 @@ export default function InventoryTable({
     setStartCollapsed(true)
   }, [groupBy])
 
-  // Once groups are known and startCollapsed is set, collapse all groups
-  useEffect(() => {
-    if (startCollapsed && groups.length > 0) {
-      setCollapsedGroups(new Set(groups.map((g) => g.name)))
-      setStartCollapsed(false)
-    }
-  }, [groups, startCollapsed])
-
   // Persist collapse state to sessionStorage whenever it changes
   useEffect(() => {
     if (groupBy !== 'none') {
@@ -425,6 +417,14 @@ export default function InventoryTable({
 
   const groupsRef = useRef<GroupEntry[]>(groups)
   groupsRef.current = groups
+
+  // Once groups are known and startCollapsed is set, collapse all groups
+  useEffect(() => {
+    if (startCollapsed && groups.length > 0) {
+      setCollapsedGroups(new Set(groups.map((g) => g.name)))
+      setStartCollapsed(false)
+    }
+  }, [groups, startCollapsed])
 
   useEffect(() => {
     if (collapseSignal > 0) {
