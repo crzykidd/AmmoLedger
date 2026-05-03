@@ -82,7 +82,7 @@ dealers:
     country: "US"
     state: "SC"
   - name: "Rivertown Munitions"
-    url: ""
+    url: "https://rivertownmunitions.com"
     types: ["local"]
     country: "US"
   - name: "Rural King"
@@ -113,11 +113,6 @@ dealers:
     url: "https://www.walmart.com"
     types: ["local"]
     country: "US"
-  - name: "West Coast Armory"
-    url: ""
-    types: ["local"]
-    country: "US"
-    state: "WA"
   - name: "Wideners"
     url: "https://www.wideners.com"
     types: ["online"]
