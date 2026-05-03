@@ -176,6 +176,19 @@ def _extract_caliber_number(name: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _extract_trailing_number(name: str) -> str | None:
+    """Return the normalized trailing number from a name, or None.
+
+    Handles: 'Ammo Can #1' → '1', 'AmmoCan 03' → '3', 'Safe-2' → '2'.
+    Leading zeros are stripped so '01' == '1'.
+    """
+    m = re.search(r'[#\-]?\s*(\d+)\s*$', name.strip())
+    return (m.group(1).lstrip('0') or '0') if m else None
+
+
+COMMUNITY_FIELDS = {"caliber", "manufacturer", "type", "dealer"}
+
+
 def _is_similar(val: str, existing: str, column: str) -> bool:
     """Return True if val looks like a typo of existing but is not an exact match."""
     if column == "caliber":
@@ -184,6 +197,12 @@ def _is_similar(val: str, existing: str, column: str) -> bool:
         n_val = _extract_caliber_number(val)
         n_existing = _extract_caliber_number(existing)
         if n_val is not None and n_existing is not None and n_val != n_existing:
+            return False
+    else:
+        # Numbered items (containers, locations, etc.) must share the same trailing number
+        num_val = _extract_trailing_number(val)
+        num_existing = _extract_trailing_number(existing)
+        if num_val is not None and num_existing is not None and num_val != num_existing:
             return False
     max_dist = 1 if (len(val) <= 6 or len(existing) <= 6) else 2
     dist = _levenshtein(val, existing)
@@ -269,6 +288,7 @@ def _check_new_values(
                         "csv_value": val,
                         "existing_value": existing_name,
                         "table_key": table_key,
+                        "default_action": "use_existing" if col in COMMUNITY_FIELDS else "import_new",
                     })
                     break
 

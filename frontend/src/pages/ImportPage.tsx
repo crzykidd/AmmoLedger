@@ -355,7 +355,7 @@ function SimilarityResolutionGrid({
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {matches.map((m) => {
               const key = `${m.field}:${m.csv_value}`
-              const decision = decisions[key] ?? 'use_existing'
+              const decision = decisions[key] ?? m.default_action
               return (
                 <tr key={key} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                   <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
@@ -420,7 +420,7 @@ function ValidationState({
   const [similarityDecisions, setSimilarityDecisions] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
     for (const m of result.similarity_matches ?? []) {
-      initial[`${m.field}:${m.csv_value}`] = 'use_existing'
+      initial[`${m.field}:${m.csv_value}`] = m.default_action
     }
     return initial
   })

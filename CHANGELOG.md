@@ -12,11 +12,13 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Changed
 
-- CSV import similarity warnings replaced with an interactive resolution grid — when the validator detects values similar to existing entries, you can now choose per-match whether to map to the existing value or import as new; defaults to "Use existing" (safer); remapped values are excluded from the "new values will be created" list
+- CSV import similarity warnings replaced with an interactive resolution grid — when the validator detects values similar to existing entries, you can now choose per-match whether to map to the existing value or import as new; remapped values are excluded from the "new values will be created" list
+- Similarity resolution defaults are now context-aware — community-maintained fields (caliber, manufacturer, type, dealer) default to "Use existing" while user-local fields (location, container, category, condition) default to "Import as new"
 
 ### Fixed
 
 - CSV import similarity warnings — caliber fuzzy matching no longer flags unrelated calibers that share a suffix (e.g. `.25 ACP` vs `.45 ACP`); the checker now normalizes leading dots so `45 ACP` and `.45 ACP` are treated as the same entry, compares numeric portions to skip cross-number pairs, and uses tighter Levenshtein thresholds (max 1 edit for short strings, 2 for longer ones)
+- Container and location similarity matching now compares trailing numbers — `Ammo Can #1` no longer falsely matches `AmmoCan 11`; numbered items must share the same trailing number before fuzzy distance is checked
 
 ### Added
 

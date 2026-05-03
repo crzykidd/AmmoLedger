@@ -436,6 +436,7 @@ export interface SimilarityMatch {
   csv_value: string
   existing_value: string
   table_key: string
+  default_action: 'use_existing' | 'import_new'
 }
 
 export interface ImportValidationResult {
