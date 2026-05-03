@@ -10,6 +10,29 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.6] — 2026-05-03
+
+### Added
+
+- **Product catalog** — a dedicated Products page at `/products` for creating and managing product templates; each product captures caliber, manufacturer, product name, bullet weight, type, category, condition, default cost, UPC, and an optional image
+- Product images — upload a jpg/jpeg/png/webp image (up to 5 MB) per product; displayed on the product card and in the Add Box form
+- **Auto-fill from product** — when adding a new ammo box, select a product from the search-as-you-type selector at the top of the form; caliber, manufacturer, product name, weight, type, category, condition, and cost auto-populate from the product
+- **Add Box from Products page** — each product card has an "Add Box" button that opens Inventory pre-filled with the selected product
+- **Save as Template** — after manually adding a box with no product selected, a dialog offers to save the box's details as a new product template for future reuse
+- **Auto-generate products** — admin-only button on the Products page that groups existing inventory boxes by their unique caliber + manufacturer + product name + weight + type combination and creates a product for each group; also back-fills all matching boxes
+- Product visibility follows the same shared/private ownership model as ammo boxes — shared products are visible to all users; private products are visible to the owner and admins
+- CSV import auto-links imported boxes to matching products by comparing caliber, manufacturer, product name, gr/oz, and type; unmatched boxes can be wired up by running Auto-Generate later
+- **Admin Tasks page** at `/admin/tasks` — view all scheduled jobs with last-run status, duration, and next scheduled time; manually trigger any task with Run Now; enable/disable individual tasks; change task intervals
+- **Task execution history** — every task run (scheduled or manual) records start time, end time, duration, status, and any error or stats details; history table is searchable by task with expandable rows for error messages and result details
+- Database Optimize, Version Check, Scheduled Backup, Backup Cleanup, and Community Sync tasks are all registered and controllable from the Tasks page
+- **Community-maintained lookup tables** — dealers, manufacturers, calibers, and ammo types are now synced automatically from the `community/` directory in the GitHub repository on every startup; falls back to bundled YAML files when GitHub is unreachable
+- **Pending import review** — on first startup all community entries are imported automatically; on subsequent syncs new entries are queued as pending and shown in a banner on the Admin → Lookups page; admins can cherry-pick which entries to import or hide
+- **Check for Updates** button on the Lookups page (admin only) — triggers an on-demand community sync and shows how many new entries are pending across all four tables
+- **Source badges** on every lookup entry — blue badge for community-maintained entries, gold for user-created entries, gray for YAML-seeded entries
+- **Contribute button** on each community-managed lookup section — generates a YAML snippet of all user-created entries in that table and provides a direct link to open a pull request on GitHub
+- **Review & Import dialog** — checklist of all pending community entries for a table; import selected, hide rejected, or dismiss to decide later
+- **Dealer geo fields** — type (online/local/auction/gun show), country, and state/province added to the dealer model; community YAML includes these fields for all entries; add/edit form has country and state dropdowns
+
 ### Changed
 
 - CSV import similarity warnings replaced with an interactive resolution grid — when the validator detects values similar to existing entries, you can now choose per-match whether to map to the existing value or import as new; remapped values are excluded from the "new values will be created" list
@@ -19,44 +42,9 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
-- CSV import similarity warnings — caliber fuzzy matching no longer flags unrelated calibers that share a suffix (e.g. `.25 ACP` vs `.45 ACP`); the checker now normalizes leading dots so `45 ACP` and `.45 ACP` are treated as the same entry, compares numeric portions to skip cross-number pairs, and uses tighter Levenshtein thresholds (max 1 edit for short strings, 2 for longer ones)
-- Container and location similarity matching now compares trailing numbers — `Ammo Can #1` no longer falsely matches `AmmoCan 11`; numbered items must share the same trailing number before fuzzy distance is checked
+- CSV import caliber fuzzy matching no longer flags unrelated calibers that share a suffix (e.g. `.25 ACP` vs `.45 ACP`); normalizes leading dots and compares numeric portions before applying Levenshtein distance
+- Container and location similarity matching now compares trailing numbers — `Ammo Can #1` no longer falsely matches `AmmoCan 11`
 - Group By Location and Container no longer shows all boxes under "No Location" / "No Container" on initial page load (race condition where grouping ran before lookup data arrived)
-- Resolved React DOM nesting warning caused by JSX comments between `<TableCell>` siblings inside a `<TableRow>`
-
-### Added
-
-- **Admin Tasks page** at `/admin/tasks` — view all scheduled jobs with last-run status, duration, and next scheduled time; manually trigger any task with Run Now; enable/disable individual tasks; change task intervals
-- **Task execution history** — every task run (scheduled or manual) records start time, end time, duration, status, and any error or stats details; history table is searchable by task with expandable rows for error messages and result details
-- **Centralized task registry** — all scheduled operations registered in the database (`task_registry` table); seeded automatically on startup with name/description synced; user changes to interval and enabled are preserved across restarts
-- Version Check, Scheduled Backup, Backup Cleanup, Community Sync (placeholder), and Database Optimize tasks registered and wired through the task runner framework
-- `task_history` table — full execution log with status (`running`/`ok`/`failed`), duration_ms, triggered_by (`scheduler`/`manual`), and JSON details
-- `task_registry` table — per-task metadata including interval, enabled flag, last run stats, and next_run_at
-- Database Optimize task runs SQLite `ANALYZE` daily at 04:00 to keep query planner statistics current
-- Community Sync task registered as a placeholder for the upcoming defaults-from-GitHub feature
-
-- **Community-maintained lookup tables** — dealers, manufacturers, calibers, and ammo types are now synced automatically from the `community/` directory in the GitHub repository on every startup; falls back to bundled YAML files when GitHub is unreachable (offline installs always have a baseline dataset)
-- **Pending import review** — on first startup all community entries are imported automatically; on subsequent syncs new entries are queued as pending and shown in a banner on the Admin → Lookups page; admins can cherry-pick which entries to import or hide
-- **Check for Updates** button on the Lookups page (admin only) — triggers an on-demand community sync and shows how many new entries are pending across all four tables
-- **Source badges** on every lookup entry — blue badge for community-maintained entries, gold for user-created entries, gray for YAML-seeded entries
-- **Contribute button** on each community-managed lookup section — generates a YAML snippet of all user-created entries in that table and provides a direct link to open a pull request on GitHub
-- **Review & Import dialog** — checklist of all pending community entries for a table; import selected, hide rejected, or dismiss to decide later
-- `community_key` field on calibers, manufacturers, ammo types, and dealers — stable slugified identifier used to match community entries across syncs without relying on exact name spelling
-- `is_imported` flag on community-managed tables — unimported entries are excluded from all form dropdowns until an admin approves them
-- **Dealer geo fields** — `types` (online/local/auction/gun_show), `country` (ISO alpha-2), `state` (subdivision code), `is_standard_geo` flag added to the dealer model; community YAML includes these fields for all entries
-- `/geo/countries` and `/geo/subdivisions/{code}` endpoints — return country and state/province lists for dealer add/edit form dropdowns (powered by pycountry)
-- `acquisition_sources` section in `defaults.yaml` — non-commercial sources (Gift, Found, Gun Show, Inherited, Local Gun Shop, Reloaded) are now seeded separately from community dealer data
-- Alembic migration 0020 — adds `community_key`, `is_imported`, and dealer geo columns to the relevant tables
-
-- **Product catalog** — a dedicated Products page at `/products` for creating and managing product templates; each product captures caliber, manufacturer, product name, bullet weight, type, category, condition, default cost, UPC, and an optional image
-- Product images — upload a jpg/jpeg/png/webp image (up to 5 MB) per product; displayed on the product card and in the Add Box form
-- **Auto-fill from product** — when adding a new ammo box, select a product from the search-as-you-type selector at the top of the form; caliber, manufacturer, product name, weight, type, category, condition, and cost auto-populate from the product
-- **Add Box from Products page** — each product card has an "Add Box" button that opens Inventory pre-filled with the selected product
-- **Save as Template** — after manually adding a box with no product selected, a dialog offers to save the box's details as a new product template for future reuse
-- **Auto-generate products** — admin-only button on the Products page that groups existing inventory boxes by their unique caliber + manufacturer + product name + weight + type combination and creates a product for each group; also back-fills `product_id` on all matching boxes
-- Product visibility follows the same shared/private ownership model as ammo boxes — shared products are visible to all users; private products are visible to the owner and admins
-- CSV import now auto-links imported boxes to matching products by comparing caliber, manufacturer, product name, gr/oz, and type; unmatched boxes are left unlinked and can be wired up by running Auto-Generate later
-- `product_id` FK on ammo_box — boxes can be linked to a product; the link is set automatically on add/edit when a product is selected, on CSV import when a match exists, and on auto-generate
 
 ## [0.1.5] — 2026-05-02
 
