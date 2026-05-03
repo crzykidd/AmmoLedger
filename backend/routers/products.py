@@ -1,4 +1,3 @@
-import os
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -83,7 +82,7 @@ def _visibility_filter(stmt, user: User):
     if user.role == "admin":
         return stmt
     from sqlalchemy import or_
-    return stmt.where(or_(Product.is_shared == True, Product.owner_id == user.id))
+    return stmt.where(or_(Product.is_shared, Product.owner_id == user.id))
 
 
 def _check_write(product: Product, user: User) -> None:

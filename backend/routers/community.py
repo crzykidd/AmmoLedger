@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from database import get_session
 from models import AmmoType, Caliber, Dealer, Manufacturer
-from utils.community_sync import COMMUNITY_TABLES, fetch_community_yaml, slugify
+from utils.community_sync import COMMUNITY_TABLES
 from utils.rbac import require_auth, require_role
 
 router = APIRouter(tags=["community"])

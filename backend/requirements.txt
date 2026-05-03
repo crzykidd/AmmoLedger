@@ -1,12 +1,12 @@
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
 sqlmodel==0.0.19
-python-multipart==0.0.9
+python-multipart==0.0.27
 alembic==1.13.1
 bcrypt==4.2.0
 itsdangerous==2.2.0
 pyyaml==6.0.2
-pytest==8.2.0
+pytest==9.0.3
 httpx==0.27.0
 apscheduler==3.10.4
 pycountry==24.6.1
