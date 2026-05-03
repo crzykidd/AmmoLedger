@@ -462,6 +462,7 @@ class CaliberStatus(BaseModel):
     rounds_on_hand: int
     threshold: int
     is_low: bool
+    is_override: bool
 
 
 class LocationStatus(BaseModel):

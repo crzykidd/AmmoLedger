@@ -267,6 +267,7 @@ def get_threshold_status(
                 rounds_on_hand=on_hand,
                 threshold=threshold,
                 is_low=on_hand < threshold,
+                is_override=cal_id in cal_threshold_map,
             )
         )
     caliber_statuses.sort(key=lambda x: x.caliber_name)

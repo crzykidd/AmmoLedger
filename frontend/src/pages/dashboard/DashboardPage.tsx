@@ -8,6 +8,7 @@ import TopBar from '@/components/layout/TopBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CaliberThresholdDrawer } from '@/components/CaliberThresholdDrawer'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo, getRecentExpenditure } from '@/api/ammo'
@@ -16,6 +17,7 @@ import { getUsers } from '@/api/users'
 import { useThresholdStatus } from '@/hooks/useThresholdStatus'
 import { cn } from '@/lib/utils'
 import iconInventory from '@/assets/brand/icon-inventory-dark.png'
+import type { CaliberStatus } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -245,6 +247,10 @@ export default function DashboardPage() {
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem('getting_started_dismissed') === 'true',
   )
+  const [drawerCaliber, setDrawerCaliber] = useState<CaliberStatus | null>(null)
+  const [caliberView, setCaliberView] = useState<'mix' | 'threshold'>(
+    () => (localStorage.getItem('dashboard_caliber_view') as 'mix' | 'threshold') || 'mix',
+  )
 
   const { calibers, isLoading: lookupsLoading } = useInventoryLookups()
 
@@ -312,6 +318,11 @@ export default function DashboardPage() {
 
   const lowCaliberIds = useMemo(
     () => new Set(thresholdStatus.calibers.filter((c) => c.is_low).map((c) => c.caliber_id)),
+    [thresholdStatus],
+  )
+
+  const caliberStatusMap = useMemo(
+    () => new Map(thresholdStatus.calibers.map((c) => [c.caliber_id, c])),
     [thresholdStatus],
   )
 
@@ -467,7 +478,7 @@ export default function DashboardPage() {
                     <button
                       key={item.caliber_id}
                       className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
-                      onClick={() => navigate(`/inventory?searchField=caliber&search=${encodeURIComponent(item.caliber_name)}`)}
+                      onClick={() => setDrawerCaliber(item)}
                     >
                       <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -524,19 +535,94 @@ export default function DashboardPage() {
 
         {/* By Caliber */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3">
-            By Caliber
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+              By Caliber
+            </h2>
+            {/* View toggle */}
+            <div className="flex items-center rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {(['mix', 'threshold'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    setCaliberView(mode)
+                    localStorage.setItem('dashboard_caliber_view', mode)
+                  }}
+                  className={cn(
+                    'px-2.5 py-1 text-xs font-medium transition-colors',
+                    caliberView === mode
+                      ? 'bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
+                  )}
+                >
+                  {mode === 'mix' ? 'Mix' : 'Stock'}
+                </button>
+              ))}
+            </div>
+          </div>
           <Card>
             <CardContent className="py-4 px-4 space-y-4">
               {caliberSummary.map((cs) => {
-                const pct =
-                  totalInventoryRounds > 0
-                    ? (cs.total_rounds / totalInventoryRounds) * 100
-                    : 0
+                const statusEntry = caliberStatusMap.get(cs.caliber_id)
                 const isLow = lowCaliberIds.has(cs.caliber_id)
+
+                if (caliberView === 'threshold') {
+                  const threshold = statusEntry?.threshold ?? thresholdStatus.default_rounds
+                  const ratio = threshold > 0 ? cs.total_rounds / threshold : Infinity
+                  const barPct = threshold > 0 ? Math.min((cs.total_rounds / threshold) * 100, 100) : 100
+                  const barColor = ratio >= 1.1 ? 'bg-emerald-500' : ratio >= 0.9 ? 'bg-amber-400' : 'bg-red-500'
+                  const textColor = ratio >= 1.1
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : ratio >= 0.9
+                      ? 'text-amber-500 dark:text-amber-400'
+                      : 'text-red-500 dark:text-red-400'
+
+                  return (
+                    <button
+                      key={cs.caliber_id}
+                      className="w-full text-left hover:bg-gray-50 dark:hover:bg-gray-800/30 rounded-lg px-1 -mx-1 transition-colors"
+                      onClick={() => statusEntry && setDrawerCaliber(statusEntry)}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                            {cs.caliber_name}
+                          </span>
+                          <span className="text-xs text-gray-400 shrink-0">
+                            {cs.box_count} {cs.box_count === 1 ? 'box' : 'boxes'}
+                          </span>
+                        </div>
+                        <div className="text-right ml-4 shrink-0">
+                          <span className={cn('text-sm tabular-nums font-semibold', textColor)}>
+                            {cs.total_rounds.toLocaleString()} rds
+                          </span>
+                          {threshold > 0 && (
+                            <span className="text-xs text-gray-400 ml-1">
+                              / {threshold.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className={cn('h-full rounded-full transition-all', barColor)}
+                          style={{ width: `${Math.max(barPct, 1)}%` }}
+                        />
+                      </div>
+                    </button>
+                  )
+                }
+
+                // Mix mode
+                const pct = totalInventoryRounds > 0
+                  ? (cs.total_rounds / totalInventoryRounds) * 100
+                  : 0
                 return (
-                  <div key={cs.caliber_id}>
+                  <button
+                    key={cs.caliber_id}
+                    className="w-full text-left hover:bg-gray-50 dark:hover:bg-gray-800/30 rounded-lg px-1 -mx-1 transition-colors"
+                    onClick={() => statusEntry && setDrawerCaliber(statusEntry)}
+                  >
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         {isLow && (
@@ -555,14 +641,11 @@ export default function DashboardPage() {
                     </div>
                     <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                       <div
-                        className={cn(
-                          'h-full rounded-full transition-all',
-                          isLow ? 'bg-amber-400' : 'bg-gold',
-                        )}
+                        className={cn('h-full rounded-full transition-all', isLow ? 'bg-amber-400' : 'bg-gold')}
                         style={{ width: `${Math.max(pct, 1)}%` }}
                       />
                     </div>
-                  </div>
+                  </button>
                 )
               })}
             </CardContent>
@@ -620,6 +703,14 @@ export default function DashboardPage() {
         </section>
 
       </div>
+
+      <CaliberThresholdDrawer
+        open={drawerCaliber !== null}
+        onOpenChange={(o) => { if (!o) setDrawerCaliber(null) }}
+        caliber={drawerCaliber}
+        isAdmin={isAdmin}
+        defaultRounds={thresholdStatus.default_rounds}
+      />
     </AppShell>
   )
 }

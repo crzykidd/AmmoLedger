@@ -12,6 +12,11 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **Caliber threshold drawer** — tap any caliber on the dashboard or inventory summary panel to view its threshold details; admins can edit the threshold or reset to global default inline without leaving the page
+- **Dashboard By Caliber toggle** — switch between "Mix" (% of total inventory, existing behavior) and "Stock" (proximity to threshold) views; persists across sessions
+- **Color-coded stock levels in Stock view** — green (≥110% of threshold), yellow (90–110%), red (below 90%); round count text matches bar color
+- **Threshold value displayed in Stock view** — round count shown as "X rds / threshold" for each caliber
+
 - **Field-scoped search** — a dropdown next to the search box lets users narrow results to a specific field: Caliber, Manufacturer, Ammo Type, Category, Condition, Dealer, Location, Container, or Product Name; "All Fields" mode keeps the existing full-text API search behavior
 - **Dynamic summary panel** — the Caliber Summary panel now reflects the active Group By setting; switching to "Manufacturer" Group By shows a Manufacturer Summary, etc.; summary cells are clickable and apply the corresponding field search; low-stock highlighting is preserved when the caliber grouping is active
 - **Filter results counter** — when any filter is active the StatsBar highlights with a gold border and shows "Boxes X / Y" (filtered vs. total) so it's immediately clear how many items a filter matched

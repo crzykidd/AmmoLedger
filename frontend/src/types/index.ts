@@ -141,6 +141,7 @@ export interface CaliberStatus {
   rounds_on_hand: number
   threshold: number
   is_low: boolean
+  is_override: boolean
 }
 
 export interface LocationStatus {
