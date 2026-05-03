@@ -136,6 +136,24 @@ AmmoLedger automatically backs up your data every night at the time set in `conf
 
 JSON export captures your inventory and expenditure data in a portable format that can be re-imported into AmmoLedger. SQLite backup is the raw database file — useful for developer recovery but not used by the restore UI. Use JSON export for routine backups.
 
+## Admin Tasks
+
+### What are scheduled tasks?
+
+AmmoLedger runs several background jobs automatically on a configurable schedule. Go to **Admin → Tasks** to see all registered tasks, their next scheduled run, last run status, and full execution history. Tasks include version checks, scheduled backups, backup cleanup, and database maintenance.
+
+### How do I manually run a task?
+
+Go to **Admin → Tasks** and click **Run Now** on any task row. The task runs immediately in the background — the status badge updates to show it is running, then flips to OK or Failed when it finishes. History is updated automatically without needing to refresh.
+
+### How do I change the backup schedule?
+
+Go to **Admin → Tasks**, find the **Scheduled Backup** row, and edit the interval field. Enter a number of hours (e.g. `24`) or a daily time in `HH:MM` format (e.g. `03:00`). Click **Save** to apply. The next scheduled run updates immediately.
+
+### What if a task fails?
+
+The task row shows a red **Failed** badge and the last error message. Click anywhere on the history row in the Recent History table to expand the full error detail. You can click **Run Now** to retry the task immediately. If a task fails repeatedly, check the Admin → Tasks history for the error and review your `config.yaml` settings (especially backup paths and retention values).
+
 ## User Management
 
 ### How do I invite a family member?

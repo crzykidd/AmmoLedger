@@ -11,6 +11,7 @@ import {
   Users,
   DatabaseBackup,
   List,
+  ClipboardList,
   Info,
   HelpCircle,
   ChevronLeft,
@@ -61,6 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Users', icon: Users, href: '/admin/users' },
       { label: 'Backup', icon: DatabaseBackup, href: '/admin/backup' },
       { label: 'Lookups', icon: List, href: '/admin/lookups' },
+      { label: 'Tasks', icon: ClipboardList, href: '/admin/tasks' },
     ],
   },
 ]

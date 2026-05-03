@@ -463,6 +463,42 @@ class RecentExpenditureRead(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Task schemas
+# ---------------------------------------------------------------------------
+
+class TaskHistoryRead(_OrmBase):
+    id: int
+    task_name: str
+    started_at: datetime
+    ended_at: Optional[datetime]
+    duration_ms: Optional[int]
+    status: str
+    error_message: Optional[str]
+    details: Optional[str]
+    triggered_by: str
+
+
+class TaskRegistryRead(_OrmBase):
+    id: int
+    task_key: str
+    name: str
+    description: Optional[str]
+    interval_type: str
+    interval_value: str
+    enabled: bool
+    last_run_at: Optional[datetime]
+    last_status: Optional[str]
+    last_duration_ms: Optional[int]
+    next_run_at: Optional[datetime]
+    created_at: datetime
+
+
+class TaskRegistryUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    interval_value: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # Notification schemas
 # ---------------------------------------------------------------------------
 

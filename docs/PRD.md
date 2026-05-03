@@ -46,6 +46,7 @@
 | 3.7 | May 2026 | Environment variable config support — AL_* env vars override config.yaml; app can start without config.yaml if AL_SESSION_SECRET is set; startup logs which values came from ENV; §15.1 updated with configuration sources priority. |
 | 3.8 | May 2026 | CSV export — GET /ammo/export/csv (filtered, all users) and GET /backup/export/csv (all boxes, admin). Export CSV toolbar button in §9.2 with confirmation dialog. CSV importer extended to handle owner/created_at/updated_at/id columns. §9.2, §9.8, §11.3 updated. |
 | 3.9 | May 2026 | Product catalog — §6.9 added: products table with COALESCE unique index, image storage, product_id FK on ammo_box. §9.13 added: Products page (grid/list, add/edit sheet, image upload, auto-generate), Add Box product selector, Save as Template dialog, CSV import product auto-linking. |
+| 3.10 | May 2026 | Admin Tasks page — §9.14 added: task_registry and task_history tables, 5 registered tasks (version_check, scheduled_backup, backup_cleanup, community_sync, db_analyze), task runner with two-session pattern, APScheduler integration, /tasks API (list, history, run now, patch), TasksPage with status badges, Run Now button, per-task history, and enable/interval editing. |
 
 ---
 
@@ -1625,6 +1626,71 @@ After all boxes are committed in `POST /import/confirm`, a product-linking pass 
 3. For each imported box with no `product_id`, compute its key and look up a match
 4. If found: set `product_id`; commit the updates
 5. Response includes `product_links` count; unmatched boxes can be linked later via Auto-Generate
+
+---
+
+### 9.14 Admin Tasks
+
+#### Task Registry
+
+All background jobs are registered in the `task_registry` table at startup. Each entry has:
+
+- `task_key` — unique string identifier (e.g. `version_check`)
+- `name`, `description` — display labels
+- `interval_type` — `hours` or `daily`
+- `interval_value` — `"24"` (hours count) or `"03:00"` (HH:MM for daily)
+- `enabled` — can be toggled per-task in the UI
+- `last_run_at`, `last_status`, `last_duration_ms`, `next_run_at` — updated after each run
+
+Startup seeding: `_seed_task_registry()` is called in `on_startup` after `sync_yaml_seeds`. Creates missing entries and updates name/description from `TASK_DEFINITIONS`, but preserves user-set interval and enabled values.
+
+#### Registered Tasks
+
+| Key | Default Interval | Description |
+| --- | --- | --- |
+| `version_check` | 24 h | Check GitHub releases API for a newer version; updates `app_settings.latest_version` and `update_available` |
+| `scheduled_backup` | daily 03:00 | Copy SQLite DB to `/data/backups/ammoledger_{ts}.db`; records `last_backup_at` in app_settings |
+| `backup_cleanup` | 24 h | Delete backup files older than `retention_days` (default 30) |
+| `community_sync` | 24 h | Placeholder for future community data sync (currently no-ops) |
+| `db_analyze` | 24 h | Run SQLite `ANALYZE` to keep query planner statistics current |
+
+#### Task Runner
+
+`run_task(task_key, task_fn, triggered_by, task_kwargs)` in `utils/task_runner.py`:
+
+1. **Session 1** — Create `TaskHistory` record with `status="running"`, commit, capture `history_id`, close session
+2. Run `task_fn(**task_kwargs)` outside any open session
+3. **Session 2** — Update `TaskHistory` (status/ended_at/duration_ms/details/error), update `TaskRegistry` (last_run_at/last_status/next_run_at), commit
+
+Returns `history_id` (int). The caller fetches the record from DB in its own session.
+
+#### Scheduler Integration
+
+`start_scheduler(config)` in `utils/scheduler.py`:
+
+- Reads all enabled `TaskRegistry` rows from DB on startup
+- For each: creates an APScheduler job with interval or cron trigger from `interval_type`/`interval_value`
+- `scheduled_backup` uses the schedule configured in `config.yaml` if present, otherwise the registry interval
+- `reschedule(config)` clears all jobs and re-adds them (called after interval changes)
+
+#### Tasks API (`/tasks`, admin only)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/tasks` | List all task registry entries, ordered by next_run_at |
+| GET | `/tasks/history` | List last 50 history records; optional `?task_key=` filter |
+| GET | `/tasks/{key}/history` | List last 50 history records for a specific task |
+| POST | `/tasks/{key}/run` | Run a task immediately; returns 409 if already running |
+| PATCH | `/tasks/{key}` | Update `enabled` and/or `interval_value` |
+
+#### Tasks UI (`/admin/tasks`)
+
+- **Task Registry** table: Name, Last Run, Duration, Status badge, Next Run, enabled Switch, Run Now button, interval edit field
+- **Recent History** table: Task name, Triggered By, Started At, Duration, Status icon; expandable row shows error message and details JSON
+- Status badges: Never (gray), Running (amber spinner), OK (green check), Failed (red X)
+- History auto-refreshes every 10 s; task list auto-refreshes every 15 s
+- Run Now locks button and adds task key to `runningKeys` Set; unlocks after mutation settles
+- History filter Select populated from task list (allows filtering history to one task)
 
 ---
 

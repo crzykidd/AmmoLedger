@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from sqlmodel import Session
+from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 
@@ -20,6 +20,7 @@ from routers import auth, ammo, expenditure, lookups, users
 from routers.backup import router as backup_router
 from routers.importer import router as import_router
 from routers.products import router as products_router
+from routers.tasks import router as tasks_router
 from routers.thresholds import router as thresholds_router
 from utils.config import (
     CONFIG_PATH,
@@ -62,6 +63,7 @@ app.include_router(lookups.router)
 app.include_router(backup_router)
 app.include_router(import_router, prefix="/import")
 app.include_router(products_router, prefix="/products")
+app.include_router(tasks_router, prefix="/tasks")
 app.include_router(thresholds_router, prefix="/thresholds")
 
 _config: dict = {}
@@ -228,6 +230,38 @@ def _parse_local_changelog(
     return filtered or None
 
 
+def _seed_task_registry(config: dict) -> None:
+    """Ensure all task definitions exist in the task_registry table."""
+    from models import TaskRegistry  # noqa: PLC0415
+    from utils.task_definitions import TASK_DEFINITIONS  # noqa: PLC0415
+
+    backup_schedule = str((config.get("backup") or {}).get("schedule", "03:00")).strip()
+
+    with Session(engine) as db:
+        for defn in TASK_DEFINITIONS:
+            existing = db.exec(
+                select(TaskRegistry).where(TaskRegistry.task_key == defn["task_key"])
+            ).first()
+            if existing:
+                existing.name = defn["name"]
+                existing.description = defn["description"]
+                db.add(existing)
+            else:
+                interval_value = defn["interval_value"]
+                if defn["task_key"] == "scheduled_backup" and backup_schedule:
+                    interval_value = backup_schedule
+                db.add(TaskRegistry(
+                    task_key=defn["task_key"],
+                    name=defn["name"],
+                    description=defn["description"],
+                    interval_type=defn["interval_type"],
+                    interval_value=interval_value,
+                    enabled=defn["enabled"],
+                ))
+        db.commit()
+    logger.info("Task registry seeded")
+
+
 def _record_version() -> None:
     with Session(engine) as db:
         last_seen = get_setting(db, "last_seen_version")
@@ -294,6 +328,9 @@ def on_startup():
     sync_yaml_seeds(_config)
     logger.info("Defaults synced")
     print("✓ Defaults synced", flush=True)
+    _seed_task_registry(_config)
+    logger.info("Task registry ready")
+    print("✓ Task registry ready", flush=True)
     _record_version()
     start_scheduler(_config)
     logger.info("Scheduler started")

@@ -294,3 +294,38 @@ class AppSettings(SQLModel, table=True):
     key: str = Field(sa_column_kwargs={"unique": True})
     value: str
     updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Task Registry / History
+# ---------------------------------------------------------------------------
+
+class TaskHistory(SQLModel, table=True):
+    __tablename__ = "task_history"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_name: str
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    ended_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    status: str = Field(default="running")  # running | ok | failed
+    error_message: Optional[str] = None
+    details: Optional[str] = None  # JSON string for task-specific stats
+    triggered_by: str = Field(default="scheduler")  # scheduler | manual
+
+
+class TaskRegistry(SQLModel, table=True):
+    __tablename__ = "task_registry"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_key: str = Field(sa_column_kwargs={"unique": True})
+    name: str
+    description: Optional[str] = None
+    interval_type: str  # hours | daily | cron
+    interval_value: str  # "24", "03:00"
+    enabled: bool = Field(default=True)
+    last_run_at: Optional[datetime] = None
+    last_status: Optional[str] = None
+    last_duration_ms: Optional[int] = None
+    next_run_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)

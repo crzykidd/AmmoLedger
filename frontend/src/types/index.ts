@@ -424,3 +424,34 @@ export interface ImportConfirmResult {
   autoincrement_reset_to?: number
   warnings: { row: number | null; field: string; message: string }[]
 }
+
+// ---------------------------------------------------------------------------
+// Task types
+// ---------------------------------------------------------------------------
+
+export interface TaskHistory {
+  id: number
+  task_name: string
+  started_at: string
+  ended_at: string | null
+  duration_ms: number | null
+  status: 'running' | 'ok' | 'failed'
+  error_message: string | null
+  details: string | null
+  triggered_by: 'scheduler' | 'manual'
+}
+
+export interface TaskRegistry {
+  id: number
+  task_key: string
+  name: string
+  description: string | null
+  interval_type: 'hours' | 'daily' | 'cron'
+  interval_value: string
+  enabled: boolean
+  last_run_at: string | null
+  last_status: string | null
+  last_duration_ms: number | null
+  next_run_at: string | null
+  created_at: string
+}

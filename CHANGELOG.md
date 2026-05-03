@@ -12,6 +12,15 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Added
 
+- **Admin Tasks page** at `/admin/tasks` — view all scheduled jobs with last-run status, duration, and next scheduled time; manually trigger any task with Run Now; enable/disable individual tasks; change task intervals
+- **Task execution history** — every task run (scheduled or manual) records start time, end time, duration, status, and any error or stats details; history table is searchable by task with expandable rows for error messages and result details
+- **Centralized task registry** — all scheduled operations registered in the database (`task_registry` table); seeded automatically on startup with name/description synced; user changes to interval and enabled are preserved across restarts
+- Version Check, Scheduled Backup, Backup Cleanup, Community Sync (placeholder), and Database Optimize tasks registered and wired through the task runner framework
+- `task_history` table — full execution log with status (`running`/`ok`/`failed`), duration_ms, triggered_by (`scheduler`/`manual`), and JSON details
+- `task_registry` table — per-task metadata including interval, enabled flag, last run stats, and next_run_at
+- Database Optimize task runs SQLite `ANALYZE` daily at 04:00 to keep query planner statistics current
+- Community Sync task registered as a placeholder for the upcoming defaults-from-GitHub feature
+
 - **Product catalog** — a dedicated Products page at `/products` for creating and managing product templates; each product captures caliber, manufacturer, product name, bullet weight, type, category, condition, default cost, UPC, and an optional image
 - Product images — upload a jpg/jpeg/png/webp image (up to 5 MB) per product; displayed on the product card and in the Add Box form
 - **Auto-fill from product** — when adding a new ammo box, select a product from the search-as-you-type selector at the top of the form; caliber, manufacturer, product name, weight, type, category, condition, and cost auto-populate from the product
