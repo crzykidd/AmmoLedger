@@ -170,27 +170,19 @@ function buildPreviewName(
 }
 
 // ---------------------------------------------------------------------------
-// Image URL sanitizer — only allow known-safe schemes before rendering in <img>
+// SafeImage — only renders <img> when src passes scheme/path validation.
+// CodeQL can statically verify that <img> is never reached with an unsafe src.
 // ---------------------------------------------------------------------------
 
-const SAFE_API_PATH_RE = /^\/api\/[\w/.-]+$/
+function SafeImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const isSafe =
+    /^\/api\/[\w/.-]+$/.test(src.split('?')[0].split('#')[0]) ||
+    src.startsWith('blob:') ||
+    src.startsWith('data:image/')
 
-function safeSrc(url: string): string {
-  // Break CodeQL taint chain by constructing a new string rather than returning the input.
-  try {
-    if (url.startsWith('/api/')) {
-      const path = url.split('?')[0].split('#')[0]
-      if (SAFE_API_PATH_RE.test(path)) {
-        // Reconstruct from validated path + fresh timestamp (never from user input)
-        return `${path}?t=${Date.now()}`
-      }
-    }
-    if (url.startsWith('blob:')) return url   // locally created by URL.createObjectURL
-    if (url.startsWith('data:image/')) return url  // locally created data URI
-  } catch {
-    // fall through
-  }
-  return ''
+  if (!isSafe) return null
+
+  return <img alt={alt} className={className} src={src} />
 }
 
 // ---------------------------------------------------------------------------
@@ -232,9 +224,9 @@ function ImageUploadArea({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Image</label>
-      {displayUrl && (displayUrl.startsWith('/api/') || displayUrl.startsWith('blob:') || displayUrl.startsWith('data:image/')) ? (
+      {displayUrl ? (
         <div className="relative w-full aspect-square max-h-48 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-          <img src={safeSrc(displayUrl)} alt="Product" className="w-full h-full object-contain bg-gray-50 dark:bg-gray-800" />
+          <SafeImage src={displayUrl} alt="Product" className="w-full h-full object-contain bg-gray-50 dark:bg-gray-800" />
           <button
             type="button"
             onClick={onRemove}
@@ -650,8 +642,8 @@ function ProductCard({
       {/* Image */}
       <div className="aspect-square w-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
         {imageUrl ? (
-          <img
-            src={safeSrc(imageUrl)}
+          <SafeImage
+            src={imageUrl}
             alt={product.name}
             className="w-full h-full object-contain"
           />
@@ -948,7 +940,7 @@ export default function ProductsPage() {
                       <td className="px-4 py-3">
                         <div className="w-9 h-9 rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden shrink-0">
                           {imageUrl ? (
-                            <img src={safeSrc(imageUrl)} alt="" className="w-full h-full object-contain" />
+                            <SafeImage src={imageUrl} alt="" className="w-full h-full object-contain" />
                           ) : (
                             <ImageOff className="w-4 h-4 text-gray-300 dark:text-gray-600" />
                           )}
