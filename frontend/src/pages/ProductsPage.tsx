@@ -170,6 +170,17 @@ function buildPreviewName(
 }
 
 // ---------------------------------------------------------------------------
+// Image URL sanitizer — only allow known-safe schemes before rendering in <img>
+// ---------------------------------------------------------------------------
+
+function safeSrc(url: string): string {
+  if (url.startsWith('/api/') || url.startsWith('blob:') || url.startsWith('data:image/')) {
+    return url
+  }
+  return ''
+}
+
+// ---------------------------------------------------------------------------
 // Image upload area
 // ---------------------------------------------------------------------------
 
@@ -210,7 +221,7 @@ function ImageUploadArea({
       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Image</label>
       {displayUrl ? (
         <div className="relative w-full aspect-square max-h-48 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-          <img src={displayUrl} alt="Product" className="w-full h-full object-contain bg-gray-50 dark:bg-gray-800" />
+          <img src={safeSrc(displayUrl)} alt="Product" className="w-full h-full object-contain bg-gray-50 dark:bg-gray-800" />
           <button
             type="button"
             onClick={onRemove}
@@ -627,7 +638,7 @@ function ProductCard({
       <div className="aspect-square w-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
         {imageUrl ? (
           <img
-            src={imageUrl}
+            src={safeSrc(imageUrl)}
             alt={product.name}
             className="w-full h-full object-contain"
           />
@@ -924,7 +935,7 @@ export default function ProductsPage() {
                       <td className="px-4 py-3">
                         <div className="w-9 h-9 rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden shrink-0">
                           {imageUrl ? (
-                            <img src={imageUrl} alt="" className="w-full h-full object-contain" />
+                            <img src={safeSrc(imageUrl)} alt="" className="w-full h-full object-contain" />
                           ) : (
                             <ImageOff className="w-4 h-4 text-gray-300 dark:text-gray-600" />
                           )}

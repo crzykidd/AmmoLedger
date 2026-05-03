@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["products"])
 
 PRODUCTS_UPLOAD_DIR = Path(UPLOADS_PATH) / "products"
-ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
@@ -378,10 +378,9 @@ async def upload_product_image(
         raise HTTPException(status_code=404, detail="Product not found")
     _check_write(product, user)
 
-    filename = file.filename or ""
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=422, detail=f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
+    ext = Path(file.filename).suffix.lower() if file.filename else ".jpg"
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=422, detail=f"Unsupported image format. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}")
 
     contents = await file.read()
     if len(contents) > MAX_IMAGE_BYTES:
@@ -396,7 +395,9 @@ async def upload_product_image(
         except OSError:
             pass
 
-    dest = PRODUCTS_UPLOAD_DIR / f"{product_id}.{ext}"
+    dest = PRODUCTS_UPLOAD_DIR / f"{product_id}{ext}"
+    if not dest.resolve().is_relative_to(PRODUCTS_UPLOAD_DIR.resolve()):
+        raise HTTPException(status_code=400, detail="Invalid filename")
     dest.write_bytes(contents)
 
     product.image_path = str(dest)
