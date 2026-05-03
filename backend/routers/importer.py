@@ -236,10 +236,10 @@ def _check_new_values(
     """
     Returns:
       new_values: {table_key: [new values not yet in DB]}
-      fuzzy_warnings: [{row: None, field: col, message: "..."}]
+      similarity_matches: [{field, csv_value, existing_value, table_key}]
     """
     new_values: dict[str, list[str]] = {}
-    fuzzy_warnings: list[dict] = []
+    similarity_matches: list[dict] = []
 
     for col, (table_key, Model) in COLUMN_TO_LOOKUP.items():
         incoming = lookup_values.get(col, set())
@@ -264,17 +264,27 @@ def _check_new_values(
             # fuzzy check against all existing
             for existing_name in existing_names:
                 if _is_similar(val, existing_name, col):
-                    fuzzy_warnings.append({
-                        "row": None,
+                    similarity_matches.append({
                         "field": col,
-                        "message": f"'{val}' is similar to existing '{existing_name}' — verify these are the same",
+                        "csv_value": val,
+                        "existing_value": existing_name,
+                        "table_key": table_key,
                     })
                     break
 
         if col_new:
             new_values[table_key] = col_new
 
-    return new_values, fuzzy_warnings
+    return new_values, similarity_matches
+
+
+# ---------------------------------------------------------------------------
+# Remap helper
+# ---------------------------------------------------------------------------
+
+def _apply_remap(value: str, column: str, remaps: dict[str, dict[str, str]]) -> str:
+    """If a remap exists for this column+value, return the mapped value; otherwise return as-is."""
+    return remaps.get(column, {}).get(value, value)
 
 
 # ---------------------------------------------------------------------------
@@ -471,8 +481,7 @@ async def validate_import(
             raise HTTPException(status_code=422, detail="No importable rows found — all rows have errors")
 
         lookup_values = _collect_lookup_values(rows)
-        new_values, fuzzy_warnings = _check_new_values(db, lookup_values)
-        all_warnings.extend(fuzzy_warnings)
+        new_values, similarity_matches = _check_new_values(db, lookup_values)
 
         legacy_id_mode = _analyze_legacy_ids(rows, db)
         logger.debug(
@@ -494,6 +503,7 @@ async def validate_import(
             "error_rows": len(rows) - importable,
             "warning_count": len(all_warnings),
             "new_values": new_values,
+            "similarity_matches": similarity_matches,
             "errors": all_errors,
             "warnings": all_warnings,
             "legacy_id_mode": legacy_id_mode,
@@ -513,6 +523,7 @@ async def confirm_import(
     validation_token: str = Form(...),
     use_legacy_ids: bool = Form(False),
     is_shared: bool = Form(True),
+    value_remaps: str = Form("{}"),
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
@@ -522,6 +533,11 @@ async def confirm_import(
             "Import confirm started: %s, use_legacy_ids=%s, is_shared=%s",
             file.filename or "unknown", use_legacy_ids, is_shared,
         )
+
+        try:
+            remaps: dict[str, dict[str, str]] = json.loads(value_remaps)
+        except (json.JSONDecodeError, TypeError):
+            remaps = {}
 
         _validate_token(db, validation_token)
 
@@ -563,29 +579,30 @@ async def confirm_import(
                     skipped += 1
                     continue
 
-                # Resolve required lookups
-                caliber_id = _resolve_or_create(import_db, Caliber, _get(row, "caliber"))
+                # Resolve required lookups (apply user remaps before resolution)
+                caliber_raw = _apply_remap(_get(row, "caliber"), "caliber", remaps)
+                caliber_id = _resolve_or_create(import_db, Caliber, caliber_raw)
 
-                manufacturer_raw = _get(row, "manufacturer")
+                manufacturer_raw = _apply_remap(_get(row, "manufacturer"), "manufacturer", remaps)
                 manufacturer_id = _resolve_or_create(import_db, Manufacturer, manufacturer_raw) if manufacturer_raw else None
 
                 # Optional lookups
-                type_raw = _get(row, "type")
+                type_raw = _apply_remap(_get(row, "type"), "type", remaps)
                 type_id = _resolve_or_create(import_db, AmmoType, type_raw) if type_raw else None
 
-                category_raw = _get(row, "category")
+                category_raw = _apply_remap(_get(row, "category"), "category", remaps)
                 category_id = _resolve_or_create(import_db, Category, category_raw) if category_raw else None
 
-                condition_raw = _get(row, "ammo_condition")
+                condition_raw = _apply_remap(_get(row, "ammo_condition"), "ammo_condition", remaps)
                 condition_id = _resolve_or_create(import_db, AmmoCondition, condition_raw) if condition_raw else None
 
-                dealer_raw = _get(row, "dealer")
+                dealer_raw = _apply_remap(_get(row, "dealer"), "dealer", remaps)
                 dealer_id = _resolve_or_create(import_db, Dealer, dealer_raw) if dealer_raw else None
 
-                location_raw = _get(row, "location")
+                location_raw = _apply_remap(_get(row, "location"), "location", remaps)
                 location_id = _resolve_location(import_db, location_raw) if location_raw else None
 
-                container_raw = _get(row, "container")
+                container_raw = _apply_remap(_get(row, "container"), "container", remaps)
                 container_id = _resolve_container(import_db, container_raw, location_id) if container_raw else None
 
                 # Field values

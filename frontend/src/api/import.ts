@@ -1,4 +1,6 @@
-import type { ImportConfirmResult, ImportValidationResult } from '@/types'
+import type { ImportConfirmResult, ImportValidationResult, SimilarityMatch } from '@/types'
+
+export type { SimilarityMatch }
 
 const BASE = '/api'
 
@@ -39,12 +41,14 @@ export const confirmImport = (
   validationToken: string,
   useLegacyIds: boolean,
   isShared: boolean = true,
+  valueRemaps: Record<string, Record<string, string>> = {},
 ): Promise<ImportConfirmResult> => {
   const fd = new FormData()
   fd.append('file', file)
   fd.append('validation_token', validationToken)
   fd.append('use_legacy_ids', String(useLegacyIds))
   fd.append('is_shared', String(isShared))
+  fd.append('value_remaps', JSON.stringify(valueRemaps))
   return postFormData('/import/confirm', fd)
 }
 

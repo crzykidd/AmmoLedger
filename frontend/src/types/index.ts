@@ -431,6 +431,13 @@ export interface LegacyIdMode {
   eligible: boolean
 }
 
+export interface SimilarityMatch {
+  field: string
+  csv_value: string
+  existing_value: string
+  table_key: string
+}
+
 export interface ImportValidationResult {
   valid: boolean
   total_rows: number
@@ -438,6 +445,7 @@ export interface ImportValidationResult {
   error_rows: number
   warning_count: number
   new_values: Record<string, string[]>
+  similarity_matches: SimilarityMatch[]
   errors: { row: number; field: string; message: string }[]
   warnings: { row: number | null; field: string; message: string }[]
   legacy_id_mode: LegacyIdMode
