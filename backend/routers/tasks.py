@@ -170,11 +170,10 @@ def update_task(
     db.commit()
     db.refresh(task)
 
-    # Restart scheduler with updated intervals
-    from utils.config import load_and_validate_config  # noqa: PLC0415
-    from utils.scheduler import reschedule  # noqa: PLC0415
-    config = load_and_validate_config()
-    reschedule(config)
+    # Update the single job in the live scheduler (writes next_run_at to DB)
+    from utils.scheduler import reschedule_task  # noqa: PLC0415
+    reschedule_task(task)
+    db.refresh(task)  # pick up next_run_at written by reschedule_task
 
     # Conflict detection: warn if this daily task lands within 5 min of another
     warnings: List[str] = []

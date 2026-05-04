@@ -90,6 +90,56 @@ def start_scheduler(config: dict) -> None:
     _scheduler.start()
     logger.info("Scheduler started with %d task(s)", scheduled_count)
 
+    # Persist initial next_run_at from APScheduler; clear it for disabled tasks
+    job_map = {job.id: job for job in _scheduler.get_jobs()}
+    with Session(engine) as db:
+        for t in db.exec(select(TaskRegistry)).all():
+            job = job_map.get(t.task_key)
+            if job and job.next_run_time:
+                t.next_run_at = job.next_run_time.replace(tzinfo=None)
+            elif not t.enabled:
+                t.next_run_at = None
+            db.add(t)
+        db.commit()
+
+
+def reschedule_task(task) -> None:
+    """Update a single task's APScheduler job and persist next_run_at."""
+    global _scheduler
+    if _scheduler is None or not _scheduler.running:
+        return
+
+    from database import engine  # noqa: PLC0415
+    from models import TaskRegistry  # noqa: PLC0415
+    from sqlmodel import Session, select  # noqa: PLC0415
+
+    task_fn = TASK_FUNCTIONS.get(task.task_key)
+
+    try:
+        _scheduler.remove_job(task.task_key)
+    except Exception:
+        pass
+
+    next_run_at = None
+
+    if task.enabled and task_fn:
+        _add_job(_scheduler, task.task_key, task_fn, task.interval_type, task.interval_value)
+        job = _scheduler.get_job(task.task_key)
+        if job and job.next_run_time:
+            next_run_at = job.next_run_time.replace(tzinfo=None)
+            logger.info("Rescheduled %s, next run: %s", task.task_key, job.next_run_time)
+    else:
+        logger.info("Disabled task %s, cleared next_run_at", task.task_key)
+
+    with Session(engine) as db:
+        registry = db.exec(
+            select(TaskRegistry).where(TaskRegistry.task_key == task.task_key)
+        ).first()
+        if registry:
+            registry.next_run_at = next_run_at
+            db.add(registry)
+            db.commit()
+
 
 def stop_scheduler() -> None:
     global _scheduler

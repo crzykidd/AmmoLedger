@@ -38,9 +38,14 @@ function formatInterval(task: TaskRegistry): string {
   }
   if (task.interval_type === 'daily') {
     const [hh, mm] = task.interval_value.split(':').map(Number)
-    const ampm = hh < 12 ? 'AM' : 'PM'
-    const h12 = hh % 12 === 0 ? 12 : hh % 12
-    return `Daily at ${h12}:${String(mm).padStart(2, '0')} ${ampm}`
+    // Convert UTC schedule time to local timezone for display
+    const utcDate = new Date()
+    utcDate.setUTCHours(hh, mm, 0, 0)
+    const localH = utcDate.getHours()
+    const localM = utcDate.getMinutes()
+    const ampm = localH < 12 ? 'AM' : 'PM'
+    const h12 = localH % 12 === 0 ? 12 : localH % 12
+    return `Daily at ${h12}:${String(localM).padStart(2, '0')} ${ampm}`
   }
   return task.interval_value
 }
