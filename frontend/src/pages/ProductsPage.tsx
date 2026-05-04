@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -212,7 +212,8 @@ function ImageUploadArea({
   const fileRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
 
-  const displayUrl = localPreview ?? (currentImageUrl ? currentImageUrl + `?t=${Date.now()}` : null)
+  const cacheBuster = useMemo(() => Date.now(), [currentImageUrl])
+  const displayUrl = localPreview ?? (currentImageUrl ? `${currentImageUrl}?t=${cacheBuster}` : null)
 
   const handleFile = (f: File) => {
     if (!f.type.match(/image\/(jpeg|png|webp)/)) return
@@ -357,34 +358,32 @@ function ProductFormSheet({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Reset form when sheet opens
-  const onSheetOpen = useCallback((o: boolean) => {
-    if (o) {
-      if (editProduct) {
-        setVals({
-          caliber_id: idStr(editProduct.caliber_id),
-          manufacturer_id: idStr(editProduct.manufacturer_id),
-          product_name: editProduct.product_name ?? '',
-          gr_oz: editProduct.gr_oz != null ? String(editProduct.gr_oz) : '',
-          weight_unit: editProduct.weight_unit ?? 'GR',
-          type_id: idStr(editProduct.type_id),
-          category_id: idStr(editProduct.category_id),
-          ammo_condition_id: idStr(editProduct.ammo_condition_id),
-          default_cost: editProduct.default_cost != null ? String(editProduct.default_cost) : '',
-          upc: editProduct.upc ?? '',
-          notes: editProduct.notes ?? '',
-          is_shared: editProduct.is_shared,
-        })
-      } else {
-        setVals(FORM_DEFAULTS)
-      }
-      setPendingImage(null)
-      setLocalPreview(null)
-      setRemoveImage(false)
-      setError(null)
+  // Populate form when sheet opens or editProduct changes
+  useEffect(() => {
+    if (!open) return
+    if (editProduct) {
+      setVals({
+        caliber_id: idStr(editProduct.caliber_id),
+        manufacturer_id: idStr(editProduct.manufacturer_id),
+        product_name: editProduct.product_name ?? '',
+        gr_oz: editProduct.gr_oz != null ? String(editProduct.gr_oz) : '',
+        weight_unit: editProduct.weight_unit ?? 'GR',
+        type_id: idStr(editProduct.type_id),
+        category_id: idStr(editProduct.category_id),
+        ammo_condition_id: idStr(editProduct.ammo_condition_id),
+        default_cost: editProduct.default_cost != null ? String(editProduct.default_cost) : '',
+        upc: editProduct.upc ?? '',
+        notes: editProduct.notes ?? '',
+        is_shared: editProduct.is_shared,
+      })
+    } else {
+      setVals(FORM_DEFAULTS)
     }
-    onOpenChange(o)
-  }, [editProduct, onOpenChange])
+    setPendingImage(null)
+    setLocalPreview(null)
+    setRemoveImage(false)
+    setError(null)
+  }, [open, editProduct])
 
   const set = (key: keyof ProductFormValues, value: string | boolean) =>
     setVals((prev) => ({ ...prev, [key]: value }))
@@ -459,7 +458,7 @@ function ProductFormSheet({
 
       void queryClient.invalidateQueries({ queryKey: ['products'] })
       toast({ title: editProduct ? 'Product updated' : 'Product created' })
-      onSheetOpen(false)
+      onOpenChange(false)
     } catch (e: unknown) {
       const msg = (e as { detail?: string })?.detail ?? 'An error occurred'
       setError(msg)
@@ -474,7 +473,7 @@ function ProductFormSheet({
       : null
 
   return (
-    <Sheet open={open} onOpenChange={onSheetOpen}>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent title={editProduct ? 'Edit Product' : 'Add Product'} description="">
         <SheetHeader>
           <SheetTitle>{editProduct ? 'Edit Product' : 'Add Product'}</SheetTitle>
@@ -612,7 +611,7 @@ function ProductFormSheet({
         </div>
 
         <SheetFooter>
-          <Button variant="secondary" onClick={() => onSheetOpen(false)} disabled={saving}>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
           <Button onClick={() => void handleSave()} disabled={saving}>
@@ -799,6 +798,8 @@ export default function ProductsPage() {
     }
   }
 
+  const hasFilters = !!(debouncedSearch || (filterCaliberId && filterCaliberId !== NONE))
+
   const handleAddBox = (product: ProductRead) => {
     navigate(`/inventory?product_id=${product.id}`)
   }
@@ -841,7 +842,7 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="p-6 flex flex-col gap-4">
+      <div className="flex-1 overflow-auto p-6 flex flex-col gap-4">
         {/* Toolbar */}
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-48">
@@ -898,35 +899,105 @@ export default function ProductsPage() {
           </div>
         </div>
 
+        {/* Product count */}
+        {!isLoading && products.length > 0 && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Showing {products.length} product{products.length !== 1 ? 's' : ''}
+            {hasFilters ? ' (filtered)' : ''}
+          </p>
+        )}
+
         {/* Content */}
         {isLoading ? (
-          <div className="text-center py-16 text-gray-400">Loading products…</div>
-        ) : products.length === 0 ? (
-          <div className="flex flex-col items-center py-20 gap-4 text-center">
-            <Box className="w-12 h-12 text-gray-300 dark:text-gray-600" />
-            <div>
-              <p className="font-medium text-gray-600 dark:text-gray-300">No products yet</p>
-              <p className="text-sm text-gray-400 mt-1">
-                {user?.role === 'admin'
-                  ? 'Click "Auto-Generate from Inventory" to create templates from existing boxes, or add one manually.'
-                  : 'No product templates have been created yet.'}
-              </p>
+          view === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                  <div className="aspect-square w-full animate-pulse bg-gray-200 dark:bg-gray-800" />
+                  <div className="p-3 flex flex-col gap-2">
+                    <div className="h-3.5 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-4/5" />
+                    <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-3/5" />
+                  </div>
+                  <div className="border-t border-gray-100 dark:border-gray-800 px-3 py-2">
+                    <div className="h-7 animate-pulse bg-gray-200 dark:bg-gray-800 rounded" />
+                  </div>
+                </div>
+              ))}
             </div>
-            {(user?.role === 'admin' || user?.role === 'member') && (
-              <div className="flex gap-2">
-                {user.role === 'admin' && (
-                  <Button variant="secondary" onClick={() => void handleAutoGenerate()} disabled={autoGenerating}>
-                    <RefreshCw className={cn('w-4 h-4 mr-1.5', autoGenerating && 'animate-spin')} />
-                    Auto-Generate
-                  </Button>
-                )}
-                <Button onClick={openAdd}>
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Add Product
-                </Button>
+          ) : (
+            <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+              <table className="w-full">
+                <tbody>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
+                      <td className="px-4 py-3 w-12">
+                        <div className="w-9 h-9 animate-pulse bg-gray-200 dark:bg-gray-800 rounded-md" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="h-3.5 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-48 mb-1.5" />
+                        <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-32" />
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-20" />
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-16" />
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-20" />
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-14 ml-auto" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-8 ml-auto" />
+                      </td>
+                      <td className="px-4 py-3 w-28" />
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : products.length === 0 ? (
+          hasFilters ? (
+            <div className="flex flex-col items-center py-20 gap-4 text-center">
+              <Search className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+              <div>
+                <p className="font-medium text-gray-600 dark:text-gray-300">No products match your filters</p>
+                <p className="text-sm text-gray-400 mt-1">Try adjusting your search or clearing filters.</p>
               </div>
-            )}
-          </div>
+              <Button variant="secondary" onClick={() => { setSearch(''); setFilterCaliberId('') }}>
+                Clear Filters
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center py-20 gap-4 text-center">
+              <Box className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+              <div>
+                <p className="font-medium text-gray-600 dark:text-gray-300">No products yet</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {user?.role === 'admin'
+                    ? 'Click "Auto-Generate from Inventory" to create templates from existing boxes, or add one manually.'
+                    : 'No product templates have been created yet.'}
+                </p>
+              </div>
+              {(user?.role === 'admin' || user?.role === 'member') && (
+                <div className="flex gap-2">
+                  {user.role === 'admin' && (
+                    <Button variant="secondary" onClick={() => void handleAutoGenerate()} disabled={autoGenerating}>
+                      <RefreshCw className={cn('w-4 h-4 mr-1.5', autoGenerating && 'animate-spin')} />
+                      Auto-Generate
+                    </Button>
+                  )}
+                  <Button onClick={openAdd}>
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Add Product
+                  </Button>
+                </div>
+              )}
+            </div>
+          )
         ) : view === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {products.map((p) => (
