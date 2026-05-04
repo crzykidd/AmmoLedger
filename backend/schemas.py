@@ -1,13 +1,30 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_serializer
+
+# Matches naive ISO datetime strings: YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SS.ffffff
+_NAIVE_ISO_RE = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$')
 
 
 class _OrmBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+    @model_serializer(mode="wrap")
+    def _serialize_utc(self, handler):
+        data = handler(self)
+        if not isinstance(data, dict):
+            return data
+        for key in list(data.keys()):
+            v = data[key]
+            if isinstance(v, datetime) and v.tzinfo is None:
+                data[key] = v.isoformat() + "Z"
+            elif isinstance(v, str) and _NAIVE_ISO_RE.match(v):
+                data[key] = v + "Z"
+        return data
 
 
 # ---------------------------------------------------------------------------
@@ -524,10 +541,12 @@ class TaskRegistryRead(_OrmBase):
     last_duration_ms: Optional[int]
     next_run_at: Optional[datetime]
     created_at: datetime
+    warnings: Optional[List[str]] = None
 
 
 class TaskRegistryUpdate(BaseModel):
     enabled: Optional[bool] = None
+    interval_type: Optional[str] = None
     interval_value: Optional[str] = None
 
 

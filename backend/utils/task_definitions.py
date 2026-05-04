@@ -151,12 +151,26 @@ def _db_analyze_fn() -> dict:
 
 TASK_DEFINITIONS = [
     {
+        "task_key": "community_sync",
+        "name": "Community Sync",
+        "description": "Sync dealers, manufacturers, calibers, and ammo types from GitHub",
+        "interval_type": "hours",
+        "interval_value": "24",
+        "enabled": True,
+        "allowed_modes": ["hours"],
+        "min_hours": 4,
+        "max_hours": 168,  # 7 days
+    },
+    {
         "task_key": "version_check",
         "name": "Version Check",
         "description": "Check GitHub for new AmmoLedger releases",
         "interval_type": "hours",
         "interval_value": "24",
         "enabled": True,
+        "allowed_modes": ["hours"],
+        "min_hours": 4,
+        "max_hours": 24,
     },
     {
         "task_key": "scheduled_backup",
@@ -165,6 +179,9 @@ TASK_DEFINITIONS = [
         "interval_type": "daily",
         "interval_value": "03:00",
         "enabled": True,
+        "allowed_modes": ["hours", "daily"],
+        "min_hours": 4,
+        "max_hours": 24,
     },
     {
         "task_key": "backup_cleanup",
@@ -173,14 +190,7 @@ TASK_DEFINITIONS = [
         "interval_type": "daily",
         "interval_value": "03:05",
         "enabled": True,
-    },
-    {
-        "task_key": "community_sync",
-        "name": "Community Sync",
-        "description": "Sync dealers, manufacturers, calibers, and ammo types from GitHub",
-        "interval_type": "hours",
-        "interval_value": "24",
-        "enabled": True,
+        "allowed_modes": ["daily"],
     },
     {
         "task_key": "db_analyze",
@@ -189,6 +199,8 @@ TASK_DEFINITIONS = [
         "interval_type": "daily",
         "interval_value": "04:00",
         "enabled": True,
+        "allowed_modes": ["daily"],
+        "requires_exclusive": True,
     },
 ]
 

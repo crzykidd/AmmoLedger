@@ -1,4 +1,4 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from utils.logging import get_logger
 from utils.task_definitions import TASK_FUNCTIONS
@@ -6,7 +6,7 @@ from utils.task_runner import run_task
 
 logger = get_logger(__name__)
 
-_scheduler: AsyncIOScheduler | None = None
+_scheduler: BackgroundScheduler | None = None
 
 
 def _make_job(task_key: str, task_fn):
@@ -18,7 +18,7 @@ def _make_job(task_key: str, task_fn):
 
 
 def _add_job(
-    scheduler: AsyncIOScheduler,
+    scheduler: BackgroundScheduler,
     task_key: str,
     task_fn,
     interval_type: str,
@@ -60,7 +60,7 @@ def start_scheduler(config: dict) -> None:
     from models import TaskRegistry  # noqa: PLC0415
     from sqlmodel import Session, select  # noqa: PLC0415
 
-    _scheduler = AsyncIOScheduler()
+    _scheduler = BackgroundScheduler()
     scheduled_count = 0
 
     with Session(engine) as db:

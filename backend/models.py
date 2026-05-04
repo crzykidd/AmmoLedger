@@ -320,7 +320,7 @@ class TaskHistory(SQLModel, table=True):
     started_at: datetime = Field(default_factory=datetime.utcnow)
     ended_at: Optional[datetime] = None
     duration_ms: Optional[int] = None
-    status: str = Field(default="running")  # running | ok | failed
+    status: str = Field(default="running")  # running | ok | failed | skipped
     error_message: Optional[str] = None
     details: Optional[str] = None  # JSON string for task-specific stats
     triggered_by: str = Field(default="scheduler")  # scheduler | manual

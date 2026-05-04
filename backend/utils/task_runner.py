@@ -1,12 +1,16 @@
 import json
+import time
 from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
 from database import engine
 from utils.logging import get_logger
+from utils.task_definitions import TASK_DEFINITIONS
 
 logger = get_logger(__name__)
+
+_TASK_DEF_MAP: dict = {td["task_key"]: td for td in TASK_DEFINITIONS}
 
 
 def calculate_next_run(registry) -> datetime:
@@ -56,6 +60,38 @@ def run_task(
         session.commit()
         session.refresh(history)
         history_id = history.id
+
+    # Exclusive execution guard — check before running
+    task_def = _TASK_DEF_MAP.get(task_key, {})
+    if task_def.get("requires_exclusive"):
+        def _any_running(exclude_id: int) -> str | None:
+            with Session(engine) as s:
+                running = s.exec(
+                    select(TaskHistory)
+                    .where(TaskHistory.status == "running")
+                    .where(TaskHistory.id != exclude_id)
+                ).first()
+                return running.task_name if running else None
+
+        conflict = _any_running(history_id)
+        if conflict:
+            logger.warning("Task %s: exclusive guard — %s is running, sleeping 5s", task_key, conflict)
+            time.sleep(5)
+            conflict = _any_running(history_id)
+
+        if conflict:
+            logger.warning("Task %s: skipped — %s still running after retry", task_key, conflict)
+            ended_at = datetime.utcnow()
+            with Session(engine) as session:
+                history = session.get(TaskHistory, history_id)
+                if history:
+                    history.status = "skipped"
+                    history.ended_at = ended_at
+                    history.duration_ms = 0
+                    history.details = json.dumps({"reason": f"Another task was running: {conflict}"})
+                    session.add(history)
+                session.commit()
+            return history_id
 
     # Run the task outside the session to avoid holding a connection
     result = None
