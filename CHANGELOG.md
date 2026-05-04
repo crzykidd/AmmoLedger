@@ -20,6 +20,10 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- **Products page: TopBar subtitle now renders** — "Saved product templates for quick box entry" was silently ignored; TopBar now accepts and displays an optional subtitle
+- **Products page: edit/delete buttons now respect RBAC** — hidden for unauthorized users; members can only edit/delete their own products; Add Box and Add Product hidden for read-only users
+- **Products page: search input debounced** — 300 ms delay prevents an API request on every keystroke
+- **Products page: removed duplicate NONE constant** — shadowing inner declaration removed; module-scope declaration is sufficient
 - **Tasks page "Next Run" now populated on load** — scheduler writes APScheduler fire times back to the database on startup; previously showed "—" until after the first manual run
 - **Schedule changes and enable/disable take effect immediately** — toggling or updating a task now reschedules only that job in the live scheduler without a full restart
 - **Daily task schedule times now display in local timezone** — the Interval column converts the stored UTC time to the user's browser timezone (e.g. 03:00 UTC shows as 8:00 PM for Pacific)

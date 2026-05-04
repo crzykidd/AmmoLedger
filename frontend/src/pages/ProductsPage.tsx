@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -70,6 +70,7 @@ import type {
   ProductCreate,
   ProductRead,
   ProductUpdate,
+  User,
 } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -317,6 +318,13 @@ function toId(s: string): number | null {
 }
 function idStr(n: number | null | undefined): string {
   return n != null ? String(n) : ''
+}
+
+function canEditProduct(product: ProductRead, user: User | null): boolean {
+  if (!user) return false
+  if (user.role === 'admin') return true
+  if (user.role === 'member') return product.owner_id === user.id
+  return false
 }
 
 interface ProductFormSheetProps {
@@ -622,11 +630,13 @@ function ProductFormSheet({
 
 function ProductCard({
   product,
+  user,
   onEdit,
   onDelete,
   onAddBox,
 }: {
   product: ProductRead
+  user: User | null
   onEdit: () => void
   onDelete: () => void
   onAddBox: () => void
@@ -678,23 +688,29 @@ function ProductCard({
       </div>
 
       {/* Actions */}
-      <div className="border-t border-gray-100 dark:border-gray-800 px-3 py-2 flex gap-2">
-        <Button size="sm" className="flex-1 text-xs h-7" onClick={onAddBox}>
-          Add Box
-        </Button>
-        <Button size="sm" variant="secondary" className="h-7 w-7 p-0" onClick={onEdit} title="Edit">
-          <Pencil className="w-3.5 h-3.5" />
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-500"
-          onClick={onDelete}
-          title="Delete"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
+      {user?.role !== 'read_only' && (
+        <div className="border-t border-gray-100 dark:border-gray-800 px-3 py-2 flex gap-2">
+          <Button size="sm" className="flex-1 text-xs h-7" onClick={onAddBox}>
+            Add Box
+          </Button>
+          {canEditProduct(product, user) && (
+            <>
+              <Button size="sm" variant="secondary" className="h-7 w-7 p-0" onClick={onEdit} title="Edit">
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-500"
+                onClick={onDelete}
+                title="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -710,17 +726,23 @@ export default function ProductsPage() {
 
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filterCaliberId, setFilterCaliberId] = useState<string>('')
   const [formOpen, setFormOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<ProductRead | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProductRead | null>(null)
   const [autoGenerating, setAutoGenerating] = useState(false)
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['products', search, filterCaliberId],
+    queryKey: ['products', debouncedSearch, filterCaliberId],
     queryFn: () =>
       listProducts({
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         caliber_id: filterCaliberId && filterCaliberId !== NONE ? parseInt(filterCaliberId) : undefined,
       }),
   })
@@ -791,8 +813,6 @@ export default function ProductsPage() {
     setFormOpen(true)
   }
 
-  const NONE = '__none__'
-
   return (
     <AppShell>
       <TopBar
@@ -811,10 +831,12 @@ export default function ProductsPage() {
                 {autoGenerating ? 'Generating…' : 'Auto-Generate from Inventory'}
               </Button>
             )}
-            <Button size="sm" onClick={openAdd}>
-              <Plus className="w-4 h-4 mr-1.5" />
-              Add Product
-            </Button>
+            {user?.role !== 'read_only' && (
+              <Button size="sm" onClick={openAdd}>
+                <Plus className="w-4 h-4 mr-1.5" />
+                Add Product
+              </Button>
+            )}
           </div>
         }
       />
@@ -890,12 +912,14 @@ export default function ProductsPage() {
                   : 'No product templates have been created yet.'}
               </p>
             </div>
-            {user?.role === 'admin' && (
+            {(user?.role === 'admin' || user?.role === 'member') && (
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => void handleAutoGenerate()} disabled={autoGenerating}>
-                  <RefreshCw className={cn('w-4 h-4 mr-1.5', autoGenerating && 'animate-spin')} />
-                  Auto-Generate
-                </Button>
+                {user.role === 'admin' && (
+                  <Button variant="secondary" onClick={() => void handleAutoGenerate()} disabled={autoGenerating}>
+                    <RefreshCw className={cn('w-4 h-4 mr-1.5', autoGenerating && 'animate-spin')} />
+                    Auto-Generate
+                  </Button>
+                )}
                 <Button onClick={openAdd}>
                   <Plus className="w-4 h-4 mr-1.5" />
                   Add Product
@@ -909,6 +933,7 @@ export default function ProductsPage() {
               <ProductCard
                 key={p.id}
                 product={p}
+                user={user ?? null}
                 onEdit={() => openEdit(p)}
                 onDelete={() => setDeleteTarget(p)}
                 onAddBox={() => handleAddBox(p)}
@@ -973,21 +998,27 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
-                          <Button size="sm" className="h-7 text-xs px-2" onClick={() => handleAddBox(p)}>
-                            Add Box
-                          </Button>
-                          <Button size="sm" variant="secondary" className="h-7 w-7 p-0" onClick={() => openEdit(p)} title="Edit">
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-500"
-                            onClick={() => setDeleteTarget(p)}
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                          {user?.role !== 'read_only' && (
+                            <Button size="sm" className="h-7 text-xs px-2" onClick={() => handleAddBox(p)}>
+                              Add Box
+                            </Button>
+                          )}
+                          {canEditProduct(p, user ?? null) && (
+                            <>
+                              <Button size="sm" variant="secondary" className="h-7 w-7 p-0" onClick={() => openEdit(p)} title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-500"
+                                onClick={() => setDeleteTarget(p)}
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
