@@ -417,6 +417,11 @@ export interface ProductUpdate {
   is_shared?: boolean
 }
 
+export interface ProductUpdateResponse {
+  product: ProductRead
+  boxes_updated: number
+}
+
 export interface AutoGenerateResponse {
   products_created: number
   boxes_linked: number

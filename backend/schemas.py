@@ -188,6 +188,11 @@ class ProductUpdate(BaseModel):
     is_shared: Optional[bool] = None
 
 
+class ProductUpdateResponse(BaseModel):
+    product: ProductRead
+    boxes_updated: int = 0
+
+
 class AutoGenerateResponse(BaseModel):
     products_created: int
     boxes_linked: int

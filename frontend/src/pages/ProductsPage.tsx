@@ -328,6 +328,15 @@ function canEditProduct(product: ProductRead, user: User | null): boolean {
   return false
 }
 
+const KEY_FIELDS: (keyof ProductFormValues)[] = [
+  'caliber_id', 'manufacturer_id', 'product_name', 'gr_oz',
+  'weight_unit', 'type_id', 'category_id', 'ammo_condition_id',
+]
+
+function keyFieldsChanged(a: ProductFormValues, b: ProductFormValues): boolean {
+  return KEY_FIELDS.some((k) => a[k] !== b[k])
+}
+
 interface ProductFormSheetProps {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -352,17 +361,21 @@ function ProductFormSheet({
   const queryClient = useQueryClient()
 
   const [vals, setVals] = useState<ProductFormValues>(FORM_DEFAULTS)
+  const [originalVals, setOriginalVals] = useState<ProductFormValues>(FORM_DEFAULTS)
   const [pendingImage, setPendingImage] = useState<File | null>(null)
   const [localPreview, setLocalPreview] = useState<string | null>(null)
   const [removeImage, setRemoveImage] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false)
+  const [pendingPayload, setPendingPayload] = useState<ProductUpdate | null>(null)
 
   // Populate form when sheet opens or editProduct changes
   useEffect(() => {
     if (!open) return
+    let newVals = FORM_DEFAULTS
     if (editProduct) {
-      setVals({
+      newVals = {
         caliber_id: idStr(editProduct.caliber_id),
         manufacturer_id: idStr(editProduct.manufacturer_id),
         product_name: editProduct.product_name ?? '',
@@ -375,14 +388,16 @@ function ProductFormSheet({
         upc: editProduct.upc ?? '',
         notes: editProduct.notes ?? '',
         is_shared: editProduct.is_shared,
-      })
-    } else {
-      setVals(FORM_DEFAULTS)
+      }
     }
+    setVals(newVals)
+    setOriginalVals(newVals)
     setPendingImage(null)
     setLocalPreview(null)
     setRemoveImage(false)
     setError(null)
+    setShowSyncConfirm(false)
+    setPendingPayload(null)
   }, [open, editProduct])
 
   const set = (key: keyof ProductFormValues, value: string | boolean) =>
@@ -413,6 +428,53 @@ function ProductFormSheet({
     setRemoveImage(true)
   }
 
+  const buildPayload = (): ProductCreate | ProductUpdate => ({
+    caliber_id: parseInt(vals.caliber_id),
+    manufacturer_id: parseInt(vals.manufacturer_id),
+    product_name: vals.product_name || null,
+    gr_oz: vals.gr_oz ? parseFloat(vals.gr_oz) : null,
+    weight_unit: vals.weight_unit || null,
+    type_id: toId(vals.type_id),
+    category_id: toId(vals.category_id),
+    ammo_condition_id: toId(vals.ammo_condition_id),
+    default_cost: vals.default_cost ? parseFloat(vals.default_cost) : null,
+    upc: vals.upc || null,
+    notes: vals.notes || null,
+    is_shared: vals.is_shared,
+  })
+
+  const handleConfirmedSave = async (syncBoxes: boolean) => {
+    setShowSyncConfirm(false)
+    if (!editProduct || !pendingPayload) return
+    setSaving(true)
+    try {
+      const res = await updateProduct(editProduct.id, pendingPayload, syncBoxes)
+      const saved = res.product
+
+      if (removeImage && editProduct.image_path) {
+        await deleteProductImage(saved.id)
+      }
+      if (pendingImage) {
+        await uploadProductImage(saved.id, pendingImage)
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ['products'] })
+      if (syncBoxes && res.boxes_updated > 0) {
+        void queryClient.invalidateQueries({ queryKey: ['ammo'] })
+      }
+      const boxMsg =
+        res.boxes_updated > 0
+          ? ` (${res.boxes_updated} box${res.boxes_updated !== 1 ? 'es' : ''} updated)`
+          : ''
+      toast({ title: `Product updated${boxMsg}` })
+      onOpenChange(false)
+    } catch (e: unknown) {
+      setError((e as { detail?: string })?.detail ?? 'An error occurred')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!vals.caliber_id || vals.caliber_id === NONE) {
       setError('Caliber is required')
@@ -423,47 +485,48 @@ function ProductFormSheet({
       return
     }
     setError(null)
-    setSaving(true)
 
-    try {
-      const payload: ProductCreate | ProductUpdate = {
-        caliber_id: parseInt(vals.caliber_id),
-        manufacturer_id: parseInt(vals.manufacturer_id),
-        product_name: vals.product_name || null,
-        gr_oz: vals.gr_oz ? parseFloat(vals.gr_oz) : null,
-        weight_unit: vals.weight_unit || null,
-        type_id: toId(vals.type_id),
-        category_id: toId(vals.category_id),
-        ammo_condition_id: toId(vals.ammo_condition_id),
-        default_cost: vals.default_cost ? parseFloat(vals.default_cost) : null,
-        upc: vals.upc || null,
-        notes: vals.notes || null,
-        is_shared: vals.is_shared,
-      }
+    const payload = buildPayload()
 
-      let saved: ProductRead
-      if (editProduct) {
-        saved = await updateProduct(editProduct.id, payload as ProductUpdate)
-      } else {
-        saved = await createProduct(payload as ProductCreate)
+    if (editProduct) {
+      if (editProduct.usage_count > 0 && keyFieldsChanged(originalVals, vals)) {
+        setPendingPayload(payload as ProductUpdate)
+        setShowSyncConfirm(true)
+        return
       }
-
-      // Handle image changes
-      if (removeImage && editProduct?.image_path) {
-        await deleteProductImage(saved.id)
+      setSaving(true)
+      try {
+        const res = await updateProduct(editProduct.id, payload as ProductUpdate, false)
+        const saved = res.product
+        if (removeImage && editProduct.image_path) {
+          await deleteProductImage(saved.id)
+        }
+        if (pendingImage) {
+          await uploadProductImage(saved.id, pendingImage)
+        }
+        void queryClient.invalidateQueries({ queryKey: ['products'] })
+        toast({ title: 'Product updated' })
+        onOpenChange(false)
+      } catch (e: unknown) {
+        setError((e as { detail?: string })?.detail ?? 'An error occurred')
+      } finally {
+        setSaving(false)
       }
-      if (pendingImage) {
-        await uploadProductImage(saved.id, pendingImage)
+    } else {
+      setSaving(true)
+      try {
+        const saved = await createProduct(payload as ProductCreate)
+        if (pendingImage) {
+          await uploadProductImage(saved.id, pendingImage)
+        }
+        void queryClient.invalidateQueries({ queryKey: ['products'] })
+        toast({ title: 'Product created' })
+        onOpenChange(false)
+      } catch (e: unknown) {
+        setError((e as { detail?: string })?.detail ?? 'An error occurred')
+      } finally {
+        setSaving(false)
       }
-
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-      toast({ title: editProduct ? 'Product updated' : 'Product created' })
-      onOpenChange(false)
-    } catch (e: unknown) {
-      const msg = (e as { detail?: string })?.detail ?? 'An error occurred'
-      setError(msg)
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -473,6 +536,32 @@ function ProductFormSheet({
       : null
 
   return (
+    <>
+    <AlertDialog open={showSyncConfirm} onOpenChange={setShowSyncConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Update Linked Boxes?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This product is linked to {editProduct?.usage_count ?? 0}{' '}
+            {editProduct?.usage_count === 1 ? 'box' : 'boxes'}. Do you also want to update their
+            caliber, manufacturer, weight, type, condition, and category to match?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setShowSyncConfirm(false)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600"
+            onClick={() => void handleConfirmedSave(false)}
+          >
+            Update Product Only
+          </AlertDialogAction>
+          <AlertDialogAction onClick={() => void handleConfirmedSave(true)}>
+            Update Product + {editProduct?.usage_count ?? 0}{' '}
+            {editProduct?.usage_count === 1 ? 'Box' : 'Boxes'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent title={editProduct ? 'Edit Product' : 'Add Product'} description="">
         <SheetHeader>
@@ -620,6 +709,7 @@ function ProductFormSheet({
         </SheetFooter>
       </SheetContent>
     </Sheet>
+    </>
   )
 }
 

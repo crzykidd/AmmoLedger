@@ -19,7 +19,7 @@ from models import (
     Product,
     User,
 )
-from schemas import AutoGenerateResponse, ProductCreate, ProductRead, ProductUpdate
+from schemas import AutoGenerateResponse, ProductCreate, ProductRead, ProductUpdate, ProductUpdateResponse
 from utils.config import UPLOADS_PATH
 from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
@@ -300,10 +300,17 @@ def create_product(
     return _enrich(product, db)
 
 
-@router.put("/{product_id}", response_model=ProductRead)
+_BOX_SYNC_FIELDS = (
+    "caliber_id", "manufacturer_id", "product_name", "gr_oz",
+    "weight_unit", "type_id", "category_id", "ammo_condition_id",
+)
+
+
+@router.put("/{product_id}", response_model=ProductUpdateResponse)
 def update_product(
     product_id: int,
     body: ProductUpdate,
+    sync_boxes: bool = Query(False),
     user: User = Depends(require_auth),
     db: Session = Depends(get_session),
 ):
@@ -327,12 +334,47 @@ def update_product(
         product.weight_unit,
         ammo_type.name if ammo_type else None,
     )
-    product.updated_at = datetime.utcnow()
 
+    # Duplicate check (exclude self)
+    candidates = db.exec(
+        select(Product)
+        .where(Product.caliber_id == product.caliber_id)
+        .where(Product.manufacturer_id == product.manufacturer_id)
+        .where(Product.id != product_id)
+    ).all()
+    pn_new = product.product_name or ""
+    gr_new = product.gr_oz if product.gr_oz is not None else -1
+    ti_new = product.type_id if product.type_id is not None else -1
+    for c in candidates:
+        if (c.product_name or "") == pn_new and \
+                (c.gr_oz if c.gr_oz is not None else -1) == gr_new and \
+                (c.type_id if c.type_id is not None else -1) == ti_new:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A product with this combination already exists: {c.name}",
+            )
+
+    product.updated_at = datetime.utcnow()
     db.add(product)
     db.commit()
     db.refresh(product)
-    return _enrich(product, db)
+
+    boxes_updated = 0
+    if sync_boxes:
+        boxes = db.exec(
+            select(AmmoBox).where(AmmoBox.product_id == product_id)
+        ).all()
+        for box in boxes:
+            for field in _BOX_SYNC_FIELDS:
+                setattr(box, field, getattr(product, field))
+            box.updated_at = datetime.utcnow()
+            db.add(box)
+        if boxes:
+            db.commit()
+            boxes_updated = len(boxes)
+            logger.info("synced %d boxes from product %d", boxes_updated, product_id)
+
+    return ProductUpdateResponse(product=_enrich(product, db), boxes_updated=boxes_updated)
 
 
 @router.delete("/{product_id}", status_code=204)
