@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ChevronDown, ChevronRight, ExternalLink, Pencil, Check, X,
+  ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown,
+  ExternalLink, Pencil, Check, X,
   Eye, EyeOff, Trash2, Plus, RefreshCw, Bell, Copy, Globe,
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
@@ -256,6 +258,8 @@ function SourceBadge({ source }: { source: string }) {
     'inline-block text-xs px-1.5 py-0.5 rounded font-medium',
     source === 'community'
       ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+      : source === 'local'
+      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
       : source === 'user'
       ? 'bg-gold/15 text-gold-700 dark:text-gold'
       : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
@@ -273,6 +277,23 @@ function EntryRow({
   entry: AnyLookupItem; tableKey: string; hasUrl: boolean
   onUpdated: () => void; onToggled: () => void; onDeleted: () => void
 }) {
+  const navigate = useNavigate()
+
+  const handleUsageClick = () => {
+    if (entry.usage_count === 0) return
+    const fieldMap: Record<string, string> = {
+      'calibers': 'caliber',
+      'manufacturers': 'manufacturer',
+      'ammo-types': 'type',
+      'categories': 'category',
+      'ammo-conditions': 'condition',
+      'dealers': 'dealer',
+      'locations': 'location',
+      'containers': 'container',
+    }
+    const field = fieldMap[tableKey] ?? 'all'
+    navigate(`/inventory?searchField=${field}&search=${encodeURIComponent(entry.name)}`)
+  }
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(entry.name)
   const [url, setUrl] = useState('url' in entry ? (entry.url ?? '') : '')
@@ -331,8 +352,8 @@ function EntryRow({
     )
   }
 
-  const canHide = (entry.source === 'yaml' || entry.source === 'community') && entry.usage_count === 0 && entry.is_active
-  const canDelete = entry.source === 'user' && entry.usage_count === 0 && entry.is_active
+  const canHide = (entry.source === 'yaml' || entry.source === 'community' || entry.source === 'local') && entry.usage_count === 0 && entry.is_active
+  const canDelete = (entry.source === 'user' || entry.source === 'local') && entry.usage_count === 0 && entry.is_active
   const canUnhide = !entry.is_active
 
   return (
@@ -366,8 +387,17 @@ function EntryRow({
         )}
 
         <td className="py-2 pr-3"><SourceBadge source={entry.source} /></td>
-        <td className="py-2 pr-3 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-          {entry.usage_count > 0 ? `${entry.usage_count} box${entry.usage_count === 1 ? '' : 'es'}` : '—'}
+        <td className="py-2 pr-3 text-xs tabular-nums">
+          {entry.usage_count > 0 ? (
+            <button
+              onClick={handleUsageClick}
+              className="text-blue-600 dark:text-blue-400 hover:underline tabular-nums"
+            >
+              {entry.usage_count} box{entry.usage_count === 1 ? '' : 'es'}
+            </button>
+          ) : (
+            <span className="text-gray-500 dark:text-gray-400">—</span>
+          )}
         </td>
 
         <td className="py-2 pr-3">
@@ -409,14 +439,15 @@ function EntryRow({
 // Accordion section
 // ---------------------------------------------------------------------------
 
-function AccordionSection({ config, communityStatus }: {
+function AccordionSection({ config, communityStatus, isOpen, onToggle }: {
   config: SectionConfig
   communityStatus: Record<string, { pending: number }> | undefined
+  isOpen: boolean
+  onToggle: () => void
 }) {
   const queryClient = useQueryClient()
   const queryKey = [config.key, 'admin']
 
-  const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [addName, setAddName] = useState('')
   const [addUrl, setAddUrl] = useState('')
@@ -477,7 +508,7 @@ function AccordionSection({ config, communityStatus }: {
         {/* Header */}
         <button type="button"
           className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-          onClick={() => setIsOpen((v) => !v)}>
+          onClick={onToggle}>
           <div className="flex items-center gap-3">
             {isOpen ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
             <span className="text-base font-semibold text-gray-900 dark:text-white">{config.label}</span>
@@ -589,8 +620,41 @@ function AccordionSection({ config, communityStatus }: {
 // Page
 // ---------------------------------------------------------------------------
 
-export default function LookupsPage() {
+const LS_OPEN_SECTIONS = 'datasets_open_sections'
+
+function readOpenSections(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_OPEN_SECTIONS)
+    if (raw) return new Set(JSON.parse(raw) as string[])
+  } catch { /* ignore */ }
+  return new Set()
+}
+
+export default function DatasetsPage() {
   const queryClient = useQueryClient()
+  const [openSections, setOpenSections] = useState<Set<string>>(readOpenSections)
+
+  const toggleSection = (key: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      localStorage.setItem(LS_OPEN_SECTIONS, JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
+
+  const collapseAll = () => {
+    setOpenSections(new Set())
+    localStorage.setItem(LS_OPEN_SECTIONS, JSON.stringify([]))
+  }
+
+  const expandAll = () => {
+    const all = new Set(SECTIONS.map((s) => s.key))
+    setOpenSections(all)
+    localStorage.setItem(LS_OPEN_SECTIONS, JSON.stringify(Array.from(all)))
+  }
+
+  const anyOpen = openSections.size > 0
 
   const { data: communityStatus } = useQuery({
     queryKey: ['community-status'],
@@ -601,7 +665,7 @@ export default function LookupsPage() {
   const syncMut = useMutation({
     mutationFn: triggerCommunitySync,
     onSuccess: () => {
-      toast({ title: 'Community sync complete', description: 'Lookup tables updated from GitHub.' })
+      toast({ title: 'Community sync complete', description: 'Datasets updated from GitHub.' })
       void queryClient.invalidateQueries({ queryKey: ['community-status'] })
       SECTIONS.filter((s) => s.communityManaged).forEach((s) => {
         void queryClient.invalidateQueries({ queryKey: [s.key, 'admin'] })
@@ -617,21 +681,33 @@ export default function LookupsPage() {
   return (
     <AppShell>
       <TopBar
-        title="Lookup Tables"
+        title="Datasets"
         actions={
-          <button
-            onClick={() => syncMut.mutate()}
-            disabled={syncMut.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', syncMut.isPending && 'animate-spin')} />
-            {syncMut.isPending ? 'Syncing…' : 'Check for Updates'}
-            {pendingTotal > 0 && !syncMut.isPending && (
-              <span className="ml-1 bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
-                {pendingTotal}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={anyOpen ? collapseAll : expandAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              {anyOpen
+                ? <ChevronsDownUp className="h-3.5 w-3.5" />
+                : <ChevronsUpDown className="h-3.5 w-3.5" />
+              }
+              {anyOpen ? 'Collapse All' : 'Expand All'}
+            </button>
+            <button
+              onClick={() => syncMut.mutate()}
+              disabled={syncMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', syncMut.isPending && 'animate-spin')} />
+              {syncMut.isPending ? 'Syncing…' : 'Check for Updates'}
+              {pendingTotal > 0 && !syncMut.isPending && (
+                <span className="ml-1 bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+                  {pendingTotal}
+                </span>
+              )}
+            </button>
+          </div>
         }
       />
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-3">
@@ -640,6 +716,8 @@ export default function LookupsPage() {
             key={config.key}
             config={config}
             communityStatus={communityStatus as Record<string, { pending: number }> | undefined}
+            isOpen={openSections.has(config.key)}
+            onToggle={() => toggleSection(config.key)}
           />
         ))}
       </div>

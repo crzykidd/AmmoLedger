@@ -1,4 +1,4 @@
-import type { CaliberThreshold, LocationThreshold, LowStockResponse } from '@/types'
+import type { CaliberThreshold, LocationThreshold, LowStockResponse, ThresholdStatusResponse } from '@/types'
 
 const BASE = '/api'
 
@@ -46,3 +46,6 @@ export const deleteLocationThreshold = (location_id: number): Promise<void> =>
 
 export const fetchLowStock = (): Promise<LowStockResponse> =>
   apiFetch('/thresholds/low-stock')
+
+export const fetchThresholdStatus = (): Promise<ThresholdStatusResponse> =>
+  apiFetch('/thresholds/status')

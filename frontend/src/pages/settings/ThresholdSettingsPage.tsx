@@ -6,6 +6,7 @@ import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/contexts/AuthContext'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import {
   fetchDefaultThreshold,
@@ -24,6 +25,8 @@ const selectCls =
 
 export default function ThresholdSettingsPage() {
   const qc = useQueryClient()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const { calibers, locations } = useInventoryLookups()
 
   const [defaultInput, setDefaultInput] = useState('')
@@ -52,7 +55,7 @@ export default function ThresholdSettingsPage() {
     mutationFn: (rounds: number) => updateDefaultThreshold(rounds),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['thresholds', 'default'] })
-      void qc.invalidateQueries({ queryKey: ['thresholds', 'low-stock'] })
+      void qc.invalidateQueries({ queryKey: ['thresholds', 'status'] })
       setDefaultSaved(true)
       setTimeout(() => setDefaultSaved(false), 2000)
     },
@@ -63,7 +66,7 @@ export default function ThresholdSettingsPage() {
       createCaliberThreshold(caliber_id, rounds),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['thresholds', 'calibers'] })
-      void qc.invalidateQueries({ queryKey: ['thresholds', 'low-stock'] })
+      void qc.invalidateQueries({ queryKey: ['thresholds', 'status'] })
       setCaliberFormId('')
       setCaliberFormRounds('200')
     },
@@ -73,7 +76,7 @@ export default function ThresholdSettingsPage() {
     mutationFn: (caliber_id: number) => deleteCaliberThreshold(caliber_id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['thresholds', 'calibers'] })
-      void qc.invalidateQueries({ queryKey: ['thresholds', 'low-stock'] })
+      void qc.invalidateQueries({ queryKey: ['thresholds', 'status'] })
     },
   })
 
@@ -82,7 +85,7 @@ export default function ThresholdSettingsPage() {
       createLocationThreshold(location_id, rounds),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['thresholds', 'locations'] })
-      void qc.invalidateQueries({ queryKey: ['thresholds', 'low-stock'] })
+      void qc.invalidateQueries({ queryKey: ['thresholds', 'status'] })
       setLocationFormId('')
       setLocationFormRounds('1000')
     },
@@ -92,7 +95,7 @@ export default function ThresholdSettingsPage() {
     mutationFn: (location_id: number) => deleteLocationThreshold(location_id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['thresholds', 'locations'] })
-      void qc.invalidateQueries({ queryKey: ['thresholds', 'low-stock'] })
+      void qc.invalidateQueries({ queryKey: ['thresholds', 'status'] })
     },
   })
 
@@ -128,6 +131,11 @@ export default function ThresholdSettingsPage() {
     <AppShell>
       <TopBar title="Stock Thresholds" />
       <div className="flex-1 overflow-auto px-4 sm:px-6 py-6 max-w-2xl space-y-8">
+        {!isAdmin && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3">
+            Thresholds are managed by an admin. You can view the current settings below.
+          </p>
+        )}
 
         {/* Section 1: Global Default */}
         <section>
@@ -153,19 +161,24 @@ export default function ThresholdSettingsPage() {
                   min={0}
                   value={defaultDisplayValue}
                   onChange={(e) => setDefaultInput(e.target.value)}
+                  disabled={!isAdmin}
                 />
               </div>
-              <Button
-                size="sm"
-                onClick={handleSaveDefault}
-                disabled={defaultMutation.isPending}
-              >
-                Save
-              </Button>
-              {defaultSaved && (
-                <span className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-1 pb-0.5">
-                  <Check className="h-3.5 w-3.5" /> Saved
-                </span>
+              {isAdmin && (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveDefault}
+                    disabled={defaultMutation.isPending}
+                  >
+                    Save
+                  </Button>
+                  {defaultSaved && (
+                    <span className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-1 pb-0.5">
+                      <Check className="h-3.5 w-3.5" /> Saved
+                    </span>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -194,7 +207,7 @@ export default function ThresholdSettingsPage() {
                     <th className="text-right px-4 py-2 font-medium text-gray-600 dark:text-gray-300">On Hand</th>
                     <th className="text-right px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Threshold</th>
                     <th className="text-center px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Status</th>
-                    <th className="w-10" />
+                    {isAdmin && <th className="w-10" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -218,15 +231,17 @@ export default function ThresholdSettingsPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-2.5">
-                        <button
-                          onClick={() => deleteCaliberMutation.mutate(t.caliber_id)}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
-                          title="Remove threshold"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
+                      {isAdmin && (
+                        <td className="px-2 py-2.5">
+                          <button
+                            onClick={() => deleteCaliberMutation.mutate(t.caliber_id)}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                            title="Remove threshold"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -234,7 +249,7 @@ export default function ThresholdSettingsPage() {
             </div>
           ) : null}
 
-          {availableCalibers.length > 0 && (
+          {isAdmin && availableCalibers.length > 0 && (
             <div className="flex gap-3 items-end">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -298,7 +313,7 @@ export default function ThresholdSettingsPage() {
                     <th className="text-right px-4 py-2 font-medium text-gray-600 dark:text-gray-300">On Hand</th>
                     <th className="text-right px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Threshold</th>
                     <th className="text-center px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Status</th>
-                    <th className="w-10" />
+                    {isAdmin && <th className="w-10" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -322,15 +337,17 @@ export default function ThresholdSettingsPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-2.5">
-                        <button
-                          onClick={() => deleteLocationMutation.mutate(t.location_id)}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
-                          title="Remove threshold"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
+                      {isAdmin && (
+                        <td className="px-2 py-2.5">
+                          <button
+                            onClick={() => deleteLocationMutation.mutate(t.location_id)}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                            title="Remove threshold"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -338,7 +355,7 @@ export default function ThresholdSettingsPage() {
             </div>
           ) : null}
 
-          {availableLocations.length > 0 ? (
+          {isAdmin && availableLocations.length > 0 ? (
             <div className="flex gap-3 items-end">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -377,7 +394,7 @@ export default function ThresholdSettingsPage() {
             </div>
           ) : locations.length === 0 ? (
             <p className="text-sm text-gray-400 dark:text-gray-500">
-              No locations defined yet. Add locations in the Lookups settings.
+              No locations defined yet. Add locations in the Datasets settings.
             </p>
           ) : (
             <p className="text-sm text-gray-400 dark:text-gray-500">

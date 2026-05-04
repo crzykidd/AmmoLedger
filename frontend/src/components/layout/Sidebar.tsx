@@ -10,7 +10,7 @@ import {
   User,
   Users,
   DatabaseBackup,
-  List,
+  Database,
   ClipboardList,
   Info,
   HelpCircle,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
+import { getCommunityStatus } from '@/api/community'
 import { UserProfileDrawer } from '@/components/UserProfileDrawer'
 import { getSystemVersion } from '@/api/system'
 import logoFull from '@/assets/brand/logo-full-dark.png'
@@ -61,7 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Users', icon: Users, href: '/admin/users' },
       { label: 'Backup', icon: DatabaseBackup, href: '/admin/backup' },
-      { label: 'Lookups', icon: List, href: '/admin/lookups' },
+      { label: 'Datasets', icon: Database, href: '/admin/datasets' },
       { label: 'Tasks', icon: ClipboardList, href: '/admin/tasks' },
     ],
   },
@@ -95,6 +96,16 @@ export default function Sidebar() {
     retry: false,
     staleTime: 5 * 60 * 1000,
   })
+
+  const { data: communityStatus } = useQuery({
+    queryKey: ['community-status'],
+    queryFn: getCommunityStatus,
+    refetchInterval: 60_000,
+    enabled: user?.role === 'admin',
+  })
+  const pendingTotal = communityStatus
+    ? Object.values(communityStatus).reduce((sum, s) => sum + (s as { pending: number }).pending, 0)
+    : 0
 
   const toggle = () => {
     setCollapsed((prev) => {
@@ -177,7 +188,7 @@ export default function Sidebar() {
                         key={item.href}
                         to={item.href}
                         className={cn(
-                          'flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium transition-colors',
+                          'relative flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium transition-colors',
                           active
                             ? 'bg-gold/20 text-gold'
                             : 'text-white/60 hover:text-white hover:bg-white/10',
@@ -187,6 +198,11 @@ export default function Sidebar() {
                       >
                         <Icon className="w-5 h-5 shrink-0" />
                         {!collapsed && <span>{item.label}</span>}
+                        {item.href === '/admin/datasets' && pendingTotal > 0 && (
+                          collapsed
+                            ? <span className="absolute top-0.5 right-0.5 bg-amber-500 w-2 h-2 rounded-full" />
+                            : <span className="bg-amber-500 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full leading-none">{pendingTotal}</span>
+                        )}
                       </Link>
                     )
                   })}

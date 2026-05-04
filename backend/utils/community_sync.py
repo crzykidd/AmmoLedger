@@ -192,6 +192,28 @@ def sync_community_table(table_key: str, session: Session, first_run: bool = Fal
         else:
             stats["pending"] += 1
 
+    # Orphan demotion: community entries no longer in the YAML get demoted to local
+    yaml_keys = set()
+    for item in items:
+        raw = item if isinstance(item, str) else item.get("name", "")
+        slug = slugify(raw.strip())
+        if slug:
+            yaml_keys.add(slug)
+
+    orphan_candidates = session.exec(
+        select(Model).where(
+            Model.source == "community",
+            Model.community_key != None,  # noqa: E711
+        )
+    ).all()
+    orphans = [o for o in orphan_candidates if o.community_key not in yaml_keys]
+    stats["demoted"] = len(orphans)
+    for orphan in orphans:
+        logger.info("Demoting orphan community entry: %s (key=%s)", orphan.name, orphan.community_key)
+        orphan.source = "local"
+        orphan.community_key = None
+        session.add(orphan)
+
     session.commit()
     return stats
 

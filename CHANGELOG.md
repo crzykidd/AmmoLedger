@@ -10,6 +10,35 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ## [Unreleased]
 
+## [0.1.8] — 2026-05-03
+
+### Added
+
+- **Caliber threshold drawer** — tap any caliber on the dashboard or inventory summary panel to view its threshold details; admins can edit the threshold or reset to global default inline without leaving the page
+- **Dashboard By Caliber toggle** — switch between "Mix" (% of total inventory, existing behavior) and "Stock" (proximity to threshold) views; persists across sessions
+- **Color-coded stock levels in Stock view** — green (≥110% of threshold), yellow (90–110%), red (below 90%); round count text matches bar color
+- **Threshold value displayed in Stock view** — round count shown as "X rds / threshold" for each caliber
+
+- **Field-scoped search** — a dropdown next to the search box lets users narrow results to a specific field: Caliber, Manufacturer, Ammo Type, Category, Condition, Dealer, Location, Container, or Product Name; "All Fields" mode keeps the existing full-text API search behavior
+- **Dynamic summary panel** — the Caliber Summary panel now reflects the active Group By setting; switching to "Manufacturer" Group By shows a Manufacturer Summary, etc.; summary cells are clickable and apply the corresponding field search; low-stock highlighting is preserved when the caliber grouping is active
+- **Filter results counter** — when any filter is active the StatsBar highlights with a gold border and shows "Boxes X / Y" (filtered vs. total) so it's immediately clear how many items a filter matched
+
+- **Datasets page** (renamed from "Lookups") — sidebar nav item, route, and page title updated; `/admin/lookups` redirects to `/admin/datasets` for backward compatibility
+- **Pending count badge on sidebar** — amber badge on the Datasets nav item shows total pending community entries; dot indicator when sidebar is collapsed
+- **Collapse All / Expand All** button in the Datasets page toolbar; section open/closed state persists across page visits via localStorage (default: all collapsed)
+- **Clickable usage counts** — "In Use" counts in the Datasets table are now links that navigate to Inventory pre-filtered by that caliber, manufacturer, type, or category
+
+### Changed
+
+- **Threshold system unified** — low-stock alerts are now driven entirely by server-side caliber totals; the previous localStorage-based threshold system has been removed; thresholds compare total rounds across all boxes for a caliber (not per-box quantity), matching how the dashboard always worked
+- **Threshold settings are admin-only** — only admins can add, edit, or delete thresholds; members and read-only users see the current settings in a read-only view
+- Low-stock nav on the dashboard Running Low panel now links directly to Inventory filtered by the affected caliber or location
+- **Orphan demotion on community sync** — entries previously sourced from the community YAML that are no longer present in the upstream file are automatically demoted to `local` source instead of remaining as stale community entries
+- **Rename demotes community → local** — editing a community entry's name demotes it to `local` source and clears its community key, making it independently editable
+- Community entries demoted to `local` show a purple badge (distinct from blue community and gold user badges)
+- `local` source entries can be hidden or permanently deleted just like user-created entries
+- Delete endpoint error message updated: "Cannot delete community entries — use Hide instead"
+
 ## [0.1.7] — 2026-05-03
 
 ### Changed

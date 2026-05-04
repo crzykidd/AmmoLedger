@@ -361,6 +361,10 @@ def update_lookup_entry(
         ).first()
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Name already exists")
+        if entry.source == "community" and name.lower() != entry.name.lower():
+            entry.source = "local"
+            if hasattr(entry, "community_key"):
+                entry.community_key = None
         entry.name = name
 
     if payload.url is not None and hasattr(entry, "url"):
@@ -408,10 +412,10 @@ def delete_lookup_entry(
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
 
-    if entry.source != "user":
+    if entry.source not in ("user", "local"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete YAML-seeded entries — use Hide instead",
+            detail="Cannot delete community entries — use Hide instead",
         )
 
     count = _get_single_count(table, entry_id, db)

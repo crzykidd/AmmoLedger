@@ -9,14 +9,17 @@ from sqlmodel import Session, select
 from database import get_session
 from models import AmmoBox, CaliberThreshold, Caliber, Location, LocationThreshold
 from schemas import (
+    CaliberStatus,
     CaliberThresholdCreate,
     CaliberThresholdRead,
+    LocationStatus,
     LocationThresholdCreate,
     LocationThresholdRead,
     LowStockCaliberItem,
     LowStockLocationItem,
     LowStockResponse,
     ThresholdDefaultUpdate,
+    ThresholdStatusResponse,
 )
 from utils.config import get_setting, set_setting
 from utils.logging import get_logger
@@ -102,7 +105,7 @@ def list_caliber_thresholds(
 @router.post("/calibers", status_code=201)
 def upsert_caliber_threshold(
     body: CaliberThresholdCreate,
-    user: Any = Depends(require_auth),
+    user: Any = Depends(require_role("admin")),
     db: Session = Depends(get_session),
 ):
     if body.rounds < 0:
@@ -130,7 +133,7 @@ def upsert_caliber_threshold(
 @router.delete("/calibers/{caliber_id}", status_code=204)
 def delete_caliber_threshold(
     caliber_id: int,
-    _: Any = Depends(require_auth),
+    _: Any = Depends(require_role("admin")),
     db: Session = Depends(get_session),
 ):
     threshold = db.exec(
@@ -185,7 +188,7 @@ def list_location_thresholds(
 @router.post("/locations", status_code=201)
 def upsert_location_threshold(
     body: LocationThresholdCreate,
-    user: Any = Depends(require_auth),
+    user: Any = Depends(require_role("admin")),
     db: Session = Depends(get_session),
 ):
     if body.rounds < 0:
@@ -213,7 +216,7 @@ def upsert_location_threshold(
 @router.delete("/locations/{location_id}", status_code=204)
 def delete_location_threshold(
     location_id: int,
-    _: Any = Depends(require_auth),
+    _: Any = Depends(require_role("admin")),
     db: Session = Depends(get_session),
 ):
     threshold = db.exec(
@@ -223,6 +226,81 @@ def delete_location_threshold(
         raise HTTPException(status_code=404, detail="Location threshold not found")
     db.delete(threshold)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# GET /thresholds/status  — all calibers with threshold + low flag
+# ---------------------------------------------------------------------------
+
+@router.get("/status", response_model=ThresholdStatusResponse)
+def get_threshold_status(
+    user: Any = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    default_rounds = _get_default_rounds(db)
+
+    caliber_rows = db.execute(
+        sa_select(AmmoBox.caliber_id, func.sum(AmmoBox.qty_remaining).label("total"))
+        .where(AmmoBox.is_archived == False)  # noqa: E712
+        .group_by(AmmoBox.caliber_id)
+    ).fetchall()
+    caliber_totals = {r[0]: r[1] or 0 for r in caliber_rows}
+
+    cal_threshold_map = {
+        t.caliber_id: t.rounds
+        for t in db.exec(select(CaliberThreshold)).all()
+    }
+
+    if caliber_totals:
+        calibers_q = db.exec(select(Caliber).where(Caliber.id.in_(list(caliber_totals.keys())))).all()
+        caliber_name_map = {c.id: c.name for c in calibers_q}
+    else:
+        caliber_name_map = {}
+
+    caliber_statuses = []
+    for cal_id, on_hand in caliber_totals.items():
+        threshold = cal_threshold_map.get(cal_id, default_rounds)
+        caliber_statuses.append(
+            CaliberStatus(
+                caliber_id=cal_id,
+                caliber_name=caliber_name_map.get(cal_id, "Unknown"),
+                rounds_on_hand=on_hand,
+                threshold=threshold,
+                is_low=on_hand < threshold,
+                is_override=cal_id in cal_threshold_map,
+            )
+        )
+    caliber_statuses.sort(key=lambda x: x.caliber_name)
+
+    loc_thresholds = db.exec(select(LocationThreshold)).all()
+    location_statuses = []
+    for lt in loc_thresholds:
+        row = db.execute(
+            text("""
+                SELECT COALESCE(SUM(qty_remaining), 0)
+                FROM ammo_box
+                WHERE location_id = :loc_id AND is_archived = 0
+            """),
+            {"loc_id": lt.location_id},
+        ).fetchone()
+        on_hand = row[0] if row else 0
+        loc = db.get(Location, lt.location_id)
+        location_statuses.append(
+            LocationStatus(
+                location_id=lt.location_id,
+                location_name=loc.name if loc else "Unknown",
+                rounds_on_hand=on_hand,
+                threshold=lt.rounds,
+                is_low=on_hand < lt.rounds,
+            )
+        )
+    location_statuses.sort(key=lambda x: x.location_name)
+
+    return ThresholdStatusResponse(
+        calibers=caliber_statuses,
+        locations=location_statuses,
+        default_rounds=default_rounds,
+    )
 
 
 # ---------------------------------------------------------------------------

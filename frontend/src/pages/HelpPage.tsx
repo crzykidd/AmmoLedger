@@ -168,7 +168,7 @@ const HELP_CONTENT: HelpSection[] = [
       {
         id: 'roles',
         q: 'What are the three roles?',
-        a: 'Admin can manage users, invitations, backups, and lookups in addition to full inventory access. Member can add, edit, and expend ammo. Read Only can view the inventory and dashboard but cannot make any changes.',
+        a: 'Admin can manage users, invitations, backups, and datasets in addition to full inventory access. Member can add, edit, and expend ammo. Read Only can view the inventory and dashboard but cannot make any changes.',
       },
       {
         id: 'reset-password',
