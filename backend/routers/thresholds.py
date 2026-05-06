@@ -24,7 +24,6 @@ from schemas import (
 from utils.config import get_setting, set_setting
 from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
-from sqlalchemy import text
 
 logger = get_logger(__name__)
 
@@ -160,29 +159,28 @@ def list_location_thresholds(
     if not thresholds:
         return []
 
-    result = []
-    for t in thresholds:
-        loc = db.get(Location, t.location_id)
-        row = db.execute(
-            text("""
-                SELECT COALESCE(SUM(qty_remaining), 0)
-                FROM ammo_box
-                WHERE location_id = :loc_id AND is_archived = 0
-            """),
-            {"loc_id": t.location_id},
-        ).fetchone()
-        on_hand = row[0] if row else 0
-        result.append(
-            LocationThresholdRead(
-                id=t.id,
-                location_id=t.location_id,
-                location_name=loc.name if loc else "Unknown",
-                rounds=t.rounds,
-                rounds_on_hand=on_hand,
-                is_low=on_hand < t.rounds,
-            )
+    location_ids = [t.location_id for t in thresholds]
+    locations = db.exec(select(Location).where(Location.id.in_(location_ids))).all()
+    location_map = {loc.id: loc.name for loc in locations}
+
+    rows = db.execute(
+        sa_select(AmmoBox.location_id, func.sum(AmmoBox.qty_remaining).label("total"))
+        .where(AmmoBox.location_id.in_(location_ids), AmmoBox.is_archived == False)  # noqa: E712
+        .group_by(AmmoBox.location_id)
+    ).fetchall()
+    rounds_map = {r[0]: r[1] or 0 for r in rows}
+
+    return [
+        LocationThresholdRead(
+            id=t.id,
+            location_id=t.location_id,
+            location_name=location_map.get(t.location_id, "Unknown"),
+            rounds=t.rounds,
+            rounds_on_hand=rounds_map.get(t.location_id, 0),
+            is_low=rounds_map.get(t.location_id, 0) < t.rounds,
         )
-    return result
+        for t in thresholds
+    ]
 
 
 @router.post("/locations", status_code=201)
@@ -274,26 +272,27 @@ def get_threshold_status(
 
     loc_thresholds = db.exec(select(LocationThreshold)).all()
     location_statuses = []
-    for lt in loc_thresholds:
-        row = db.execute(
-            text("""
-                SELECT COALESCE(SUM(qty_remaining), 0)
-                FROM ammo_box
-                WHERE location_id = :loc_id AND is_archived = 0
-            """),
-            {"loc_id": lt.location_id},
-        ).fetchone()
-        on_hand = row[0] if row else 0
-        loc = db.get(Location, lt.location_id)
-        location_statuses.append(
-            LocationStatus(
-                location_id=lt.location_id,
-                location_name=loc.name if loc else "Unknown",
-                rounds_on_hand=on_hand,
-                threshold=lt.rounds,
-                is_low=on_hand < lt.rounds,
+    if loc_thresholds:
+        loc_ids = [lt.location_id for lt in loc_thresholds]
+        loc_rows = db.execute(
+            sa_select(AmmoBox.location_id, func.sum(AmmoBox.qty_remaining).label("total"))
+            .where(AmmoBox.location_id.in_(loc_ids), AmmoBox.is_archived == False)  # noqa: E712
+            .group_by(AmmoBox.location_id)
+        ).fetchall()
+        loc_rounds_map = {r[0]: r[1] or 0 for r in loc_rows}
+        locs = db.exec(select(Location).where(Location.id.in_(loc_ids))).all()
+        loc_name_map = {loc.id: loc.name for loc in locs}
+        for lt in loc_thresholds:
+            on_hand = loc_rounds_map.get(lt.location_id, 0)
+            location_statuses.append(
+                LocationStatus(
+                    location_id=lt.location_id,
+                    location_name=loc_name_map.get(lt.location_id, "Unknown"),
+                    rounds_on_hand=on_hand,
+                    threshold=lt.rounds,
+                    is_low=on_hand < lt.rounds,
+                )
             )
-        )
     location_statuses.sort(key=lambda x: x.location_name)
 
     return ThresholdStatusResponse(
@@ -352,26 +351,27 @@ def get_low_stock(
     # Locations: only those with explicit thresholds
     loc_thresholds = db.exec(select(LocationThreshold)).all()
     low_locations = []
-    for lt in loc_thresholds:
-        row = db.execute(
-            text("""
-                SELECT COALESCE(SUM(qty_remaining), 0)
-                FROM ammo_box
-                WHERE location_id = :loc_id AND is_archived = 0
-            """),
-            {"loc_id": lt.location_id},
-        ).fetchone()
-        on_hand = row[0] if row else 0
-        if on_hand < lt.rounds:
-            loc = db.get(Location, lt.location_id)
-            low_locations.append(
-                LowStockLocationItem(
-                    location_id=lt.location_id,
-                    location_name=loc.name if loc else "Unknown",
-                    rounds_on_hand=on_hand,
-                    threshold=lt.rounds,
+    if loc_thresholds:
+        loc_ids = [lt.location_id for lt in loc_thresholds]
+        loc_rows = db.execute(
+            sa_select(AmmoBox.location_id, func.sum(AmmoBox.qty_remaining).label("total"))
+            .where(AmmoBox.location_id.in_(loc_ids), AmmoBox.is_archived == False)  # noqa: E712
+            .group_by(AmmoBox.location_id)
+        ).fetchall()
+        loc_rounds_map = {r[0]: r[1] or 0 for r in loc_rows}
+        locs = db.exec(select(Location).where(Location.id.in_(loc_ids))).all()
+        loc_name_map = {loc.id: loc.name for loc in locs}
+        for lt in loc_thresholds:
+            on_hand = loc_rounds_map.get(lt.location_id, 0)
+            if on_hand < lt.rounds:
+                low_locations.append(
+                    LowStockLocationItem(
+                        location_id=lt.location_id,
+                        location_name=loc_name_map.get(lt.location_id, "Unknown"),
+                        rounds_on_hand=on_hand,
+                        threshold=lt.rounds,
+                    )
                 )
-            )
     low_locations.sort(key=lambda x: x.rounds_on_hand)
 
     return LowStockResponse(calibers=low_calibers, locations=low_locations)

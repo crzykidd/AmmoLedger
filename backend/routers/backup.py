@@ -141,8 +141,16 @@ def trigger_backup(_: Any = Depends(require_role("admin"))):
     dest = backup_dir / filename
 
     try:
-        shutil.copy2(str(db_path), str(dest))
-    except OSError as exc:
+        src = sqlite3.connect(str(db_path))
+        try:
+            dst = sqlite3.connect(str(dest))
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+    except (OSError, sqlite3.Error) as exc:
         logger.error("Backup failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Backup failed: {exc}") from exc
 

@@ -83,6 +83,7 @@ Current release: v0.1.8 (2026-05-03)
 - Phase 8.16 — Caliber threshold drawer, dashboard By Caliber toggle (Mix/Stock views): COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
+- v0.2.0 — DB optimization (IN PROGRESS): WAL mode + PRAGMA config, FK indexes (migration 0021), N+1 fixes in products and thresholds endpoints, WAL-safe backup API
 
 ## Git Workflow
 
@@ -130,6 +131,11 @@ Current release: v0.1.8 (2026-05-03)
 - On release: move [Unreleased] to new version section with today's date
 - GitHub release body = that version's CHANGELOG section (single source of truth)
 - In-app About page fetches release notes from GitHub Releases API
+
+## Database Rules
+
+- **All SQLite backup/copy operations must use `sqlite3.Connection.backup()`, not `shutil.copy*`** — WAL mode stores recent writes in a `.db-wal` sidecar that `shutil.copy2` silently misses. Applies to `trigger_backup` and `trigger_pre_import_backup`.
+- **FK columns added in a migration must have their index added in the same migration** — migrations 0012/0017/0018 were shipped without FK indexes; 0021 cleaned these up. Don't repeat this pattern.
 
 ## Git Rules
 

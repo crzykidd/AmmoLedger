@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func
+from sqlalchemy import select as sa_select
 from sqlmodel import Session, select
 
 from database import get_session
@@ -57,24 +58,53 @@ def _build_name(
     return " ".join(parts)
 
 
+def _build_maps(products: list, db: Session) -> dict:
+    """Batch-load all lookup data for a list of products (~7 queries total)."""
+    if not products:
+        return {"caliber": {}, "manufacturer": {}, "ammo_type": {}, "category": {}, "condition": {}, "usage": {}}
+
+    caliber_ids = {p.caliber_id for p in products if p.caliber_id}
+    mfr_ids = {p.manufacturer_id for p in products if p.manufacturer_id}
+    type_ids = {p.type_id for p in products if p.type_id}
+    category_ids = {p.category_id for p in products if p.category_id}
+    condition_ids = {p.ammo_condition_id for p in products if p.ammo_condition_id}
+    product_ids = [p.id for p in products]
+
+    caliber_map = {c.id: c.name for c in db.exec(select(Caliber).where(Caliber.id.in_(caliber_ids))).all()} if caliber_ids else {}
+    mfr_map = {m.id: m.name for m in db.exec(select(Manufacturer).where(Manufacturer.id.in_(mfr_ids))).all()} if mfr_ids else {}
+    type_map = {t.id: t.name for t in db.exec(select(AmmoType).where(AmmoType.id.in_(type_ids))).all()} if type_ids else {}
+    category_map = {c.id: c.name for c in db.exec(select(Category).where(Category.id.in_(category_ids))).all()} if category_ids else {}
+    condition_map = {c.id: c.name for c in db.exec(select(AmmoCondition).where(AmmoCondition.id.in_(condition_ids))).all()} if condition_ids else {}
+
+    usage_rows = db.execute(
+        sa_select(AmmoBox.product_id, func.count().label("cnt"))
+        .where(AmmoBox.product_id.in_(product_ids))
+        .group_by(AmmoBox.product_id)
+    ).fetchall()
+    usage_map = {r[0]: r[1] for r in usage_rows}
+
+    return {
+        "caliber": caliber_map,
+        "manufacturer": mfr_map,
+        "ammo_type": type_map,
+        "category": category_map,
+        "condition": condition_map,
+        "usage": usage_map,
+    }
+
+
 def _enrich(product: Product, db: Session) -> ProductRead:
-    caliber = db.get(Caliber, product.caliber_id)
-    mfr = db.get(Manufacturer, product.manufacturer_id)
-    ammo_type = db.get(AmmoType, product.type_id) if product.type_id else None
-    category = db.get(Category, product.category_id) if product.category_id else None
-    condition = db.get(AmmoCondition, product.ammo_condition_id) if product.ammo_condition_id else None
+    return _enrich_with_maps(product, _build_maps([product], db))
 
-    usage = db.exec(
-        select(func.count()).where(AmmoBox.product_id == product.id)
-    ).one()
 
+def _enrich_with_maps(product: Product, maps: dict) -> ProductRead:
     data = ProductRead.model_validate(product)
-    data.caliber_name = caliber.name if caliber else None
-    data.manufacturer_name = mfr.name if mfr else None
-    data.type_name = ammo_type.name if ammo_type else None
-    data.category_name = category.name if category else None
-    data.condition_name = condition.name if condition else None
-    data.usage_count = usage
+    data.caliber_name = maps["caliber"].get(product.caliber_id)
+    data.manufacturer_name = maps["manufacturer"].get(product.manufacturer_id)
+    data.type_name = maps["ammo_type"].get(product.type_id) if product.type_id else None
+    data.category_name = maps["category"].get(product.category_id) if product.category_id else None
+    data.condition_name = maps["condition"].get(product.ammo_condition_id) if product.ammo_condition_id else None
+    data.usage_count = maps["usage"].get(product.id, 0)
     return data
 
 
@@ -116,7 +146,8 @@ def list_products(
         q = search.lower()
         products = [p for p in products if q in p.name.lower()]
 
-    return [_enrich(p, db) for p in products]
+    maps = _build_maps(products, db)
+    return [_enrich_with_maps(p, maps) for p in products]
 
 
 @router.get("/auto-generate", response_model=AutoGenerateResponse)

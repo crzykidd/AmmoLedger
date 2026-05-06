@@ -30,7 +30,7 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 - **Dashboard** — stats cards, By Caliber breakdown (Mix and Stock views with color-coded bars), Running Low panel with direct links and inline threshold editing
 - **CSV import** — two-step validate/confirm flow, fuzzy matching with interactive resolution, legacy ID mode, ownership toggle
 - **CSV export** — export filtered inventory or full archive from the Backup page
-- **Backup and restore** — manual SQLite backup, JSON export, scheduled nightly backup, restore from `.db`, import from JSON
+- **Backup and restore** — manual SQLite backup (WAL-safe via `Connection.backup()`), JSON export, scheduled nightly backup, restore from `.db`, import from JSON
 - **Datasets page** — accordion UI for all 8 lookup tables; community-maintained calibers, manufacturers, ammo types, and dealers synced from GitHub; pending-import review; Contribute button
 - **User management** — list users, change roles, deactivate accounts; generate and revoke invite links; admin-generated password reset links; emergency config-token self-recovery
 - **Admin Tasks** — view all scheduled background jobs, trigger on demand with Run Now, edit intervals, browse execution history
