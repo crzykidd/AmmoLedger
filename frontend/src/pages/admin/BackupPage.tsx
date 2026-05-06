@@ -139,8 +139,8 @@ export default function BackupPage() {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importPreviewData, setImportPreviewData] = useState<ImportPreview | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
-  const [importMode, setImportMode] = useState<'full' | 'additive' | null>(null)
   const [importConfirmOpen, setImportConfirmOpen] = useState(false)
+  const [additiveWarnOpen, setAdditiveWarnOpen] = useState(false)
 
   // Schedule config form
   const [schedEnabled, setSchedEnabled] = useState(true)
@@ -571,7 +571,7 @@ export default function BackupPage() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => { setImportMode('full'); setImportConfirmOpen(true) }}
+                      onClick={() => setImportConfirmOpen(true)}
                     >
                       Full Replace
                     </Button>
@@ -579,9 +579,7 @@ export default function BackupPage() {
                       size="sm"
                       variant="outline"
                       disabled={commitMutation.isPending}
-                      onClick={() => {
-                        if (importFile) commitMutation.mutate({ file: importFile, mode: 'additive' })
-                      }}
+                      onClick={() => setAdditiveWarnOpen(true)}
                     >
                       {commitMutation.isPending ? 'Importing…' : 'Additive Merge'}
                     </Button>
@@ -667,6 +665,73 @@ export default function BackupPage() {
               }}
             >
               Replace Database
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Additive import warning dialog */}
+      <AlertDialog open={additiveWarnOpen} onOpenChange={setAdditiveWarnOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Additive Import — read this first</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                <p>
+                  Additive mode adds rows from the JSON file whose database IDs don&apos;t already
+                  exist in your current database. It does{' '}
+                  <strong className="text-gray-900 dark:text-white">not</strong> merge, update, or
+                  overwrite existing rows.
+                </p>
+                <p className="font-semibold text-gray-900 dark:text-white">
+                  What this means in practice:
+                </p>
+                <ul className="list-disc pl-5 space-y-1.5">
+                  <li>
+                    Importing a backup from this same database will skip every row (all IDs already
+                    exist). This is expected.
+                  </li>
+                  <li>
+                    Importing data from a <em>different</em> installation is{' '}
+                    <strong className="text-gray-900 dark:text-white">
+                      not currently supported
+                    </strong>{' '}
+                    through this mode. Even if some rows go through, foreign key references (owner
+                    IDs, caliber IDs, location IDs, etc.) will point at the wrong records in your
+                    database, silently corrupting your data. Use Full Restore on a fresh database
+                    instead, or wait for the planned merge feature.
+                  </li>
+                  <li>
+                    Additive mode is intended for the narrow case of restoring rows that were deleted
+                    from this same database since the export was taken — and even there, Full Restore
+                    is usually safer.
+                  </li>
+                </ul>
+                <p>
+                  A proper merge/preview import is planned — see{' '}
+                  <a
+                    href="https://github.com/crzykidd/AmmoLedger/issues/10"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-gold hover:text-gold-light underline"
+                  >
+                    GitHub issue #10
+                  </a>
+                  .
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => {
+                if (importFile) commitMutation.mutate({ file: importFile, mode: 'additive' })
+                setAdditiveWarnOpen(false)
+              }}
+            >
+              I understand, continue
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

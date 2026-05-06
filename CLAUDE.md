@@ -143,6 +143,7 @@ Current release: v0.1.9 (2026-05-05)
 - **`db_vacuum` is opt-in only** — VACUUM needs ~2× DB size in free disk and holds an exclusive write lock. Both maintenance tasks (`db_optimize`, `db_vacuum`) have `requires_exclusive: True` to prevent overlap with backups.
 - **Squash policy.** Do not squash migrations again after v0.1.9. Once public users exist, every migration that ships becomes part of someone's upgrade path. The v0.1.9 squash was a one-time pre-release cleanup.
 - **JSON export coverage.** `_EXPORT_TABLES` in `routers/backup.py` is the source of truth for which tables are included in JSON export and import. When adding a new table, decide explicitly whether it belongs in the export (user data → yes; operational telemetry, short-lived tokens, or seed-managed config → no) and add a comment in the list. Forgetting is a silent data-loss bug on restore.
+- **Additive JSON import is gated behind an informational warning modal in the UI.** The mode itself is broken-by-design for cross-installation merge (foreign keys are not remapped, primary key collisions silently skip). The modal warns users off the dangerous path. Do not remove or weaken the modal until the v0.3.0 merge rework lands. Do not add "next available ID" hints or any guidance that suggests users can manually rewrite the JSON — that path leads to silent data corruption.
 
 ## Git Rules
 
