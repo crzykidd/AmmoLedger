@@ -369,6 +369,7 @@ function ProductFormSheet({
   const [error, setError] = useState<string | null>(null)
   const [showSyncConfirm, setShowSyncConfirm] = useState(false)
   const [pendingPayload, setPendingPayload] = useState<ProductUpdate | null>(null)
+  const [fullEditEnabled, setFullEditEnabled] = useState(false)
 
   // Populate form when sheet opens or editProduct changes
   useEffect(() => {
@@ -398,6 +399,7 @@ function ProductFormSheet({
     setError(null)
     setShowSyncConfirm(false)
     setPendingPayload(null)
+    setFullEditEnabled(false)
   }, [open, editProduct])
 
   const set = (key: keyof ProductFormValues, value: string | boolean) =>
@@ -569,105 +571,20 @@ function ProductFormSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {/* Name preview */}
+          <ImageUploadArea
+            currentImageUrl={currentImageUrl}
+            localPreview={localPreview}
+            onFileSelected={handleFileSelected}
+            onRemove={handleRemoveImage}
+            pending={saving}
+          />
+
           {previewName && (
             <div className="rounded-lg bg-gold/10 border border-gold/20 px-3 py-2">
               <p className="text-xs text-gold/70 font-medium mb-0.5">This product will be saved as:</p>
               <p className="text-sm font-semibold text-gray-900 dark:text-white">{previewName}</p>
             </div>
           )}
-
-          <LookupSelect
-            label="Caliber"
-            required
-            value={vals.caliber_id}
-            onChange={(v) => set('caliber_id', v)}
-            items={calibers}
-          />
-
-          <LookupSelect
-            label="Manufacturer"
-            required
-            value={vals.manufacturer_id}
-            onChange={(v) => set('manufacturer_id', v)}
-            items={manufacturers}
-          />
-
-          <Field label="Product Name (sub-brand)">
-            <input
-              className={inputCls}
-              placeholder="e.g. American Eagle, Gold Dot, HST"
-              value={vals.product_name}
-              onChange={(e) => set('product_name', e.target.value)}
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Weight">
-              <input
-                className={inputCls}
-                type="number"
-                step="0.1"
-                min={0}
-                placeholder="e.g. 115"
-                value={vals.gr_oz}
-                onChange={(e) => set('gr_oz', e.target.value)}
-              />
-            </Field>
-            <Field label="Unit">
-              <Select value={vals.weight_unit} onValueChange={(v) => set('weight_unit', v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="GR">gr (grains)</SelectItem>
-                  <SelectItem value="OZ">oz (ounces)</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-
-          <LookupSelect
-            label="Type"
-            value={vals.type_id}
-            onChange={(v) => set('type_id', v)}
-            items={ammoTypes}
-          />
-
-          <LookupSelect
-            label="Category"
-            value={vals.category_id}
-            onChange={(v) => set('category_id', v)}
-            items={categories}
-          />
-
-          <LookupSelect
-            label="Condition"
-            value={vals.ammo_condition_id}
-            onChange={(v) => set('ammo_condition_id', v)}
-            items={ammoConditions}
-          />
-
-          <Field label="Default Cost per Round ($)">
-            <input
-              className={inputCls}
-              type="number"
-              step="0.001"
-              min={0}
-              placeholder="0.000"
-              value={vals.default_cost}
-              onChange={(e) => set('default_cost', e.target.value)}
-            />
-          </Field>
-
-          <Field label="UPC (for future use)">
-            <input
-              className={inputCls}
-              placeholder="Optional barcode"
-              value={vals.upc}
-              onChange={(e) => set('upc', e.target.value)}
-            />
-          </Field>
 
           <Field label="Notes">
             <Textarea
@@ -678,23 +595,131 @@ function ProductFormSheet({
             />
           </Field>
 
-          <div className="flex items-center justify-between py-1">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Shared (visible to all members)
-            </label>
-            <Switch
-              checked={vals.is_shared}
-              onCheckedChange={(v) => set('is_shared', v)}
-            />
-          </div>
+          {editProduct && (
+            <div className="border-t border-gray-200 dark:border-gray-800 pt-4">
+              <div className="flex items-center justify-between py-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Enable full editing
+                </label>
+                <Switch
+                  checked={fullEditEnabled}
+                  onCheckedChange={setFullEditEnabled}
+                />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Changes to caliber, manufacturer, weight, or type may require updating linked boxes.
+              </p>
+            </div>
+          )}
 
-          <ImageUploadArea
-            currentImageUrl={currentImageUrl}
-            localPreview={localPreview}
-            onFileSelected={handleFileSelected}
-            onRemove={handleRemoveImage}
-            pending={saving}
-          />
+          <div
+            className={cn(
+              'space-y-4 transition-opacity',
+              editProduct && !fullEditEnabled && 'opacity-50 pointer-events-none',
+            )}
+          >
+            <LookupSelect
+              label="Caliber"
+              required
+              value={vals.caliber_id}
+              onChange={(v) => set('caliber_id', v)}
+              items={calibers}
+            />
+
+            <LookupSelect
+              label="Manufacturer"
+              required
+              value={vals.manufacturer_id}
+              onChange={(v) => set('manufacturer_id', v)}
+              items={manufacturers}
+            />
+
+            <Field label="Product Name (sub-brand)">
+              <input
+                className={inputCls}
+                placeholder="e.g. American Eagle, Gold Dot, HST"
+                value={vals.product_name}
+                onChange={(e) => set('product_name', e.target.value)}
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Weight">
+                <input
+                  className={inputCls}
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  placeholder="e.g. 115"
+                  value={vals.gr_oz}
+                  onChange={(e) => set('gr_oz', e.target.value)}
+                />
+              </Field>
+              <Field label="Unit">
+                <Select value={vals.weight_unit} onValueChange={(v) => set('weight_unit', v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GR">gr (grains)</SelectItem>
+                    <SelectItem value="OZ">oz (ounces)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            <LookupSelect
+              label="Type"
+              value={vals.type_id}
+              onChange={(v) => set('type_id', v)}
+              items={ammoTypes}
+            />
+
+            <LookupSelect
+              label="Category"
+              value={vals.category_id}
+              onChange={(v) => set('category_id', v)}
+              items={categories}
+            />
+
+            <LookupSelect
+              label="Condition"
+              value={vals.ammo_condition_id}
+              onChange={(v) => set('ammo_condition_id', v)}
+              items={ammoConditions}
+            />
+
+            <Field label="Default Cost per Round ($)">
+              <input
+                className={inputCls}
+                type="number"
+                step="0.001"
+                min={0}
+                placeholder="0.000"
+                value={vals.default_cost}
+                onChange={(e) => set('default_cost', e.target.value)}
+              />
+            </Field>
+
+            <Field label="UPC (for future use)">
+              <input
+                className={inputCls}
+                placeholder="Optional barcode"
+                value={vals.upc}
+                onChange={(e) => set('upc', e.target.value)}
+              />
+            </Field>
+
+            <div className="flex items-center justify-between py-1">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Shared (visible to all members)
+              </label>
+              <Switch
+                checked={vals.is_shared}
+                onCheckedChange={(v) => set('is_shared', v)}
+              />
+            </div>
+          </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
         </div>
@@ -817,6 +842,9 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filterCaliberId, setFilterCaliberId] = useState<string>('')
+  const [showEmptyOnly, setShowEmptyOnly] = useState(false)
+  const [sortField, setSortField] = useState<string>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [formOpen, setFormOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<ProductRead | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProductRead | null>(null)
@@ -888,7 +916,40 @@ export default function ProductsPage() {
     }
   }
 
-  const hasFilters = !!(debouncedSearch || (filterCaliberId && filterCaliberId !== NONE))
+  const hasFilters = !!(debouncedSearch || (filterCaliberId && filterCaliberId !== NONE) || showEmptyOnly)
+
+  const filteredProducts = useMemo(() => {
+    let list = products
+    if (showEmptyOnly) {
+      list = list.filter((p) => p.usage_count === 0)
+    }
+    return list
+  }, [products, showEmptyOnly])
+
+  const sortedProducts = useMemo(() => {
+    const list = [...filteredProducts]
+    list.sort((a, b) => {
+      let av: string | number | null = null
+      let bv: string | number | null = null
+      switch (sortField) {
+        case 'name': av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break
+        case 'caliber': av = (a.caliber_name ?? '').toLowerCase(); bv = (b.caliber_name ?? '').toLowerCase(); break
+        case 'type': av = (a.type_name ?? '').toLowerCase(); bv = (b.type_name ?? '').toLowerCase(); break
+        case 'category': av = (a.category_name ?? '').toLowerCase(); bv = (b.category_name ?? '').toLowerCase(); break
+        case 'default_cost': av = a.default_cost ?? -1; bv = b.default_cost ?? -1; break
+        case 'usage_count': av = a.usage_count; bv = b.usage_count; break
+        case 'updated_at': av = a.updated_at; bv = b.updated_at; break
+        default: av = a.name.toLowerCase(); bv = b.name.toLowerCase()
+      }
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+    return list
+  }, [filteredProducts, sortField, sortDir])
 
   const handleAddBox = (product: ProductRead) => {
     navigate(`/inventory?product_id=${product.id}`)
@@ -902,6 +963,27 @@ export default function ProductsPage() {
   const openEdit = (p: ProductRead) => {
     setEditProduct(p)
     setFormOpen(true)
+  }
+
+  const SortableHeader = ({ field, label, className }: { field: string; label: string; className?: string }) => {
+    const active = sortField === field
+    return (
+      <th
+        className={cn(
+          'text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-300 transition-colors',
+          className,
+        )}
+        onClick={() => {
+          if (active) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+          else { setSortField(field); setSortDir('asc') }
+        }}
+      >
+        <span className="inline-flex items-center gap-1">
+          {label}
+          {active && <span className="text-gold">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+        </span>
+      </th>
+    )
   }
 
   return (
@@ -961,6 +1043,15 @@ export default function ProductsPage() {
             </Select>
           </div>
 
+          <Button
+            variant={showEmptyOnly ? 'default' : 'secondary'}
+            size="sm"
+            onClick={() => setShowEmptyOnly(!showEmptyOnly)}
+            className="whitespace-nowrap"
+          >
+            {showEmptyOnly ? 'Showing Empty' : 'Show Empty'}
+          </Button>
+
           <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
             <button
               className={cn(
@@ -990,9 +1081,9 @@ export default function ProductsPage() {
         </div>
 
         {/* Product count */}
-        {!isLoading && products.length > 0 && (
+        {!isLoading && sortedProducts.length > 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Showing {products.length} product{products.length !== 1 ? 's' : ''}
+            Showing {sortedProducts.length} product{sortedProducts.length !== 1 ? 's' : ''}
             {hasFilters ? ' (filtered)' : ''}
           </p>
         )}
@@ -1015,7 +1106,7 @@ export default function ProductsPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-x-auto">
               <table className="w-full">
                 <tbody>
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -1042,6 +1133,9 @@ export default function ProductsPage() {
                       <td className="px-4 py-3">
                         <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-8 ml-auto" />
                       </td>
+                      <td className="px-4 py-3 hidden xl:table-cell">
+                        <div className="h-3 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-16" />
+                      </td>
                       <td className="px-4 py-3 w-28" />
                     </tr>
                   ))}
@@ -1049,7 +1143,7 @@ export default function ProductsPage() {
               </table>
             </div>
           )
-        ) : products.length === 0 ? (
+        ) : sortedProducts.length === 0 ? (
           hasFilters ? (
             <div className="flex flex-col items-center py-20 gap-4 text-center">
               <Search className="w-12 h-12 text-gray-300 dark:text-gray-600" />
@@ -1057,7 +1151,7 @@ export default function ProductsPage() {
                 <p className="font-medium text-gray-600 dark:text-gray-300">No products match your filters</p>
                 <p className="text-sm text-gray-400 mt-1">Try adjusting your search or clearing filters.</p>
               </div>
-              <Button variant="secondary" onClick={() => { setSearch(''); setFilterCaliberId('') }}>
+              <Button variant="secondary" onClick={() => { setSearch(''); setFilterCaliberId(''); setShowEmptyOnly(false) }}>
                 Clear Filters
               </Button>
             </div>
@@ -1090,7 +1184,7 @@ export default function ProductsPage() {
           )
         ) : view === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {products.map((p) => (
+            {sortedProducts.map((p) => (
               <ProductCard
                 key={p.id}
                 product={p}
@@ -1102,22 +1196,23 @@ export default function ProductsPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-12">Img</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Caliber</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Type</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Category</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Default $/rd</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Boxes</th>
+                  <SortableHeader field="name" label="Name" />
+                  <SortableHeader field="caliber" label="Caliber" className="hidden md:table-cell" />
+                  <SortableHeader field="type" label="Type" className="hidden lg:table-cell" />
+                  <SortableHeader field="category" label="Category" className="hidden lg:table-cell" />
+                  <SortableHeader field="default_cost" label="Default $/rd" className="hidden md:table-cell text-right" />
+                  <SortableHeader field="usage_count" label="Boxes" className="text-right" />
+                  <SortableHeader field="updated_at" label="Updated" className="hidden xl:table-cell" />
                   <th className="px-4 py-3 w-28" />
                 </tr>
               </thead>
               <tbody>
-                {products.map((p, i) => {
+                {sortedProducts.map((p, i) => {
                   const imageUrl = p.image_path ? getProductImageUrl(p.id) : null
                   return (
                     <tr
@@ -1156,6 +1251,9 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
                         {p.usage_count}
+                      </td>
+                      <td className="px-4 py-3 hidden xl:table-cell text-gray-600 dark:text-gray-300">
+                        {new Date(p.updated_at).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
@@ -1210,11 +1308,23 @@ export default function ProductsPage() {
             <AlertDialogTitle>Delete product?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget && deleteTarget.usage_count > 0
-                ? `This product is used by ${deleteTarget.usage_count} box${deleteTarget.usage_count !== 1 ? 'es' : ''}. Unlink them first.`
+                ? `This product is used by ${deleteTarget.usage_count} box${deleteTarget.usage_count !== 1 ? 'es' : ''}. Unlink or reassign them before deleting.`
                 : `"${deleteTarget?.name}" will be permanently deleted.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
+            {deleteTarget && deleteTarget.usage_count > 0 && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const target = deleteTarget
+                  setDeleteTarget(null)
+                  navigate(`/inventory?searchField=product&search=${encodeURIComponent(target.product_name || target.name)}`)
+                }}
+              >
+                View Linked Ammo
+              </Button>
+            )}
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={!deleteTarget || deleteTarget.usage_count > 0 || deleteMutation.isPending}
