@@ -19,6 +19,7 @@ from models import (
     Dealer,
     Location,
     Manufacturer,
+    Product,
     User,
 )
 from schemas import AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, AmmoListResponse, BulkUpdateRequest, BulkUpdateResponse
@@ -156,6 +157,31 @@ def bulk_update_ammo(
     has_notes = "notes" in update_data
     notes_value = update_data.pop("notes", None)
 
+    # Handle product reassignment — pull key fields from the new product
+    product_sync_data: dict = {}
+    if "product_id" in update_data:
+        new_product_id = update_data.pop("product_id")
+        if new_product_id is not None:
+            product = db.get(Product, new_product_id)
+            if not product:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Product ID {new_product_id} not found",
+                )
+            product_sync_data = {
+                "product_id": product.id,
+                "caliber_id": product.caliber_id,
+                "manufacturer_id": product.manufacturer_id,
+                "product_name": product.product_name,
+                "gr_oz": product.gr_oz,
+                "weight_unit": product.weight_unit,
+                "type_id": product.type_id,
+                "category_id": product.category_id,
+                "ammo_condition_id": product.ammo_condition_id,
+            }
+        else:
+            product_sync_data = {"product_id": None}
+
     stmt = select(AmmoBox).where(AmmoBox.id.in_(payload.ids))
     boxes = list(db.exec(stmt).all())
 
@@ -163,6 +189,8 @@ def bulk_update_ammo(
     for box in boxes:
         if user.role == "member" and box.owner_id != user.id:
             continue
+        for key, value in product_sync_data.items():
+            setattr(box, key, value)
         for key, value in update_data.items():
             setattr(box, key, value)
         if has_notes and notes_value:

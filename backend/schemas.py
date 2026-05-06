@@ -400,6 +400,7 @@ class InviteRead(BaseModel):
 # ---------------------------------------------------------------------------
 
 class BulkAmmoUpdate(BaseModel):
+    product_id: Optional[int] = None
     manufacturer_id: Optional[int] = None
     type_id: Optional[int] = None
     category_id: Optional[int] = None

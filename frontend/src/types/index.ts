@@ -333,6 +333,7 @@ export interface AmmoBoxUpdate {
 // ---------------------------------------------------------------------------
 
 export interface BulkAmmoUpdate {
+  product_id?: number | null
   manufacturer_id?: number | null
   type_id?: number | null
   category_id?: number | null
