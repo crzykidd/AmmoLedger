@@ -24,6 +24,8 @@ data/config.yaml
 
 # SQLite files anywhere else in the tree
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 

@@ -4,6 +4,7 @@ import type {
   ProductCreate,
   ProductRead,
   ProductUpdate,
+  ProductUpdateResponse,
 } from '@/types'
 
 export const listProducts = (params?: {
@@ -24,8 +25,11 @@ export const getProduct = (id: number) => api.get<ProductRead>(`/products/${id}`
 export const createProduct = (data: ProductCreate) =>
   api.post<ProductRead>('/products', data)
 
-export const updateProduct = (id: number, data: ProductUpdate) =>
-  api.put<ProductRead>(`/products/${id}`, data)
+export const updateProduct = (id: number, data: ProductUpdate, syncBoxes = false) =>
+  api.put<ProductUpdateResponse>(
+    `/products/${id}${syncBoxes ? '?sync_boxes=true' : ''}`,
+    data,
+  )
 
 export const deleteProduct = (id: number) => api.delete<void>(`/products/${id}`)
 

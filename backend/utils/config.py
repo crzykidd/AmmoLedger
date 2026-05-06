@@ -360,27 +360,34 @@ def load_and_validate_config() -> dict:
                 config_written = False
 
             print("\n" + "=" * 64)
-            print("  AmmoLedger — first-time setup required")
+            print("  AmmoLedger — first-time setup")
             print("=" * 64)
             if config_written:
-                print(f"\n  A default config has been written to:\n    {config_path}\n")
+                print(f"\n  A default config has been written to:\n    {config_path}")
+                print("  Starting with default settings.")
+                print("  Set a custom session secret before deploying to production:\n")
+                print("    Edit config.yaml → security.session_secret")
+                print("    Or set AL_SESSION_SECRET in your docker-compose.yml")
             else:
                 print(f"\n  NOTE: Could not write config to {config_path} (permission denied).")
                 print("  Use Option B below — no config file needed.\n")
-            print("  Option A — edit config.yaml:")
-            print("    Set security.session_secret to a random value:")
-            print()
-            print("      Linux / macOS:  openssl rand -hex 32")
-            print('      Windows:        python -c "import secrets; print(secrets.token_hex(32))"')
-            print()
-            print("    Paste the output into config.yaml, then restart the container.")
-            print()
-            print("  Option B — use an environment variable (no config.yaml needed):")
-            print("    Add to your docker-compose.yml environment section:")
-            print("      AL_SESSION_SECRET=<your-random-secret>")
-            print("    then restart the container.")
+                print("  Option A — edit config.yaml:")
+                print("    Set security.session_secret to a random value:")
+                print()
+                print("      Linux / macOS:  openssl rand -hex 32")
+                print('      Windows:        python -c "import secrets; print(secrets.token_hex(32))"')
+                print()
+                print("    Paste the output into config.yaml, then restart the container.")
+                print()
+                print("  Option B — use an environment variable (no config.yaml needed):")
+                print("    Add to your docker-compose.yml environment section:")
+                print("      AL_SESSION_SECRET=<your-random-secret>")
+                print("    then restart the container.")
             print("=" * 64 + "\n")
-            raise SystemExit(1)
+            if not config_written:
+                raise SystemExit(1)
+            with open(config_path) as f:
+                config = yaml.safe_load(f) or {}
     else:
         # Step 2 — Parse YAML
         try:

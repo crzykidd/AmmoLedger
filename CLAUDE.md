@@ -46,7 +46,9 @@
 
 ## Build Status
 
-Current release: v0.1.8 (2026-05-03)
+Current release: v0.1.9 (2026-05-05)
+
+> **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 
 - Phase 1 — Alembic + schema: COMPLETE
 - Phase 2 — Auth + RBAC + YAML seeds: COMPLETE
@@ -83,6 +85,8 @@ Current release: v0.1.8 (2026-05-03)
 - Phase 8.16 — Caliber threshold drawer, dashboard By Caliber toggle (Mix/Stock views): COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
+- v0.1.9 — Migration squash (COMPLETE): 22 migrations collapsed into single initial schema; CHANGELOG split; HISTORY.md created
+- v0.2.0 — DB optimization (COMPLETE, shipped in v0.1.9): WAL mode + PRAGMA config, FK indexes, N+1 fixes in products and thresholds endpoints, WAL-safe backup API, db_vacuum task (disabled by default), ANALYZE → PRAGMA optimize
 
 ## Git Workflow
 
@@ -130,6 +134,16 @@ Current release: v0.1.8 (2026-05-03)
 - On release: move [Unreleased] to new version section with today's date
 - GitHub release body = that version's CHANGELOG section (single source of truth)
 - In-app About page fetches release notes from GitHub Releases API
+
+## Database Rules
+
+- **All SQLite backup/copy operations must use `sqlite3.Connection.backup()`, not `shutil.copy*`** — WAL mode stores recent writes in a `.db-wal` sidecar that `shutil.copy2` silently misses. Applies to `trigger_backup` and `trigger_pre_import_backup`.
+- **FK columns added in a migration must have their index added in the same migration** — migrations 0012/0017/0018 were shipped without FK indexes; 0021 cleaned these up. Don't repeat this pattern.
+- **Use `PRAGMA optimize` for routine query planner refreshes — not bare `ANALYZE`** — `PRAGMA optimize` only re-analyzes tables with stale statistics; bare `ANALYZE` rescans everything and is slower. The `db_optimize` task and all ad-hoc pre-backup/post-import calls use `PRAGMA optimize`.
+- **`db_vacuum` is opt-in only** — VACUUM needs ~2× DB size in free disk and holds an exclusive write lock. Both maintenance tasks (`db_optimize`, `db_vacuum`) have `requires_exclusive: True` to prevent overlap with backups.
+- **Squash policy.** Do not squash migrations again after v0.1.9. Once public users exist, every migration that ships becomes part of someone's upgrade path. The v0.1.9 squash was a one-time pre-release cleanup.
+- **JSON export coverage.** `_EXPORT_TABLES` in `routers/backup.py` is the source of truth for which tables are included in JSON export and import. When adding a new table, decide explicitly whether it belongs in the export (user data → yes; operational telemetry, short-lived tokens, or seed-managed config → no) and add a comment in the list. Forgetting is a silent data-loss bug on restore.
+- **Additive JSON import is gated behind an informational warning modal in the UI.** The mode itself is broken-by-design for cross-installation merge (foreign keys are not remapped, primary key collisions silently skip). The modal warns users off the dangerous path. Do not remove or weaken the modal until the v0.3.0 merge rework lands. Do not add "next available ID" hints or any guidance that suggests users can manually rewrite the JSON — that path leads to silent data corruption.
 
 ## Git Rules
 

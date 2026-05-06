@@ -6,6 +6,8 @@
 
 ---
 
+> For pre-release database history and the v0.1.9 migration squash rationale, see [HISTORY.md](./HISTORY.md).
+
 ## Revision History
 
 | Version | Date | Changes |

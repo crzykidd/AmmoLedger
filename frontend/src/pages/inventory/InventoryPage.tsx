@@ -22,11 +22,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { CaliberThresholdDrawer } from '@/components/CaliberThresholdDrawer'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useThresholdStatus } from '@/hooks/useThresholdStatus'
 import { toast } from '@/hooks/use-toast'
-import type { CaliberStatus } from '@/types'
 import { cn } from '@/lib/utils'
 import type { AmmoBoxRead } from '@/types'
 
@@ -218,7 +216,6 @@ export default function InventoryPage() {
   )
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [exportCsvOpen, setExportCsvOpen] = useState(false)
-  const [drawerCaliber, setDrawerCaliber] = useState<CaliberStatus | null>(null)
 
   // Clear selection when filters or groupBy change
   useEffect(() => {
@@ -293,10 +290,6 @@ export default function InventoryPage() {
   // Low-stock: caliber IDs below threshold (server-side, caliber totals)
   const lowCaliberIds = useMemo(
     () => new Set<number>(thresholdStatus.calibers.filter((c) => c.is_low).map((c) => c.caliber_id)),
-    [thresholdStatus],
-  )
-  const caliberStatusMap = useMemo(
-    () => new Map(thresholdStatus.calibers.map((c) => [c.caliber_id, c])),
     [thresholdStatus],
   )
   // Box-level set for row highlighting: any box whose caliber is low
@@ -770,22 +763,17 @@ export default function InventoryPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-px bg-gray-200 dark:bg-gray-800">
                   {fieldSummary.map((fs) => {
                     const isLow = groupBy === 'none' && lowCaliberIds.has(fs.key as number)
-                    const statusEntry = groupBy === 'none' ? caliberStatusMap.get(fs.key as number) : undefined
+                    const isFiltered = columnFilters.caliber === fs.name
                     return (
                       <button
                         key={fs.key}
                         onClick={() => {
-                          if (groupBy === 'none' && statusEntry) {
-                            setDrawerCaliber(statusEntry)
-                          } else {
-                            const field = groupBy === 'none' ? 'caliber' : groupBy
-                            setSearchField(field)
-                            setSearch(fs.name)
-                          }
+                          handleColumnFilterChange('caliber', isFiltered ? '' : fs.name)
                         }}
                         className={cn(
                           'px-4 py-3 bg-white dark:bg-gray-900 text-left w-full hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer',
                           isLow && 'bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/40',
+                          isFiltered && 'ring-2 ring-amber-500 ring-inset',
                         )}
                       >
                         <div className="flex items-center gap-1.5 mb-0.5">
@@ -969,13 +957,6 @@ export default function InventoryPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <CaliberThresholdDrawer
-        open={drawerCaliber !== null}
-        onOpenChange={(o) => { if (!o) setDrawerCaliber(null) }}
-        caliber={drawerCaliber}
-        isAdmin={user?.role === 'admin'}
-        defaultRounds={thresholdStatus.default_rounds}
-      />
     </AppShell>
   )
 }

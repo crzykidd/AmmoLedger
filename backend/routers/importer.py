@@ -781,7 +781,7 @@ async def confirm_import(
                 result = import_db.execute(text("SELECT MAX(id) FROM ammo_box")).first()
                 autoincrement_reset_to = result[0] if result and result[0] is not None else 0
 
-            import_db.execute(text("ANALYZE"))
+            import_db.execute(text("PRAGMA optimize"))
             import_db.commit()
 
             # Count newly created lookup entries

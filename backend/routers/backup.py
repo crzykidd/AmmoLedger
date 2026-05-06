@@ -23,21 +23,41 @@ router = APIRouter(prefix="/backup", tags=["backup"])
 
 _DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/ammoledger.db")
 
+# Tables included in JSON export/import. Order matters for restore — parents before
+# children when foreign keys exist (currently FKs are disabled during restore via
+# PRAGMA, but the order is preserved as documentation of intent).
+#
+# Excluded tables and rationale:
+#   - password_history: not needed for restore; only enforces "don't reuse last N
+#     passwords" which is a UX nicety, not a security boundary. Keeping it would
+#     export additional bcrypt hashes for no restore value.
+#   - password_reset_tokens: short-lived, single-use; meaningless after restore.
+#   - task_history: operational telemetry, not user data. Re-populates naturally.
+#   - task_registry: re-seeded on app startup from TASK_DEFINITIONS. Restoring
+#     stale rows would conflict with the seed logic.
 _EXPORT_TABLES = [
+    # User accounts and lookups (parents)
     "users",
-    "ammo_box",
-    "expenditure_log",
     "calibers",
     "manufacturers",
     "ammo_types",
+    "ammo_conditions",
     "categories",
     "dealers",
     "locations",
     "containers",
+    # Catalog
+    "products",
+    # Inventory and history (children)
+    "ammo_box",
+    "expenditure_log",
+    # Threshold configuration
+    "caliber_thresholds",
+    "location_thresholds",
+    # System
     "app_settings",
     "invitations",
     "notifications",
-    "password_history",
 ]
 
 _COMPATIBLE_MAJOR = __version__.split(".")[0]
@@ -131,7 +151,7 @@ def trigger_backup(_: Any = Depends(require_role("admin"))):
         from sqlalchemy import text  # noqa: PLC0415
         from sqlmodel import Session  # noqa: PLC0415
         with Session(engine) as session:
-            session.execute(text("ANALYZE"))
+            session.execute(text("PRAGMA optimize"))
             session.commit()
     except Exception:
         pass  # Never block a backup over a statistics update
@@ -141,8 +161,16 @@ def trigger_backup(_: Any = Depends(require_role("admin"))):
     dest = backup_dir / filename
 
     try:
-        shutil.copy2(str(db_path), str(dest))
-    except OSError as exc:
+        src = sqlite3.connect(str(db_path))
+        try:
+            dst = sqlite3.connect(str(dest))
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+    except (OSError, sqlite3.Error) as exc:
         logger.error("Backup failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Backup failed: {exc}") from exc
 
@@ -257,7 +285,13 @@ def export_backup(_: Any = Depends(require_role("admin"))):
     dest.write_text(json.dumps(payload, default=str, indent=2))
 
     logger.info("JSON export created: %s", filename)
-    return _file_meta(dest)
+    meta = _file_meta(dest)
+    meta["security_notice"] = (
+        "This export contains bcrypt password hashes for all user accounts. "
+        "Treat the file with the same care as your database — store securely, "
+        "transmit over encrypted channels, and delete when no longer needed."
+    )
+    return meta
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +383,12 @@ async def restore_sqlite(
     engine.dispose()
 
     logger.info("Restore complete")
-    return {"success": True, "message": "Database restored successfully. Please reload the application."}
+    return {
+        "success": True,
+        "message": "Database restored successfully.",
+        "force_logout": True,
+        "logout_reason": "The user database was replaced. Please log in with your restored credentials.",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -498,4 +537,11 @@ async def import_commit(
         "records_imported": records_imported,
         "records_skipped": records_skipped,
         "warnings": warnings,
+        "force_logout": mode == "full",
+        "logout_reason": (
+            "The user database was replaced as part of a full restore. "
+            "Please log in with your restored credentials."
+            if mode == "full"
+            else None
+        ),
     }

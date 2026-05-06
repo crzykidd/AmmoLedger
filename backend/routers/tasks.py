@@ -1,5 +1,6 @@
+import re
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
@@ -8,10 +9,13 @@ from database import get_session
 from models import TaskHistory, TaskRegistry
 from schemas import TaskHistoryRead, TaskRegistryRead, TaskRegistryUpdate
 from utils.rbac import require_role
-from utils.task_definitions import TASK_FUNCTIONS
+from utils.task_definitions import TASK_DEFINITIONS, TASK_FUNCTIONS
 from utils.task_runner import run_task
 
 router = APIRouter(tags=["tasks"])
+
+_TASK_DEF_MAP: dict = {td["task_key"]: td for td in TASK_DEFINITIONS}
+_HH_MM_RE = re.compile(r'^([01]\d|2[0-3]):([0-5]\d)$')
 
 
 @router.get("", response_model=List[TaskRegistryRead])
@@ -43,6 +47,25 @@ def list_all_history(
             .limit(limit)
         ).all()
     return results
+
+
+@router.get("/constraints")
+def get_task_constraints(_=Depends(require_role("admin"))) -> Dict[str, Any]:
+    """Return per-task scheduling constraints derived from TASK_DEFINITIONS."""
+    result: Dict[str, Any] = {}
+    for td in TASK_DEFINITIONS:
+        key = td["task_key"]
+        c: Dict[str, Any] = {}
+        if "allowed_modes" in td:
+            c["allowed_modes"] = td["allowed_modes"]
+        if "min_hours" in td:
+            c["min_hours"] = td["min_hours"]
+        if "max_hours" in td:
+            c["max_hours"] = td["max_hours"]
+        if "requires_exclusive" in td:
+            c["requires_exclusive"] = td["requires_exclusive"]
+        result[key] = c
+    return result
 
 
 @router.get("/{task_key}/history", response_model=List[TaskHistoryRead])
@@ -101,7 +124,7 @@ def update_task(
     _=Depends(require_role("admin")),
     db: Session = Depends(get_session),
 ):
-    """Update task settings: enabled flag or interval_value."""
+    """Update task settings: enabled flag, interval_type, or interval_value."""
     task = db.exec(
         select(TaskRegistry).where(TaskRegistry.task_key == task_key)
     ).first()
@@ -110,10 +133,72 @@ def update_task(
 
     if body.enabled is not None:
         task.enabled = body.enabled
-    if body.interval_value is not None:
-        task.interval_value = body.interval_value
+
+    if body.interval_type is not None or body.interval_value is not None:
+        new_type = body.interval_type if body.interval_type is not None else task.interval_type
+        new_value = body.interval_value if body.interval_value is not None else task.interval_value
+
+        task_def = _TASK_DEF_MAP.get(task_key, {})
+        allowed_modes = task_def.get("allowed_modes", [])
+
+        if allowed_modes and new_type not in allowed_modes:
+            raise HTTPException(
+                status_code=422,
+                detail=f"interval_type '{new_type}' not allowed for this task; allowed: {allowed_modes}",
+            )
+
+        if new_type == "hours":
+            try:
+                h = int(new_value)
+            except (ValueError, TypeError):
+                raise HTTPException(status_code=422, detail="interval_value must be a valid integer for hours mode")
+            min_h = task_def.get("min_hours")
+            max_h = task_def.get("max_hours")
+            if min_h is not None and h < min_h:
+                raise HTTPException(status_code=422, detail=f"Interval must be at least {min_h} hours")
+            if max_h is not None and h > max_h:
+                raise HTTPException(status_code=422, detail=f"Interval must be at most {max_h} hours")
+
+        elif new_type == "daily":
+            if not _HH_MM_RE.match(new_value):
+                raise HTTPException(status_code=422, detail="interval_value must be in HH:MM format (00:00–23:59)")
+
+        task.interval_type = new_type
+        task.interval_value = new_value
 
     db.add(task)
     db.commit()
     db.refresh(task)
-    return task
+
+    # Update the single job in the live scheduler (writes next_run_at to DB)
+    from utils.scheduler import reschedule_task  # noqa: PLC0415
+    reschedule_task(task)
+    db.refresh(task)  # pick up next_run_at written by reschedule_task
+
+    # Conflict detection: warn if this daily task lands within 5 min of another
+    warnings: List[str] = []
+    if task.interval_type == "daily" and task.enabled:
+        try:
+            h0, m0 = map(int, task.interval_value.split(":"))
+            t0 = h0 * 60 + m0
+            all_tasks = db.exec(
+                select(TaskRegistry).where(TaskRegistry.enabled == True)  # noqa: E712
+            ).all()
+            for other in all_tasks:
+                if other.task_key == task_key or other.interval_type != "daily":
+                    continue
+                try:
+                    h1, m1 = map(int, other.interval_value.split(":"))
+                    diff = abs(t0 - (h1 * 60 + m1))
+                    if diff <= 5:
+                        warnings.append(
+                            f"Schedule is within 5 minutes of {other.name} ({other.interval_value})"
+                        )
+                except (ValueError, AttributeError):
+                    pass
+        except (ValueError, AttributeError):
+            pass
+
+    result = TaskRegistryRead.model_validate(task)
+    result.warnings = warnings if warnings else None
+    return result

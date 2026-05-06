@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import {
@@ -9,6 +10,7 @@ import {
   FileJson,
   FileSpreadsheet,
   Clock,
+  ShieldAlert,
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -24,8 +26,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
 import {
   triggerBackup,
   exportBackup,
@@ -114,10 +118,13 @@ function DownloadLink({ filename }: { filename: string }) {
 
 export default function BackupPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
+  const { logout } = useAuth()
 
   // Post-action download links
   const [lastBackupFile, setLastBackupFile] = useState<BackupFile | null>(null)
   const [lastExportFile, setLastExportFile] = useState<BackupFile | null>(null)
+  const [exportSecurityNotice, setExportSecurityNotice] = useState<string | null>(null)
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
@@ -132,8 +139,8 @@ export default function BackupPage() {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importPreviewData, setImportPreviewData] = useState<ImportPreview | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
-  const [importMode, setImportMode] = useState<'full' | 'additive' | null>(null)
   const [importConfirmOpen, setImportConfirmOpen] = useState(false)
+  const [additiveWarnOpen, setAdditiveWarnOpen] = useState(false)
 
   // Schedule config form
   const [schedEnabled, setSchedEnabled] = useState(true)
@@ -182,6 +189,7 @@ export default function BackupPage() {
     mutationFn: exportBackup,
     onSuccess: (file) => {
       setLastExportFile(file)
+      if (file.security_notice) setExportSecurityNotice(file.security_notice)
       toast({ title: `Export created: ${file.filename}` })
       void qc.invalidateQueries({ queryKey: ['backups'] })
     },
@@ -199,10 +207,16 @@ export default function BackupPage() {
 
   const restoreMutation = useMutation({
     mutationFn: (file: File) => restoreSqlite(file),
-    onSuccess: (res) => {
-      toast({ title: res.message })
+    onSuccess: async (res) => {
       setRestoreFile(null)
       if (restoreInputRef.current) restoreInputRef.current.value = ''
+      if (res.force_logout) {
+        toast({ title: res.logout_reason ?? 'Database replaced. Logging out…' })
+        await logout()
+        navigate('/login')
+      } else {
+        toast({ title: res.message })
+      }
     },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   })
@@ -219,15 +233,21 @@ export default function BackupPage() {
   const commitMutation = useMutation({
     mutationFn: ({ file, mode }: { file: File; mode: 'full' | 'additive' }) =>
       commitImport(file, mode),
-    onSuccess: (result) => {
-      setImportResult(result)
+    onSuccess: async (result) => {
       setImportPreviewData(null)
       setImportFile(null)
       if (importInputRef.current) importInputRef.current.value = ''
-      toast({
-        title: `Import complete — ${result.records_imported} records imported, ${result.records_skipped} skipped`,
-      })
-      void qc.invalidateQueries({ queryKey: ['backups'] })
+      if (result.force_logout) {
+        toast({ title: result.logout_reason ?? 'Import complete. Logging out…' })
+        await logout()
+        navigate('/login')
+      } else {
+        setImportResult(result)
+        toast({
+          title: `Import complete — ${result.records_imported} records imported, ${result.records_skipped} skipped`,
+        })
+        void qc.invalidateQueries({ queryKey: ['backups'] })
+      }
     },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   })
@@ -296,6 +316,14 @@ export default function BackupPage() {
                 <DownloadLink filename={lastExportFile.filename} />
                 <span className="ml-2 text-gray-400">({fmtBytes(lastExportFile.size_bytes)})</span>
               </p>
+            )}
+            {exportSecurityNotice && (
+              <Alert className="mt-4 border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-500/30">
+                <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertDescription className="text-amber-800 dark:text-amber-300">
+                  {exportSecurityNotice}
+                </AlertDescription>
+              </Alert>
             )}
           </Section>
 
@@ -543,16 +571,17 @@ export default function BackupPage() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => { setImportMode('full'); setImportConfirmOpen(true) }}
+                      onClick={() => setImportConfirmOpen(true)}
                     >
                       Full Replace
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => { setImportMode('additive'); setImportConfirmOpen(true) }}
+                      disabled={commitMutation.isPending}
+                      onClick={() => setAdditiveWarnOpen(true)}
                     >
-                      Additive Merge
+                      {commitMutation.isPending ? 'Importing…' : 'Additive Merge'}
                     </Button>
                   </div>
                 </div>
@@ -602,9 +631,28 @@ export default function BackupPage() {
       <AlertDialog open={restoreConfirmOpen} onOpenChange={setRestoreConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Restore database?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will replace all current data with the backup. A safety backup will be created first automatically.
+            <AlertDialogTitle>Replace database from backup?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <p>
+                  This will <strong className="text-gray-900 dark:text-white">permanently replace</strong> all data
+                  in the current database with the contents of the uploaded file. After restore:
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>
+                    The current admin account you set up during installation will be{' '}
+                    <strong className="text-gray-900 dark:text-white">deleted</strong>, along with all current
+                    users, ammo boxes, and history.
+                  </li>
+                  <li>
+                    You will be logged out and must sign in with the credentials from the restored database.
+                  </li>
+                  <li>A pre-restore safety backup will be created automatically.</li>
+                </ul>
+                <p className="text-amber-700 dark:text-amber-400">
+                  If you&apos;re not sure, cancel and download a manual backup first via Backups → Trigger Backup.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -616,37 +664,120 @@ export default function BackupPage() {
                 setRestoreConfirmOpen(false)
               }}
             >
-              Restore
+              Replace Database
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Import confirm dialog */}
-      <AlertDialog open={importConfirmOpen} onOpenChange={setImportConfirmOpen}>
+      {/* Additive import warning dialog */}
+      <AlertDialog open={additiveWarnOpen} onOpenChange={setAdditiveWarnOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {importMode === 'full' ? 'Full Replace — are you sure?' : 'Additive Merge — are you sure?'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {importMode === 'full'
-                ? 'This will wipe all current data and replace it with the import. A safety backup will be created first.'
-                : 'This will add records from the import that do not already exist. Existing records will not be changed. A safety backup will be created first.'}
+            <AlertDialogTitle>Additive Import — read this first</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                <p>
+                  Additive mode adds rows from the JSON file whose database IDs don&apos;t already
+                  exist in your current database. It does{' '}
+                  <strong className="text-gray-900 dark:text-white">not</strong> merge, update, or
+                  overwrite existing rows.
+                </p>
+                <p className="font-semibold text-gray-900 dark:text-white">
+                  What this means in practice:
+                </p>
+                <ul className="list-disc pl-5 space-y-1.5">
+                  <li>
+                    Importing a backup from this same database will skip every row (all IDs already
+                    exist). This is expected.
+                  </li>
+                  <li>
+                    Importing data from a <em>different</em> installation is{' '}
+                    <strong className="text-gray-900 dark:text-white">
+                      not currently supported
+                    </strong>{' '}
+                    through this mode. Even if some rows go through, foreign key references (owner
+                    IDs, caliber IDs, location IDs, etc.) will point at the wrong records in your
+                    database, silently corrupting your data. Use Full Restore on a fresh database
+                    instead, or wait for the planned merge feature.
+                  </li>
+                  <li>
+                    Additive mode is intended for the narrow case of restoring rows that were deleted
+                    from this same database since the export was taken — and even there, Full Restore
+                    is usually safer.
+                  </li>
+                </ul>
+                <p>
+                  A proper merge/preview import is planned — see{' '}
+                  <a
+                    href="https://github.com/crzykidd/AmmoLedger/issues/10"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-gold hover:text-gold-light underline"
+                  >
+                    GitHub issue #10
+                  </a>
+                  .
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className={importMode === 'full' ? 'bg-red-600 hover:bg-red-700' : undefined}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
               onClick={() => {
-                if (importFile && importMode) {
-                  commitMutation.mutate({ file: importFile, mode: importMode })
+                if (importFile) commitMutation.mutate({ file: importFile, mode: 'additive' })
+                setAdditiveWarnOpen(false)
+              }}
+            >
+              I understand, continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Import confirm dialog (full mode only) */}
+      <AlertDialog open={importConfirmOpen} onOpenChange={setImportConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Full import: replace all data?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <p>
+                  Full import mode <strong className="text-gray-900 dark:text-white">deletes all current data</strong>{' '}
+                  before importing the JSON file. This includes:
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>The current admin account and all users</li>
+                  <li>All ammo boxes, expenditures, and lookups</li>
+                  <li>All threshold and notification configuration</li>
+                </ul>
+                <p>
+                  After import you will be logged out and must sign in with credentials from the imported file.
+                </p>
+                <p>
+                  A pre-import safety backup will be created automatically before any data is deleted.
+                </p>
+                <p className="text-amber-700 dark:text-amber-400">
+                  Switch to <strong>Additive</strong> mode if you want to add the imported data without deleting
+                  existing records.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (importFile) {
+                  commitMutation.mutate({ file: importFile, mode: 'full' })
                 }
                 setImportConfirmOpen(false)
               }}
             >
-              {importMode === 'full' ? 'Replace All Data' : 'Merge Records'}
+              Import &amp; Replace
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

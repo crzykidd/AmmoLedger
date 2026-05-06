@@ -333,6 +333,7 @@ export interface AmmoBoxUpdate {
 // ---------------------------------------------------------------------------
 
 export interface BulkAmmoUpdate {
+  product_id?: number | null
   manufacturer_id?: number | null
   type_id?: number | null
   category_id?: number | null
@@ -417,6 +418,11 @@ export interface ProductUpdate {
   is_shared?: boolean
 }
 
+export interface ProductUpdateResponse {
+  product: ProductRead
+  boxes_updated: number
+}
+
 export interface AutoGenerateResponse {
   products_created: number
   boxes_linked: number
@@ -480,7 +486,7 @@ export interface TaskHistory {
   started_at: string
   ended_at: string | null
   duration_ms: number | null
-  status: 'running' | 'ok' | 'failed'
+  status: 'running' | 'ok' | 'failed' | 'skipped'
   error_message: string | null
   details: string | null
   triggered_by: 'scheduler' | 'manual'
@@ -499,4 +505,12 @@ export interface TaskRegistry {
   last_duration_ms: number | null
   next_run_at: string | null
   created_at: string
+  warnings?: string[] | null
+}
+
+export interface TaskConstraints {
+  allowed_modes: ('hours' | 'daily')[]
+  min_hours?: number
+  max_hours?: number
+  requires_exclusive?: boolean
 }

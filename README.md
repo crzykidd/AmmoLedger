@@ -6,7 +6,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.1.8-gold)
+![Version](https://img.shields.io/badge/version-0.1.9-gold)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![PRD](https://img.shields.io/badge/docs-PRD-navy)
 
@@ -16,7 +16,7 @@
 
 A self-hosted web application to track your ammunition inventory. Keep your ammo counts accurate on and off the range.
 
-> Pre-1.0: schema migrations are tested on every release but data model changes are still happening. Back up before upgrading.
+> **Pre-1.0 upgrade note:** v0.1.9 is the first release built on the squashed initial schema. **Pre-v0.1.9 builds (any v0.1.0–v0.1.8 image still on GHCR or in local registries) cannot upgrade in place — the migration chain was reset.** If you happen to have a pre-v0.1.9 install, export your data via Backups → Export JSON before pulling v0.1.9 or later, then do a fresh install and re-import. From v0.1.9 forward, schema migrations are incremental again and back-up-before-upgrade is the standard precaution.
 
 
 ## What's Built
@@ -30,7 +30,7 @@ A self-hosted web application to track your ammunition inventory. Keep your ammo
 - **Dashboard** — stats cards, By Caliber breakdown (Mix and Stock views with color-coded bars), Running Low panel with direct links and inline threshold editing
 - **CSV import** — two-step validate/confirm flow, fuzzy matching with interactive resolution, legacy ID mode, ownership toggle
 - **CSV export** — export filtered inventory or full archive from the Backup page
-- **Backup and restore** — manual SQLite backup, JSON export, scheduled nightly backup, restore from `.db`, import from JSON
+- **Backup and restore** — manual SQLite backup (WAL-safe via `Connection.backup()`), JSON export, scheduled nightly backup, restore from `.db`, import from JSON
 - **Datasets page** — accordion UI for all 8 lookup tables; community-maintained calibers, manufacturers, ammo types, and dealers synced from GitHub; pending-import review; Contribute button
 - **User management** — list users, change roles, deactivate accounts; generate and revoke invite links; admin-generated password reset links; emergency config-token self-recovery
 - **Admin Tasks** — view all scheduled background jobs, trigger on demand with Run Now, edit intervals, browse execution history
@@ -80,6 +80,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add dealers, manufacturers, ca
 
 - [Product Requirements Document](docs/PRD.md) — full feature specs, data model, architecture decisions, and roadmap
 - [Installation Guide](docs/INSTALL.md) — detailed setup, external access, and upgrade instructions
+
+**Project history:** See [docs/HISTORY.md](./docs/HISTORY.md) for structural events and [docs/CHANGELOG-pre-v0.1.9.md](./docs/CHANGELOG-pre-v0.1.9.md) for the pre-release changelog archive.
 
 ---
 
@@ -164,6 +166,25 @@ data/
 ```
 
 To back up: copy the entire `data/` folder somewhere safe.
+
+### Database Maintenance
+
+AmmoLedger ships with two scheduled SQLite maintenance tasks, visible on the Tasks page (admin only):
+
+- **Database Optimize** — runs `PRAGMA optimize` daily at 04:00. Refreshes query planner statistics for tables with stale data so the database uses indexes efficiently. **Enabled by default.**
+- **Database Vacuum** — runs `VACUUM` daily at 04:30. Reclaims unused space and defragments the database file. **Disabled by default** — read the warning below before enabling.
+
+#### ⚠ Before enabling Database Vacuum
+
+VACUUM rewrites the entire database. While it runs:
+
+- It needs roughly **2× the current database size in free disk space** on the volume hosting `/data`. A 200 MB database needs ~200 MB free during the rewrite. If the disk runs out, VACUUM fails and the task records a `failed` entry in task history. Your data is not lost — VACUUM operates on a copy and only swaps after success.
+- The database is **locked for writes** for the duration. On typical inventories this is seconds; on very large databases it can be a few minutes. Reads still work in WAL mode.
+- The task has `requires_exclusive: true`, so it will not run concurrently with backup or optimize tasks.
+
+To enable: go to the Tasks page, toggle Database Vacuum on, and confirm the warning dialog. You can change the schedule after enabling.
+
+If your server is tight on disk space, leave the task disabled and trigger VACUUM manually via Tasks → Run Now when you can monitor it.
 
 ---
 

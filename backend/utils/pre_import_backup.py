@@ -1,5 +1,5 @@
 import os
-import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -33,5 +33,13 @@ def trigger_pre_import_backup() -> str:
     ts = datetime.now().strftime("%Y-%m-%d")
     filename = f"ammoledger_pre-import_{ts}.db"
     dest = backup_dir / filename
-    shutil.copy2(str(db_path), str(dest))
+    src = sqlite3.connect(str(db_path))
+    try:
+        dst = sqlite3.connect(str(dest))
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
     return filename
