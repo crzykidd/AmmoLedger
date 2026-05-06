@@ -131,7 +131,7 @@ def trigger_backup(_: Any = Depends(require_role("admin"))):
         from sqlalchemy import text  # noqa: PLC0415
         from sqlmodel import Session  # noqa: PLC0415
         with Session(engine) as session:
-            session.execute(text("ANALYZE"))
+            session.execute(text("PRAGMA optimize"))
             session.commit()
     except Exception:
         pass  # Never block a backup over a statistics update

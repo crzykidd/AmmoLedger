@@ -165,6 +165,25 @@ data/
 
 To back up: copy the entire `data/` folder somewhere safe.
 
+### Database Maintenance
+
+AmmoLedger ships with two scheduled SQLite maintenance tasks, visible on the Tasks page (admin only):
+
+- **Database Optimize** — runs `PRAGMA optimize` daily at 04:00. Refreshes query planner statistics for tables with stale data so the database uses indexes efficiently. **Enabled by default.**
+- **Database Vacuum** — runs `VACUUM` daily at 04:30. Reclaims unused space and defragments the database file. **Disabled by default** — read the warning below before enabling.
+
+#### ⚠ Before enabling Database Vacuum
+
+VACUUM rewrites the entire database. While it runs:
+
+- It needs roughly **2× the current database size in free disk space** on the volume hosting `/data`. A 200 MB database needs ~200 MB free during the rewrite. If the disk runs out, VACUUM fails and the task records a `failed` entry in task history. Your data is not lost — VACUUM operates on a copy and only swaps after success.
+- The database is **locked for writes** for the duration. On typical inventories this is seconds; on very large databases it can be a few minutes. Reads still work in WAL mode.
+- The task has `requires_exclusive: true`, so it will not run concurrently with backup or optimize tasks.
+
+To enable: go to the Tasks page, toggle Database Vacuum on, and confirm the warning dialog. You can change the schedule after enabling.
+
+If your server is tight on disk space, leave the task disabled and trigger VACUUM manually via Tasks → Run Now when you can monitor it.
+
 ---
 
 ## For Developers (Building from Source)

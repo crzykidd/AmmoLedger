@@ -10,9 +10,20 @@ import {
   ChevronDown,
   ChevronRight,
   Pencil,
+  AlertTriangle,
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -293,6 +304,12 @@ function TaskRow({
         {task.description && (
           <p className="text-white/40 text-xs mt-0.5">{task.description}</p>
         )}
+        {task.task_key === 'db_vacuum' && (
+          <p className="text-amber-400 text-xs mt-1 flex items-start gap-1">
+            <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />
+            Requires ~2× database size in free disk space while running. Holds an exclusive write lock until complete.
+          </p>
+        )}
       </td>
       <td className="py-3 px-4">
         {editingInterval ? (
@@ -461,6 +478,7 @@ export default function TasksPage() {
   const qc = useQueryClient()
   const [runningKeys, setRunningKeys] = useState<Set<string>>(new Set())
   const [historyFilter, setHistoryFilter] = useState<string>('all')
+  const [vacuumEnableDialog, setVacuumEnableDialog] = useState(false)
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ['tasks'],
@@ -529,8 +547,13 @@ export default function TasksPage() {
   })
 
   const handleRun = (key: string) => runMutation.mutate(key)
-  const handleToggle = (key: string, enabled: boolean) =>
+  const handleToggle = (key: string, enabled: boolean) => {
+    if (key === 'db_vacuum' && enabled) {
+      setVacuumEnableDialog(true)
+      return
+    }
     toggleMutation.mutate({ key, enabled })
+  }
 
   return (
     <AppShell>
@@ -640,6 +663,45 @@ export default function TasksPage() {
         </section>
 
       </main>
+
+      <AlertDialog open={vacuumEnableDialog} onOpenChange={setVacuumEnableDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enable Database Vacuum?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <p>VACUUM rewrites the entire database to reclaim unused space. While it runs:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>
+                    The database needs roughly <strong>2× its current size in free disk space</strong>.
+                    If your DB is 100 MB, you need ~100 MB free on the volume hosting <code>/data</code>.
+                  </li>
+                  <li>
+                    The database is <strong>locked for writes</strong> until the operation completes
+                    (typically seconds to a few minutes).
+                  </li>
+                  <li>
+                    The task is scheduled for daily at 04:30 by default. You can change the schedule
+                    after enabling.
+                  </li>
+                </ul>
+                <p className="text-white/50">
+                  If your server is tight on disk space, leave this disabled and run VACUUM manually
+                  when you can monitor it.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => toggleMutation.mutate({ key: 'db_vacuum', enabled: true })}
+            >
+              Enable
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   )
 }

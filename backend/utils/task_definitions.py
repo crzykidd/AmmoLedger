@@ -133,16 +133,39 @@ def _community_sync_fn() -> dict:
     return results
 
 
-def _db_analyze_fn() -> dict:
+def _db_optimize_fn() -> dict:
     from database import engine  # noqa: PLC0415
     from sqlmodel import Session  # noqa: PLC0415
     from sqlalchemy import text  # noqa: PLC0415
 
     with Session(engine) as db:
-        db.execute(text("ANALYZE"))
+        db.execute(text("PRAGMA optimize"))
         db.commit()
-    logger.info("Database ANALYZE complete")
+    logger.info("Database optimize (PRAGMA optimize) complete")
     return {"status": "ok"}
+
+
+def _db_vacuum_fn() -> dict:
+    from database import engine  # noqa: PLC0415
+    from sqlalchemy import text  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    started = time.monotonic()
+    # VACUUM cannot run inside a transaction; use a raw connection with autocommit.
+    raw_conn = engine.raw_connection()
+    try:
+        raw_conn.isolation_level = None  # autocommit
+        cursor = raw_conn.cursor()
+        try:
+            cursor.execute("VACUUM")
+        finally:
+            cursor.close()
+    finally:
+        raw_conn.close()
+
+    duration_s = round(time.monotonic() - started, 2)
+    logger.info("Database VACUUM complete in %.2fs", duration_s)
+    return {"status": "ok", "duration_seconds": duration_s}
 
 
 # ---------------------------------------------------------------------------
@@ -193,12 +216,22 @@ TASK_DEFINITIONS = [
         "allowed_modes": ["daily"],
     },
     {
-        "task_key": "db_analyze",
-        "name": "Database Optimize",
-        "description": "Run SQLite ANALYZE to update query planner statistics",
+        "task_key": "db_optimize",
+        "name": "Database Optimize (PRAGMA optimize)",
+        "description": "Run SQLite PRAGMA optimize to refresh query planner statistics for tables with stale stats.",
         "interval_type": "daily",
         "interval_value": "04:00",
         "enabled": True,
+        "allowed_modes": ["daily"],
+        "requires_exclusive": True,
+    },
+    {
+        "task_key": "db_vacuum",
+        "name": "Database Vacuum",
+        "description": "Reclaim unused space and defragment the database. Disabled by default — requires ~2x free disk space while running.",
+        "interval_type": "daily",
+        "interval_value": "04:30",
+        "enabled": False,
         "allowed_modes": ["daily"],
         "requires_exclusive": True,
     },
@@ -209,5 +242,6 @@ TASK_FUNCTIONS: dict = {
     "scheduled_backup": _backup_fn,
     "backup_cleanup": _cleanup_fn,
     "community_sync": _community_sync_fn,
-    "db_analyze": _db_analyze_fn,
+    "db_optimize": _db_optimize_fn,
+    "db_vacuum": _db_vacuum_fn,
 }
