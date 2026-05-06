@@ -1,5 +1,4 @@
 import os
-import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -160,7 +159,6 @@ def _db_optimize_fn() -> dict:
 
 def _db_vacuum_fn() -> dict:
     from database import engine  # noqa: PLC0415
-    from sqlalchemy import text  # noqa: PLC0415
     import time  # noqa: PLC0415
 
     started = time.monotonic()
