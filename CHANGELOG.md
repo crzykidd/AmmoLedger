@@ -11,6 +11,14 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **First-boot no longer requires two starts** — on a fresh `/data` volume with no `AL_SESSION_SECRET` set, the backend now starts successfully after writing the default `config.yaml` instead of exiting with code 1. The setup notice is still printed with a reminder to set a custom secret before production use.
+
+---
+
 ## [0.1.9] — 2026-05-05
 
 First test release built on the squashed initial schema. From this version
