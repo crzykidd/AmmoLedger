@@ -15,6 +15,9 @@ Versioning: [Semantic Versioning](https://semver.org)
 
 ### Fixed
 
+- **JSON export now includes ammo_conditions, products, caliber_thresholds, and location_thresholds.** These tables were silently missing from `/backup/export`, meaning a JSON restore could lose threshold configuration, the entire products catalog, and any custom ammo conditions. Existing JSON exports are still valid but incomplete — a fresh export after upgrading captures everything. The `password_history` table was also removed from the export (it served no restore purpose and exposed additional bcrypt hashes).
+- **Restore flow now confirms before destructive operations and forces logout after.** Both SQLite restore and full-mode JSON import now show a confirmation modal warning that the current admin account will be replaced, and automatically log the operator out after a successful restore so they re-authenticate against the restored user database. Additive JSON import is unchanged.
+- **JSON exports now surface a security notice** warning that the file contains bcrypt password hashes and should be stored and transmitted with appropriate care.
 - **First-boot no longer requires two starts** — on a fresh `/data` volume with no `AL_SESSION_SECRET` set, the backend now starts successfully after writing the default `config.yaml` instead of exiting with code 1. The setup notice is still printed with a reminder to set a custom secret before production use.
 
 ---
