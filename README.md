@@ -6,7 +6,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.1.8-gold)
+![Version](https://img.shields.io/badge/version-0.1.9-gold)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![PRD](https://img.shields.io/badge/docs-PRD-navy)
 
@@ -80,6 +80,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add dealers, manufacturers, ca
 
 - [Product Requirements Document](docs/PRD.md) — full feature specs, data model, architecture decisions, and roadmap
 - [Installation Guide](docs/INSTALL.md) — detailed setup, external access, and upgrade instructions
+
+**Project history:** See [docs/HISTORY.md](./docs/HISTORY.md) for structural events and [docs/CHANGELOG-pre-v0.1.9.md](./docs/CHANGELOG-pre-v0.1.9.md) for the pre-release changelog archive.
 
 ---
 
