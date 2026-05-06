@@ -16,7 +16,7 @@
 
 A self-hosted web application to track your ammunition inventory. Keep your ammo counts accurate on and off the range.
 
-> Pre-1.0: schema migrations are tested on every release but data model changes are still happening. Back up before upgrading.
+> **Pre-1.0 upgrade note:** v0.1.9 is the first release built on the squashed initial schema. **Pre-v0.1.9 builds (any v0.1.0–v0.1.8 image still on GHCR or in local registries) cannot upgrade in place — the migration chain was reset.** If you happen to have a pre-v0.1.9 install, export your data via Backups → Export JSON before pulling v0.1.9 or later, then do a fresh install and re-import. From v0.1.9 forward, schema migrations are incremental again and back-up-before-upgrade is the standard precaution.
 
 
 ## What's Built
