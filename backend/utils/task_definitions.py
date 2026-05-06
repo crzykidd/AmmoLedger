@@ -1,5 +1,6 @@
 import os
 import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -33,7 +34,19 @@ def _backup_fn() -> dict:
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
     filename = f"ammoledger_{ts}.db"
     dest = backup_dir / filename
-    shutil.copy2(str(db_path), str(dest))
+    try:
+        src = sqlite3.connect(str(db_path))
+        try:
+            dst = sqlite3.connect(str(dest))
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+    except (OSError, sqlite3.Error) as exc:
+        logger.error("Scheduled backup failed: %s", exc)
+        raise
     logger.info("Scheduled backup created: %s", filename)
 
     try:

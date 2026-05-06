@@ -140,7 +140,7 @@ Current release: v0.1.9 (2026-05-05)
 - **All SQLite backup/copy operations must use `sqlite3.Connection.backup()`, not `shutil.copy*`** — WAL mode stores recent writes in a `.db-wal` sidecar that `shutil.copy2` silently misses. Applies to `trigger_backup` and `trigger_pre_import_backup`.
 - **FK columns added in a migration must have their index added in the same migration** — migrations 0012/0017/0018 were shipped without FK indexes; 0021 cleaned these up. Don't repeat this pattern.
 - **Use `PRAGMA optimize` for routine query planner refreshes — not bare `ANALYZE`** — `PRAGMA optimize` only re-analyzes tables with stale statistics; bare `ANALYZE` rescans everything and is slower. The `db_optimize` task and all ad-hoc pre-backup/post-import calls use `PRAGMA optimize`.
-- **`db_vacuum` is opt-in only** — VACUUM needs ~2× DB size in free disk and holds an exclusive write lock. Both maintenance tasks (`db_optimize`, `db_vacuum`) have `requires_exclusive: True` to prevent overlap with backups. **Note:** the scheduled backup task (`_backup_fn` in `task_definitions.py`) still uses `shutil.copy2` — this is a known gap to fix in a follow-up.
+- **`db_vacuum` is opt-in only** — VACUUM needs ~2× DB size in free disk and holds an exclusive write lock. Both maintenance tasks (`db_optimize`, `db_vacuum`) have `requires_exclusive: True` to prevent overlap with backups.
 - **Squash policy.** Do not squash migrations again after v0.1.9. Once public users exist, every migration that ships becomes part of someone's upgrade path. The v0.1.9 squash was a one-time pre-release cleanup.
 
 ## Git Rules

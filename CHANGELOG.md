@@ -58,6 +58,7 @@ future schema changes will be incremental migrations on top of it.
 
 ### Fixed
 
+- **Scheduled nightly backup now WAL-safe** — replaces `shutil.copy2` with SQLite's online backup API (`Connection.backup()`) in `_backup_fn()`. Matches the fix already in place for the manual `/backup/trigger` endpoint and pre-import safety backups. Backups created by the scheduled task under WAL mode could previously miss writes that lived in the `.db-wal` sidecar — this closes that gap.
 - **Products page: list view table now scrolls** — `overflow-hidden` on the table wrapper was clipping the scrollbar; replaced with `overflow-x-auto`
 - **Products page: content area now scrolls** — grid and list views were clipped by AppShell's overflow-hidden; fixed with flex-1 overflow-auto on the content wrapper
 - **Products page: edit drawer now populates correctly** — replaced useCallback/onSheetOpen with useEffect matching the inventory form pattern; fields were always empty on open
