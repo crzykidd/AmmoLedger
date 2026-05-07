@@ -228,14 +228,14 @@ export default function AtRangePage() {
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold text-base text-gray-900 dark:text-white">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-base text-gray-900 dark:text-white break-words">
                         Box #{box.id} — {caliberName} {manufacturerName}
                         {box.legacy_id && box.legacy_id !== String(box.id) && (
                           <span className="ml-1 text-sm font-normal text-gray-400"> · ({box.legacy_id})</span>
                         )}
                       </p>
-                      <p className={cn('text-sm mt-0.5', isEmpty ? 'text-red-500' : 'text-gray-500 dark:text-gray-400')}>
+                      <p className={cn('text-sm mt-0.5 break-words', isEmpty ? 'text-red-500' : 'text-gray-500 dark:text-gray-400')}>
                         {isEmpty
                           ? `Empty — 0 of ${box.qty_original} rounds remaining`
                           : `${box.qty_remaining} of ${box.qty_original} rounds remaining${box.product_name ? ` · ${box.product_name}` : ''}`}

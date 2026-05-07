@@ -86,6 +86,7 @@ Current release: v0.1.9 (2026-05-05)
 - Phase 8.17 — Inventory UX: quick-expend Crosshair icon, archive confirmation popover with user-supplied reason, unarchive action: COMPLETE
 - Phase 8.18 — At Range mode: mobile-optimized /at-range page with on-screen keypad, ±1 steppers, tap-to-expend rows; Box ID added to inventory search field selector; sidebar reorganized (Import → Settings): COMPLETE
 - Phase 8.19 — Inventory UX fixes: Remaining cell is now static (Crosshair icon is sole expend trigger); ArchiveRestore icon styled amber; "Show Empty" and "Archived" checkboxes replaced by three-state Empty/Status filter dropdowns with localStorage persistence: COMPLETE
+- Phase 8.20 — At Range polish: fixed-width layout (min-w-0/break-words on result cards); quick-expend preset list updated to [1, 10, 20, 30, 50] plus up to 2 session-recent counts from sessionStorage; notes field prefilled from last-submitted value across popover invocations (sessionStorage, cleared on tab close): COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 - v0.1.9 — Migration squash (COMPLETE): 22 migrations collapsed into single initial schema; CHANGELOG split; HISTORY.md created

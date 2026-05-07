@@ -54,6 +54,7 @@
 | 3.13 | May 2026 | Caliber threshold drawer — tap any caliber on dashboard or inventory to view and (admin) edit threshold inline; Dashboard By Caliber toggle between Mix (% of total) and Stock (proximity to threshold) views with color-coded bars; Running Low caliber rows open drawer instead of navigating to inventory; is_override field on CaliberStatus enables Reset to Default button. §9.1 updated. §5.2 updated with threshold-write and product management rows. §2 roadmap updated with v0.2.0 column. |
 | 3.14 | May 2026 | At Range mode — §9.2.6 added: mobile-optimized /at-range page for range sessions (on-screen numeric keypad, ±1 steppers, tap-to-expend rows, empty-box indicator). Box ID search option added to inventory search field selector. Sidebar reorganized: Import moved from top section into Settings; At Range added to top section. |
 | 3.15 | May 2026 | Inventory UX fixes — §9.2 updated: Remaining cell is now static (sole expend entry point is the Crosshair icon); ArchiveRestore icon styled amber for visibility; "Show Empty" and "Archived" checkboxes replaced by three-state Empty and Status filter dropdowns with localStorage persistence. |
+| 3.16 | May 2026 | At Range polish — §9.2.1 updated: preset list changed to [1, 10, 20, 30, 50], session-recent counts (up to 2, sessionStorage) surfaced as additional presets, notes prefilled from last submitted value (sessionStorage). §9.2.6 updated: result card layout constrained with min-w-0/break-words to prevent page widening on desktop. |
 
 ---
 
@@ -1119,12 +1120,13 @@ Anchored popover attached to the Remaining cell. Opens on click, closes on Cance
 #### Preset Buttons
 
 - **Shot All** — always shown; sets quantity input to `qty_remaining`
-- **Shot 50 / Shot 25 / Shot 10 / Shot 5** — shown only when `qty_remaining` is strictly greater than that number (avoids duplicating Shot All)
+- **Static presets: 50 / 30 / 20 / 10 / 1** — shown only when `qty_remaining` is strictly greater than that number. Covers 1-round (universal), common pistol mag sizes (10), AR mag sizes (20, 30), and 50-count box portions. Buttons render as just the number (no "Shot " prefix).
+- **Session-recent presets (up to 2)** — the last 5 distinct round counts submitted during the current tab session are stored in `sessionStorage` (`quick_expend_recent_counts`). On each popover open, up to 2 of the most-recently-used values are shown as additional preset buttons, subject to: (a) strictly less than `qty_remaining`, and (b) not already in the static preset list. Same button styling as static presets. Cleared when the tab closes.
 
 #### Input Fields
 
 - **Rounds used** — numeric input; validated `1 ≤ rounds ≤ qty_remaining`
-- **Notes** — optional free-text
+- **Notes** — optional free-text. Prefilled from the last successfully submitted notes value within the current tab session (`sessionStorage` key `quick_expend_last_notes`). Persists across popover invocations so range sessions can log identical notes across many boxes without retyping. Cleared when the tab closes. Cancel does not update the cache; only successful submissions do.
 
 #### Actions
 
@@ -1208,6 +1210,8 @@ Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an 
 **Results:** sorted by `id` ascending. Empty boxes (`qty_remaining === 0`) are shown with an "Empty" badge and a red round-count line so users can spot mislabeled boxes; they are non-interactive (no popover). Archived boxes are always excluded.
 
 **Tap-to-expend:** each non-empty result row is a full-width button that opens `QuickExpendPopover`. After a successful expend the rounds count updates automatically (query invalidation) and the row remains on screen; search query is unchanged.
+
+**Result card layout:** the text container inside each result card uses `flex-1 min-w-0` so long box descriptions (long product names, manufacturer names) wrap within the `max-w-lg` boundary rather than forcing the entire page wider. Both description lines use `break-words`.
 
 **Import navigation change:** Import has been moved from the top nav section (Dashboard / Inventory / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Inventory, Products, At Range.
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
@@ -7,7 +7,7 @@ import { expendAmmo } from '@/api/ammo'
 import { toast } from '@/hooks/use-toast'
 import type { AmmoBoxRead } from '@/types'
 
-const PRESETS = [50, 25, 10, 5]
+const STATIC_PRESETS = [50, 30, 20, 10, 1]
 
 interface Props {
   box: AmmoBoxRead
@@ -31,6 +31,24 @@ export default function QuickExpendPopover({
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  const recents = useMemo<number[]>(() => {
+    if (!open) return []
+    try {
+      const v = JSON.parse(sessionStorage.getItem('quick_expend_recent_counts') || '[]')
+      return Array.isArray(v) ? v.filter((x) => typeof x === 'number') : []
+    } catch {
+      return []
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (open) {
+      setNotes(sessionStorage.getItem('quick_expend_last_notes') ?? '')
+      setRounds('')
+      setError(null)
+    }
+  }, [open])
+
   function reset() {
     setRounds('')
     setNotes('')
@@ -45,6 +63,17 @@ export default function QuickExpendPopover({
         notes: notes || null,
       }),
     onSuccess: () => {
+      sessionStorage.setItem('quick_expend_last_notes', notes)
+      const n = Number(rounds)
+      try {
+        const prior: number[] = JSON.parse(
+          sessionStorage.getItem('quick_expend_recent_counts') || '[]',
+        )
+        const filtered = Array.isArray(prior) ? prior.filter((x) => typeof x === 'number' && x !== n) : []
+        sessionStorage.setItem('quick_expend_recent_counts', JSON.stringify([n, ...filtered].slice(0, 5)))
+      } catch {
+        sessionStorage.setItem('quick_expend_recent_counts', JSON.stringify([n]))
+      }
       toast({ title: `Logged ${rounds} rounds for ${caliberName}` })
       void qc.invalidateQueries({ queryKey: ['ammo'] })
       void qc.invalidateQueries({ queryKey: ['ammo-history', box.id] })
@@ -86,27 +115,46 @@ export default function QuickExpendPopover({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={() => { setRounds(String(box.qty_remaining)); setError(null) }}
-            >
-              Shot All
-            </Button>
-            {PRESETS.filter((n) => n < box.qty_remaining).map((n) => (
-              <Button
-                key={n}
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs"
-                onClick={() => { setRounds(String(n)); setError(null) }}
-              >
-                Shot {n}
-              </Button>
-            ))}
-          </div>
+          {(() => {
+            const visibleStatic = STATIC_PRESETS.filter((n) => n < box.qty_remaining)
+            const visibleRecents = recents
+              .filter((n) => n < box.qty_remaining && !STATIC_PRESETS.includes(n))
+              .slice(0, 2)
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => { setRounds(String(box.qty_remaining)); setError(null) }}
+                >
+                  Shot All
+                </Button>
+                {visibleStatic.map((n) => (
+                  <Button
+                    key={`s-${n}`}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => { setRounds(String(n)); setError(null) }}
+                  >
+                    {n}
+                  </Button>
+                ))}
+                {visibleRecents.map((n) => (
+                  <Button
+                    key={`r-${n}`}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => { setRounds(String(n)); setError(null) }}
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </div>
+            )
+          })()}
 
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
