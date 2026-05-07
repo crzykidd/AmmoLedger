@@ -57,6 +57,7 @@
 | 3.16 | May 2026 | At Range polish — §9.2.1 updated: preset list changed to [1, 10, 20, 30, 50], session-recent counts (up to 2, sessionStorage) surfaced as additional presets, notes prefilled from last submitted value (sessionStorage). §9.2.6 updated: result card layout constrained with min-w-0/break-words to prevent page widening on desktop. |
 | 3.17 | May 2026 | Import success breakdown, dashboard scope toggle, deep-link filters — §9.1 updated: stats row expanded to 5 cards (Total Boxes added), Current/All scope toggle documented. §9.2 updated: emptyFilter/statusFilter URL deep-link params added. §9.8 updated: confirm_import returns archived_imported count; post-import success page breakdown and "View Archived Boxes" deep-link; archive_reason="imported" for CSV-archived boxes. §4.1 data model updated (archive_reason values). |
 | 3.18 | May 2026 | Dev-build version check — §9.10 Update Detection updated: dev builds now compare GIT_SHA against the dev branch tip via GitHub compare API; stable builds retain /releases/latest comparison; local builds (GIT_SHA unknown) skip the remote check. New dev_behind_by, dev_latest_sha, dev_latest_message fields added to /system/version response. Version-check logic consolidated in backend/utils/version_check.py. |
+| 3.19 | May 2026 | v0.2.0 first public release — §2 roadmap table updated to reflect shipped vs. deferred items; current version is v0.2.0. Active roadmap for next release is in docs/v030-roadmap.md. |
 
 ---
 
@@ -125,10 +126,10 @@ AmmoLedger is a self-hosted web application for tracking personal ammunition inv
 | Overview Dashboard | Stats: total rounds, caliber breakdown, value, low stock alerts | v1.0 |
 | DB Backup — Manual & Nightly | Admin-triggered or scheduled backup; configurable retention; re-importable JSON | v1.0 |
 | Alembic Migrations | Versioned schema migrations; automatic on startup | v1.0 |
-| Split Box | Split a box into two separate tracking records (partial split) | v0.2.0 |
-| Restock / Add Same | Quickly restock an existing product without re-entering all fields | v0.2.0 |
-| Notifications | Low-stock alerts and system events via Discord webhook or email | v0.2.0 |
-| Label Printing | Print QR-code labels for boxes; Avery sheet sizes; mobile expend via QR scan | v0.2.0 |
+| Split Box | Split a box into two separate tracking records (partial split) | v0.3.0 |
+| Restock / Add Same | Quickly restock an existing product without re-entering all fields | v0.3.0 |
+| Notifications | Low-stock alerts and system events via Discord webhook or email | v1.0 |
+| Label Printing | Print QR-code labels for boxes; Avery sheet sizes; mobile expend via QR scan | v1.0 |
 | Firearms Registry | Track owned guns with shared/private ownership model | v2.0 |
 | Range Sessions | Log sessions: gun, ammo, rounds fired, date, location | v2.0 |
 | Target Photo Uploads | Attach target photos to range sessions | v2.0 |
