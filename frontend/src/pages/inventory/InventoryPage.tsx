@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload, Download } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
@@ -17,7 +17,7 @@ import BulkEditPanel from '@/components/inventory/BulkEditPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
 import ExpendDialog from '@/components/inventory/ExpendDialog'
 import { useAuth } from '@/contexts/AuthContext'
-import { listAmmo, updateAmmo, exportAmmoCsv } from '@/api/ammo'
+import { listAmmo, exportAmmoCsv } from '@/api/ammo'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -151,7 +151,6 @@ export default function InventoryPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const qc = useQueryClient()
 
   // Global search / view state
   const [search, setSearch] = useState('')
@@ -258,18 +257,6 @@ export default function InventoryPage() {
     () => new Map(lookups.containers.map((c) => [c.id, c.name])),
     [lookups.containers],
   )
-
-  const archiveMutation = useMutation({
-    mutationFn: (box: AmmoBoxRead) =>
-      updateAmmo(box.id, { is_archived: true, archive_reason: 'manual' }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['ammo'] })
-      toast({ title: 'Box archived' })
-    },
-    onError: () => {
-      toast({ title: 'Failed to archive box', variant: 'destructive' })
-    },
-  })
 
   const apiSearch = searchField === 'all' ? (search || undefined) : undefined
   const { data, isLoading, isError } = useQuery({
@@ -519,10 +506,6 @@ export default function InventoryPage() {
   function openExpend(box: AmmoBoxRead) {
     setExpendBox(box)
     setExpendOpen(true)
-  }
-
-  function openArchive(box: AmmoBoxRead) {
-    archiveMutation.mutate(box)
   }
 
   const selectClass =
@@ -851,7 +834,6 @@ export default function InventoryPage() {
                   onColumnFilterChange={handleColumnFilterChange}
                   onEdit={openEdit}
                   onDelete={openDelete}
-                  onArchive={openArchive}
                 />
               </div>
               {/* Mobile cards */}

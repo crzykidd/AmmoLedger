@@ -83,6 +83,7 @@ Current release: v0.1.9 (2026-05-05)
 - Phase 8.14 — Community-maintained lookup tables synced from GitHub: COMPLETE
 - Phase 8.15 — Unified threshold system — server-side caliber totals, admin-only writes: COMPLETE
 - Phase 8.16 — Caliber threshold drawer, dashboard By Caliber toggle (Mix/Stock views): COMPLETE
+- Phase 8.17 — Inventory UX: quick-expend Crosshair icon, archive confirmation popover with user-supplied reason, unarchive action: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 - v0.1.9 — Migration squash (COMPLETE): 22 migrations collapsed into single initial schema; CHANGELOG split; HISTORY.md created

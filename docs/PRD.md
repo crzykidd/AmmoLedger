@@ -991,13 +991,16 @@ Checklist:
 | Remaining | Round count + inline progress bar; click opens QuickExpendPopover | Sortable |
 | Value | `qty_remaining × cost_per_round`; shown only if cost is set | — |
 | Shared | "Shared" badge or "Private" text | — |
-| Actions | Edit (pencil), Delete (trash), Archive (box-x) icons | Role-gated |
+| Actions | Crosshair (quick-expend), Edit (pencil), Archive/Restore, Delete (trash) icons | Role-gated |
 
 - Sortable columns: ID, Caliber, Manufacturer, Remaining (default sort: ID ascending)
 - Amber row tint when box is below configured threshold
 - Progress bar: green > 50 %, amber 20–50 %, red < 20 %
-- Clicking Remaining opens QuickExpendPopover (`stopPropagation` prevents row expansion)
-- `read_only` users see the count but cannot click to expend
+- **Quick-expend Crosshair icon** — first icon in Actions column; visible when user can expend and `qty_remaining > 0`; opens `QuickExpendPopover` anchored to the icon. Clicking the Remaining count cell is a secondary shortcut that opens the same popover.
+- `read_only` users see the Remaining count but cannot click to expend and the Crosshair icon is hidden
+- **Archive action** — clicking the Archive icon opens `QuickArchivePopover`. Empty boxes (`qty_remaining === 0`) prefill the reason as "Empty Box" and can be archived with one click. Boxes with rounds remaining show an amber warning block and require an explicit reason before the Archive button is enabled. The user-supplied reason is stored in `archive_reason`; "Empty Box" is the default for empty boxes.
+- **Unarchive action** — when `is_archived === true`, the Archive icon is replaced by an ArchiveRestore icon. Clicking it immediately sets `is_archived = false, archive_reason = null` with no confirmation. Requires the same edit permission as archive.
+- Archived boxes are excluded from active inventory totals and low-stock calculations. Enable the "Archived" toggle above the table to view them.
 - Empty boxes hidden by default; toggle above list: **Show empty boxes**
 - Members see: all shared boxes + their own private boxes; Admin sees: all boxes
 

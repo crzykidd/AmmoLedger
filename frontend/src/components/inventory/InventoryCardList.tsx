@@ -1,8 +1,13 @@
 import { useState, useMemo } from 'react'
-import { ChevronDown, ChevronUp, Crosshair, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Archive, ArchiveRestore, Crosshair, Pencil, Trash2 } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { updateAmmo } from '@/api/ammo'
+import { toast } from '@/hooks/use-toast'
+import QuickExpendPopover from '@/components/QuickExpendPopover'
+import QuickArchivePopover from '@/components/inventory/QuickArchivePopover'
 import type { AmmoBoxRead, User, LookupItem, ContainerItem } from '@/types'
 
 interface Props {
@@ -40,7 +45,22 @@ export default function InventoryCardList({
   onDelete,
   onExpend,
 }: Props) {
+  const qc = useQueryClient()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [openExpendBoxId, setOpenExpendBoxId] = useState<number | null>(null)
+  const [openArchiveBoxId, setOpenArchiveBoxId] = useState<number | null>(null)
+
+  const unarchiveMutation = useMutation({
+    mutationFn: (boxId: number) =>
+      updateAmmo(boxId, { is_archived: false, archive_reason: null }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ammo'] })
+      toast({ title: 'Box restored from archive' })
+    },
+    onError: () => {
+      toast({ title: 'Failed to restore box', variant: 'destructive' })
+    },
+  })
 
   const caliberMap = useMemo(() => new Map(calibers.map((c) => [c.id, c.name])), [calibers])
   const manufacturerMap = useMemo(
@@ -95,6 +115,26 @@ export default function InventoryCardList({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {expendable && box.qty_remaining > 0 && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <QuickExpendPopover
+                        box={box}
+                        caliberName={caliberMap.get(box.caliber_id) ?? '—'}
+                        manufacturerName={manufacturerMap.get(box.manufacturer_id) ?? '—'}
+                        open={openExpendBoxId === box.id}
+                        onOpenChange={(o) => setOpenExpendBoxId(o ? box.id : null)}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-gray-400 hover:text-gold"
+                          title="Log rounds used"
+                        >
+                          <Crosshair className="h-4 w-4" />
+                        </Button>
+                      </QuickExpendPopover>
+                    </div>
+                  )}
                   <div className="text-right">
                     <div
                       className={`text-lg font-bold tabular-nums ${
@@ -184,6 +224,35 @@ export default function InventoryCardList({
                       )}
                       {editable && (
                         <>
+                          {box.is_archived ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => unarchiveMutation.mutate(box.id)}
+                              disabled={unarchiveMutation.isPending}
+                            >
+                              <ArchiveRestore className="h-3.5 w-3.5 mr-1.5" />
+                              Restore
+                            </Button>
+                          ) : (
+                            <QuickArchivePopover
+                              box={box}
+                              caliberName={caliberMap.get(box.caliber_id) ?? '—'}
+                              manufacturerName={manufacturerMap.get(box.manufacturer_id) ?? '—'}
+                              open={openArchiveBoxId === box.id}
+                              onOpenChange={(o) => setOpenArchiveBoxId(o ? box.id : null)}
+                            >
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="flex-1"
+                              >
+                                <Archive className="h-3.5 w-3.5 mr-1.5" />
+                                Archive
+                              </Button>
+                            </QuickArchivePopover>
+                          )}
                           <Button
                             variant="secondary"
                             size="sm"

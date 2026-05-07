@@ -395,19 +395,18 @@ Features in the PRD that have some implementation but are incomplete.
 
 ---
 
-### 2.8 Inventory — Archive Icon Action (§9.2)
+### 2.8 Inventory — Archive / Unarchive (§9.2) ✓ Resolved
 
-**PRD specifies:** Archive (box-x) icon in Actions column triggers archive; `archive_reason = "manual"`.
+**Previously missing:** No confirmation dialog; hardcoded `archive_reason: 'manual'`; no unarchive path; no quick-expend discoverability.
 
-**What IS implemented:**
-- `frontend/src/pages/inventory/InventoryPage.tsx` — `openArchive()` calls `updateAmmo(box.id, { is_archived: true, archive_reason: 'manual' })` via `archiveMutation`
-- `InventoryTable.tsx` receives `onArchive` prop
+**Now implemented (Phase 8.17):**
+- `frontend/src/components/inventory/QuickArchivePopover.tsx` — new popover component (parallel to `QuickExpendPopover`). Empty boxes prefill reason "Empty Box"; boxes with rounds show an amber warning and require an explicit reason. User-supplied reason stored in `archive_reason`.
+- `InventoryTable.tsx` — Archive icon now opens `QuickArchivePopover`. Archived rows replace the icon with `ArchiveRestore` (inline unarchive, no confirmation). Crosshair quick-expend icon added as first action on each row.
+- `InventoryCardList.tsx` — expanded card shows Archive/Restore button alongside Log Use/Edit/Delete. Collapsed card header shows Crosshair icon for quick expend.
+- `InventoryPage.tsx` — `archiveMutation` and `openArchive` removed; popover owns its mutation.
 
-**What IS MISSING:**
-- There is no dedicated `POST /ammo/{id}/archive` endpoint; the frontend PATCHes the box directly. This works but bypasses any future archive-specific logic (e.g., writing an audit log entry).
-- No confirmation dialog before archiving (unlike delete which has `DeleteAmmoDialog.tsx`)
-
-**Status:** Functionally works but lacks archive-specific endpoint and confirmation.
+**Still missing:**
+- No dedicated `POST /ammo/{id}/archive` endpoint — frontend still PATCHes directly. Low priority; archive-specific audit log is a future concern.
 
 ---
 

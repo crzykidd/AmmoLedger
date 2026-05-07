@@ -325,7 +325,7 @@ export interface AmmoBoxUpdate {
   legacy_id?: string
   notes?: string
   is_archived?: boolean
-  archive_reason?: string
+  archive_reason?: string | null
 }
 
 // ---------------------------------------------------------------------------
