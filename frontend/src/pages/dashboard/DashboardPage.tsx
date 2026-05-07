@@ -5,6 +5,7 @@ import { AlertTriangle, Check, ChevronRight, Crosshair, DollarSign, Layers, Pack
 import { format, parseISO } from 'date-fns'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
+import { HelpTip } from '@/components/HelpTip'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -223,8 +224,8 @@ function GettingStartedCard({
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-20 rounded-xl" />
         ))}
       </div>
@@ -251,12 +252,16 @@ export default function DashboardPage() {
   const [caliberView, setCaliberView] = useState<'mix' | 'threshold'>(
     () => (localStorage.getItem('dashboard_caliber_view') as 'mix' | 'threshold') || 'mix',
   )
+  const [statsScope, setStatsScope] = useState<'current' | 'all'>(() => {
+    const v = localStorage.getItem('dashboard_stats_scope')
+    return v === 'all' ? 'all' : 'current'
+  })
 
   const { calibers, isLoading: lookupsLoading } = useInventoryLookups()
 
   const { data, isLoading: dataLoading } = useQuery({
     queryKey: ['ammo', 'dashboard'],
-    queryFn: () => listAmmo(),
+    queryFn: () => listAmmo({ show_empty: true, show_archived: true }),
   })
 
   const { status: thresholdStatus } = useThresholdStatus()
@@ -275,27 +280,40 @@ export default function DashboardPage() {
   })
 
   const loading = dataLoading || lookupsLoading
-  const boxes = data?.boxes ?? []
+  const allBoxes = data?.boxes ?? []
+  const currentBoxes = useMemo(
+    () => allBoxes.filter((b) => !b.is_archived && b.qty_remaining > 0),
+    [allBoxes],
+  )
+  const boxes = currentBoxes  // downstream sections (By Caliber, Running Low, Recent Activity) always use current
 
   const caliberMap = useMemo(
     () => new Map(calibers.map((c) => [c.id, c.name])),
     [calibers],
   )
 
-  const calibersTracked = useMemo(
-    () => new Set(boxes.map((b) => b.caliber_id)).size,
-    [boxes],
-  )
-
-  const totalValue = useMemo(() => {
-    if (data?.total_value != null) return { amount: data.total_value, partial: false }
-    // API returns null when any box lacks cost_per_round — compute partial sum from boxes that have it
-    const partial = boxes.reduce(
-      (sum, b) => (b.cost_per_round != null ? sum + b.qty_remaining * b.cost_per_round : sum),
+  const stats = useMemo(() => {
+    const source = statsScope === 'current' ? currentBoxes : allBoxes
+    const useOriginal = statsScope === 'all'
+    const totalBoxes = source.length
+    const totalRounds = source.reduce(
+      (sum, b) => sum + (useOriginal ? b.qty_original : b.qty_remaining),
       0,
     )
-    return { amount: partial, partial: true }
-  }, [data?.total_value, boxes])
+    const allHaveCost = source.every((b) => b.cost_per_round != null)
+    const valueSum = source.reduce(
+      (sum, b) => sum + ((b.cost_per_round ?? 0) * (useOriginal ? b.qty_original : b.qty_remaining)),
+      0,
+    )
+    const calibersTracked = new Set(source.map((b) => b.caliber_id)).size
+    return {
+      totalBoxes,
+      totalRounds,
+      totalValue: allHaveCost ? valueSum : null,
+      totalValuePartial: !allHaveCost ? valueSum : null,
+      calibersTracked,
+    }
+  }, [allBoxes, currentBoxes, statsScope])
 
   // Caliber summary for By Caliber section
   const caliberSummary = useMemo(() => {
@@ -425,38 +443,72 @@ export default function DashboardPage() {
         )}
 
         {/* Stats row */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            icon={Layers}
-            label="Total Rounds"
-            value={(data?.total_rounds ?? 0).toLocaleString()}
-          />
-          <StatCard
-            icon={DollarSign}
-            label="Total Value"
-            value={
-              totalValue.amount > 0
-                ? `${formatCurrency(totalValue.amount)}${totalValue.partial ? '*' : ''}`
-                : '—'
-            }
-            subtitle={
-              totalValue.partial && totalValue.amount > 0
-                ? 'Some boxes have no cost set'
-                : undefined
-            }
-          />
-          <StatCard
-            icon={Crosshair}
-            label="Calibers Tracked"
-            value={calibersTracked.toString()}
-          />
-          <StatCard
-            icon={AlertTriangle}
-            label="Low Stock Items"
-            value={lowStockCount.toString()}
-            accent={lowStockCount > 0}
-          />
-        </div>
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                Inventory Stats
+              </h2>
+              <HelpTip text="Current shows your active inventory. All includes every box ever tracked — archived, empty, and expended rounds — based on original purchase quantities." />
+            </div>
+            <div className="flex items-center rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {(['current', 'all'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    setStatsScope(mode)
+                    localStorage.setItem('dashboard_stats_scope', mode)
+                  }}
+                  className={cn(
+                    'px-2.5 py-1 text-xs font-medium transition-colors',
+                    statsScope === mode
+                      ? 'bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
+                  )}
+                >
+                  {mode === 'current' ? 'Current' : 'All'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <StatCard
+              icon={Package}
+              label="Total Boxes"
+              value={stats.totalBoxes.toLocaleString()}
+            />
+            <StatCard
+              icon={Layers}
+              label="Total Rounds"
+              value={stats.totalRounds.toLocaleString()}
+            />
+            <StatCard
+              icon={DollarSign}
+              label="Total Value"
+              value={
+                (stats.totalValue ?? stats.totalValuePartial ?? 0) > 0
+                  ? `${formatCurrency(stats.totalValue ?? stats.totalValuePartial ?? 0)}${stats.totalValue == null ? '*' : ''}`
+                  : '—'
+              }
+              subtitle={
+                stats.totalValue == null && (stats.totalValuePartial ?? 0) > 0
+                  ? 'Some boxes have no cost set'
+                  : undefined
+              }
+            />
+            <StatCard
+              icon={Crosshair}
+              label="Calibers Tracked"
+              value={stats.calibersTracked.toString()}
+            />
+            <StatCard
+              icon={AlertTriangle}
+              label="Low Stock Items"
+              value={lowStockCount.toString()}
+              accent={lowStockCount > 0}
+            />
+          </div>
+        </section>
 
         {/* Running Low */}
         {lowStockCount > 0 && (

@@ -582,6 +582,7 @@ async def confirm_import(
         _consume_token(db, validation_token)
 
         imported = 0
+        archived_imported = 0
         skipped = 0
         lookup_values_created = 0
         product_links = 0
@@ -647,6 +648,8 @@ async def confirm_import(
 
                 is_archived_raw = _get(row, "is_archived").lower()
                 is_archived = is_archived_raw == "true"
+                if is_archived:
+                    archived_imported += 1
 
                 # Manufacturer is required in model but CSV may omit it — guard
                 if manufacturer_id is None:
@@ -716,7 +719,7 @@ async def confirm_import(
                     legacy_id=legacy_id_val,
                     notes=_get(row, "notes") or None,
                     is_archived=is_archived,
-                    archive_reason="manual" if is_archived else None,
+                    archive_reason="imported" if is_archived else None,
                 )
                 if created_at is not None:
                     box.created_at = created_at
@@ -796,6 +799,7 @@ async def confirm_import(
         response: dict = {
             "success": True,
             "imported": imported,
+            "archived_imported": archived_imported,
             "skipped": skipped,
             "new_lookup_values_created": lookup_values_created,
             "product_links": product_links,

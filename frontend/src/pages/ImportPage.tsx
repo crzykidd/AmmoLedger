@@ -725,6 +725,21 @@ function ResultState({
           )}
         </div>
 
+        {result.archived_imported > 0 && (
+          <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 space-y-1.5">
+            <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+              Breakdown:
+            </p>
+            <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-0.5 pl-3">
+              <li>{result.imported - result.archived_imported} active</li>
+              <li>{result.archived_imported} archived (imported with is_archived=true)</li>
+            </ul>
+            <p className="text-xs text-amber-600 dark:text-amber-500">
+              Archived boxes are hidden by default. Set the Status filter to "Archived only" or "All boxes" on the Inventory page to view them.
+            </p>
+          </div>
+        )}
+
         <div className="text-xs text-emerald-700 dark:text-emerald-500 bg-emerald-100 dark:bg-emerald-900/30 rounded px-2.5 py-1.5">
           Backup saved: {result.pre_import_backup}
         </div>
@@ -743,8 +758,16 @@ function ResultState({
 
         <div className="flex gap-3 pt-2">
           <Button onClick={() => navigate('/inventory')} className="flex-1">
-            View Inventory
+            {result.archived_imported > 0 ? 'Go to Inventory' : 'View Inventory'}
           </Button>
+          {result.archived_imported > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => navigate('/inventory?statusFilter=archived&emptyFilter=all')}
+            >
+              View Archived Boxes
+            </Button>
+          )}
           <Button variant="secondary" onClick={onReset}>
             <RotateCcw className="h-4 w-4 mr-1.5" />
             Import Another

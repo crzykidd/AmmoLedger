@@ -152,7 +152,7 @@ class AmmoBox(SQLModel, table=True):
     notes: Optional[str] = None
     split_from_id: Optional[int] = Field(default=None, foreign_key="ammo_box.id")
     is_archived: bool = Field(default=False)
-    archive_reason: Optional[str] = None  # split | empty | manual
+    archive_reason: Optional[str] = None  # split | empty | manual | imported
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

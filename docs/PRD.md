@@ -55,6 +55,7 @@
 | 3.14 | May 2026 | At Range mode — §9.2.6 added: mobile-optimized /at-range page for range sessions (on-screen numeric keypad, ±1 steppers, tap-to-expend rows, empty-box indicator). Box ID search option added to inventory search field selector. Sidebar reorganized: Import moved from top section into Settings; At Range added to top section. |
 | 3.15 | May 2026 | Inventory UX fixes — §9.2 updated: Remaining cell is now static (sole expend entry point is the Crosshair icon); ArchiveRestore icon styled amber for visibility; "Show Empty" and "Archived" checkboxes replaced by three-state Empty and Status filter dropdowns with localStorage persistence. |
 | 3.16 | May 2026 | At Range polish — §9.2.1 updated: preset list changed to [1, 10, 20, 30, 50], session-recent counts (up to 2, sessionStorage) surfaced as additional presets, notes prefilled from last submitted value (sessionStorage). §9.2.6 updated: result card layout constrained with min-w-0/break-words to prevent page widening on desktop. |
+| 3.17 | May 2026 | Import success breakdown, dashboard scope toggle, deep-link filters — §9.1 updated: stats row expanded to 5 cards (Total Boxes added), Current/All scope toggle documented. §9.2 updated: emptyFilter/statusFilter URL deep-link params added. §9.8 updated: confirm_import returns archived_imported count; post-import success page breakdown and "View Archived Boxes" deep-link; archive_reason="imported" for CSV-archived boxes. §4.1 data model updated (archive_reason values). |
 
 ---
 
@@ -396,7 +397,7 @@ ammo_box
 ├── notes            TEXT       Free text; nullable
 ├── split_from_id    INTEGER    FK → ammo_box.id; nullable — set when box was created by a split
 ├── is_archived      BOOLEAN    Default false — true when fully split, manually archived, or empty+archived
-├── archive_reason   TEXT       "split" | "empty" | "manual"; nullable
+├── archive_reason   TEXT       "split" | "empty" | "manual" | "imported"; nullable
 ├── created_at       DATETIME
 └── updated_at       DATETIME
 ```
@@ -882,14 +883,26 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 
 ### 9.1 Overview Dashboard
 
-#### Stats Cards (row of 4)
+#### Stats Cards (row of 5)
 
 | Card | Value |
 | ---- | ----- |
-| Total Rounds | Sum of `qty_remaining` for non-archived boxes |
-| Total Value | Sum of `qty_remaining × cost_per_round`; asterisk when some boxes have no cost |
-| Calibers Tracked | Distinct caliber count |
-| Running Low | Count of calibers below threshold + locations below threshold |
+| Total Boxes | Count of boxes in the current scope (see scope toggle below) |
+| Total Rounds | Sum of `qty_remaining` (Current) or `qty_original` (All) |
+| Total Value | Sum of rounds × `cost_per_round`; asterisk when some boxes have no cost |
+| Calibers Tracked | Distinct caliber count in the current scope |
+| Low Stock Items | Count of calibers below threshold + locations below threshold (always current state) |
+
+#### Inventory Stats Scope Toggle
+
+A **Current / All** toggle appears above the stats row.
+
+- **Current** (default) — stats reflect active, non-empty boxes only (`is_archived = false AND qty_remaining > 0`).
+- **All** — stats include every box ever tracked (archived, empty, and active), using `qty_original` for round and value totals so the numbers represent lifetime purchase quantities.
+
+Selection persists in `localStorage['dashboard_stats_scope']`. A HelpTip explains the scope difference inline.
+
+The lower dashboard sections (By Caliber, Running Low, Recent Activity) always reflect **current** inventory regardless of the toggle.
 
 #### By Caliber Section
 
@@ -1061,6 +1074,19 @@ Two three-state select dropdowns in the main toolbar, each persisted to `localSt
 | **Status** | `inventory_archived_filter` | Active only (default) / Archived only / All boxes | "Active only" sends `show_archived: false`. "Archived only" and "All boxes" send `show_archived: true`; "Archived only" also applies a client-side filter keeping only `is_archived === true` rows. |
 
 On first load, the old `inventory_show_empty` key (`"true"` / `"false"`) is migrated to `inventory_empty_filter` (`"all"` / `"active"`) automatically.
+
+##### Deep-link filter params
+
+The inventory page reads `emptyFilter` and `statusFilter` URL query params on mount and applies them as the initial filter state, also persisting the values to `localStorage`:
+
+| Param | Accepted values | Maps to |
+| ----- | --------------- | ------- |
+| `emptyFilter` | `active` / `empty` / `all` | `inventory_empty_filter` |
+| `statusFilter` | `active` / `archived` / `all` | `inventory_archived_filter` |
+
+Example: `/inventory?statusFilter=archived&emptyFilter=all` lands on a view showing all archived boxes regardless of quantity.
+
+After applying, all query params are stripped from the URL (`replace: true`) so reloading preserves the localStorage values rather than re-applying the params.
 
 CSV export uses the broader server-side view — exporting while "Empty only" or "Archived only" is selected will include the wider server-filtered set in the CSV (known limitation).
 
@@ -1409,7 +1435,19 @@ Before any data is written the system automatically triggers a backup:
 - `id` column (optional): always ignored — use `legacy_id` for ID mapping; presence generates a one-time validation warning
 - Duplicate detection: `caliber + manufacturer + purchase_date + cost_per_round` — duplicates are skipped, not errored
 - Fuzzy-matched values use the existing DB entry, not the raw imported string
-- Returns import summary: `X rows imported, Y duplicates skipped, Z warnings`
+- Boxes with `is_archived=true` in the CSV are imported as archived with `archive_reason="imported"` (not `"manual"`), making the audit trail accurate
+- Returns import summary: `imported`, `archived_imported`, `skipped`, and `warnings` counts
+
+##### Post-import success page
+
+When archived rows were imported, the success page shows a breakdown:
+
+- Active count: `imported - archived_imported`
+- Archived count: `archived_imported`
+- A note that archived boxes are hidden by the default Status filter ("Active only")
+- A **"View Archived Boxes"** button that navigates to `/inventory?statusFilter=archived&emptyFilter=all`, deep-linking into the pre-filtered archived view
+
+When `archived_imported === 0`, only a "Go to Inventory" / "Import Another" button pair is shown (existing behavior).
 
 #### Legacy ID Mode
 

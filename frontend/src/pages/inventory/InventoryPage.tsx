@@ -192,8 +192,10 @@ export default function InventoryPage() {
 
   useEffect(() => {
     const pid = searchParams.get('product_id')
-    const sf = searchParams.get('searchField')
+    const searchFieldParam = searchParams.get('searchField')
     const searchVal = searchParams.get('search')
+    const emptyFilterParam = searchParams.get('emptyFilter')
+    const statusFilterParam = searchParams.get('statusFilter')
 
     if (pid) {
       const id = parseInt(pid)
@@ -204,10 +206,19 @@ export default function InventoryPage() {
       }
     }
 
-    if (sf) setSearchField(sf)
+    if (searchFieldParam) setSearchField(searchFieldParam)
     if (searchVal) setSearch(searchVal)
 
-    if (pid || sf || searchVal) {
+    if (emptyFilterParam === 'active' || emptyFilterParam === 'empty' || emptyFilterParam === 'all') {
+      setEmptyFilter(emptyFilterParam)
+      localStorage.setItem('inventory_empty_filter', emptyFilterParam)
+    }
+    if (statusFilterParam === 'active' || statusFilterParam === 'archived' || statusFilterParam === 'all') {
+      setArchivedFilter(statusFilterParam)
+      localStorage.setItem('inventory_archived_filter', statusFilterParam)
+    }
+
+    if (pid || searchFieldParam || searchVal || emptyFilterParam || statusFilterParam) {
       setSearchParams({}, { replace: true })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
