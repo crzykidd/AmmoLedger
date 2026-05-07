@@ -52,6 +52,12 @@
 | 3.11 | May 2026 | Community-maintained lookup tables — §8.2 and §9.15 added: community/ YAML directory, community_sync utility (GitHub fetch + bundled fallback), community_key + is_imported + dealer geo fields (migration 0020), /community/\* and /geo/\* API routes, pending-import review flow, source badges, Contribute dialog, Check for Updates button on Lookups page. defaults.yaml stripped of calibers/manufacturers/ammo_types/dealers; acquisition_sources replaces non-commercial dealer seeds. |
 | 3.12 | May 2026 | Threshold system unified — §8.1 updated: GET /thresholds/status endpoint returns all calibers with totals and is_low; write endpoints locked to admin role; localStorage hook removed; inventory low-stock banner and row highlights use caliber totals (not per-box qty); dashboard Running Low links directly to filtered inventory; ThresholdSettingsPage shows read-only view for non-admins. |
 | 3.13 | May 2026 | Caliber threshold drawer — tap any caliber on dashboard or inventory to view and (admin) edit threshold inline; Dashboard By Caliber toggle between Mix (% of total) and Stock (proximity to threshold) views with color-coded bars; Running Low caliber rows open drawer instead of navigating to inventory; is_override field on CaliberStatus enables Reset to Default button. §9.1 updated. §5.2 updated with threshold-write and product management rows. §2 roadmap updated with v0.2.0 column. |
+| 3.14 | May 2026 | At Range mode — §9.2.6 added: mobile-optimized /at-range page for range sessions (on-screen numeric keypad, ±1 steppers, tap-to-expend rows, empty-box indicator). Box ID search option added to inventory search field selector. Sidebar reorganized: Import moved from top section into Settings; At Range added to top section. |
+| 3.15 | May 2026 | Inventory UX fixes — §9.2 updated: Remaining cell is now static (sole expend entry point is the Crosshair icon); ArchiveRestore icon styled amber for visibility; "Show Empty" and "Archived" checkboxes replaced by three-state Empty and Status filter dropdowns with localStorage persistence. |
+| 3.16 | May 2026 | At Range polish — §9.2.1 updated: preset list changed to [1, 10, 20, 30, 50], session-recent counts (up to 2, sessionStorage) surfaced as additional presets, notes prefilled from last submitted value (sessionStorage). §9.2.6 updated: result card layout constrained with min-w-0/break-words to prevent page widening on desktop. |
+| 3.17 | May 2026 | Import success breakdown, dashboard scope toggle, deep-link filters — §9.1 updated: stats row expanded to 5 cards (Total Boxes added), Current/All scope toggle documented. §9.2 updated: emptyFilter/statusFilter URL deep-link params added. §9.8 updated: confirm_import returns archived_imported count; post-import success page breakdown and "View Archived Boxes" deep-link; archive_reason="imported" for CSV-archived boxes. §4.1 data model updated (archive_reason values). |
+| 3.18 | May 2026 | Dev-build version check — §9.10 Update Detection updated: dev builds now compare GIT_SHA against the dev branch tip via GitHub compare API; stable builds retain /releases/latest comparison; local builds (GIT_SHA unknown) skip the remote check. New dev_behind_by, dev_latest_sha, dev_latest_message fields added to /system/version response. Version-check logic consolidated in backend/utils/version_check.py. |
+| 3.19 | May 2026 | v0.2.0 first public release — §2 roadmap table updated to reflect shipped vs. deferred items; current version is v0.2.0. Active roadmap for next release is in docs/v030-roadmap.md. |
 
 ---
 
@@ -120,10 +126,10 @@ AmmoLedger is a self-hosted web application for tracking personal ammunition inv
 | Overview Dashboard | Stats: total rounds, caliber breakdown, value, low stock alerts | v1.0 |
 | DB Backup — Manual & Nightly | Admin-triggered or scheduled backup; configurable retention; re-importable JSON | v1.0 |
 | Alembic Migrations | Versioned schema migrations; automatic on startup | v1.0 |
-| Split Box | Split a box into two separate tracking records (partial split) | v0.2.0 |
-| Restock / Add Same | Quickly restock an existing product without re-entering all fields | v0.2.0 |
-| Notifications | Low-stock alerts and system events via Discord webhook or email | v0.2.0 |
-| Label Printing | Print QR-code labels for boxes; Avery sheet sizes; mobile expend via QR scan | v0.2.0 |
+| Split Box | Split a box into two separate tracking records (partial split) | v0.3.0 |
+| Restock / Add Same | Quickly restock an existing product without re-entering all fields | v0.3.0 |
+| Notifications | Low-stock alerts and system events via Discord webhook or email | v1.0 |
+| Label Printing | Print QR-code labels for boxes; Avery sheet sizes; mobile expend via QR scan | v1.0 |
 | Firearms Registry | Track owned guns with shared/private ownership model | v2.0 |
 | Range Sessions | Log sessions: gun, ammo, rounds fired, date, location | v2.0 |
 | Target Photo Uploads | Attach target photos to range sessions | v2.0 |
@@ -393,7 +399,7 @@ ammo_box
 ├── notes            TEXT       Free text; nullable
 ├── split_from_id    INTEGER    FK → ammo_box.id; nullable — set when box was created by a split
 ├── is_archived      BOOLEAN    Default false — true when fully split, manually archived, or empty+archived
-├── archive_reason   TEXT       "split" | "empty" | "manual"; nullable
+├── archive_reason   TEXT       "split" | "empty" | "manual" | "imported"; nullable
 ├── created_at       DATETIME
 └── updated_at       DATETIME
 ```
@@ -879,14 +885,26 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 
 ### 9.1 Overview Dashboard
 
-#### Stats Cards (row of 4)
+#### Stats Cards (row of 5)
 
 | Card | Value |
 | ---- | ----- |
-| Total Rounds | Sum of `qty_remaining` for non-archived boxes |
-| Total Value | Sum of `qty_remaining × cost_per_round`; asterisk when some boxes have no cost |
-| Calibers Tracked | Distinct caliber count |
-| Running Low | Count of calibers below threshold + locations below threshold |
+| Total Boxes | Count of boxes in the current scope (see scope toggle below) |
+| Total Rounds | Sum of `qty_remaining` (Current) or `qty_original` (All) |
+| Total Value | Sum of rounds × `cost_per_round`; asterisk when some boxes have no cost |
+| Calibers Tracked | Distinct caliber count in the current scope |
+| Low Stock Items | Count of calibers below threshold + locations below threshold (always current state) |
+
+#### Inventory Stats Scope Toggle
+
+A **Current / All** toggle appears above the stats row.
+
+- **Current** (default) — stats reflect active, non-empty boxes only (`is_archived = false AND qty_remaining > 0`).
+- **All** — stats include every box ever tracked (archived, empty, and active), using `qty_original` for round and value totals so the numbers represent lifetime purchase quantities.
+
+Selection persists in `localStorage['dashboard_stats_scope']`. A HelpTip explains the scope difference inline.
+
+The lower dashboard sections (By Caliber, Running Low, Recent Activity) always reflect **current** inventory regardless of the toggle.
 
 #### By Caliber Section
 
@@ -988,17 +1006,20 @@ Checklist:
 | Type | Ammo type name | — |
 | Condition | Condition badge (Factory New, Remanufactured, etc.); hidden when null | — |
 | Category | Category name | — |
-| Remaining | Round count + inline progress bar; click opens QuickExpendPopover | Sortable |
+| Remaining | Round count + inline progress bar; static display (no click action) | Sortable |
 | Value | `qty_remaining × cost_per_round`; shown only if cost is set | — |
 | Shared | "Shared" badge or "Private" text | — |
-| Actions | Edit (pencil), Delete (trash), Archive (box-x) icons | Role-gated |
+| Actions | Crosshair (quick-expend), Edit (pencil), Archive/Restore, Delete (trash) icons | Role-gated |
 
 - Sortable columns: ID, Caliber, Manufacturer, Remaining (default sort: ID ascending)
 - Amber row tint when box is below configured threshold
 - Progress bar: green > 50 %, amber 20–50 %, red < 20 %
-- Clicking Remaining opens QuickExpendPopover (`stopPropagation` prevents row expansion)
-- `read_only` users see the count but cannot click to expend
-- Empty boxes hidden by default; toggle above list: **Show empty boxes**
+- **Quick-expend Crosshair icon** — first icon in Actions column; visible when user can expend and `qty_remaining > 0`; opens `QuickExpendPopover` anchored to the icon. The Remaining count cell is a static display only.
+- `read_only` users see the Remaining count but the Crosshair icon is hidden
+- **Archive action** — clicking the Archive icon opens `QuickArchivePopover`. Empty boxes (`qty_remaining === 0`) prefill the reason as "Empty Box" and can be archived with one click. Boxes with rounds remaining show an amber warning block and require an explicit reason before the Archive button is enabled. The user-supplied reason is stored in `archive_reason`; "Empty Box" is the default for empty boxes.
+- **Unarchive action** — when `is_archived === true`, the Archive icon is replaced by an amber ArchiveRestore icon (`text-amber-600`). Clicking it immediately sets `is_archived = false, archive_reason = null` with no confirmation. The amber color makes archived rows identifiable at a glance. Requires the same edit permission as archive.
+- Archived boxes are excluded from active inventory totals and low-stock calculations. Use the **Status** filter dropdown ("Archived only" or "All boxes") to view them.
+- Empty boxes hidden by default; use the **Empty** filter dropdown ("All boxes" or "Empty only") to view them
 - Members see: all shared boxes + their own private boxes; Admin sees: all boxes
 
 #### Group By
@@ -1044,6 +1065,32 @@ Always-visible filter row directly below the column headers. All filters are AND
 - "N filters active" counter and "Clear Filters" button appear in toolbar when any column filter is set
 - Stats row (Boxes / Rounds / Value) reflects currently visible filtered rows, not total inventory
 - Column filters reset on page refresh; Group By persists
+
+#### Toolbar View Filters
+
+Two three-state select dropdowns in the main toolbar, each persisted to `localStorage`:
+
+| Control | Key | Options | Behavior |
+| ------- | --- | ------- | -------- |
+| **Empty** | `inventory_empty_filter` | Has rounds (default) / Empty only / All boxes | "Has rounds" sends `show_empty: false` to backend. "Empty only" and "All boxes" send `show_empty: true`; "Empty only" also applies a client-side filter keeping only `qty_remaining === 0` rows. |
+| **Status** | `inventory_archived_filter` | Active only (default) / Archived only / All boxes | "Active only" sends `show_archived: false`. "Archived only" and "All boxes" send `show_archived: true`; "Archived only" also applies a client-side filter keeping only `is_archived === true` rows. |
+
+On first load, the old `inventory_show_empty` key (`"true"` / `"false"`) is migrated to `inventory_empty_filter` (`"all"` / `"active"`) automatically.
+
+##### Deep-link filter params
+
+The inventory page reads `emptyFilter` and `statusFilter` URL query params on mount and applies them as the initial filter state, also persisting the values to `localStorage`:
+
+| Param | Accepted values | Maps to |
+| ----- | --------------- | ------- |
+| `emptyFilter` | `active` / `empty` / `all` | `inventory_empty_filter` |
+| `statusFilter` | `active` / `archived` / `all` | `inventory_archived_filter` |
+
+Example: `/inventory?statusFilter=archived&emptyFilter=all` lands on a view showing all archived boxes regardless of quantity.
+
+After applying, all query params are stripped from the URL (`replace: true`) so reloading preserves the localStorage values rather than re-applying the params.
+
+CSV export uses the broader server-side view — exporting while "Empty only" or "Archived only" is selected will include the wider server-filtered set in the CSV (known limitation).
 
 #### Export CSV (Toolbar)
 
@@ -1101,12 +1148,13 @@ Anchored popover attached to the Remaining cell. Opens on click, closes on Cance
 #### Preset Buttons
 
 - **Shot All** — always shown; sets quantity input to `qty_remaining`
-- **Shot 50 / Shot 25 / Shot 10 / Shot 5** — shown only when `qty_remaining` is strictly greater than that number (avoids duplicating Shot All)
+- **Static presets: 50 / 30 / 20 / 10 / 1** — shown only when `qty_remaining` is strictly greater than that number. Covers 1-round (universal), common pistol mag sizes (10), AR mag sizes (20, 30), and 50-count box portions. Buttons render as just the number (no "Shot " prefix).
+- **Session-recent presets (up to 2)** — the last 5 distinct round counts submitted during the current tab session are stored in `sessionStorage` (`quick_expend_recent_counts`). On each popover open, up to 2 of the most-recently-used values are shown as additional preset buttons, subject to: (a) strictly less than `qty_remaining`, and (b) not already in the static preset list. Same button styling as static presets. Cleared when the tab closes.
 
 #### Input Fields
 
 - **Rounds used** — numeric input; validated `1 ≤ rounds ≤ qty_remaining`
-- **Notes** — optional free-text
+- **Notes** — optional free-text. Prefilled from the last successfully submitted notes value within the current tab session (`sessionStorage` key `quick_expend_last_notes`). Persists across popover invocations so range sessions can log identical notes across many boxes without retyping. Cleared when the tab closes. Cancel does not update the cache; only successful submissions do.
 
 #### Actions
 
@@ -1170,6 +1218,30 @@ Opens the Add Ammo form with these copied from the source box: caliber, manufact
 Fields reset to defaults: purchase date → today, container → blank, location → blank, notes → blank, number of boxes → 1, is_shared → user default.
 
 Form header: *"Based on Box #47 — edit any fields"*. Submitting creates new boxes — source box is unchanged.
+
+### 9.2.6 At Range Mode
+
+Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an active range session. Hidden from the sidebar for `read_only` users; accessible to all other roles.
+
+**Purpose:** inventory page is too dense for range use. At Range provides a stripped-down flow — enter a box ID, see the box, tap to log rounds.
+
+**Search:** searches by numeric box ID and `legacy_id` only (no other fields). Client-side filter, no debounce.
+
+**On-screen keypad:** 3×4 numeric keypad, visible by default. Show/hide preference persists in `localStorage` (`at_range_keypad_visible`). A `×` button in the top-right corner hides it. A "Show Keypad" button (with Hash icon) below the search row re-shows it.
+
+- **Numpad mode (default):** OS keyboard suppressed (`inputMode="none"`); digits appended by tapping buttons; backspace key on keypad removes last character. Mode toggle button labelled `ABC` switches to text mode.
+- **Text mode (session-only):** OS keyboard pops on next input tap; steppers hidden; toggle button labelled `123` switches back to numpad.
+- When a popover is open the keypad hides automatically; it reappears when the popover closes.
+
+**±1 steppers:** ChevronDown / ChevronUp buttons beside the search input. Increment or decrement the numeric box ID by 1; clamped at 0. Disabled when input is empty or non-numeric. Hidden in text mode.
+
+**Results:** sorted by `id` ascending. Empty boxes (`qty_remaining === 0`) are shown with an "Empty" badge and a red round-count line so users can spot mislabeled boxes; they are non-interactive (no popover). Archived boxes are always excluded.
+
+**Tap-to-expend:** each non-empty result row is a full-width button that opens `QuickExpendPopover`. After a successful expend the rounds count updates automatically (query invalidation) and the row remains on screen; search query is unchanged.
+
+**Result card layout:** the text container inside each result card uses `flex-1 min-w-0` so long box descriptions (long product names, manufacturer names) wrap within the `max-w-lg` boundary rather than forcing the entire page wider. Both description lines use `break-words`.
+
+**Import navigation change:** Import has been moved from the top nav section (Dashboard / Inventory / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Inventory, Products, At Range.
 
 ### 9.3 Expend Rounds
 
@@ -1365,7 +1437,19 @@ Before any data is written the system automatically triggers a backup:
 - `id` column (optional): always ignored — use `legacy_id` for ID mapping; presence generates a one-time validation warning
 - Duplicate detection: `caliber + manufacturer + purchase_date + cost_per_round` — duplicates are skipped, not errored
 - Fuzzy-matched values use the existing DB entry, not the raw imported string
-- Returns import summary: `X rows imported, Y duplicates skipped, Z warnings`
+- Boxes with `is_archived=true` in the CSV are imported as archived with `archive_reason="imported"` (not `"manual"`), making the audit trail accurate
+- Returns import summary: `imported`, `archived_imported`, `skipped`, and `warnings` counts
+
+##### Post-import success page
+
+When archived rows were imported, the success page shows a breakdown:
+
+- Active count: `imported - archived_imported`
+- Archived count: `archived_imported`
+- A note that archived boxes are hidden by the default Status filter ("Active only")
+- A **"View Archived Boxes"** button that navigates to `/inventory?statusFilter=archived&emptyFilter=all`, deep-linking into the pre-filtered archived view
+
+When `archived_imported === 0`, only a "Go to Inventory" / "Import Another" button pair is shown (existing behavior).
 
 #### Legacy ID Mode
 
@@ -1513,7 +1597,9 @@ Admin users see a **Check Now** button next to the last-checked time that forces
 
 #### Update Detection
 
-`GET /system/version` checks the GitHub API on every call, using a 24-hour cache stored in `app_settings`:
+`GET /system/version` checks the GitHub API on every call, using a 24-hour cache stored in `app_settings`. The check splits into two paths based on the running build type:
+
+**Stable builds** (`is_dev === false`): compare `__version__` against the `tag_name` of `/releases/latest`. Cache keys:
 
 | Setting key | Value |
 | --- | --- |
@@ -1521,13 +1607,30 @@ Admin users see a **Check Now** button next to the last-checked time that forces
 | `update_available` | `"true"` or `"false"` |
 | `version_last_checked` | ISO 8601 timestamp of last check |
 
+**Dev builds** (`is_dev === true`): compare `GIT_SHA` against the tip of the `dev` branch via:
+
 ```text
-GET https://api.github.com/repos/crzykidd/AmmoLedger/releases/latest
+GET https://api.github.com/repos/crzykidd/AmmoLedger/compare/{GIT_SHA}...dev
 ```
 
-If the GitHub API call fails (network error, rate limit), the previously cached values are returned unchanged. Never sends any user data — read-only public API.
+The response's `behind_by` field indicates how many commits on `dev` aren't in the running build. Cache keys:
 
-`POST /system/version/check` (admin-only) forces a fresh check regardless of cache age, returns the same shape as `GET /system/version`.
+| Setting key | Value |
+| --- | --- |
+| `dev_behind_by` | Integer count of commits behind dev tip |
+| `dev_latest_sha` | Full SHA of the dev tip at check time |
+| `dev_latest_message` | First line of the most recent commit message on dev (truncated to 120 chars) |
+| `dev_check_last_at` | ISO 8601 timestamp of last dev check |
+
+**Local builds** (`GIT_SHA == "unknown"`): no remote check is performed. The version card omits the update-status row.
+
+The About page renders update status in priority order: dev-build status first (when `is_dev`), then stable-build status. Dev builds show "N new commits on dev since this build" with a link to `compare/{sha}...dev` when behind, or "✓ Up to date with dev" when current.
+
+If any GitHub API call fails (network error, rate limit), the previously cached values are returned unchanged. Never sends any user data — read-only public API.
+
+`POST /system/version/check` (admin-only) forces a fresh check of both paths regardless of cache age, returns the same shape as `GET /system/version`.
+
+Both check paths are also run by the scheduled `version_check` task (daily, force-refresh). Logic is consolidated in `backend/utils/version_check.py`.
 
 #### Release Notes on Upgrade
 
@@ -1595,7 +1698,7 @@ Single source of truth for the entire app. Docker image built with this version 
 - Reusable `HelpTip` component renders a small ⓘ icon (Info, 14px, muted gray)
 - Popover opens on hover (150ms close delay) or click; dismisses on click-outside
 - Dark background, light text; max-width 250px; positioned above trigger with auto-flip
-- Placed next to field labels in: Add/Edit Ammo Box form (12 fields), Inventory toolbar (Group By, Show Empty, Archived), Stock Thresholds page (3 threshold labels), Import page (Ownership and ID Assignment sections)
+- Placed next to field labels in: Add/Edit Ammo Box form (12 fields), Inventory toolbar (Group By, Empty filter, Status filter), Stock Thresholds page (3 threshold labels), Import page (Ownership and ID Assignment sections)
 
 ### 9.13 Product Catalog
 

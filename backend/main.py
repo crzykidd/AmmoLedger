@@ -2,7 +2,6 @@ import os
 import re
 import sys
 import traceback
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -36,6 +35,7 @@ from utils.logging import get_logger, setup_logging
 from utils.rbac import require_auth, require_role
 from utils.scheduler import reschedule, start_scheduler, stop_scheduler
 from utils.seeds import sync_yaml_seeds
+from utils.version_check import check_dev_branch, check_release_version, version_gt
 from version import __version__, get_build_info, get_display_version
 
 setup_logging()
@@ -89,48 +89,10 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 # Version helpers
 # ---------------------------------------------------------------------------
 
-def _version_gt(a: str, b: str) -> bool:
-    """Return True if version a is strictly greater than version b."""
-    try:
-        def parse(v: str):
-            return tuple(int(x) for x in v.lstrip("v").split(".")[:3])
-        return parse(a) > parse(b)
-    except Exception:
-        return False
-
-
-def _fetch_github_latest(db: Session, force: bool = False) -> None:
-    """Check GitHub for the latest release; update app_settings cache if stale (>24 h)."""
-    last_checked_str = get_setting(db, "version_last_checked")
-    now = datetime.now(timezone.utc)
-
-    if not force and last_checked_str:
-        try:
-            last_checked = datetime.fromisoformat(last_checked_str)
-            if last_checked.tzinfo is None:
-                last_checked = last_checked.replace(tzinfo=timezone.utc)
-            if (now - last_checked) < timedelta(hours=24):
-                return
-        except ValueError:
-            pass
-
-    try:
-        resp = httpx.get(
-            f"{GITHUB_API_URL}/releases/latest",
-            timeout=5.0,
-            headers={"Accept": "application/vnd.github+json", "User-Agent": "AmmoLedger"},
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            latest = data.get("tag_name", "").lstrip("v")
-            if latest:
-                set_setting(db, "latest_version", latest)
-                set_setting(db, "update_available", "true" if _version_gt(latest, __version__) else "false")
-    except Exception as exc:
-        logger.warning("GitHub version check failed: %s", exc)
-
-    set_setting(db, "version_last_checked", now.isoformat())
-    db.commit()
+def _refresh_version_data(db: Session, force: bool = False) -> None:
+    """Run both release and dev-branch version checks; update app_settings cache."""
+    check_release_version(db, force=force)
+    check_dev_branch(db, force=force)
 
 
 def _fetch_github_releases(
@@ -156,10 +118,10 @@ def _fetch_github_releases(
             if not tag:
                 continue
             # Skip releases newer than to_version
-            if to_version and _version_gt(tag, to_version):
+            if to_version and version_gt(tag, to_version):
                 continue
             # GitHub returns newest-first; stop once we're at or below from_version
-            if from_version and not _version_gt(tag, from_version):
+            if from_version and not version_gt(tag, from_version):
                 break
             published_at = release.get("published_at") or ""
             sections.append({
@@ -225,9 +187,9 @@ def _parse_local_changelog(
     filtered = []
     for s in sections:
         tag = s["version"]
-        if to_version and _version_gt(tag, to_version):
+        if to_version and version_gt(tag, to_version):
             continue
-        if from_version and not _version_gt(tag, from_version):
+        if from_version and not version_gt(tag, from_version):
             continue
         filtered.append(s)
 
@@ -376,14 +338,21 @@ def system_health(db=Depends(get_session)):
     return {"status": "ok", "version": __version__, "database": db_status}
 
 
-@app.get("/system/version")
-def system_version(user=Depends(require_auth), db=Depends(get_session)):
-    _fetch_github_latest(db)
+def _build_version_response(db: Session) -> dict:
     latest = get_setting(db, "latest_version")
     update_available_raw = get_setting(db, "update_available")
     update_available = update_available_raw == "true" if update_available_raw else False
     last_checked = get_setting(db, "version_last_checked")
     upgraded_from = get_setting(db, "upgraded_from") or None
+
+    dev_behind_raw = get_setting(db, "dev_behind_by")
+    try:
+        dev_behind_by: Optional[int] = int(dev_behind_raw) if dev_behind_raw not in (None, "") else None
+    except ValueError:
+        dev_behind_by = None
+    dev_latest_sha = get_setting(db, "dev_latest_sha") or None
+    dev_latest_message = get_setting(db, "dev_latest_message") or None
+
     return {
         "version": __version__,
         "display_version": get_display_version(),
@@ -393,28 +362,23 @@ def system_version(user=Depends(require_auth), db=Depends(get_session)):
         "build_sha": os.environ.get("GIT_SHA") or None,
         "last_checked": last_checked,
         "upgraded_from": upgraded_from,
+        "dev_behind_by": dev_behind_by,
+        "dev_latest_sha": dev_latest_sha,
+        "dev_latest_message": dev_latest_message,
     }
+
+
+@app.get("/system/version")
+def system_version(user=Depends(require_auth), db=Depends(get_session)):
+    _refresh_version_data(db)
+    return _build_version_response(db)
 
 
 @app.post("/system/version/check")
 def force_version_check(_=Depends(require_role("admin")), db=Depends(get_session)):
     """Force a fresh GitHub version check, bypassing the 24-hour cache."""
-    _fetch_github_latest(db, force=True)
-    latest = get_setting(db, "latest_version")
-    update_available_raw = get_setting(db, "update_available")
-    update_available = update_available_raw == "true" if update_available_raw else False
-    last_checked = get_setting(db, "version_last_checked")
-    upgraded_from = get_setting(db, "upgraded_from") or None
-    return {
-        "version": __version__,
-        "display_version": get_display_version(),
-        "build": get_build_info(),
-        "latest_version": latest,
-        "update_available": update_available,
-        "build_sha": os.environ.get("GIT_SHA") or None,
-        "last_checked": last_checked,
-        "upgraded_from": upgraded_from,
-    }
+    _refresh_version_data(db, force=True)
+    return _build_version_response(db)
 
 
 @app.get("/system/changelog")

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload, Download } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
@@ -17,7 +17,7 @@ import BulkEditPanel from '@/components/inventory/BulkEditPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
 import ExpendDialog from '@/components/inventory/ExpendDialog'
 import { useAuth } from '@/contexts/AuthContext'
-import { listAmmo, updateAmmo, exportAmmoCsv } from '@/api/ammo'
+import { listAmmo, exportAmmoCsv } from '@/api/ammo'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -120,6 +120,7 @@ const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
 
 const SEARCH_FIELD_OPTIONS = [
   { value: 'all', label: 'All Fields' },
+  { value: 'id', label: 'Box ID' },
   { value: 'caliber', label: 'Caliber' },
   { value: 'manufacturer', label: 'Manufacturer' },
   { value: 'type', label: 'Ammo Type' },
@@ -151,15 +152,23 @@ export default function InventoryPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const qc = useQueryClient()
+
+  type EmptyFilter = 'active' | 'empty' | 'all'
+  type ArchivedFilter = 'active' | 'archived' | 'all'
 
   // Global search / view state
   const [search, setSearch] = useState('')
   const [searchField, setSearchField] = useState<string>('all')
-  const [showEmpty, setShowEmpty] = useState(
-    () => localStorage.getItem('inventory_show_empty') === 'true',
-  )
-  const [showArchived, setShowArchived] = useState(false)
+  const [emptyFilter, setEmptyFilter] = useState<EmptyFilter>(() => {
+    const v = localStorage.getItem('inventory_empty_filter')
+    if (v === 'active' || v === 'empty' || v === 'all') return v
+    const old = localStorage.getItem('inventory_show_empty')
+    return old === 'true' ? 'all' : 'active'
+  })
+  const [archivedFilter, setArchivedFilter] = useState<ArchivedFilter>(() => {
+    const v = localStorage.getItem('inventory_archived_filter')
+    return (v === 'active' || v === 'archived' || v === 'all') ? v : 'active'
+  })
   const [conditionFilter, setConditionFilter] = useState<string>('')
 
   // Group By — persisted to localStorage
@@ -183,8 +192,10 @@ export default function InventoryPage() {
 
   useEffect(() => {
     const pid = searchParams.get('product_id')
-    const sf = searchParams.get('searchField')
+    const searchFieldParam = searchParams.get('searchField')
     const searchVal = searchParams.get('search')
+    const emptyFilterParam = searchParams.get('emptyFilter')
+    const statusFilterParam = searchParams.get('statusFilter')
 
     if (pid) {
       const id = parseInt(pid)
@@ -195,10 +206,19 @@ export default function InventoryPage() {
       }
     }
 
-    if (sf) setSearchField(sf)
+    if (searchFieldParam) setSearchField(searchFieldParam)
     if (searchVal) setSearch(searchVal)
 
-    if (pid || sf || searchVal) {
+    if (emptyFilterParam === 'active' || emptyFilterParam === 'empty' || emptyFilterParam === 'all') {
+      setEmptyFilter(emptyFilterParam)
+      localStorage.setItem('inventory_empty_filter', emptyFilterParam)
+    }
+    if (statusFilterParam === 'active' || statusFilterParam === 'archived' || statusFilterParam === 'all') {
+      setArchivedFilter(statusFilterParam)
+      localStorage.setItem('inventory_archived_filter', statusFilterParam)
+    }
+
+    if (pid || searchFieldParam || searchVal || emptyFilterParam || statusFilterParam) {
       setSearchParams({}, { replace: true })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,7 +240,7 @@ export default function InventoryPage() {
   // Clear selection when filters or groupBy change
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [columnFilters, groupBy, conditionFilter, search, searchField, showEmpty, showArchived])
+  }, [columnFilters, groupBy, conditionFilter, search, searchField, emptyFilter, archivedFilter])
 
   const lookups = useInventoryLookups()
   const { status: thresholdStatus } = useThresholdStatus()
@@ -259,19 +279,9 @@ export default function InventoryPage() {
     [lookups.containers],
   )
 
-  const archiveMutation = useMutation({
-    mutationFn: (box: AmmoBoxRead) =>
-      updateAmmo(box.id, { is_archived: true, archive_reason: 'manual' }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['ammo'] })
-      toast({ title: 'Box archived' })
-    },
-    onError: () => {
-      toast({ title: 'Failed to archive box', variant: 'destructive' })
-    },
-  })
-
   const apiSearch = searchField === 'all' ? (search || undefined) : undefined
+  const showEmpty = emptyFilter !== 'active'
+  const showArchived = archivedFilter !== 'active'
   const { data, isLoading, isError } = useQuery({
     queryKey: ['ammo', { search: apiSearch, showEmpty, showArchived }],
     queryFn: () => listAmmo({ search: apiSearch, show_empty: showEmpty, show_archived: showArchived }),
@@ -284,6 +294,15 @@ export default function InventoryPage() {
         (b) => b.ammo_condition_id != null && String(b.ammo_condition_id) === conditionFilter,
       )
     : allBoxes
+
+  // Client-side filter for "only" modes (empty-only / archived-only)
+  const viewFiltered = useMemo(() => {
+    return boxes.filter((b) => {
+      if (emptyFilter === 'empty' && b.qty_remaining !== 0) return false
+      if (archivedFilter === 'archived' && !b.is_archived) return false
+      return true
+    })
+  }, [boxes, emptyFilter, archivedFilter])
 
   const canAdd = user?.role !== 'read_only'
 
@@ -300,10 +319,12 @@ export default function InventoryPage() {
 
   // Client-side field-scoped search (active when searchField !== 'all')
   const searchedBoxes = useMemo(() => {
-    if (!search.trim() || searchField === 'all') return boxes
+    if (!search.trim() || searchField === 'all') return viewFiltered
     const q = search.trim().toLowerCase()
-    return boxes.filter((box) => {
+    return viewFiltered.filter((box) => {
       switch (searchField) {
+        case 'id':
+          return String(box.id).includes(q) || (box.legacy_id ?? '').toLowerCase().includes(q)
         case 'caliber':
           return (caliberMap.get(box.caliber_id) ?? '').toLowerCase().includes(q)
         case 'manufacturer':
@@ -326,7 +347,7 @@ export default function InventoryPage() {
           return true
       }
     })
-  }, [boxes, search, searchField, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, dealerMap, locationMap, containerMap])
+  }, [viewFiltered, search, searchField, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, dealerMap, locationMap, containerMap])
 
   // Apply column filters — AND logic with field search + condition filter above
   const filteredBoxes = useMemo(() => {
@@ -495,6 +516,16 @@ export default function InventoryPage() {
     localStorage.setItem('inventory_group_by', value)
   }
 
+  function handleEmptyFilterChange(v: EmptyFilter) {
+    setEmptyFilter(v)
+    localStorage.setItem('inventory_empty_filter', v)
+  }
+
+  function handleArchivedFilterChange(v: ArchivedFilter) {
+    setArchivedFilter(v)
+    localStorage.setItem('inventory_archived_filter', v)
+  }
+
   function dismissBanner() {
     sessionStorage.setItem(BANNER_DISMISS_KEY, '1')
     setBannerDismissed(true)
@@ -519,10 +550,6 @@ export default function InventoryPage() {
   function openExpend(box: AmmoBoxRead) {
     setExpendBox(box)
     setExpendOpen(true)
-  }
-
-  function openArchive(box: AmmoBoxRead) {
-    archiveMutation.mutate(box)
   }
 
   const selectClass =
@@ -580,32 +607,41 @@ export default function InventoryPage() {
               </div>
             </div>
 
-            {/* Show Empty toggle */}
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none shrink-0">
-              <input
-                type="checkbox"
-                checked={showEmpty}
-                onChange={(e) => {
-                  setShowEmpty(e.target.checked)
-                  localStorage.setItem('inventory_show_empty', String(e.target.checked))
-                }}
-                className="accent-gold"
-              />
-              Show Empty
-              <HelpTip text="Show boxes with zero rounds remaining" />
-            </label>
+            {/* Empty filter */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                Empty
+              </label>
+              <HelpTip text="Filter to show boxes with rounds, empty boxes only, or all boxes" />
+              <select
+                value={emptyFilter}
+                onChange={(e) => handleEmptyFilterChange(e.target.value as EmptyFilter)}
+                className={selectClass}
+                aria-label="Empty filter"
+              >
+                <option value="active">Has rounds</option>
+                <option value="empty">Empty only</option>
+                <option value="all">All boxes</option>
+              </select>
+            </div>
 
-            {/* Archived toggle */}
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none shrink-0">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(e) => setShowArchived(e.target.checked)}
-                className="accent-gold"
-              />
-              Archived
-              <HelpTip text="Show boxes that have been archived and removed from active tracking" />
-            </label>
+            {/* Status filter */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                Status
+              </label>
+              <HelpTip text="Filter to show active boxes, archived boxes only, or all boxes" />
+              <select
+                value={archivedFilter}
+                onChange={(e) => handleArchivedFilterChange(e.target.value as ArchivedFilter)}
+                className={selectClass}
+                aria-label="Status filter"
+              >
+                <option value="active">Active only</option>
+                <option value="archived">Archived only</option>
+                <option value="all">All boxes</option>
+              </select>
+            </div>
 
             {/* Condition filter */}
             {lookups.ammoConditions.length > 0 && (
@@ -809,11 +845,11 @@ export default function InventoryPage() {
               <p className="text-gray-500 dark:text-gray-400 font-medium">
                 {search || conditionFilter
                   ? 'No results match your search.'
-                  : !showEmpty
-                    ? 'No boxes with rounds remaining. Check "Show Empty" to see empty boxes.'
+                  : emptyFilter === 'active'
+                    ? 'No boxes with rounds remaining. Switch the Empty filter to "All boxes" to see empty boxes.'
                     : 'No ammo boxes yet.'}
               </p>
-              {canAdd && !search && !conditionFilter && showEmpty && (
+              {canAdd && !search && !conditionFilter && emptyFilter !== 'active' && (
                 <div className="flex gap-2">
                   <Button onClick={openAdd} size="sm">
                     <Plus className="h-4 w-4 mr-1.5" />
@@ -851,7 +887,6 @@ export default function InventoryPage() {
                   onColumnFilterChange={handleColumnFilterChange}
                   onEdit={openEdit}
                   onDelete={openDelete}
-                  onArchive={openArchive}
                 />
               </div>
               {/* Mobile cards */}
@@ -945,8 +980,8 @@ export default function InventoryPage() {
               onClick={() => {
                 window.location.href = exportAmmoCsv({
                   search: search || undefined,
-                  show_archived: showArchived,
-                  show_empty: showEmpty,
+                  show_archived: archivedFilter !== 'active',
+                  show_empty: emptyFilter !== 'active',
                 })
               }}
             >

@@ -325,7 +325,7 @@ export interface AmmoBoxUpdate {
   legacy_id?: string
   notes?: string
   is_archived?: boolean
-  archive_reason?: string
+  archive_reason?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -468,6 +468,7 @@ export interface ImportValidationResult {
 export interface ImportConfirmResult {
   success: boolean
   imported: number
+  archived_imported: number
   skipped: number
   new_lookup_values_created: number
   pre_import_backup: string

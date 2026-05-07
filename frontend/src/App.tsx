@@ -17,6 +17,7 @@ import DatasetsPage from '@/pages/admin/LookupsPage'
 import TasksPage from '@/pages/admin/TasksPage'
 import ImportPage from '@/pages/ImportPage'
 import ProductsPage from '@/pages/ProductsPage'
+import AtRangePage from '@/pages/AtRangePage'
 import AboutPage from '@/pages/AboutPage'
 import HelpPage from '@/pages/HelpPage'
 import WhatsNewModal from '@/components/WhatsNewModal'
@@ -95,6 +96,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ImportPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/at-range"
+        element={
+          <ProtectedRoute>
+            <AtRangePage />
           </ProtectedRoute>
         }
       />

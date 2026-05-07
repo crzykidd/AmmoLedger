@@ -46,7 +46,7 @@
 
 ## Build Status
 
-Current release: v0.1.9 (2026-05-05)
+Current release: v0.2.0 (2026-05-06)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 
@@ -83,6 +83,12 @@ Current release: v0.1.9 (2026-05-05)
 - Phase 8.14 — Community-maintained lookup tables synced from GitHub: COMPLETE
 - Phase 8.15 — Unified threshold system — server-side caliber totals, admin-only writes: COMPLETE
 - Phase 8.16 — Caliber threshold drawer, dashboard By Caliber toggle (Mix/Stock views): COMPLETE
+- Phase 8.17 — Inventory UX: quick-expend Crosshair icon, archive confirmation popover with user-supplied reason, unarchive action: COMPLETE
+- Phase 8.18 — At Range mode: mobile-optimized /at-range page with on-screen keypad, ±1 steppers, tap-to-expend rows; Box ID added to inventory search field selector; sidebar reorganized (Import → Settings): COMPLETE
+- Phase 8.19 — Inventory UX fixes: Remaining cell is now static (Crosshair icon is sole expend trigger); ArchiveRestore icon styled amber; "Show Empty" and "Archived" checkboxes replaced by three-state Empty/Status filter dropdowns with localStorage persistence: COMPLETE
+- Phase 8.20 — At Range polish: fixed-width layout (min-w-0/break-words on result cards); quick-expend preset list updated to [1, 10, 20, 30, 50] plus up to 2 session-recent counts from sessionStorage; notes field prefilled from last-submitted value across popover invocations (sessionStorage, cleared on tab close): COMPLETE
+- Phase 8.21 — Import success breakdown with active/archived count + deep-link to archived view; dashboard Total Boxes stat card + Current/All scope toggle (localStorage-persisted); inventory page emptyFilter/statusFilter URL deep-link params; archive_reason="imported" for CSV-imported archived boxes: COMPLETE
+- Phase 8.22 — Dev-build version check: About page compares GIT_SHA against dev branch tip via GitHub compare API; stable builds keep /releases/latest comparison; both paths cached 24h and refreshed by scheduled task and Check Now button; version-check logic consolidated in backend/utils/version_check.py: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 - v0.1.9 — Migration squash (COMPLETE): 22 migrations collapsed into single initial schema; CHANGELOG split; HISTORY.md created

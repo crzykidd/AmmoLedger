@@ -35,6 +35,12 @@ frontend/dist/
 frontend/build/
 .npm
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Vite compiled config (generated from vite.config.ts by tsc -b)
+frontend/vite.config.js
+
 # Environment variables
 .env
 .env.local

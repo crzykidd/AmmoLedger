@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
-import { ChevronDown, ChevronRight, Pencil, Trash2, Archive, AlertTriangle } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { ChevronDown, ChevronRight, Pencil, Trash2, Archive, ArchiveRestore, Crosshair, AlertTriangle } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table,
   TableBody,
@@ -12,8 +12,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { getAmmoHistory } from '@/api/ammo'
+import { getAmmoHistory, updateAmmo } from '@/api/ammo'
+import { toast } from '@/hooks/use-toast'
 import QuickExpendPopover from '@/components/QuickExpendPopover'
+import QuickArchivePopover from '@/components/inventory/QuickArchivePopover'
 import type { AmmoBoxRead, User, LookupItem, DealerItem, ContainerItem, LocationItem } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -153,7 +155,6 @@ interface Props {
   onColumnFilterChange: (key: keyof ColumnFilters, value: string) => void
   onEdit: (box: AmmoBoxRead) => void
   onDelete: (box: AmmoBoxRead) => void
-  onArchive: (box: AmmoBoxRead) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -246,14 +247,27 @@ export default function InventoryTable({
   onColumnFilterChange,
   onEdit,
   onDelete,
-  onArchive,
 }: Props) {
+  const qc = useQueryClient()
   const [sortKey, setSortKey] = useState<SortKey>('id')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  const [openPopoverBoxId, setOpenPopoverBoxId] = useState<number | null>(null)
+  const [openExpendBoxId, setOpenExpendBoxId] = useState<number | null>(null)
+  const [openArchiveBoxId, setOpenArchiveBoxId] = useState<number | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [startCollapsed, setStartCollapsed] = useState(true)
+
+  const unarchiveMutation = useMutation({
+    mutationFn: (boxId: number) =>
+      updateAmmo(boxId, { is_archived: false, archive_reason: null }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ammo'] })
+      toast({ title: 'Box restored from archive' })
+    },
+    onError: () => {
+      toast({ title: 'Failed to restore box', variant: 'destructive' })
+    },
+  })
 
   const collapseKey = (g: string) => `inventory_collapsed_${g}`
 
@@ -602,51 +616,22 @@ export default function InventoryTable({
             {box.category_id != null ? (categoryMap.get(box.category_id) ?? '—') : '—'}
           </TableCell>
 
-          {/* Remaining — click opens QuickExpendPopover */}
-          <TableCell onClick={(e) => e.stopPropagation()}>
-            {expendable ? (
-              <QuickExpendPopover
-                box={box}
-                caliberName={caliberName}
-                manufacturerName={manufacturerName}
-                open={openPopoverBoxId === box.id}
-                onOpenChange={(o) => setOpenPopoverBoxId(o ? box.id : null)}
+          {/* Remaining — static display; use Crosshair icon in Actions to expend */}
+          <TableCell>
+            <div className="flex flex-col gap-1 min-w-[72px]">
+              <span
+                className={
+                  box.qty_remaining === 0
+                    ? 'text-red-500 font-semibold'
+                    : 'text-gray-900 dark:text-gray-100'
+                }
               >
-                <button
-                  className="flex flex-col gap-1 min-w-[72px] group text-left focus:outline-none disabled:cursor-default"
-                  disabled={box.qty_remaining === 0}
-                  title="Click to log rounds"
-                >
-                  <span
-                    className={
-                      box.qty_remaining === 0
-                        ? 'text-red-500 font-semibold'
-                        : 'text-gray-900 dark:text-gray-100 group-hover:text-gold transition-colors'
-                    }
-                  >
-                    {box.qty_remaining}
-                  </span>
-                  <div className="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div className={barClass} style={{ width: `${Math.min(pct, 100)}%` }} />
-                  </div>
-                </button>
-              </QuickExpendPopover>
-            ) : (
-              <div className="flex flex-col gap-1 min-w-[72px]">
-                <span
-                  className={
-                    box.qty_remaining === 0
-                      ? 'text-red-500 font-semibold'
-                      : 'text-gray-900 dark:text-gray-100'
-                  }
-                >
-                  {box.qty_remaining}
-                </span>
-                <div className="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div className={barClass} style={{ width: `${Math.min(pct, 100)}%` }} />
-                </div>
+                {box.qty_remaining}
+              </span>
+              <div className="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className={barClass} style={{ width: `${Math.min(pct, 100)}%` }} />
               </div>
-            )}
+            </div>
           </TableCell>
 
           {/* Value */}
@@ -666,6 +651,24 @@ export default function InventoryTable({
           {/* Actions */}
           <TableCell onClick={(e) => e.stopPropagation()}>
             <div className="flex gap-1 justify-end">
+              {expendable && box.qty_remaining > 0 && (
+                <QuickExpendPopover
+                  box={box}
+                  caliberName={caliberName}
+                  manufacturerName={manufacturerName}
+                  open={openExpendBoxId === box.id}
+                  onOpenChange={(o) => setOpenExpendBoxId(o ? box.id : null)}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-gray-500 hover:text-gold"
+                    title="Log rounds used"
+                  >
+                    <Crosshair className="h-3.5 w-3.5" />
+                  </Button>
+                </QuickExpendPopover>
+              )}
               {editable && (
                 <>
                   <Button
@@ -677,16 +680,35 @@ export default function InventoryTable({
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-gray-500 hover:text-amber-600"
-                    onClick={() => onArchive(box)}
-                    title="Archive"
-                    disabled={box.is_archived}
-                  >
-                    <Archive className="h-3.5 w-3.5" />
-                  </Button>
+                  {box.is_archived ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-amber-600 hover:text-amber-700"
+                      onClick={() => unarchiveMutation.mutate(box.id)}
+                      title="Restore from archive"
+                      disabled={unarchiveMutation.isPending}
+                    >
+                      <ArchiveRestore className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : (
+                    <QuickArchivePopover
+                      box={box}
+                      caliberName={caliberName}
+                      manufacturerName={manufacturerName}
+                      open={openArchiveBoxId === box.id}
+                      onOpenChange={(o) => setOpenArchiveBoxId(o ? box.id : null)}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-gray-500 hover:text-amber-600"
+                        title="Archive"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                      </Button>
+                    </QuickArchivePopover>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"

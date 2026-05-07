@@ -87,51 +87,12 @@ def _cleanup_fn() -> dict:
 
 
 def _version_check_fn() -> dict:
-    import httpx  # noqa: PLC0415
-    from datetime import timezone  # noqa: PLC0415
     from database import engine  # noqa: PLC0415
     from sqlmodel import Session  # noqa: PLC0415
-    from utils.config import set_setting  # noqa: PLC0415
-    from version import __version__  # noqa: PLC0415
-
-    GITHUB_API_URL = "https://api.github.com/repos/crzykidd/AmmoLedger"
-
-    def _version_gt(a: str, b: str) -> bool:
-        try:
-            return (
-                tuple(int(x) for x in a.lstrip("v").split(".")[:3])
-                > tuple(int(x) for x in b.lstrip("v").split(".")[:3])
-            )
-        except Exception:
-            return False
-
-    now = datetime.utcnow().replace(tzinfo=timezone.utc)
-    latest = None
-    update_available = False
-
-    try:
-        resp = httpx.get(
-            f"{GITHUB_API_URL}/releases/latest",
-            timeout=5.0,
-            headers={"Accept": "application/vnd.github+json", "User-Agent": "AmmoLedger"},
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            latest = data.get("tag_name", "").lstrip("v")
-            if latest:
-                update_available = _version_gt(latest, __version__)
-    except Exception as exc:
-        logger.warning("GitHub version check failed: %s", exc)
-        raise RuntimeError(f"GitHub API unavailable: {exc}") from exc
+    from utils.version_check import run_full_check  # noqa: PLC0415
 
     with Session(engine) as db:
-        if latest:
-            set_setting(db, "latest_version", latest)
-            set_setting(db, "update_available", "true" if update_available else "false")
-        set_setting(db, "version_last_checked", now.isoformat())
-        db.commit()
-
-    return {"latest": latest, "update_available": update_available}
+        return run_full_check(db, force=True)
 
 
 def _community_sync_fn() -> dict:
