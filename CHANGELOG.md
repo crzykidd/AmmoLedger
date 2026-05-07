@@ -50,6 +50,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **Inventory page no longer renders two expend popovers side-by-side.** Clicking the Remaining count cell had the same effect as clicking the Crosshair icon — both opened a `QuickExpendPopover` anchored to their own trigger, producing a visual duplicate. The Remaining count is now a static display; the Crosshair icon in the Actions column is the sole quick-expend trigger.
 - **At Range page widened on desktop when 2+ results were visible.** Long box descriptions are now constrained to wrap within the result card (`min-w-0` + `break-words`).
+- **Import success message clarified** — when archived boxes were imported, the message now correctly tells users to set both the Status filter ("Archived only") AND the Empty filter ("All boxes") to view them. Previously only mentioned the Status filter, which produced an empty view in the typical case where archived boxes are also empty (e.g., legacy imports).
 
 ### Known limitations
 

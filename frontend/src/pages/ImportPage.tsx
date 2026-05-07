@@ -735,7 +735,7 @@ function ResultState({
               <li>{result.archived_imported} archived (imported with is_archived=true)</li>
             </ul>
             <p className="text-xs text-amber-600 dark:text-amber-500">
-              Archived boxes are hidden by default. Set the Status filter to "Archived only" or "All boxes" on the Inventory page to view them.
+              Archived boxes are hidden by default. To view them on the Inventory page, set the <strong>Status</strong> filter to "Archived only" and the <strong>Empty</strong> filter to "All boxes".
             </p>
           </div>
         )}
