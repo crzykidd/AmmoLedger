@@ -120,7 +120,38 @@ export default function AboutPage() {
               </div>
             )}
 
-            {versionData?.update_available && versionData.latest_version ? (
+            {isDev && (versionData?.dev_behind_by ?? 0) > 0 ? (
+              <div className="flex flex-col gap-1.5 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg px-3 py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <ArrowUpCircle className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">
+                    {versionData!.dev_behind_by} new commit{versionData!.dev_behind_by === 1 ? '' : 's'} on dev since this build
+                  </span>
+                  {fullSha && fullSha !== 'unknown' && (
+                    <a
+                      href={`${GH_BASE}/compare/${fullSha}...dev`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs underline hover:no-underline shrink-0"
+                    >
+                      View changes
+                    </a>
+                  )}
+                </div>
+                {versionData?.dev_latest_message && (
+                  <div className="text-xs text-emerald-700/80 dark:text-emerald-400/80 truncate pl-6">
+                    Latest: {versionData.dev_latest_message}
+                  </div>
+                )}
+              </div>
+            ) : isDev && versionData?.dev_behind_by === 0 ? (
+              <div className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-gray-400">
+                <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
+                <span>Up to date with dev</span>
+              </div>
+            ) : isDev ? (
+              null
+            ) : versionData?.update_available && versionData.latest_version ? (
               <div className="flex items-center gap-2.5 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg px-3 py-2.5">
                 <ArrowUpCircle className="h-4 w-4 shrink-0" />
                 <span className="flex-1">

@@ -17,6 +17,9 @@ export interface SystemVersionResponse {
   build_sha: string | null
   last_checked: string | null
   upgraded_from: string | null
+  dev_behind_by: number | null
+  dev_latest_sha: string | null
+  dev_latest_message: string | null
 }
 
 export interface ChangelogSection {

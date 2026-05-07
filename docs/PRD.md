@@ -56,6 +56,7 @@
 | 3.15 | May 2026 | Inventory UX fixes — §9.2 updated: Remaining cell is now static (sole expend entry point is the Crosshair icon); ArchiveRestore icon styled amber for visibility; "Show Empty" and "Archived" checkboxes replaced by three-state Empty and Status filter dropdowns with localStorage persistence. |
 | 3.16 | May 2026 | At Range polish — §9.2.1 updated: preset list changed to [1, 10, 20, 30, 50], session-recent counts (up to 2, sessionStorage) surfaced as additional presets, notes prefilled from last submitted value (sessionStorage). §9.2.6 updated: result card layout constrained with min-w-0/break-words to prevent page widening on desktop. |
 | 3.17 | May 2026 | Import success breakdown, dashboard scope toggle, deep-link filters — §9.1 updated: stats row expanded to 5 cards (Total Boxes added), Current/All scope toggle documented. §9.2 updated: emptyFilter/statusFilter URL deep-link params added. §9.8 updated: confirm_import returns archived_imported count; post-import success page breakdown and "View Archived Boxes" deep-link; archive_reason="imported" for CSV-archived boxes. §4.1 data model updated (archive_reason values). |
+| 3.18 | May 2026 | Dev-build version check — §9.10 Update Detection updated: dev builds now compare GIT_SHA against the dev branch tip via GitHub compare API; stable builds retain /releases/latest comparison; local builds (GIT_SHA unknown) skip the remote check. New dev_behind_by, dev_latest_sha, dev_latest_message fields added to /system/version response. Version-check logic consolidated in backend/utils/version_check.py. |
 
 ---
 
@@ -1595,7 +1596,9 @@ Admin users see a **Check Now** button next to the last-checked time that forces
 
 #### Update Detection
 
-`GET /system/version` checks the GitHub API on every call, using a 24-hour cache stored in `app_settings`:
+`GET /system/version` checks the GitHub API on every call, using a 24-hour cache stored in `app_settings`. The check splits into two paths based on the running build type:
+
+**Stable builds** (`is_dev === false`): compare `__version__` against the `tag_name` of `/releases/latest`. Cache keys:
 
 | Setting key | Value |
 | --- | --- |
@@ -1603,13 +1606,30 @@ Admin users see a **Check Now** button next to the last-checked time that forces
 | `update_available` | `"true"` or `"false"` |
 | `version_last_checked` | ISO 8601 timestamp of last check |
 
+**Dev builds** (`is_dev === true`): compare `GIT_SHA` against the tip of the `dev` branch via:
+
 ```text
-GET https://api.github.com/repos/crzykidd/AmmoLedger/releases/latest
+GET https://api.github.com/repos/crzykidd/AmmoLedger/compare/{GIT_SHA}...dev
 ```
 
-If the GitHub API call fails (network error, rate limit), the previously cached values are returned unchanged. Never sends any user data — read-only public API.
+The response's `behind_by` field indicates how many commits on `dev` aren't in the running build. Cache keys:
 
-`POST /system/version/check` (admin-only) forces a fresh check regardless of cache age, returns the same shape as `GET /system/version`.
+| Setting key | Value |
+| --- | --- |
+| `dev_behind_by` | Integer count of commits behind dev tip |
+| `dev_latest_sha` | Full SHA of the dev tip at check time |
+| `dev_latest_message` | First line of the most recent commit message on dev (truncated to 120 chars) |
+| `dev_check_last_at` | ISO 8601 timestamp of last dev check |
+
+**Local builds** (`GIT_SHA == "unknown"`): no remote check is performed. The version card omits the update-status row.
+
+The About page renders update status in priority order: dev-build status first (when `is_dev`), then stable-build status. Dev builds show "N new commits on dev since this build" with a link to `compare/{sha}...dev` when behind, or "✓ Up to date with dev" when current.
+
+If any GitHub API call fails (network error, rate limit), the previously cached values are returned unchanged. Never sends any user data — read-only public API.
+
+`POST /system/version/check` (admin-only) forces a fresh check of both paths regardless of cache age, returns the same shape as `GET /system/version`.
+
+Both check paths are also run by the scheduled `version_check` task (daily, force-refresh). Logic is consolidated in `backend/utils/version_check.py`.
 
 #### Release Notes on Upgrade
 

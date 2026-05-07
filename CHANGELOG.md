@@ -21,6 +21,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Added
 
+- **Dev build version check** — when running a dev build, the About page now compares the running commit (`GIT_SHA`) against the tip of the `dev` branch and shows "N new commits on dev since this build" with a link to the GitHub compare view. Stable (release) builds keep the existing `releases/latest` comparison. Both checks are cached for 24 hours and refreshed by the scheduled `version_check` task and the manual "Check Now" button.
 - **Dashboard: Total Boxes stat card** — new leftmost card in the Inventory Stats row showing the count of boxes in the current scope.
 - **Dashboard: Current / All scope toggle** on the Inventory Stats row. "Current" (default) shows active, non-empty inventory only; "All" shows lifetime totals across every box ever tracked, using original purchase quantities for rounds and value. Selection persists in `localStorage`. The lower dashboard sections (By Caliber, Running Low, Recent Activity) always reflect current inventory regardless of the toggle.
 - **Inventory page deep-link filter params** — the inventory page now accepts `emptyFilter` and `statusFilter` URL query params to land on a pre-filtered view (e.g., `/inventory?statusFilter=archived&emptyFilter=all`).
