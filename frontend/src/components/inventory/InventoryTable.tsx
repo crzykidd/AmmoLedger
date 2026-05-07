@@ -616,51 +616,22 @@ export default function InventoryTable({
             {box.category_id != null ? (categoryMap.get(box.category_id) ?? '—') : '—'}
           </TableCell>
 
-          {/* Remaining — click opens QuickExpendPopover */}
-          <TableCell onClick={(e) => e.stopPropagation()}>
-            {expendable ? (
-              <QuickExpendPopover
-                box={box}
-                caliberName={caliberName}
-                manufacturerName={manufacturerName}
-                open={openExpendBoxId === box.id}
-                onOpenChange={(o) => setOpenExpendBoxId(o ? box.id : null)}
+          {/* Remaining — static display; use Crosshair icon in Actions to expend */}
+          <TableCell>
+            <div className="flex flex-col gap-1 min-w-[72px]">
+              <span
+                className={
+                  box.qty_remaining === 0
+                    ? 'text-red-500 font-semibold'
+                    : 'text-gray-900 dark:text-gray-100'
+                }
               >
-                <button
-                  className="flex flex-col gap-1 min-w-[72px] group text-left focus:outline-none disabled:cursor-default"
-                  disabled={box.qty_remaining === 0}
-                  title="Click to log rounds"
-                >
-                  <span
-                    className={
-                      box.qty_remaining === 0
-                        ? 'text-red-500 font-semibold'
-                        : 'text-gray-900 dark:text-gray-100 group-hover:text-gold transition-colors'
-                    }
-                  >
-                    {box.qty_remaining}
-                  </span>
-                  <div className="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div className={barClass} style={{ width: `${Math.min(pct, 100)}%` }} />
-                  </div>
-                </button>
-              </QuickExpendPopover>
-            ) : (
-              <div className="flex flex-col gap-1 min-w-[72px]">
-                <span
-                  className={
-                    box.qty_remaining === 0
-                      ? 'text-red-500 font-semibold'
-                      : 'text-gray-900 dark:text-gray-100'
-                  }
-                >
-                  {box.qty_remaining}
-                </span>
-                <div className="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div className={barClass} style={{ width: `${Math.min(pct, 100)}%` }} />
-                </div>
+                {box.qty_remaining}
+              </span>
+              <div className="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className={barClass} style={{ width: `${Math.min(pct, 100)}%` }} />
               </div>
-            )}
+            </div>
           </TableCell>
 
           {/* Value */}
@@ -713,7 +684,7 @@ export default function InventoryTable({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-gray-500 hover:text-emerald-600"
+                      className="h-7 w-7 text-amber-600 hover:text-amber-700"
                       onClick={() => unarchiveMutation.mutate(box.id)}
                       title="Restore from archive"
                       disabled={unarchiveMutation.isPending}

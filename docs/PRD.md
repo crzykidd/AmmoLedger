@@ -53,6 +53,7 @@
 | 3.12 | May 2026 | Threshold system unified — §8.1 updated: GET /thresholds/status endpoint returns all calibers with totals and is_low; write endpoints locked to admin role; localStorage hook removed; inventory low-stock banner and row highlights use caliber totals (not per-box qty); dashboard Running Low links directly to filtered inventory; ThresholdSettingsPage shows read-only view for non-admins. |
 | 3.13 | May 2026 | Caliber threshold drawer — tap any caliber on dashboard or inventory to view and (admin) edit threshold inline; Dashboard By Caliber toggle between Mix (% of total) and Stock (proximity to threshold) views with color-coded bars; Running Low caliber rows open drawer instead of navigating to inventory; is_override field on CaliberStatus enables Reset to Default button. §9.1 updated. §5.2 updated with threshold-write and product management rows. §2 roadmap updated with v0.2.0 column. |
 | 3.14 | May 2026 | At Range mode — §9.2.6 added: mobile-optimized /at-range page for range sessions (on-screen numeric keypad, ±1 steppers, tap-to-expend rows, empty-box indicator). Box ID search option added to inventory search field selector. Sidebar reorganized: Import moved from top section into Settings; At Range added to top section. |
+| 3.15 | May 2026 | Inventory UX fixes — §9.2 updated: Remaining cell is now static (sole expend entry point is the Crosshair icon); ArchiveRestore icon styled amber for visibility; "Show Empty" and "Archived" checkboxes replaced by three-state Empty and Status filter dropdowns with localStorage persistence. |
 
 ---
 
@@ -989,7 +990,7 @@ Checklist:
 | Type | Ammo type name | — |
 | Condition | Condition badge (Factory New, Remanufactured, etc.); hidden when null | — |
 | Category | Category name | — |
-| Remaining | Round count + inline progress bar; click opens QuickExpendPopover | Sortable |
+| Remaining | Round count + inline progress bar; static display (no click action) | Sortable |
 | Value | `qty_remaining × cost_per_round`; shown only if cost is set | — |
 | Shared | "Shared" badge or "Private" text | — |
 | Actions | Crosshair (quick-expend), Edit (pencil), Archive/Restore, Delete (trash) icons | Role-gated |
@@ -997,12 +998,12 @@ Checklist:
 - Sortable columns: ID, Caliber, Manufacturer, Remaining (default sort: ID ascending)
 - Amber row tint when box is below configured threshold
 - Progress bar: green > 50 %, amber 20–50 %, red < 20 %
-- **Quick-expend Crosshair icon** — first icon in Actions column; visible when user can expend and `qty_remaining > 0`; opens `QuickExpendPopover` anchored to the icon. Clicking the Remaining count cell is a secondary shortcut that opens the same popover.
-- `read_only` users see the Remaining count but cannot click to expend and the Crosshair icon is hidden
+- **Quick-expend Crosshair icon** — first icon in Actions column; visible when user can expend and `qty_remaining > 0`; opens `QuickExpendPopover` anchored to the icon. The Remaining count cell is a static display only.
+- `read_only` users see the Remaining count but the Crosshair icon is hidden
 - **Archive action** — clicking the Archive icon opens `QuickArchivePopover`. Empty boxes (`qty_remaining === 0`) prefill the reason as "Empty Box" and can be archived with one click. Boxes with rounds remaining show an amber warning block and require an explicit reason before the Archive button is enabled. The user-supplied reason is stored in `archive_reason`; "Empty Box" is the default for empty boxes.
-- **Unarchive action** — when `is_archived === true`, the Archive icon is replaced by an ArchiveRestore icon. Clicking it immediately sets `is_archived = false, archive_reason = null` with no confirmation. Requires the same edit permission as archive.
-- Archived boxes are excluded from active inventory totals and low-stock calculations. Enable the "Archived" toggle above the table to view them.
-- Empty boxes hidden by default; toggle above list: **Show empty boxes**
+- **Unarchive action** — when `is_archived === true`, the Archive icon is replaced by an amber ArchiveRestore icon (`text-amber-600`). Clicking it immediately sets `is_archived = false, archive_reason = null` with no confirmation. The amber color makes archived rows identifiable at a glance. Requires the same edit permission as archive.
+- Archived boxes are excluded from active inventory totals and low-stock calculations. Use the **Status** filter dropdown ("Archived only" or "All boxes") to view them.
+- Empty boxes hidden by default; use the **Empty** filter dropdown ("All boxes" or "Empty only") to view them
 - Members see: all shared boxes + their own private boxes; Admin sees: all boxes
 
 #### Group By
@@ -1048,6 +1049,19 @@ Always-visible filter row directly below the column headers. All filters are AND
 - "N filters active" counter and "Clear Filters" button appear in toolbar when any column filter is set
 - Stats row (Boxes / Rounds / Value) reflects currently visible filtered rows, not total inventory
 - Column filters reset on page refresh; Group By persists
+
+#### Toolbar View Filters
+
+Two three-state select dropdowns in the main toolbar, each persisted to `localStorage`:
+
+| Control | Key | Options | Behavior |
+| ------- | --- | ------- | -------- |
+| **Empty** | `inventory_empty_filter` | Has rounds (default) / Empty only / All boxes | "Has rounds" sends `show_empty: false` to backend. "Empty only" and "All boxes" send `show_empty: true`; "Empty only" also applies a client-side filter keeping only `qty_remaining === 0` rows. |
+| **Status** | `inventory_archived_filter` | Active only (default) / Archived only / All boxes | "Active only" sends `show_archived: false`. "Archived only" and "All boxes" send `show_archived: true`; "Archived only" also applies a client-side filter keeping only `is_archived === true` rows. |
+
+On first load, the old `inventory_show_empty` key (`"true"` / `"false"`) is migrated to `inventory_empty_filter` (`"all"` / `"active"`) automatically.
+
+CSV export uses the broader server-side view — exporting while "Empty only" or "Archived only" is selected will include the wider server-filtered set in the CSV (known limitation).
 
 #### Export CSV (Toolbar)
 
@@ -1621,7 +1635,7 @@ Single source of truth for the entire app. Docker image built with this version 
 - Reusable `HelpTip` component renders a small ⓘ icon (Info, 14px, muted gray)
 - Popover opens on hover (150ms close delay) or click; dismisses on click-outside
 - Dark background, light text; max-width 250px; positioned above trigger with auto-flip
-- Placed next to field labels in: Add/Edit Ammo Box form (12 fields), Inventory toolbar (Group By, Show Empty, Archived), Stock Thresholds page (3 threshold labels), Import page (Ownership and ID Assignment sections)
+- Placed next to field labels in: Add/Edit Ammo Box form (12 fields), Inventory toolbar (Group By, Empty filter, Status filter), Stock Thresholds page (3 threshold labels), Import page (Ownership and ID Assignment sections)
 
 ### 9.13 Product Catalog
 
