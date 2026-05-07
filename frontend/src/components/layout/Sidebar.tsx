@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Crosshair,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
@@ -32,6 +33,7 @@ interface NavItem {
   label: string
   icon: React.ElementType
   href: string
+  readOnlyHidden?: boolean
 }
 
 interface NavSection {
@@ -46,7 +48,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Inventory', icon: Package, href: '/inventory' },
       { label: 'Products', icon: BookOpen, href: '/products' },
-      { label: 'Import', icon: FileUp, href: '/import' },
+      { label: 'At Range', icon: Crosshair, href: '/at-range', readOnlyHidden: true },
     ],
   },
   {
@@ -54,6 +56,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Profile', icon: User, href: '/settings/profile' },
       { label: 'Thresholds', icon: SlidersHorizontal, href: '/settings/thresholds' },
+      { label: 'Import', icon: FileUp, href: '/import' },
     ],
   },
   {
@@ -180,7 +183,7 @@ export default function Sidebar() {
                   </p>
                 )}
                 <div className="px-2 space-y-1">
-                  {section.items.map((item) => {
+                  {section.items.filter((item) => !(item.readOnlyHidden && user?.role === 'read_only')).map((item) => {
                     const active = isActive(item.href, location.pathname)
                     const Icon = item.icon
                     return (

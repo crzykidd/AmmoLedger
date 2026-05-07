@@ -52,6 +52,7 @@
 | 3.11 | May 2026 | Community-maintained lookup tables — §8.2 and §9.15 added: community/ YAML directory, community_sync utility (GitHub fetch + bundled fallback), community_key + is_imported + dealer geo fields (migration 0020), /community/\* and /geo/\* API routes, pending-import review flow, source badges, Contribute dialog, Check for Updates button on Lookups page. defaults.yaml stripped of calibers/manufacturers/ammo_types/dealers; acquisition_sources replaces non-commercial dealer seeds. |
 | 3.12 | May 2026 | Threshold system unified — §8.1 updated: GET /thresholds/status endpoint returns all calibers with totals and is_low; write endpoints locked to admin role; localStorage hook removed; inventory low-stock banner and row highlights use caliber totals (not per-box qty); dashboard Running Low links directly to filtered inventory; ThresholdSettingsPage shows read-only view for non-admins. |
 | 3.13 | May 2026 | Caliber threshold drawer — tap any caliber on dashboard or inventory to view and (admin) edit threshold inline; Dashboard By Caliber toggle between Mix (% of total) and Stock (proximity to threshold) views with color-coded bars; Running Low caliber rows open drawer instead of navigating to inventory; is_override field on CaliberStatus enables Reset to Default button. §9.1 updated. §5.2 updated with threshold-write and product management rows. §2 roadmap updated with v0.2.0 column. |
+| 3.14 | May 2026 | At Range mode — §9.2.6 added: mobile-optimized /at-range page for range sessions (on-screen numeric keypad, ±1 steppers, tap-to-expend rows, empty-box indicator). Box ID search option added to inventory search field selector. Sidebar reorganized: Import moved from top section into Settings; At Range added to top section. |
 
 ---
 
@@ -1173,6 +1174,28 @@ Opens the Add Ammo form with these copied from the source box: caliber, manufact
 Fields reset to defaults: purchase date → today, container → blank, location → blank, notes → blank, number of boxes → 1, is_shared → user default.
 
 Form header: *"Based on Box #47 — edit any fields"*. Submitting creates new boxes — source box is unchanged.
+
+### 9.2.6 At Range Mode
+
+Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an active range session. Hidden from the sidebar for `read_only` users; accessible to all other roles.
+
+**Purpose:** inventory page is too dense for range use. At Range provides a stripped-down flow — enter a box ID, see the box, tap to log rounds.
+
+**Search:** searches by numeric box ID and `legacy_id` only (no other fields). Client-side filter, no debounce.
+
+**On-screen keypad:** 3×4 numeric keypad, visible by default. Show/hide preference persists in `localStorage` (`at_range_keypad_visible`). A `×` button in the top-right corner hides it. A "Show Keypad" button (with Hash icon) below the search row re-shows it.
+
+- **Numpad mode (default):** OS keyboard suppressed (`inputMode="none"`); digits appended by tapping buttons; backspace key on keypad removes last character. Mode toggle button labelled `ABC` switches to text mode.
+- **Text mode (session-only):** OS keyboard pops on next input tap; steppers hidden; toggle button labelled `123` switches back to numpad.
+- When a popover is open the keypad hides automatically; it reappears when the popover closes.
+
+**±1 steppers:** ChevronDown / ChevronUp buttons beside the search input. Increment or decrement the numeric box ID by 1; clamped at 0. Disabled when input is empty or non-numeric. Hidden in text mode.
+
+**Results:** sorted by `id` ascending. Empty boxes (`qty_remaining === 0`) are shown with an "Empty" badge and a red round-count line so users can spot mislabeled boxes; they are non-interactive (no popover). Archived boxes are always excluded.
+
+**Tap-to-expend:** each non-empty result row is a full-width button that opens `QuickExpendPopover`. After a successful expend the rounds count updates automatically (query invalidation) and the row remains on screen; search query is unchanged.
+
+**Import navigation change:** Import has been moved from the top nav section (Dashboard / Inventory / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Inventory, Products, At Range.
 
 ### 9.3 Expend Rounds
 

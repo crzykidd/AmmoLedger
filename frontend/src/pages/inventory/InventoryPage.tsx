@@ -120,6 +120,7 @@ const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
 
 const SEARCH_FIELD_OPTIONS = [
   { value: 'all', label: 'All Fields' },
+  { value: 'id', label: 'Box ID' },
   { value: 'caliber', label: 'Caliber' },
   { value: 'manufacturer', label: 'Manufacturer' },
   { value: 'type', label: 'Ammo Type' },
@@ -291,6 +292,8 @@ export default function InventoryPage() {
     const q = search.trim().toLowerCase()
     return boxes.filter((box) => {
       switch (searchField) {
+        case 'id':
+          return String(box.id).includes(q) || (box.legacy_id ?? '').toLowerCase().includes(q)
         case 'caliber':
           return (caliberMap.get(box.caliber_id) ?? '').toLowerCase().includes(q)
         case 'manufacturer':
