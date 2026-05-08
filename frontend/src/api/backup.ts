@@ -8,13 +8,36 @@ export interface BackupFile {
   security_notice?: string
 }
 
+export interface UserConflict {
+  username: string
+  current_role: string
+  import_role: string
+}
+
+export interface AppSettingsDiffEntry {
+  key: string
+  current: string | null
+  imported: string | null
+}
+
+export interface OwnershipSummaryEntry {
+  username: string
+  ammo_box_count: number
+  product_count: number
+  is_new_user: boolean
+}
+
 export interface ImportPreview {
   valid: boolean
   version: string
   schema_migration: string
+  current_migration: string
   exported_at: string
   record_counts: Record<string, number>
   warnings: string[]
+  user_conflicts: UserConflict[]
+  app_settings_diff: AppSettingsDiffEntry[]
+  ownership_summary: OwnershipSummaryEntry[]
 }
 
 export interface ImportResult {
@@ -82,9 +105,8 @@ export const previewImport = (file: File) => {
   return postFormData<ImportPreview>('/backup/import/preview', fd)
 }
 
-export const commitImport = (file: File, mode: 'full' | 'additive') => {
+export const commitImport = (file: File) => {
   const fd = new FormData()
   fd.append('file', file)
-  fd.append('mode', mode)
   return postFormData<ImportResult>('/backup/import/commit', fd)
 }
