@@ -16,6 +16,7 @@ import AmmoFormPanel from '@/components/inventory/AmmoFormPanel'
 import BulkEditPanel from '@/components/inventory/BulkEditPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
 import ExpendDialog from '@/components/inventory/ExpendDialog'
+import SplitBoxDialog from '@/components/inventory/SplitBoxDialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo, exportAmmoCsv } from '@/api/ammo'
 import {
@@ -231,6 +232,8 @@ export default function InventoryPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [expendBox, setExpendBox] = useState<AmmoBoxRead | null>(null)
   const [expendOpen, setExpendOpen] = useState(false)
+  const [splitBox, setSplitBox] = useState<AmmoBoxRead | null>(null)
+  const [splitOpen, setSplitOpen] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(
     () => sessionStorage.getItem(BANNER_DISMISS_KEY) === '1',
   )
@@ -550,6 +553,11 @@ export default function InventoryPage() {
   function openExpend(box: AmmoBoxRead) {
     setExpendBox(box)
     setExpendOpen(true)
+  }
+
+  function openSplit(box: AmmoBoxRead) {
+    setSplitBox(box)
+    setSplitOpen(true)
   }
 
   const selectClass =
@@ -901,6 +909,7 @@ export default function InventoryPage() {
                   onEdit={openEdit}
                   onDelete={openDelete}
                   onExpend={openExpend}
+                  onSplit={openSplit}
                 />
               </div>
             </>
@@ -962,6 +971,20 @@ export default function InventoryPage() {
           if (!o) setExpendBox(null)
         }}
         calibers={lookups.calibers}
+      />
+
+      {/* Split dialog — mobile path (desktop uses internal state in InventoryTable) */}
+      <SplitBoxDialog
+        box={splitBox}
+        open={splitOpen}
+        onOpenChange={(o) => {
+          setSplitOpen(o)
+          if (!o) setSplitBox(null)
+        }}
+        user={user!}
+        calibers={lookups.calibers}
+        manufacturers={lookups.manufacturers}
+        ammoTypes={lookups.ammoTypes}
       />
 
       {/* Export CSV confirmation */}

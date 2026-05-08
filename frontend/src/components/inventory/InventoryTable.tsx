@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
-import { ChevronDown, ChevronRight, Pencil, Trash2, Archive, ArchiveRestore, Crosshair, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronRight, Pencil, Trash2, Archive, ArchiveRestore, Crosshair, AlertTriangle, Split } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table,
@@ -16,6 +16,7 @@ import { getAmmoHistory, updateAmmo } from '@/api/ammo'
 import { toast } from '@/hooks/use-toast'
 import QuickExpendPopover from '@/components/QuickExpendPopover'
 import QuickArchivePopover from '@/components/inventory/QuickArchivePopover'
+import SplitBoxDialog from '@/components/inventory/SplitBoxDialog'
 import type { AmmoBoxRead, User, LookupItem, DealerItem, ContainerItem, LocationItem } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -254,6 +255,7 @@ export default function InventoryTable({
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [openExpendBoxId, setOpenExpendBoxId] = useState<number | null>(null)
   const [openArchiveBoxId, setOpenArchiveBoxId] = useState<number | null>(null)
+  const [openSplitBoxId, setOpenSplitBoxId] = useState<number | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [startCollapsed, setStartCollapsed] = useState(true)
 
@@ -680,6 +682,17 @@ export default function InventoryTable({
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
+                  {box.qty_remaining >= 2 && !box.is_archived && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-gray-500 hover:text-gold"
+                      onClick={() => setOpenSplitBoxId(box.id)}
+                      title="Split box"
+                    >
+                      <Split className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   {box.is_archived ? (
                     <Button
                       variant="ghost"
@@ -869,6 +882,7 @@ export default function InventoryTable({
   const cf = columnFilters
 
   return (
+    <>
     <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
       <Table>
         <TableHeader>
@@ -957,5 +971,15 @@ export default function InventoryTable({
         </TableBody>
       </Table>
     </div>
+    <SplitBoxDialog
+      box={openSplitBoxId != null ? (sorted.find((b) => b.id === openSplitBoxId) ?? null) : null}
+      open={openSplitBoxId != null}
+      onOpenChange={(o) => { if (!o) setOpenSplitBoxId(null) }}
+      user={user}
+      calibers={calibers}
+      manufacturers={manufacturers}
+      ammoTypes={ammoTypes}
+    />
+    </>
   )
 }

@@ -515,3 +515,22 @@ export interface TaskConstraints {
   max_hours?: number
   requires_exclusive?: boolean
 }
+
+// ---------------------------------------------------------------------------
+// Split types — mirrors backend schemas.py
+// ---------------------------------------------------------------------------
+
+export interface SplitChildSpec {
+  qty_original: number
+}
+
+export interface SplitRequest {
+  split_type: 'full' | 'partial'
+  children: SplitChildSpec[]
+}
+
+export interface SplitResponse {
+  parent: AmmoBoxRead
+  children: AmmoBoxRead[]
+  log_entry: ExpenditureRead
+}
