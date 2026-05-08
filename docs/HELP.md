@@ -40,6 +40,30 @@ Check the boxes you want to edit using the checkbox column on the left. An amber
 
 Empty boxes have zero rounds remaining and are hidden by default — check **Show Empty** in the toolbar to reveal them. Archived boxes have been removed from active tracking via the row action menu and are hidden unless you check **Archived**. Archive a box when you've finished its ammo and no longer need it in your active inventory.
 
+### How do I split a box into smaller boxes?
+
+Click the **Split** icon (the icon between Edit and Archive in any inventory row's Actions column). The Split dialog opens with two choices:
+
+- **Full split** — all rounds in the box are distributed into new smaller boxes, and the original box is archived. Use this when you've opened a case and want to track every individual box.
+- **Partial split** — peel some rounds off into new boxes, and keep the rest in the original box. Use this when you only want to track a few boxes from a case (e.g. for a range trip) without breaking up the whole thing.
+
+Then choose how to split:
+
+- **Equal Split** — type the number of new boxes; each one's round count is auto-calculated. You can still tweak individual boxes.
+- **Custom Split** — specify each new box's round count individually.
+
+Click **Preview** to review what's about to happen. If any new box has an unusual round count (e.g. a 1000-round case that came in slightly short, leaving one box with 47 rounds instead of 50), it'll be flagged in amber so you remember to label it differently.
+
+Click **Confirm Split** and you'll see the **labeling view** — a list of every new box with its ID, caliber, and round count. Use this to label your physical boxes accurately.
+
+### Can I see past splits later?
+
+Yes. Open the parent box's row (the original case) and look at its expanded view. The History section shows a `Split into N boxes` entry — click it to re-open the labeling list any time. The parent's notes also keep a dated record of every split that's been done from that box.
+
+### Will splitting double-count my rounds?
+
+No. The dashboard's lifetime totals only count parent boxes (boxes you originally added or imported). Children created by splits are excluded from lifetime totals so the math stays accurate. Active inventory uses current `qty_remaining` and is also unaffected.
+
 ## Stock Thresholds
 
 ### How do thresholds work?

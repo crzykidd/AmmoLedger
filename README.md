@@ -36,7 +36,11 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 AmmoLedger started with ammunition, but the goal is to track your whole collection. Here's what's on the roadmap:
 
-### Firearms & Range Tracking (next major release)
+### Split Box (v0.3.0)
+
+Split a box into multiple smaller boxes for tracking individual portions of a case — full or partial split, equal or custom child sizes, dated note auto-appended to parent, labeling view after splitting.
+
+### Firearms & Range Tracking
 
 - **Firearms registry** — track your collection by serial number, manufacturer, model, caliber, and acquisition details.
 - **Range sessions** — log range trips with date, location, firearms used, and rounds expended per firearm. Ties directly into your existing inventory.

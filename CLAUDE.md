@@ -89,6 +89,7 @@ Current release: v0.2.0 (2026-05-06)
 - Phase 8.20 — At Range polish: fixed-width layout (min-w-0/break-words on result cards); quick-expend preset list updated to [1, 10, 20, 30, 50] plus up to 2 session-recent counts from sessionStorage; notes field prefilled from last-submitted value across popover invocations (sessionStorage, cleared on tab close): COMPLETE
 - Phase 8.21 — Import success breakdown with active/archived count + deep-link to archived view; dashboard Total Boxes stat card + Current/All scope toggle (localStorage-persisted); inventory page emptyFilter/statusFilter URL deep-link params; archive_reason="imported" for CSV-imported archived boxes: COMPLETE
 - Phase 8.22 — Dev-build version check: About page compares GIT_SHA against dev branch tip via GitHub compare API; stable builds keep /releases/latest comparison; both paths cached 24h and refreshed by scheduled task and Check Now button; version-check logic consolidated in backend/utils/version_check.py: COMPLETE
+- Split Box (v0.3.0): POST /ammo/{id}/split endpoint; SplitBoxDialog three-pane UI (form/preview/labeling); Group By "Split Parent"; split-aware lifetime totals (split_from_id IS NULL to prevent double-counting); labeling re-open from parent expanded-row history: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 - v0.1.9 — Migration squash (COMPLETE): 22 migrations collapsed into single initial schema; CHANGELOG split; HISTORY.md created
