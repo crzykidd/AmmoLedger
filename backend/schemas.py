@@ -312,6 +312,21 @@ class ExpendResponse(BaseModel):
     log_entry: ExpenditureRead
 
 
+class SplitChildSpec(BaseModel):
+    qty_original: int
+
+
+class SplitRequest(BaseModel):
+    split_type: str  # "full" | "partial"
+    children: List[SplitChildSpec]
+
+
+class SplitResponse(BaseModel):
+    parent: AmmoBoxRead
+    children: List[AmmoBoxRead]
+    log_entry: ExpenditureRead
+
+
 # ---------------------------------------------------------------------------
 # User schemas
 # ---------------------------------------------------------------------------

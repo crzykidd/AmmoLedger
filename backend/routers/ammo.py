@@ -1,6 +1,7 @@
 import csv
 import io
-from datetime import datetime
+import json
+from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -17,12 +18,22 @@ from models import (
     Category,
     Container,
     Dealer,
+    ExpenditureLog,
     Location,
     Manufacturer,
     Product,
     User,
 )
-from schemas import AmmoBoxCreate, AmmoBoxRead, AmmoBoxUpdate, AmmoListResponse, BulkUpdateRequest, BulkUpdateResponse
+from schemas import (
+    AmmoBoxCreate,
+    AmmoBoxRead,
+    AmmoBoxUpdate,
+    AmmoListResponse,
+    BulkUpdateRequest,
+    BulkUpdateResponse,
+    SplitRequest,
+    SplitResponse,
+)
 from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
 
@@ -56,6 +67,30 @@ def _check_write(box: AmmoBox, user: User) -> None:
     if user.role == "member" and not box.is_shared and box.owner_id == user.id:
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+
+def _build_split_note(child_specs: list[int], child_ids: list[int], split_type: str) -> str:
+    n = len(child_specs)
+    total = sum(child_specs)
+    today = date.today().isoformat()
+
+    # 3 or fewer children → comma list; 4+ → range with en-dash (U+2013)
+    if n <= 3:
+        ids_str = ", ".join(f"#{i}" for i in child_ids)
+    else:
+        ids_str = f"#{child_ids[0]}–#{child_ids[-1]}"
+
+    all_same = len(set(child_specs)) == 1
+    s = child_specs[0] if all_same else None
+
+    if split_type == "full":
+        if all_same:
+            return f"[Split {today}] Fully split into {n} × {s}-round boxes ({ids_str})"
+        return f"[Split {today}] Fully split into {n} boxes ({total} rounds total) → {ids_str}"
+    # partial
+    if all_same:
+        return f"[Split {today}] Split off {n} × {s}-round boxes ({total} rounds) → {ids_str}"
+    return f"[Split {today}] Split off {n} boxes ({total} rounds) → {ids_str}"
 
 
 @router.get("", response_model=AmmoListResponse)
@@ -207,6 +242,125 @@ def bulk_update_ammo(
     db.commit()
     logger.info("Bulk update: %d boxes updated by %s", updated, user.email or user.username)
     return BulkUpdateResponse(updated=updated, failed=0)
+
+
+@router.post("/{box_id}/split", response_model=SplitResponse, status_code=status.HTTP_201_CREATED)
+def split_ammo(
+    box_id: int,
+    payload: SplitRequest,
+    user: User = Depends(require_role("admin", "member")),
+    db: Session = Depends(get_session),
+):
+    box = _get_visible_box(box_id, user, db)
+    _check_write(box, user)
+
+    if payload.split_type not in ("full", "partial"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="split_type must be 'full' or 'partial'")
+    if box.is_archived:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cannot split an archived box")
+    if box.qty_remaining < 2:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Parent box must have at least 2 rounds remaining to split")
+    if len(payload.children) < 2:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="At least 2 boxes are required for a split")
+    for child in payload.children:
+        if child.qty_original < 1:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Each new box must have at least 1 round")
+
+    total_split = sum(c.qty_original for c in payload.children)
+
+    if total_split > box.qty_remaining:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Split total ({total_split}) exceeds parent qty_remaining ({box.qty_remaining})",
+        )
+    if payload.split_type == "full" and total_split != box.qty_remaining:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Full split children ({total_split}) must equal parent qty_remaining ({box.qty_remaining})",
+        )
+
+    now = datetime.utcnow()
+
+    # 1. Create child records; flush to get IDs before building the note
+    children: list[AmmoBox] = []
+    for spec in payload.children:
+        child = AmmoBox(
+            owner_id=box.owner_id,
+            is_shared=box.is_shared,
+            caliber_id=box.caliber_id,
+            manufacturer_id=box.manufacturer_id,
+            product_name=box.product_name,
+            gr_oz=box.gr_oz,
+            weight_unit=box.weight_unit,
+            type_id=box.type_id,
+            ammo_condition_id=box.ammo_condition_id,
+            category_id=box.category_id,
+            purchase_date=box.purchase_date,
+            cost_per_round=box.cost_per_round,
+            dealer_id=box.dealer_id,
+            container_id=None,
+            location_id=None,
+            notes=None,
+            legacy_id=None,
+            product_id=None,
+            qty_original=spec.qty_original,
+            qty_remaining=spec.qty_original,
+            split_from_id=box.id,
+            is_archived=False,
+            archive_reason=None,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(child)
+        children.append(child)
+    db.flush()
+
+    child_ids = [c.id for c in children]
+    child_specs = [c.qty_original for c in children]
+
+    # 2. Build the note line
+    split_note = _build_split_note(child_specs, child_ids, payload.split_type)
+    logger.debug("Split note: %s", split_note)
+
+    # 3. Reduce parent qty_remaining; archive if full split
+    if payload.split_type == "full":
+        box.qty_remaining = 0
+        box.is_archived = True
+        box.archive_reason = "split"
+    else:
+        box.qty_remaining -= total_split
+    box.updated_at = now
+
+    # 4. Append note to parent (never replace existing notes)
+    if box.notes:
+        box.notes = box.notes + "\n" + split_note
+    else:
+        box.notes = split_note
+
+    # 5. Write log entry on the parent
+    log = ExpenditureLog(
+        ammo_box_id=box.id,
+        logged_by=user.id,
+        rounds_used=total_split,
+        date=date.today(),
+        log_type="split",
+        related_ids=json.dumps(child_ids),
+        notes=None,
+    )
+    db.add(log)
+
+    # 6. Commit and refresh
+    db.commit()
+    db.refresh(box)
+    for child in children:
+        db.refresh(child)
+    db.refresh(log)
+
+    logger.info(
+        "Split: box %d → %d children (%s split, %d rounds), by %s",
+        box.id, len(children), payload.split_type, total_split, user.email or user.username,
+    )
+    return SplitResponse(parent=box, children=children, log_entry=log)
 
 
 _CSV_COLUMNS = [
