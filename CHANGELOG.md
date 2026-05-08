@@ -28,10 +28,23 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Inventory Group By: Split Parent**. New 9th Group By option clusters boxes by their split parent. Headers show `Split from #N (Caliber, Mfg, Product)` and sort numerically by parent ID. Boxes with no split parent collect into a "No Split Parent" group.
 - **Split-aware audit trail**. The parent's expenditure history now renders `log_type = "split"` entries as clickable amber rows showing how many boxes were created and their IDs. Click to re-open the labeling pane.
 
+- **Split Box: parent details dialog**. Group By "Split Parent" group headers now show an info icon — click it to view the parent box's caliber, manufacturer, product, round counts, dates, and full notes/split history. Works even when the parent is filtered out of the visible list or invisible to you under sharing rules (in which case the parent's private notes are hidden). Modal-locked so reading multi-line history is safe.
+- **Sort By dropdown** added to the inventory toolbar. Sort by Box ID, Caliber, Manufacturer, Remaining, Purchase Date, or Updated Date with an asc/desc toggle. Selection persists across reloads. When Group By is active, the chosen sort applies within each group. The clickable column-header sort arrows stay in sync with the dropdown.
+- **Updated date** now visible in the expanded row of every inventory row, alongside Purchased date.
+- **Split Box: child boxes get a "Split from #N" note**. Every child created by a split has its notes pre-populated with `[Split YYYY-MM-DD] Split from #{parent.id}` so an isolated child reveals its origin. The user's own notes append after this line.
+- **GET /ammo/split-parents** endpoint returns metadata for every box that has at least one child. Used by the Split Parent Group By header and the parent details dialog. RBAC-aware: notes are hidden for parents not visible to the caller, but caliber/manufacturer/product are always returned so headers render correctly.
+
 ### Changed
 
 - **Dashboard "All" scope** (lifetime totals — Total Boxes, Total Rounds, Total Value, Calibers Tracked) now filters on `split_from_id IS NULL` to count only root boxes, preventing double-counting after splits. Without this filter, a 1000-round case split into 20 × 50-round children would have shown 2000 rounds in the All-scope view (parent's 1000 + children's 20×50). Current scope is unchanged — it was already correct via the existing `is_archived` / `qty_remaining` math.
 - **Reporting integrity rule** (PRD §6.13) refined from the previous `is_leaf` definition to a simpler `split_from_id IS NULL` ("root box") filter. The earlier rule under-counted partial-split parents because it excluded the parent without accounting for the rounds it kept; the root-box rule handles full splits, partial splits, and nested splits uniformly.
+- **Inventory list always includes split parents.** Fully-split parents (archived, qty_remaining=0) used to disappear from the default "Active only / Has rounds" view, leaving users no way to reach the parent's notes and history. Now any box that has at least one child is included regardless of those filters. Manually-archived or empty boxes without children are unaffected — they're still hidden by default. CSV export uses the same rule.
+- **Dashboard "All" scope Total Boxes counts every record.** Earlier behavior (root-only count) made Total Boxes stay flat after splitting a case, which contradicted the user's expectation that splitting a 1000-round case into 20 boxes increases the count by 20 (since there really are 20 more physical boxes). Total Rounds and Total Value still count root boxes only — those represent the same physical rounds and double-counting them would inflate the round/value math.
+
+### Fixed
+
+- **Split Box preview labels.** The Preview pane labelled boxes as `Box 1`, `Box 2`, etc., which several users mistook for the actual auto-incremented Box IDs that would be assigned. Now uses plain `1.`, `2.`, `3.` with a disclaimer "Box IDs will be assigned when you confirm the split." above the list.
+- **Split Box success and review panes can no longer be dismissed by clicking outside or pressing Esc.** Only the explicit Done or Close button dismisses. Previously, clicking anywhere on the page behind the dialog closed the labeling list — users would lose the new box IDs they were trying to read or write down.
 
 ## [0.2.1] — 2026-05-07
 

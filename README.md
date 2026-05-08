@@ -36,10 +36,6 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 AmmoLedger started with ammunition, but the goal is to track your whole collection. Here's what's on the roadmap:
 
-### Split Box (v0.3.0)
-
-Split a box into multiple smaller boxes for tracking individual portions of a case — full or partial split, equal or custom child sizes, dated note auto-appended to parent, labeling view after splitting.
-
 ### Firearms & Range Tracking
 
 - **Firearms registry** — track your collection by serial number, manufacturer, model, caliber, and acquisition details.
@@ -61,7 +57,8 @@ No firm timeline on either set — watch the [Releases page](https://github.com/
 - **At Range mode** — mobile-optimized /at-range page for fast round logging during range sessions; on-screen number pad, ±1 steppers, large tap targets, session-persistent notes
 - **Archive workflow with reason capture** — archive confirmation popover captures a reason; empty boxes prefill "Empty Box" and archive in one click; boxes with rounds remaining require an explicit reason; Unarchive action restores boxes without leaving the page
 - **Product catalog** — reusable product templates with images; auto-fill Add Box from a product; Auto-Generate products from existing inventory
-- **Group By with 8 options** — group by Caliber, Manufacturer, Category, Type, Location, Container, or Condition; collapsible group headers with summary stats
+- **Group By with 9 options** — group by Caliber, Manufacturer, Category, Type, Location, Container, Condition, or Split Parent; collapsible group headers with summary stats; Split Parent headers include an info icon to view parent box details
+- **Sort By dropdown** — sort inventory by Box ID, Caliber, Manufacturer, Remaining, Purchase Date, or Updated Date with an asc/desc toggle; persists across reloads; synced with clickable column-header sort arrows
 - **Field-scoped search** — dropdown next to the search box lets users narrow results to a specific field (Caliber, Manufacturer, Type, Location, Box ID, etc.)
 - **Per-column filters** — filter by ID, Caliber, Manufacturer, Gr/Oz, Type, Category, Remaining, Value, and Shared; range operators (`<50`, `>100`, `10-50`) supported
 - **Inventory filter dropdowns** — three-state Empty filter (Has rounds / Empty only / All boxes) and Status filter (Active only / Archived only / All boxes); both persist across reloads

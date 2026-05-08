@@ -64,6 +64,26 @@ Yes. Open the parent box's row (the original case) and look at its expanded view
 
 No. The dashboard's lifetime totals only count parent boxes (boxes you originally added or imported). Children created by splits are excluded from lifetime totals so the math stays accurate. Active inventory uses current `qty_remaining` and is also unaffected.
 
+### How do I see all the boxes that came from a single split?
+
+Switch the inventory **Group By** dropdown to "Split Parent". Boxes from each split cluster under a header like `Split from #121 (9mm Luger, Remington, UMC Bulk)`. Click the small info icon on the right side of the header to open a dialog with the parent box's full details — including the dated split-history notes that record exactly how the parent was broken up.
+
+If the parent box is private to another user, you'll still see the basic info (caliber, manufacturer, etc.) but the notes will be hidden.
+
+### How do I sort my inventory?
+
+Use the **Sort By** dropdown next to Group By in the toolbar. Pick one of: Box ID, Caliber, Manufacturer, Remaining, Purchase Date, Updated Date — and use the arrow button next to it to switch between ascending and descending.
+
+You can also click the sort arrows in the column headers (ID / Caliber / Manufacturer / Remaining) — those stay in sync with the dropdown.
+
+When you have Group By turned on, your sort applies **inside each group** — the groups themselves stay in their normal order.
+
+### Why does my dashboard "All" Total Boxes go up after a split, but Total Rounds doesn't?
+
+This is intentional. After splitting a 1000-round case into 20 boxes of 50, you now physically have 20 more containers — so Total Boxes (lifetime) goes up by 20. But the rounds inside those new boxes are the same rounds the parent had — counting both the parent's 1000 and the children's 20×50=1000 would double-count to 2000, which would be wrong. So Total Rounds counts only "root" boxes (the original parent in this case) for an accurate lifetime tally.
+
+If you want to see your current physical inventory accurately, switch the dashboard scope toggle from **All** to **Current** — that view excludes archived parents and shows what's actually on the shelf right now.
+
 ## Stock Thresholds
 
 ### How do thresholds work?
