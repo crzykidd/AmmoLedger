@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_
+from sqlalchemy.orm import aliased
 from sqlmodel import Session, select
 
 from database import get_session
@@ -104,10 +105,16 @@ def list_ammo(
     db: Session = Depends(get_session),
 ):
     stmt = _visibility_filter(select(AmmoBox), user)
+    # Boxes that have children are always included regardless of archive/empty filters —
+    # fully-split parents must remain visible so users can access their notes and history.
+    _ChildBox = aliased(AmmoBox)
+    _has_children = (
+        select(_ChildBox.id).where(_ChildBox.split_from_id == AmmoBox.id).exists()
+    )
     if not show_archived:
-        stmt = stmt.where(AmmoBox.is_archived == False)  # noqa: E712
+        stmt = stmt.where(or_(AmmoBox.is_archived == False, _has_children))  # noqa: E712
     if not show_empty:
-        stmt = stmt.where(AmmoBox.qty_remaining > 0)
+        stmt = stmt.where(or_(AmmoBox.qty_remaining > 0, _has_children))
     if search:
         stmt = stmt.where(
             or_(
@@ -300,7 +307,7 @@ def split_ammo(
             dealer_id=box.dealer_id,
             container_id=None,
             location_id=None,
-            notes=None,
+            notes=f"[Split {date.today().isoformat()}] Split from #{box.id}",
             legacy_id=None,
             product_id=None,
             qty_original=spec.qty_original,
@@ -425,10 +432,14 @@ def export_ammo_csv(
     db: Session = Depends(get_session),
 ):
     stmt = _visibility_filter(select(AmmoBox), user)
+    _ChildBox = aliased(AmmoBox)
+    _has_children = (
+        select(_ChildBox.id).where(_ChildBox.split_from_id == AmmoBox.id).exists()
+    )
     if not show_archived:
-        stmt = stmt.where(AmmoBox.is_archived == False)  # noqa: E712
+        stmt = stmt.where(or_(AmmoBox.is_archived == False, _has_children))  # noqa: E712
     if not show_empty:
-        stmt = stmt.where(AmmoBox.qty_remaining > 0)
+        stmt = stmt.where(or_(AmmoBox.qty_remaining > 0, _has_children))
     if search:
         stmt = stmt.where(
             or_(

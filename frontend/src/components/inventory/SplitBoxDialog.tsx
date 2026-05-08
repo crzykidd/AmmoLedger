@@ -411,6 +411,9 @@ export default function SplitBoxDialog({
 
     return (
       <div className="space-y-3">
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          Box IDs will be assigned when you confirm the split.
+        </p>
         <div className="space-y-2">
           {nums.map((qty, i) => {
             const isOdd = nums.length > 1 && qty !== modeQty
@@ -426,7 +429,7 @@ export default function SplitBoxDialog({
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Box {i + 1}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{i + 1}.</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
                       {caliberName} · {manufacturerName}
                       {box!.product_name ? ` · ${box!.product_name}` : ''}
@@ -675,7 +678,18 @@ export default function SplitBoxDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <DialogContent
+        className="sm:max-w-2xl flex flex-col max-h-[90vh] overflow-hidden"
+        onPointerDownOutside={(e) => {
+          if (pane === 'success' || pane === 'review') e.preventDefault()
+        }}
+        onInteractOutside={(e) => {
+          if (pane === 'success' || pane === 'review') e.preventDefault()
+        }}
+        onEscapeKeyDown={(e) => {
+          if (pane === 'success' || pane === 'review') e.preventDefault()
+        }}
+      >
         <DialogHeader className="shrink-0">
           <DialogTitle>{dialogTitle}</DialogTitle>
           {dialogDesc && <DialogDescription>{dialogDesc}</DialogDescription>}
