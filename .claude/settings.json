@@ -9,7 +9,8 @@
       "WebFetch(domain:releasebot.io)",
       "Bash(gh issue *)",
       "Bash(gh pr *)",
-      "Bash(gh release *)"
+      "Bash(gh release *)",
+      "Bash(python -c \"from version import __version__; print\\(__version__\\)\")"
     ]
   },
   "hooks": {
