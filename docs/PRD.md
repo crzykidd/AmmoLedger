@@ -58,6 +58,7 @@
 | 3.17 | May 2026 | Import success breakdown, dashboard scope toggle, deep-link filters — §9.1 updated: stats row expanded to 5 cards (Total Boxes added), Current/All scope toggle documented. §9.2 updated: emptyFilter/statusFilter URL deep-link params added. §9.8 updated: confirm_import returns archived_imported count; post-import success page breakdown and "View Archived Boxes" deep-link; archive_reason="imported" for CSV-archived boxes. §4.1 data model updated (archive_reason values). |
 | 3.18 | May 2026 | Dev-build version check — §9.10 Update Detection updated: dev builds now compare GIT_SHA against the dev branch tip via GitHub compare API; stable builds retain /releases/latest comparison; local builds (GIT_SHA unknown) skip the remote check. New dev_behind_by, dev_latest_sha, dev_latest_message fields added to /system/version response. Version-check logic consolidated in backend/utils/version_check.py. |
 | 3.19 | May 2026 | v0.2.0 first public release — §2 roadmap table updated to reflect shipped vs. deferred items; current version is v0.2.0. Active roadmap for next release is in docs/v030-roadmap.md. |
+| 3.20 | May 2026 | Restore rework (v0.2.1) — §11 updated: additive import mode removed (was silently corrupting cross-installation restores, closes #10); `/backup/import/preview` now returns user conflicts, `app_settings` diff, and per-user ownership summary; schema migration validation added to both preview and commit endpoints (exports whose `schema_migration` doesn't match the Alembic head are rejected). |
 
 ---
 
@@ -2050,6 +2051,26 @@ For restoring from a SQLite backup:
 3. `docker compose up -d`
    → Alembic detects version, runs any needed migrations automatically
    → App starts normally
+
+### 11.8 JSON Import Behavior (v0.2.1+)
+
+The JSON import flow is a two-step validate → confirm process:
+
+**Step 1 — Preview (`POST /backup/import/preview`)**
+
+Returns a read-only analysis of what the import will do:
+
+- `record_counts` — row counts per table in the export
+- `user_conflicts` — accounts that exist in both the current DB and the export (will be replaced wholesale, including password hashes)
+- `app_settings_diff` — keys where the imported value differs from the current value (operational telemetry keys filtered out)
+- `ownership_summary` — per-user count of ammo boxes and products post-restore, flagged if the user does not currently exist
+- `current_migration` / `schema_migration` — current Alembic head vs. export's schema tag; mismatched schemas are rejected here with a 400 before any data is touched
+
+**Step 2 — Commit (`POST /backup/import/commit`)**
+
+Full replace only: all current data is deleted, then the export is loaded. A pre-import safety backup is created automatically before any deletes. Schema mismatch validation runs again on commit as a safety net.
+
+Additive import mode was removed in v0.2.1. It was broken-by-design for cross-installation merges: colliding user rows were skipped while their child rows still inserted, ending up pointing at whoever held the conflicting ID on the target database. See GitHub issue #10. Cross-installation row-level merge is not planned for v0.3.0.
 
 ---
 

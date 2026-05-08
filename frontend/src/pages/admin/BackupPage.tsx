@@ -140,7 +140,7 @@ export default function BackupPage() {
   const [importPreviewData, setImportPreviewData] = useState<ImportPreview | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [importConfirmOpen, setImportConfirmOpen] = useState(false)
-  const [additiveWarnOpen, setAdditiveWarnOpen] = useState(false)
+  const [settingsDiffOpen, setSettingsDiffOpen] = useState(false)
 
   // Schedule config form
   const [schedEnabled, setSchedEnabled] = useState(true)
@@ -231,8 +231,8 @@ export default function BackupPage() {
   })
 
   const commitMutation = useMutation({
-    mutationFn: ({ file, mode }: { file: File; mode: 'full' | 'additive' }) =>
-      commitImport(file, mode),
+    mutationFn: ({ file }: { file: File }) =>
+      commitImport(file),
     onSuccess: async (result) => {
       setImportPreviewData(null)
       setImportFile(null)
@@ -537,9 +537,10 @@ export default function BackupPage() {
               {/* Preview panel */}
               {importPreviewData && (
                 <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-4 space-y-3">
-                  <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
                     <span>Version: <span className="text-gray-900 dark:text-white font-medium">{importPreviewData.version}</span></span>
                     <span>Exported: <span className="text-gray-900 dark:text-white font-medium">{fmtDate(importPreviewData.exported_at)}</span></span>
+                    <span>Schema: <code className="text-gray-900 dark:text-white font-medium font-mono text-xs">{importPreviewData.current_migration}</code>{' → '}<code className="text-gray-900 dark:text-white font-medium font-mono text-xs">{importPreviewData.schema_migration}</code></span>
                   </div>
 
                   <table className="w-full text-sm">
@@ -567,6 +568,118 @@ export default function BackupPage() {
                     </ul>
                   )}
 
+                  {importPreviewData.user_conflicts.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        User accounts will be replaced ({importPreviewData.user_conflicts.length})
+                      </p>
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        These accounts exist in both the current database and the import file.
+                        The current accounts will be replaced wholesale, including password hashes.
+                      </p>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-amber-700 dark:text-amber-400 border-b border-amber-200 dark:border-amber-800">
+                            <th className="pb-1 pr-4 font-medium">Username</th>
+                            <th className="pb-1 pr-4 font-medium">Current role</th>
+                            <th className="pb-1 font-medium">Import role</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importPreviewData.user_conflicts.map((u) => (
+                            <tr key={u.username}>
+                              <td className="py-0.5 pr-4 font-mono text-amber-900 dark:text-amber-200">{u.username}</td>
+                              <td className="py-0.5 pr-4 text-amber-800 dark:text-amber-300">{u.current_role}</td>
+                              <td className="py-0.5 text-amber-800 dark:text-amber-300">
+                                {u.import_role}
+                                {u.current_role !== u.import_role && (
+                                  <span className="ml-1.5 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-500">
+                                    role change
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {importPreviewData.app_settings_diff.length > 0 && (
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 space-y-2">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                        onClick={() => setSettingsDiffOpen((o) => !o)}
+                      >
+                        <span>App settings changes ({importPreviewData.app_settings_diff.length})</span>
+                        <span className="text-xs text-gray-400">{settingsDiffOpen ? '▲' : '▼'}</span>
+                      </button>
+                      {settingsDiffOpen && (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-left text-gray-500 border-b border-gray-200 dark:border-gray-700">
+                              <th className="pb-1 pr-4 font-medium">Key</th>
+                              <th className="pb-1 pr-4 font-medium">Current</th>
+                              <th className="pb-1 font-medium">Imported</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {importPreviewData.app_settings_diff.map((d) => (
+                              <tr key={d.key}>
+                                <td className="py-0.5 pr-4 font-mono text-gray-700 dark:text-gray-300">{d.key}</td>
+                                <td className="py-0.5 pr-4 text-gray-500 dark:text-gray-400 truncate max-w-[12rem]">
+                                  {d.current ?? <span className="italic text-gray-400">(not set)</span>}
+                                </td>
+                                <td className="py-0.5 text-gray-700 dark:text-gray-300 truncate max-w-[12rem]">
+                                  {d.imported ?? <span className="italic text-gray-400">(not set)</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
+
+                  {importPreviewData.ownership_summary.length > 0 && (
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 space-y-2">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Ownership after restore
+                      </p>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-200 dark:border-gray-700">
+                            <th className="pb-1 pr-4 font-medium">User</th>
+                            <th className="pb-1 pr-4 font-medium text-right">Ammo boxes</th>
+                            <th className="pb-1 font-medium text-right">Products</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                          {importPreviewData.ownership_summary.map((o) => (
+                            <tr key={o.username}>
+                              <td className="py-0.5 pr-4 font-mono text-gray-700 dark:text-gray-300">
+                                {o.username}
+                                {o.is_new_user && (
+                                  <span className="ml-1.5 text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-500">
+                                    new
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-0.5 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                                {o.ammo_box_count}
+                              </td>
+                              <td className="py-0.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                                {o.product_count}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
                   <div className="flex gap-2 pt-1">
                     <Button
                       size="sm"
@@ -574,14 +687,6 @@ export default function BackupPage() {
                       onClick={() => setImportConfirmOpen(true)}
                     >
                       Full Replace
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={commitMutation.isPending}
-                      onClick={() => setAdditiveWarnOpen(true)}
-                    >
-                      {commitMutation.isPending ? 'Importing…' : 'Additive Merge'}
                     </Button>
                   </div>
                 </div>
@@ -670,74 +775,7 @@ export default function BackupPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Additive import warning dialog */}
-      <AlertDialog open={additiveWarnOpen} onOpenChange={setAdditiveWarnOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Additive Import — read this first</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                <p>
-                  Additive mode adds rows from the JSON file whose database IDs don&apos;t already
-                  exist in your current database. It does{' '}
-                  <strong className="text-gray-900 dark:text-white">not</strong> merge, update, or
-                  overwrite existing rows.
-                </p>
-                <p className="font-semibold text-gray-900 dark:text-white">
-                  What this means in practice:
-                </p>
-                <ul className="list-disc pl-5 space-y-1.5">
-                  <li>
-                    Importing a backup from this same database will skip every row (all IDs already
-                    exist). This is expected.
-                  </li>
-                  <li>
-                    Importing data from a <em>different</em> installation is{' '}
-                    <strong className="text-gray-900 dark:text-white">
-                      not currently supported
-                    </strong>{' '}
-                    through this mode. Even if some rows go through, foreign key references (owner
-                    IDs, caliber IDs, location IDs, etc.) will point at the wrong records in your
-                    database, silently corrupting your data. Use Full Restore on a fresh database
-                    instead, or wait for the planned merge feature.
-                  </li>
-                  <li>
-                    Additive mode is intended for the narrow case of restoring rows that were deleted
-                    from this same database since the export was taken — and even there, Full Restore
-                    is usually safer.
-                  </li>
-                </ul>
-                <p>
-                  A proper merge/preview import is planned — see{' '}
-                  <a
-                    href="https://github.com/crzykidd/AmmoLedger/issues/10"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-gold hover:text-gold-light underline"
-                  >
-                    GitHub issue #10
-                  </a>
-                  .
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-              onClick={() => {
-                if (importFile) commitMutation.mutate({ file: importFile, mode: 'additive' })
-                setAdditiveWarnOpen(false)
-              }}
-            >
-              I understand, continue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Import confirm dialog (full mode only) */}
+      {/* Import confirm dialog */}
       <AlertDialog open={importConfirmOpen} onOpenChange={setImportConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -759,10 +797,6 @@ export default function BackupPage() {
                 <p>
                   A pre-import safety backup will be created automatically before any data is deleted.
                 </p>
-                <p className="text-amber-700 dark:text-amber-400">
-                  Switch to <strong>Additive</strong> mode if you want to add the imported data without deleting
-                  existing records.
-                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -772,7 +806,7 @@ export default function BackupPage() {
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
                 if (importFile) {
-                  commitMutation.mutate({ file: importFile, mode: 'full' })
+                  commitMutation.mutate({ file: importFile })
                 }
                 setImportConfirmOpen(false)
               }}

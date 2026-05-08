@@ -1,6 +1,6 @@
 import os
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 def get_display_version() -> str:

@@ -19,6 +19,27 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.2.1] — 2026-05-07
+
+Bug-fix release. Restore UX rework — additive import mode removed (it was silently corrupting ownership when imported users collided with existing accounts), schema migration validation added, and the import preview now shows user conflicts, an `app_settings` diff, and a per-user ownership summary so admins see what a full restore will actually do before clicking through. Closes #10.
+
+### Changed
+
+- **Restore**: removed additive import mode. Full replace is now the only restore mode. Additive was silently corrupting ownership when imported users collided with existing accounts — colliding user rows were skipped while their child rows still inserted, ending up pointing at whoever currently held the ID. Closes #10.
+- **Restore**: `/backup/import/preview` now returns user conflicts, an `app_settings` diff (operational telemetry keys filtered), and a per-user ownership summary so admins see what the restore will actually do before clicking through.
+
+### Added
+
+- **Restore**: schema migration validation. Exports whose `schema_migration` field doesn't exactly match the current database's Alembic head are rejected on both `/backup/import/preview` and `/backup/import/commit`. Prevents silent corruption from a schema-drifted export. A TODO at the validation site documents future relaxation once migration `0002+` ships.
+
+### Removed
+
+- **Restore**: the `mode` form parameter on `/backup/import/commit` and the corresponding "Additive Merge" UI button and warning dialog.
+
+### Coming Next
+
+The next feature work is **Split Box** — split a single ammo box into multiple smaller boxes (e.g., a 1000-round case into 20 boxes of 50). After that, the major focus is **firearms tracking, range session logging, and cleaning reminders**, with **accessories management** (optics, magazines, holsters, etc.) on the same roadmap. See the [README](README.md#whats-coming-next) for details.
+
 ## [0.2.0] — 2026-05-06
 
 **First public release.** v0.2.0 is the first version of AmmoLedger considered ready for general use. Substantial work and testing has gone into reaching this point — the data model is stable, the import/export flows are reliable, and the major UX gaps from earlier dev iterations are closed. From here on, breaking changes will be minimized and clearly called out.

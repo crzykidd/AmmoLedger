@@ -8,7 +8,7 @@ from typing import Any
 
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from database import get_session
@@ -61,6 +61,14 @@ _EXPORT_TABLES = [
 ]
 
 _COMPATIBLE_MAJOR = __version__.split(".")[0]
+
+# Operational telemetry keys that change on every backup/import and would
+# dominate the app_settings diff with noise. Hidden from the preview UI.
+_PREVIEW_HIDE_SETTINGS_KEYS = frozenset({
+    "last_backup_at",
+    "last_backup_file",
+    "last_import_at",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +135,59 @@ def _parse_import_json(contents: bytes) -> dict:
         raise HTTPException(status_code=400, detail="Missing or invalid 'tables' key")
 
     return data
+
+
+def _current_migration(con: sqlite3.Connection) -> str:
+    """Read the current DB's Alembic head. Returns 'unknown' on any failure."""
+    try:
+        row = con.execute("SELECT version_num FROM alembic_version LIMIT 1").fetchone()
+        return row[0] if row else "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _validate_schema_migration(export_migration: str | None, current: str) -> None:
+    """Reject the import if the export's schema doesn't exactly match current.
+
+    # TODO(schema-evolution): Strict equality is correct for v0.2.1 because there
+    # is only one schema version in the wild. Once migration 0002+ ships, revisit
+    # whether older exports can be replayed safely. Cases to consider:
+    #   - Export migration < current: forward-compatible if all newer migrations
+    #     are additive (new nullable columns, new tables). Could be allowed by
+    #     populating defaults for new fields.
+    #   - Export migration > current: must always reject. The app cannot know how
+    #     to translate forward.
+    # Tracked in #14.
+    """
+    if not export_migration or export_migration == "unknown":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "This export does not record a schema version and cannot be "
+                    "restored. Re-export from a current version of AmmoLedger."
+                ),
+                "technical": (
+                    f"Export 'schema_migration' field is missing or unknown; "
+                    f"current database is at {current}."
+                ),
+            },
+        )
+    if export_migration != current:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "This export was created with a different version of "
+                    "AmmoLedger and cannot be restored. Export from a matching "
+                    "version, or upgrade the source installation first."
+                ),
+                "technical": (
+                    f"Schema mismatch: export was taken at migration "
+                    f"{export_migration}, current database is at {current}."
+                ),
+            },
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -403,21 +464,122 @@ async def import_preview(
     contents = await file.read()
     data = _parse_import_json(contents)
 
-    tables = data["tables"]
-    record_counts = {t: len(v) for t, v in tables.items() if isinstance(v, list)}
+    db_path = _db_path()
+    con = sqlite3.connect(str(db_path))
+    con.row_factory = sqlite3.Row
+    try:
+        cur_migration = _current_migration(con)
+        _validate_schema_migration(data.get("schema_migration"), cur_migration)
 
-    warnings = []
-    for t in _EXPORT_TABLES:
-        if t not in tables:
-            warnings.append(f"Table '{t}' not present in export file")
+        tables = data["tables"]
+        record_counts = {t: len(v) for t, v in tables.items() if isinstance(v, list)}
+
+        warnings: list[str] = []
+        for t in _EXPORT_TABLES:
+            if t not in tables:
+                warnings.append(f"Table '{t}' not present in export file")
+
+        # User conflicts: usernames in export that already exist in current DB
+        import_users = tables.get("users", []) or []
+        import_users_by_name = {
+            u["username"]: u for u in import_users
+            if isinstance(u, dict) and "username" in u
+        }
+        user_conflicts: list[dict] = []
+        if import_users_by_name:
+            placeholders = ",".join("?" * len(import_users_by_name))
+            current_user_rows = con.execute(
+                f"SELECT username, role FROM users WHERE username IN ({placeholders})",  # noqa: S608
+                tuple(import_users_by_name.keys()),
+            ).fetchall()
+            for row in sorted(current_user_rows, key=lambda r: r["username"]):
+                imported = import_users_by_name[row["username"]]
+                user_conflicts.append({
+                    "username": row["username"],
+                    "current_role": row["role"],
+                    "import_role": imported.get("role", "unknown"),
+                })
+
+        # app_settings diff: keys whose values differ, minus operational keys
+        current_settings: dict[str, str | None] = {}
+        try:
+            for row in con.execute("SELECT key, value FROM app_settings").fetchall():
+                current_settings[row["key"]] = row["value"]
+        except Exception:
+            pass
+
+        import_settings_rows = tables.get("app_settings", []) or []
+        import_settings: dict[str, str | None] = {
+            r["key"]: r.get("value")
+            for r in import_settings_rows
+            if isinstance(r, dict) and "key" in r
+        }
+
+        all_keys = (set(current_settings) | set(import_settings)) - _PREVIEW_HIDE_SETTINGS_KEYS
+        app_settings_diff: list[dict] = []
+        for key in sorted(all_keys):
+            cur = current_settings.get(key)
+            imp = import_settings.get(key)
+            if cur != imp:
+                app_settings_diff.append({
+                    "key": key,
+                    "current": cur,
+                    "imported": imp,
+                })
+
+        # Ownership summary: post-restore boxes/products per user, from the export
+        import_boxes = tables.get("ammo_box", []) or []
+        import_products = tables.get("products", []) or []
+
+        box_counts: dict[int, int] = {}
+        product_counts: dict[int, int] = {}
+        for box in import_boxes:
+            if isinstance(box, dict):
+                oid = box.get("owner_id")
+                if oid is not None:
+                    box_counts[oid] = box_counts.get(oid, 0) + 1
+        for prod in import_products:
+            if isinstance(prod, dict):
+                oid = prod.get("owner_id")
+                if oid is not None:
+                    product_counts[oid] = product_counts.get(oid, 0) + 1
+
+        import_users_by_id: dict[int, str] = {
+            u["id"]: u["username"]
+            for u in import_users
+            if isinstance(u, dict) and "id" in u and "username" in u
+        }
+
+        current_usernames: set[str] = set()
+        try:
+            for row in con.execute("SELECT username FROM users").fetchall():
+                current_usernames.add(row["username"])
+        except Exception:
+            pass
+
+        ownership_rows: list[dict] = []
+        for uid, username in import_users_by_id.items():
+            ownership_rows.append({
+                "username": username,
+                "ammo_box_count": box_counts.get(uid, 0),
+                "product_count": product_counts.get(uid, 0),
+                "is_new_user": username not in current_usernames,
+            })
+        ownership_rows.sort(key=lambda r: (-r["ammo_box_count"], r["username"]))
+    finally:
+        con.close()
 
     return {
         "valid": True,
         "version": data.get("ammologger_version"),
         "schema_migration": data.get("schema_migration"),
+        "current_migration": cur_migration,
         "exported_at": data.get("exported_at"),
         "record_counts": record_counts,
         "warnings": warnings,
+        "user_conflicts": user_conflicts,
+        "app_settings_diff": app_settings_diff,
+        "ownership_summary": ownership_rows,
     }
 
 
@@ -428,15 +590,21 @@ async def import_preview(
 @router.post("/import/commit")
 async def import_commit(
     file: UploadFile = File(...),
-    mode: str = Form("full"),
     _: Any = Depends(require_role("admin")),
 ):
-    if mode not in ("full", "additive"):
-        raise HTTPException(status_code=400, detail="mode must be 'full' or 'additive'")
-
     contents = await file.read()
     data = _parse_import_json(contents)
     tables = data["tables"]
+
+    db_path = _db_path()
+
+    # Validate schema before doing anything destructive
+    pre_con = sqlite3.connect(str(db_path))
+    try:
+        cur_migration = _current_migration(pre_con)
+        _validate_schema_migration(data.get("schema_migration"), cur_migration)
+    finally:
+        pre_con.close()
 
     # Auto pre-import backup — import is blocked if this fails
     from utils.pre_import_backup import trigger_pre_import_backup  # noqa: PLC0415
@@ -448,21 +616,19 @@ async def import_commit(
             detail=f"Pre-import backup failed: {exc}. Import blocked to protect your data.",
         ) from exc
 
-    db_path = _db_path()
     records_imported = 0
-    records_skipped = 0
     warnings: list[str] = []
 
     con = sqlite3.connect(str(db_path))
     try:
         con.execute("PRAGMA foreign_keys = OFF")
 
-        if mode == "full":
-            for table in reversed(_EXPORT_TABLES):
-                try:
-                    con.execute(f"DELETE FROM {table}")  # noqa: S608
-                except Exception:
-                    pass
+        # Full replace: delete all exported tables in reverse FK order
+        for table in reversed(_EXPORT_TABLES):
+            try:
+                con.execute(f"DELETE FROM {table}")  # noqa: S608
+            except Exception:
+                pass
 
         for table in _EXPORT_TABLES:
             rows = tables.get(table, [])
@@ -473,15 +639,6 @@ async def import_commit(
                 if not isinstance(row, dict):
                     continue
 
-                if mode == "additive" and "id" in row:
-                    exists = con.execute(
-                        f"SELECT 1 FROM {table} WHERE id = ?",  # noqa: S608
-                        (row["id"],),
-                    ).fetchone()
-                    if exists:
-                        records_skipped += 1
-                        continue
-
                 cols = list(row.keys())
                 col_names = ", ".join(f'"{c}"' for c in cols)
                 placeholders = ", ".join("?" * len(cols))
@@ -489,12 +646,10 @@ async def import_commit(
 
                 try:
                     con.execute(
-                        f"INSERT OR IGNORE INTO {table} ({col_names}) VALUES ({placeholders})",  # noqa: S608
+                        f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})",  # noqa: S608
                         values,
                     )
                     records_imported += 1
-                except sqlite3.IntegrityError:
-                    records_skipped += 1
                 except Exception as exc:
                     if len(warnings) < 20:
                         warnings.append(f"{table}: {exc}")
@@ -535,13 +690,11 @@ async def import_commit(
 
     return {
         "records_imported": records_imported,
-        "records_skipped": records_skipped,
+        "records_skipped": 0,
         "warnings": warnings,
-        "force_logout": mode == "full",
+        "force_logout": True,
         "logout_reason": (
             "The user database was replaced as part of a full restore. "
             "Please log in with your restored credentials."
-            if mode == "full"
-            else None
         ),
     }
