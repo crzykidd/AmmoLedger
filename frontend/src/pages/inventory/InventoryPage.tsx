@@ -117,6 +117,7 @@ const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
   { value: 'location', label: 'Location' },
   { value: 'container', label: 'Container' },
   { value: 'condition', label: 'Condition' },
+  { value: 'split_parent', label: 'Split Parent' },
 ]
 
 const SEARCH_FIELD_OPTIONS = [
@@ -483,6 +484,16 @@ export default function InventoryPage() {
         getId = (b) => b.container_id
         getName = (id) => containerMap.get(id) ?? 'Unknown'
         break
+      case 'split_parent':
+        getId = (b) => b.split_from_id
+        getName = (id) => {
+          const parent = allBoxes.find((b) => b.id === id)
+          if (!parent) return `Split from #${id}`
+          const cal = caliberMap.get(parent.caliber_id) ?? '—'
+          const mfg = manufacturerMap.get(parent.manufacturer_id) ?? '—'
+          return `Split from #${id} (${cal}, ${mfg}${parent.product_name ? `, ${parent.product_name}` : ''})`
+        }
+        break
       default:
         getId = (b) => b.caliber_id
         getName = (id) => caliberMap.get(id) ?? 'Unknown'
@@ -504,7 +515,7 @@ export default function InventoryPage() {
     }
 
     return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name))
-  }, [groupBy, filteredBoxes, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, locationMap, containerMap])
+  }, [groupBy, filteredBoxes, allBoxes, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, locationMap, containerMap])
 
   function handleColumnFilterChange(key: keyof ColumnFilters, value: string) {
     setColumnFilters((prev) => ({ ...prev, [key]: value }))

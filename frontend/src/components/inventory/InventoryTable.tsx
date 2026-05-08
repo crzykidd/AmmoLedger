@@ -32,6 +32,7 @@ export type GroupByField =
   | 'location'
   | 'container'
   | 'condition'
+  | 'split_parent'
 
 export interface ColumnFilters {
   id: string
@@ -61,10 +62,16 @@ export const DEFAULT_COLUMN_FILTERS: ColumnFilters = {
 // History section
 // ---------------------------------------------------------------------------
 
-function HistorySection({ boxId }: { boxId: number }) {
+function HistorySection({
+  box,
+  onReviewSplit,
+}: {
+  box: AmmoBoxRead
+  onReviewSplit: (childIds: number[]) => void
+}) {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['ammo-history', boxId],
-    queryFn: () => getAmmoHistory(boxId),
+    queryKey: ['ammo-history', box.id],
+    queryFn: () => getAmmoHistory(box.id),
   })
 
   if (isLoading) return <p className="text-xs text-gray-400 italic">Loading history…</p>
@@ -74,20 +81,51 @@ function HistorySection({ boxId }: { boxId: number }) {
 
   return (
     <div className="space-y-1">
-      {data.map((entry) => (
-        <div
-          key={entry.id}
-          className="flex items-baseline gap-3 text-xs text-gray-600 dark:text-gray-400"
-        >
-          <span className="tabular-nums shrink-0 w-20 text-gray-400">{entry.date}</span>
-          <span className="tabular-nums font-medium text-gray-800 dark:text-gray-200 shrink-0">
-            −{entry.rounds_used} rds
-          </span>
-          {entry.notes && (
-            <span className="truncate italic text-gray-400 dark:text-gray-500">{entry.notes}</span>
-          )}
-        </div>
-      ))}
+      {data.map((entry) => {
+        if (entry.log_type === 'split') {
+          let childIds: number[] = []
+          try {
+            childIds = JSON.parse(entry.related_ids ?? '[]')
+          } catch {
+            // fall through with empty array
+          }
+          const renderedIds =
+            childIds.length === 0
+              ? '—'
+              : childIds.length <= 3
+                ? childIds.map((id) => `#${id}`).join(', ')
+                : `#${childIds[0]}–#${childIds[childIds.length - 1]}`
+          return (
+            <div key={entry.id} className="flex items-baseline gap-3 text-xs">
+              <span className="tabular-nums shrink-0 w-20 text-gray-400">{entry.date}</span>
+              <button
+                onClick={() => onReviewSplit(childIds)}
+                disabled={childIds.length === 0}
+                className="text-amber-600 dark:text-amber-400 hover:underline disabled:no-underline disabled:cursor-default font-medium"
+              >
+                Split into {childIds.length} boxes ({renderedIds})
+              </button>
+              <span className="tabular-nums text-gray-500 shrink-0">
+                {entry.rounds_used} rounds
+              </span>
+            </div>
+          )
+        }
+        return (
+          <div
+            key={entry.id}
+            className="flex items-baseline gap-3 text-xs text-gray-600 dark:text-gray-400"
+          >
+            <span className="tabular-nums shrink-0 w-20 text-gray-400">{entry.date}</span>
+            <span className="tabular-nums font-medium text-gray-800 dark:text-gray-200 shrink-0">
+              −{entry.rounds_used} rds
+            </span>
+            {entry.notes && (
+              <span className="truncate italic text-gray-400 dark:text-gray-500">{entry.notes}</span>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -221,6 +259,7 @@ const GROUP_FIELD_LABEL: Record<string, string> = {
   condition: 'Condition',
   container: 'Container',
   location: 'Location',
+  split_parent: 'Split Parent',
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +295,7 @@ export default function InventoryTable({
   const [openExpendBoxId, setOpenExpendBoxId] = useState<number | null>(null)
   const [openArchiveBoxId, setOpenArchiveBoxId] = useState<number | null>(null)
   const [openSplitBoxId, setOpenSplitBoxId] = useState<number | null>(null)
+  const [reviewSplit, setReviewSplit] = useState<{ box: AmmoBoxRead; childIds: number[] } | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [startCollapsed, setStartCollapsed] = useState(true)
 
@@ -399,6 +439,17 @@ export default function InventoryTable({
         case 'location':
           name = box.location_id != null ? (locationMap.get(box.location_id) ?? null) : null
           break
+        case 'split_parent':
+          if (box.split_from_id != null) {
+            const parent = sorted.find((b) => b.id === box.split_from_id)
+            const cal = parent ? (caliberMap.get(parent.caliber_id) ?? '—') : '—'
+            const mfg = parent ? (manufacturerMap.get(parent.manufacturer_id) ?? '—') : '—'
+            const prod = parent?.product_name ? `, ${parent.product_name}` : ''
+            name = `Split from #${box.split_from_id} (${cal}, ${mfg}${prod})`
+          } else {
+            name = null
+          }
+          break
       }
 
       if (name) {
@@ -410,9 +461,20 @@ export default function InventoryTable({
     }
 
     const label = GROUP_FIELD_LABEL[groupBy] ?? groupBy
-    const named = Array.from(groupMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([n, bs]) => ({ name: n, boxes: bs, isUngrouped: false }))
+    let named: GroupEntry[]
+    if (groupBy === 'split_parent') {
+      named = Array.from(groupMap.entries())
+        .sort(([a], [b]) => {
+          const idA = parseInt(a.match(/#(\d+)/)?.[1] ?? '0')
+          const idB = parseInt(b.match(/#(\d+)/)?.[1] ?? '0')
+          return idA - idB
+        })
+        .map(([n, bs]) => ({ name: n, boxes: bs, isUngrouped: false }))
+    } else {
+      named = Array.from(groupMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([n, bs]) => ({ name: n, boxes: bs, isUngrouped: false }))
+    }
 
     if (ungrouped.length > 0) {
       named.push({ name: `No ${label}`, boxes: ungrouped, isUngrouped: true })
@@ -786,7 +848,10 @@ export default function InventoryTable({
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">
                     History
                   </p>
-                  <HistorySection boxId={box.id} />
+                  <HistorySection
+                    box={box}
+                    onReviewSplit={(childIds) => setReviewSplit({ box, childIds })}
+                  />
                 </div>
               </div>
             </TableCell>
@@ -979,6 +1044,17 @@ export default function InventoryTable({
       calibers={calibers}
       manufacturers={manufacturers}
       ammoTypes={ammoTypes}
+    />
+    <SplitBoxDialog
+      box={reviewSplit?.box ?? null}
+      open={reviewSplit !== null}
+      onOpenChange={(o) => { if (!o) setReviewSplit(null) }}
+      user={user}
+      calibers={calibers}
+      manufacturers={manufacturers}
+      ammoTypes={ammoTypes}
+      mode="review"
+      reviewChildIds={reviewSplit?.childIds}
     />
     </>
   )

@@ -293,7 +293,11 @@ export default function DashboardPage() {
   )
 
   const stats = useMemo(() => {
-    const source = statsScope === 'current' ? currentBoxes : allBoxes
+    // Lifetime totals: count parent boxes only (split_from_id IS NULL).
+    // Children of a split represent the same physical rounds as their parent's
+    // qty_original, so counting both would double-count. See PRD §6.13 / §9.2.4.
+    const allRootBoxes = allBoxes.filter((b) => b.split_from_id === null)
+    const source = statsScope === 'current' ? currentBoxes : allRootBoxes
     const useOriginal = statsScope === 'all'
     const totalBoxes = source.length
     const totalRounds = source.reduce(
