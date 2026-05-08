@@ -32,6 +32,7 @@ from schemas import (
     AmmoListResponse,
     BulkUpdateRequest,
     BulkUpdateResponse,
+    SplitParentRead,
     SplitRequest,
     SplitResponse,
 )
@@ -368,6 +369,80 @@ def split_ammo(
         box.id, len(children), payload.split_type, total_split, user.email or user.username,
     )
     return SplitResponse(parent=box, children=children, log_entry=log)
+
+
+def _is_parent_visible(owner_id: int, is_shared: bool, user: User) -> bool:
+    if user.role == "admin":
+        return True
+    if user.role == "member":
+        return is_shared or owner_id == user.id
+    return is_shared  # readonly
+
+
+@router.get("/split-parents", response_model=list[SplitParentRead])
+def list_split_parents(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    """Return metadata for every box that has at least one child (split parent).
+
+    Used by the Group By 'Split Parent' header to show parent info even when
+    the parent is filtered out or invisible to the current user. Notes are
+    nulled out when the parent isn't visible under normal RBAC rules; all
+    other metadata is always returned so headers render correctly.
+    """
+    from sqlalchemy.orm import aliased as _aliased
+    ChildBox = _aliased(AmmoBox)
+    has_children_subq = (
+        select(ChildBox.id).where(ChildBox.split_from_id == AmmoBox.id).exists()
+    )
+    stmt = (
+        select(
+            AmmoBox.id,
+            AmmoBox.owner_id,
+            AmmoBox.is_shared,
+            AmmoBox.caliber_id,
+            AmmoBox.manufacturer_id,
+            AmmoBox.product_name,
+            AmmoBox.qty_original,
+            AmmoBox.qty_remaining,
+            AmmoBox.is_archived,
+            AmmoBox.archive_reason,
+            AmmoBox.notes,
+            AmmoBox.purchase_date,
+            AmmoBox.created_at,
+            AmmoBox.updated_at,
+            Caliber.name.label("caliber_name"),
+            Manufacturer.name.label("manufacturer_name"),
+        )
+        .join(Caliber, AmmoBox.caliber_id == Caliber.id)
+        .join(Manufacturer, AmmoBox.manufacturer_id == Manufacturer.id)
+        .where(has_children_subq)
+        .order_by(AmmoBox.id.asc())
+    )
+    rows = db.exec(stmt).all()
+    result = []
+    for r in rows:
+        visible = _is_parent_visible(r.owner_id, r.is_shared, user)
+        result.append(
+            SplitParentRead(
+                id=r.id,
+                caliber_id=r.caliber_id,
+                manufacturer_id=r.manufacturer_id,
+                product_name=r.product_name,
+                qty_original=r.qty_original,
+                qty_remaining=r.qty_remaining,
+                is_archived=r.is_archived,
+                archive_reason=r.archive_reason,
+                notes=r.notes if visible else None,
+                purchase_date=r.purchase_date,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+                caliber_name=r.caliber_name,
+                manufacturer_name=r.manufacturer_name,
+            )
+        )
+    return result
 
 
 _CSV_COLUMNS = [

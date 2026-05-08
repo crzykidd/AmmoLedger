@@ -138,6 +138,7 @@ export default function SplitBoxDialog({
       void qc.invalidateQueries({ queryKey: ['ammo'] })
       void qc.invalidateQueries({ queryKey: ['ammo-history', box!.id] })
       void qc.invalidateQueries({ queryKey: ['thresholds', 'status'] })
+      void qc.invalidateQueries({ queryKey: ['ammo', 'split-parents'] })
       setResult(data)
       setApiError(null)
       setPane('success')

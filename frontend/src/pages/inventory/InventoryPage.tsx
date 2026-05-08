@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload, Download } from 'lucide-react'
+import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload, Download, ArrowUp, ArrowDown } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import InventoryTable from '@/components/inventory/InventoryTable'
-import type { GroupByField, ColumnFilters } from '@/components/inventory/InventoryTable'
+import type { GroupByField, ColumnFilters, SortKey, SortDir } from '@/components/inventory/InventoryTable'
 import { DEFAULT_COLUMN_FILTERS } from '@/components/inventory/InventoryTable'
 import InventoryCardList from '@/components/inventory/InventoryCardList'
 import AmmoFormPanel from '@/components/inventory/AmmoFormPanel'
@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useThresholdStatus } from '@/hooks/useThresholdStatus'
+import { useSplitParents } from '@/hooks/useSplitParents'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import type { AmmoBoxRead } from '@/types'
@@ -178,6 +179,14 @@ export default function InventoryPage() {
     () => (localStorage.getItem('inventory_group_by') as GroupByField) ?? 'none',
   )
 
+  // Sort By — persisted to localStorage
+  const [sortKey, setSortKey] = useState<SortKey>(
+    () => (localStorage.getItem('inventory_sort_key') as SortKey) ?? 'id',
+  )
+  const [sortDir, setSortDir] = useState<SortDir>(
+    () => (localStorage.getItem('inventory_sort_dir') as SortDir) ?? 'asc',
+  )
+
   // Column filters — reset on page refresh
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(DEFAULT_COLUMN_FILTERS)
 
@@ -248,6 +257,8 @@ export default function InventoryPage() {
 
   const lookups = useInventoryLookups()
   const { status: thresholdStatus } = useThresholdStatus()
+  const { data: splitParentsData } = useSplitParents()
+  const splitParents = splitParentsData ?? []
 
   // Lookup maps used for column filtering and field-scoped search
   const caliberMap = useMemo(
@@ -530,6 +541,13 @@ export default function InventoryPage() {
     localStorage.setItem('inventory_group_by', value)
   }
 
+  function handleSortChange(key: SortKey, dir: SortDir) {
+    setSortKey(key)
+    setSortDir(dir)
+    localStorage.setItem('inventory_sort_key', key)
+    localStorage.setItem('inventory_sort_dir', dir)
+  }
+
   function handleEmptyFilterChange(v: EmptyFilter) {
     setEmptyFilter(v)
     localStorage.setItem('inventory_empty_filter', v)
@@ -600,6 +618,36 @@ export default function InventoryPage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Sort By */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                Sort By
+              </label>
+              <HelpTip text="Choose how to order boxes. When Group By is active, this orders boxes within each group." />
+              <select
+                value={sortKey}
+                onChange={(e) => handleSortChange(e.target.value as SortKey, sortDir)}
+                className={selectClass}
+                aria-label="Sort by field"
+              >
+                <option value="id">Box ID</option>
+                <option value="caliber">Caliber</option>
+                <option value="manufacturer">Manufacturer</option>
+                <option value="qty_remaining">Remaining</option>
+                <option value="purchase_date">Purchase Date</option>
+                <option value="updated_at">Updated Date</option>
+              </select>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => handleSortChange(sortKey, sortDir === 'asc' ? 'desc' : 'asc')}
+                title={sortDir === 'asc' ? 'Ascending — click to switch to descending' : 'Descending — click to switch to ascending'}
+              >
+                {sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+              </Button>
             </div>
 
             {/* Search with field selector */}
@@ -906,6 +954,10 @@ export default function InventoryPage() {
                   onColumnFilterChange={handleColumnFilterChange}
                   onEdit={openEdit}
                   onDelete={openDelete}
+                  splitParents={splitParents}
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSortChange={handleSortChange}
                 />
               </div>
               {/* Mobile cards */}

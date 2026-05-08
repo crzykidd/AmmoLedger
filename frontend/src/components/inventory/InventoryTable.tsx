@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
-import { ChevronDown, ChevronRight, Pencil, Trash2, Archive, ArchiveRestore, Crosshair, AlertTriangle, Split } from 'lucide-react'
+import { ChevronDown, ChevronRight, Pencil, Trash2, Archive, ArchiveRestore, Crosshair, AlertTriangle, Split, Info } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table,
@@ -17,7 +17,8 @@ import { toast } from '@/hooks/use-toast'
 import QuickExpendPopover from '@/components/QuickExpendPopover'
 import QuickArchivePopover from '@/components/inventory/QuickArchivePopover'
 import SplitBoxDialog from '@/components/inventory/SplitBoxDialog'
-import type { AmmoBoxRead, User, LookupItem, DealerItem, ContainerItem, LocationItem } from '@/types'
+import SplitParentDetailsDialog from '@/components/inventory/SplitParentDetailsDialog'
+import type { AmmoBoxRead, User, LookupItem, DealerItem, ContainerItem, LocationItem, SplitParentRead } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Public types — imported by InventoryPage
@@ -164,8 +165,8 @@ function IndeterminateCheckbox({
 // Types
 // ---------------------------------------------------------------------------
 
-type SortKey = 'id' | 'caliber' | 'manufacturer' | 'qty_remaining'
-type SortDir = 'asc' | 'desc'
+export type SortKey = 'id' | 'caliber' | 'manufacturer' | 'qty_remaining' | 'purchase_date' | 'updated_at'
+export type SortDir = 'asc' | 'desc'
 
 interface GroupEntry {
   name: string
@@ -194,6 +195,10 @@ interface Props {
   onColumnFilterChange: (key: keyof ColumnFilters, value: string) => void
   onEdit: (box: AmmoBoxRead) => void
   onDelete: (box: AmmoBoxRead) => void
+  splitParents: SplitParentRead[]
+  sortKey: SortKey
+  sortDir: SortDir
+  onSortChange: (key: SortKey, dir: SortDir) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -287,11 +292,14 @@ export default function InventoryTable({
   onColumnFilterChange,
   onEdit,
   onDelete,
+  splitParents,
+  sortKey,
+  sortDir,
+  onSortChange,
 }: Props) {
   const qc = useQueryClient()
-  const [sortKey, setSortKey] = useState<SortKey>('id')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [detailsParent, setDetailsParent] = useState<SplitParentRead | null>(null)
   const [openExpendBoxId, setOpenExpendBoxId] = useState<number | null>(null)
   const [openArchiveBoxId, setOpenArchiveBoxId] = useState<number | null>(null)
   const [openSplitBoxId, setOpenSplitBoxId] = useState<number | null>(null)
@@ -375,6 +383,11 @@ export default function InventoryTable({
     [containers],
   )
 
+  const splitParentsById = useMemo(
+    () => new Map(splitParents.map((p) => [p.id, p])),
+    [splitParents],
+  )
+
   // Sort
   const sorted = useMemo(() => {
     return [...boxes].sort((a, b) => {
@@ -383,6 +396,18 @@ export default function InventoryTable({
         return sortDir === 'asc'
           ? a.qty_remaining - b.qty_remaining
           : b.qty_remaining - a.qty_remaining
+      if (sortKey === 'purchase_date') {
+        const av = a.purchase_date
+        const bv = b.purchase_date
+        if (!av && !bv) return 0
+        if (!av) return 1
+        if (!bv) return -1
+        return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+      }
+      if (sortKey === 'updated_at')
+        return sortDir === 'asc'
+          ? a.updated_at.localeCompare(b.updated_at)
+          : b.updated_at.localeCompare(a.updated_at)
       const av =
         sortKey === 'caliber'
           ? (caliberMap.get(a.caliber_id) ?? '')
@@ -441,11 +466,13 @@ export default function InventoryTable({
           break
         case 'split_parent':
           if (box.split_from_id != null) {
-            const parent = sorted.find((b) => b.id === box.split_from_id)
-            const cal = parent ? (caliberMap.get(parent.caliber_id) ?? '—') : '—'
-            const mfg = parent ? (manufacturerMap.get(parent.manufacturer_id) ?? '—') : '—'
-            const prod = parent?.product_name ? `, ${parent.product_name}` : ''
-            name = `Split from #${box.split_from_id} (${cal}, ${mfg}${prod})`
+            const parent = splitParentsById.get(box.split_from_id)
+            if (parent) {
+              const prod = parent.product_name ? `, ${parent.product_name}` : ''
+              name = `Split from #${box.split_from_id} (${parent.caliber_name}, ${parent.manufacturer_name}${prod})`
+            } else {
+              name = `Split from #${box.split_from_id}`
+            }
           } else {
             name = null
           }
@@ -491,6 +518,7 @@ export default function InventoryTable({
     conditionMap,
     containerMap,
     locationMap,
+    splitParentsById,
   ])
 
   const groupsRef = useRef<GroupEntry[]>(groups)
@@ -519,11 +547,8 @@ export default function InventoryTable({
   }, [expandSignal])
 
   function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    else {
-      setSortKey(key)
-      setSortDir('asc')
-    }
+    if (sortKey === key) onSortChange(key, sortDir === 'asc' ? 'desc' : 'asc')
+    else onSortChange(key, 'asc')
   }
 
   function toggleExpand(id: number) {
@@ -807,12 +832,14 @@ export default function InventoryTable({
             <TableCell colSpan={10}>
               <div className="grid grid-cols-2 gap-6 py-2 text-sm">
                 <div className="space-y-1 text-gray-700 dark:text-gray-300">
-                  {box.purchase_date && (
-                    <div>
-                      <span className="text-gray-500">Purchased: </span>
-                      {box.purchase_date}
-                    </div>
-                  )}
+                  <div>
+                    <span className="text-gray-500">Purchased: </span>
+                    {box.purchase_date ?? <span className="text-gray-400 italic">not set</span>}
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Updated: </span>
+                    {box.updated_at.slice(0, 10)}
+                  </div>
                   {box.dealer_id != null && (
                     <div>
                       <span className="text-gray-500">Dealer: </span>
@@ -931,6 +958,25 @@ export default function InventoryTable({
                     {lowCount} low
                   </span>
                 )}
+                {groupBy === 'split_parent' && !isUngrouped && (() => {
+                  const parentIdStr = name.match(/#(\d+)/)?.[1]
+                  const parentId = parentIdStr ? parseInt(parentIdStr, 10) : null
+                  const parent = parentId != null ? splitParentsById.get(parentId) : null
+                  if (!parent) return null
+                  return (
+                    <span className="pl-3">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => { e.stopPropagation(); setDetailsParent(parent) }}
+                        title="Show parent details"
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </span>
+                  )
+                })()}
               </div>
             </div>
           </TableCell>
@@ -1055,6 +1101,11 @@ export default function InventoryTable({
       ammoTypes={ammoTypes}
       mode="review"
       reviewChildIds={reviewSplit?.childIds}
+    />
+    <SplitParentDetailsDialog
+      parent={detailsParent}
+      open={detailsParent !== null}
+      onOpenChange={(o) => { if (!o) setDetailsParent(null) }}
     />
     </>
   )

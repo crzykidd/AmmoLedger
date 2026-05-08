@@ -10,6 +10,7 @@ import type {
   ExpendResponse,
   ExpenditureRead,
   RecentExpenditure,
+  SplitParentRead,
   SplitRequest,
   SplitResponse,
 } from '@/types'
@@ -46,6 +47,9 @@ export const getAmmoHistory = (boxId: number) =>
 
 export const getRecentExpenditure = () =>
   api.get<RecentExpenditure[]>('/expenditures/recent')
+
+export const getSplitParents = () =>
+  api.get<SplitParentRead[]>('/ammo/split-parents')
 
 export const exportAmmoCsv = (params?: { search?: string; show_archived?: boolean; show_empty?: boolean }) => {
   const qs = new URLSearchParams()
