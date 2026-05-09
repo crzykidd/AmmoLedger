@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { ChevronDown, ChevronUp, Archive, ArchiveRestore, Crosshair, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Archive, ArchiveRestore, Crosshair, Pencil, Trash2, Split } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,6 +20,7 @@ interface Props {
   onEdit: (box: AmmoBoxRead) => void
   onDelete: (box: AmmoBoxRead) => void
   onExpend: (box: AmmoBoxRead) => void
+  onSplit?: (box: AmmoBoxRead) => void
 }
 
 function canEdit(box: AmmoBoxRead, user: User): boolean {
@@ -44,6 +45,7 @@ export default function InventoryCardList({
   onEdit,
   onDelete,
   onExpend,
+  onSplit,
 }: Props) {
   const qc = useQueryClient()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
@@ -220,6 +222,17 @@ export default function InventoryCardList({
                         >
                           <Crosshair className="h-3.5 w-3.5 mr-1.5" />
                           Log Use
+                        </Button>
+                      )}
+                      {editable && box.qty_remaining >= 2 && !box.is_archived && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => onSplit?.(box)}
+                        >
+                          <Split className="h-3.5 w-3.5 mr-1.5" />
+                          Split
                         </Button>
                       )}
                       {editable && (

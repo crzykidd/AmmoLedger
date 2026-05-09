@@ -59,6 +59,8 @@
 | 3.18 | May 2026 | Dev-build version check — §9.10 Update Detection updated: dev builds now compare GIT_SHA against the dev branch tip via GitHub compare API; stable builds retain /releases/latest comparison; local builds (GIT_SHA unknown) skip the remote check. New dev_behind_by, dev_latest_sha, dev_latest_message fields added to /system/version response. Version-check logic consolidated in backend/utils/version_check.py. |
 | 3.19 | May 2026 | v0.2.0 first public release — §2 roadmap table updated to reflect shipped vs. deferred items; current version is v0.2.0. Active roadmap for next release is in docs/v030-roadmap.md. |
 | 3.20 | May 2026 | Restore rework (v0.2.1) — §11 updated: additive import mode removed (was silently corrupting cross-installation restores, closes #10); `/backup/import/preview` now returns user conflicts, `app_settings` diff, and per-user ownership summary; schema migration validation added to both preview and commit endpoints (exports whose `schema_migration` doesn't match the Alembic head are rejected). |
+| 3.21 | May 2026 | Split Box — §9.2.4 reconciled with implementation: dated note auto-appended to parent on split, strict-mode odd-size warning on preview/success panes, post-split labeling view, Group By "Split Parent" added, lifetime totals (dashboard "All" scope) filter on split_from_id IS NULL to prevent double-counting. §6.13 Reporting Integrity Rules updated to use split_from_id IS NULL instead of is_leaf. |
+| 3.22 | May 2026 | Split Box QA fixes and UX additions: GET /ammo/split-parents endpoint added (parent metadata lookup with joined caliber/manufacturer names, notes scoped by RBAC); SplitParentDetailsDialog accessible from Group By "Split Parent" group header info icon; Sort By toolbar dropdown with six options including Purchase Date and Updated Date; Purchase Date and Updated Date now shown in expanded inventory rows; child boxes created by a split now have notes pre-populated with "[Split YYYY-MM-DD] Split from #N"; list_ammo includes any box with children regardless of show_archived/show_empty filters; SplitBoxDialog success and review panes are modal-locked; Preview pane row labels switched from "Box 1/Box 2" (mistaken for IDs) to plain "1./2." with disclaimer; Total Boxes (lifetime) now counts all records, not just root boxes — Total Rounds and Total Value still filter on split_from_id IS NULL. §6.13 reporting table updated; §9.2.4 expanded with QA-discovered behavior and new UI surfaces. |
 
 ---
 
@@ -127,7 +129,7 @@ AmmoLedger is a self-hosted web application for tracking personal ammunition inv
 | Overview Dashboard | Stats: total rounds, caliber breakdown, value, low stock alerts | v1.0 |
 | DB Backup — Manual & Nightly | Admin-triggered or scheduled backup; configurable retention; re-importable JSON | v1.0 |
 | Alembic Migrations | Versioned schema migrations; automatic on startup | v1.0 |
-| Split Box | Split a box into two separate tracking records (partial split) | v0.3.0 |
+| Split Box | Split a box into multiple smaller boxes — equal or custom child sizes, full or partial split, dated note auto-appended to parent, strict-mode odd-size warning, post-split labeling view | v0.3.0 |
 | Restock / Add Same | Quickly restock an existing product without re-entering all fields | v0.3.0 |
 | Notifications | Low-stock alerts and system events via Discord webhook or email | v1.0 |
 | Label Printing | Print QR-code labels for boxes; Avery sheet sizes; mobile expend via QR scan | v1.0 |
@@ -397,7 +399,7 @@ ammo_box
 ├── location_id      INTEGER    FK → locations; nullable — direct location assignment, independent of container
 ├── container_id     INTEGER    FK → containers; nullable
 ├── legacy_id        TEXT       Optional user-supplied ID from a prior tracking system; nullable
-├── notes            TEXT       Free text; nullable
+├── notes            TEXT       Free text; nullable — when created by a split, auto-initialised to `[Split YYYY-MM-DD] Split from #{parent.id}`; user may append additional notes after this line
 ├── split_from_id    INTEGER    FK → ammo_box.id; nullable — set when box was created by a split
 ├── is_archived      BOOLEAN    Default false — true when fully split, manually archived, or empty+archived
 ├── archive_reason   TEXT       "split" | "empty" | "manual" | "imported"; nullable
@@ -598,33 +600,35 @@ notifications
 
 ### 6.13 Reporting Integrity Rules
 
-#### The Leaf Box Problem
+#### Root Box Rule
 
-When a box is split the original becomes a parent record in the audit trail. Counting both parent and children would double-count rounds. All inventory and purchase reports must only count **leaf boxes**.
-
-#### Leaf Box Definition
-
-A box is a leaf if no other box has `split_from_id` pointing to it:
+For lifetime / historical totals (rounds purchased, total value spent, total boxes ever tracked), only **root boxes** are counted — boxes that were not created by a split:
 
 ```sql
-is_leaf = NOT EXISTS (
-  SELECT 1 FROM ammo_box child
-  WHERE child.split_from_id = this_box.id
-)
+WHERE split_from_id IS NULL
 ```
 
-Computed at query time — not stored as a column — to ensure it is always accurate. The index on `split_from_id` keeps this fast.
+Counting both a split parent and its children would double-count the same physical rounds. Counting only children breaks for partial splits, where the parent retains rounds the children don't represent. Counting only roots works correctly for full splits, partial splits, and nested splits — the parent's `qty_original` always reflects the full original purchase.
+
+This filter is **only applied to lifetime totals**. Active inventory ("Current" scope) continues to use `is_archived = false` and `qty_remaining`, which is already correct: full-split parents are archived (excluded), and partial-split parents have their `qty_remaining` reduced to reflect rounds that left.
+
+> Earlier drafts of this PRD (≤ v3.20) specified an `is_leaf = NOT EXISTS (children)` rule. That rule under-counted partial-split parents because it excluded the parent (non-leaf) but the parent's retained rounds aren't represented anywhere in its children. The root-box rule replaces it.
 
 #### Reporting Query Rules
 
 | Report | Filter |
 | ------ | ------ |
-| Total rounds purchased | `SUM(qty_original)` WHERE `is_leaf = true` |
-| Total rounds on hand | `SUM(qty_remaining)` WHERE `is_leaf = true AND is_archived = false` |
-| Total inventory value | `SUM(qty_remaining × cost_per_round)` WHERE `is_leaf = true AND is_archived = false` |
+| Total rounds purchased (lifetime) | `SUM(qty_original)` WHERE `split_from_id IS NULL` |
+| Total lifetime value | `SUM(qty_original × cost_per_round)` WHERE `split_from_id IS NULL` |
+| Total boxes ever tracked (lifetime) | `COUNT(*)` (no filter — every record counts) |
+| Calibers Tracked (lifetime) | `COUNT(DISTINCT caliber_id)` |
+| Total rounds on hand (current) | `SUM(qty_remaining)` WHERE `is_archived = false AND qty_remaining > 0` |
+| Total inventory value (current) | `SUM(qty_remaining × cost_per_round)` WHERE `is_archived = false AND qty_remaining > 0` |
 | Total rounds expended | `SUM(rounds_used)` FROM `expenditure_log` WHERE `log_type = 'expend'` only |
 
 Split and adjust entries are **never** counted as rounds used in reports.
+
+**Asymmetry between rounds and box counts:** The lifetime Total Boxes count drops the `split_from_id IS NULL` filter while Total Rounds and Total Value keep it. The reasoning: a "box" is a physical container, and after splitting a 1000-round case into 20 boxes the user really does have 20 more containers on the shelf. But the rounds in those 20 children represent the same physical rounds as the parent's `qty_original` — counting both would double-count. So box count grows with splits, round count stays accurate.
 
 #### Adjustment Entries
 
@@ -903,6 +907,8 @@ A **Current / All** toggle appears above the stats row.
 - **Current** (default) — stats reflect active, non-empty boxes only (`is_archived = false AND qty_remaining > 0`).
 - **All** — stats include every box ever tracked (archived, empty, and active), using `qty_original` for round and value totals so the numbers represent lifetime purchase quantities.
 
+Note: in "All" scope, **Total Boxes** counts every record (root boxes plus children of splits) so the count reflects the physical number of containers ever tracked. **Total Rounds** and **Total Value** count root boxes only (`split_from_id IS NULL`) to avoid double-counting rounds that appear in both a parent and its children. See §6.13 for the full rule.
+
 Selection persists in `localStorage['dashboard_stats_scope']`. A HelpTip explains the scope difference inline.
 
 The lower dashboard sections (By Caliber, Running Low, Recent Activity) always reflect **current** inventory regardless of the toggle.
@@ -1046,6 +1052,25 @@ Toolbar dropdown (persisted to `localStorage` key `inventory_group_by`):
 - "Collapse All" and "Expand All" toolbar buttons appear when Group By is active
 - Collapse state resets on Group By change; not persisted to localStorage
 
+#### Sort By
+
+Toolbar dropdown next to Group By. Six options:
+
+- Box ID (default, ascending)
+- Caliber
+- Manufacturer
+- Remaining
+- Purchase Date
+- Updated Date
+
+Adjacent asc/desc toggle button. Selection persists to `localStorage['inventory_sort_key']` and `localStorage['inventory_sort_dir']`.
+
+When Group By is active, sort applies **within each group**; group ordering remains by group key (alphabetical for most fields; numeric parent ID for Split Parent). When Group By is None, sort applies to the full list.
+
+The clickable column-header sort arrows on ID / Caliber / Manufacturer / Remaining stay in sync with the toolbar dropdown — they're two views of the same state. Clicking a column header updates the dropdown; changing the dropdown updates the column-header indicator.
+
+Null values (e.g. boxes with no `purchase_date`) sort last regardless of asc/desc direction.
+
 #### Per-Column Filters
 
 Always-visible filter row directly below the column headers. All filters are AND-combined with each other and with the global search bar.
@@ -1106,7 +1131,7 @@ CSV export uses the broader server-side view — exporting while "Empty only" or
 
 Two-column layout inside a `<tr>` below the main row:
 
-- **Left column:** Purchase date, Dealer, Container, Notes (each shown only if set)
+- **Left column:** Purchased and Updated dates (always shown; "not set" if `purchase_date` is null), Dealer, Container, Cost/rd, Notes (each shown only if set)
 - **Right column:** Expenditure history — date, rounds used, optional notes per entry; "No expenditure history" when empty
 
 Future action buttons at bottom of expanded row: Restock, Split (placeholder until implemented).
@@ -1170,39 +1195,96 @@ Same rules as the existing Log Use button: `read_only` cannot expend; members ca
 
 #### Use Case
 
-A user purchases a case as one entry. Later opens it and needs to track individual boxes separately.
+A user purchases a case as one entry. Later opens it and needs to track individual boxes separately. Or peels a few boxes off a case for a range trip without breaking up the whole case.
 
 #### Split Types
 
 | Type | Behaviour |
 | ---- | --------- |
-| **Full Split** | All rounds in parent accounted for in new boxes; original archived (`archive_reason = "split"`); `is_leaf` becomes false on parent |
-| **Partial Split** | Splits off some boxes; original `qty_remaining` reduced by split amount; original stays active as a leaf |
+| **Full Split** | Children's `qty_original` total must equal the parent's current `qty_remaining` exactly. Parent is archived (`is_archived = true`, `archive_reason = "split"`, `qty_remaining = 0`). Parent becomes non-leaf and is excluded from active inventory. |
+| **Partial Split** | Children's `qty_original` total is less than parent's current `qty_remaining`. Parent's `qty_remaining` is reduced by the split total. Parent stays active. Parent becomes non-leaf but remains a root for lifetime-total reporting. |
 
 #### Split Modes
 
-**Equal Split (Mode A):** Specify the number of boxes; rounds per box auto-calculated from `qty_remaining`; user can override rounds per box; total must equal `qty_remaining` for a full split.
+**Equal Split (Mode A):** Specify the number of boxes; each row's `qty_original` is auto-calculated as `floor(qty_remaining / N)`; the user can override individual rows.
 
-**Custom Split (Mode B):** Specify rounds per box individually; add as many boxes as needed; running total vs available rounds shown; `[ + Add another box ]` button.
+**Custom Split (Mode B):** Specify each child's `qty_original` individually; rows added/removed via `+ Add another box` / `−` controls. Running total bar shows allocated vs. available rounds and turns red on overflow.
+
+In both modes, all child rows must satisfy: `qty_original ≥ 1`, count `≥ 2`, and total `≤ parent.qty_remaining` (with equality required for full split).
 
 #### Fields Inherited by New Boxes
 
-Inherited from parent: caliber, manufacturer, product_name, type, category, grain, weight_unit, purchase_date, cost_per_round, dealer, is_shared, owner_id.
+Inherited from parent: `caliber_id`, `manufacturer_id`, `product_name`, `gr_oz`, `weight_unit`, `type_id`, `ammo_condition_id`, `category_id`, `purchase_date`, `cost_per_round`, `dealer_id`, `is_shared`, `owner_id`.
 
-Reset on new boxes: container, location, notes, legacy_id — each gets a unique auto-incremented ID; `split_from_id` set to parent box ID.
+Reset on each new box: `container_id`, `location_id`, `notes`, `legacy_id`, `product_id` — all set to `NULL`. Each child gets a fresh auto-incremented ID and `split_from_id = parent.id`. `qty_remaining` is initialised to `qty_original` (children always start full).
 
 #### Audit Trail
 
-An `expenditure_log` entry is written on the parent box: `log_type = "split"`, `rounds_used` = total rounds split out, `related_ids` = JSON array of new child box IDs. Split entries are never counted in usage reports.
+Three records are written when a split occurs:
+
+1. **Expenditure log entry** on the parent — `log_type = "split"`, `rounds_used` = total rounds split out, `related_ids` = JSON array of new child box IDs. Split entries are never counted in usage reports.
+
+2. **Note line appended to `parent.notes`** — dated, never replaces existing notes. Format:
+
+   | Scenario | Line appended |
+   | --- | --- |
+   | Full split, all same size | `[Split YYYY-MM-DD] Fully split into N × S-round boxes (IDS)` |
+   | Full split, mixed sizes | `[Split YYYY-MM-DD] Fully split into N boxes (T rounds total) → IDS` |
+   | Partial split, all same size | `[Split YYYY-MM-DD] Split off N × S-round boxes (T rounds) → IDS` |
+   | Partial split, mixed sizes | `[Split YYYY-MM-DD] Split off N boxes (T rounds) → IDS` |
+
+   Where IDS = `#101, #102, #103` for 3 or fewer children, or `#101–#120` (en-dash) for 4 or more. Children are always created contiguously in one transaction so the range form is always accurate.
+
+3. **Note pre-populated on each child** — every child box created by a split has `notes` set to `[Split YYYY-MM-DD] Split from #{parent.id}` so an isolated child box reveals its origin without consulting the parent.
 
 #### Validation
 
-- Split total cannot exceed `qty_remaining` — error code `SPLIT_EXCEEDS_AVAILABLE`
-- Minimum 2 boxes in any split; each box must have at least 1 round
+- Minimum 2 child boxes per split.
+- Each child's `qty_original` must be ≥ 1.
+- Total child `qty_original` must be ≤ parent's `qty_remaining`. Error code `SPLIT_EXCEEDS_AVAILABLE`.
+- Full split: total must equal `qty_remaining` exactly.
+- Parent must not already be archived.
+- Parent's `qty_remaining` must be ≥ 2 to be eligible.
 
 #### UI Flow
 
-Access via box detail page or inventory list `⋮` menu → **Split Box**. Preview screen shows all boxes to be created before confirming. Success: "Split complete — N new boxes created (#X–#Y)" with links.
+Access from the inventory row Actions column → **Split** icon (visible only when user can edit, `qty_remaining ≥ 2`, and box is not archived). The dialog has three panes:
+
+1. **Form** — split type and mode toggles, child rows, running total bar, inline validation.
+2. **Preview** — read-only summary of every box to be created with inherited fields visible. Rows are numbered `1.`, `2.`, `3.`, etc. (not "Box 1" / "Box 2" — those are mistaken for the actual auto-incremented IDs). A disclaimer above the list reads "Box IDs will be assigned when you confirm the split." Strict-mode odd-size warning row (informational, amber): if any child's `qty_original` differs from the mode of the split, that row is flagged so the user notices uneven distributions before confirming. Common cause: a 1000-round bucket weighed slightly short, leaving one box with an odd count.
+3. **Success / labeling** — large Box IDs and round counts laid out for fast labeling, with amber tint and ⚠ icon on any odd-sized child. No print button — physical label printing (thermal / Avery / QR) is its own future feature.
+
+The dialog can be re-opened from the parent's expanded-row history later: each `log_type = "split"` entry renders as a clickable amber line `Split into N boxes (#X–#Y)`. Clicking re-opens the labeling pane in review mode.
+
+#### Inventory Integration
+
+- **Group By "Split Parent"** — 9th option in the inventory Group By dropdown. Headers render as `Split from #N (Caliber, Mfg, Product)` and sort numerically by parent ID. Boxes with no split parent fall into a "No Split Parent" group.
+- **Lifetime totals** (dashboard "All" scope) filter on `split_from_id IS NULL` to count parent boxes only and avoid double-counting (see §6.13).
+- **`GET /ammo` always includes split parents.** Any box that has at least one child is included in the list regardless of the `show_archived` / `show_empty` query params. Without this, fully-split parents (which have `is_archived = true` and `qty_remaining = 0`) would disappear from the default Active-only / Has-rounds view, leaving users no route to reach the parent's notes and split history. Manually-archived or empty boxes with no children are still hidden by default. `GET /ammo/export/csv` uses the same bypass.
+
+#### Parent Details Dialog
+
+Accessible from the Group By "Split Parent" group header. Each non-ungrouped header shows an info icon (right-aligned in the header row). Clicking the icon opens a small modal showing the parent's caliber, manufacturer, product name, original/remaining round counts, archive status, purchase and updated dates, and full notes (including all `[Split …]` history lines).
+
+The dialog is **modal-locked** — only the `Close` button dismisses it. Click-outside and Esc are blocked so users reading multi-line split history don't accidentally lose the view.
+
+When the parent is not visible to the current user under standard RBAC rules (e.g. another user's private box that this user can only reach because they can see one of its shared children), all metadata fields are still shown but the `notes` field reads `Notes not visible — this box is private to another user.` Caliber, manufacturer, and product name are always populated so the group header can render correctly.
+
+Backed by `GET /ammo/split-parents`, which returns one row per box that has at least one child. Cached client-side and invalidated on every successful split.
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `GET` | `/ammo/split-parents` | Any | Returns metadata for every box that has at least one child. Used by Group By "Split Parent" headers and SplitParentDetailsDialog. `notes` field is nulled out for parents not visible to the caller under standard RBAC. |
+
+#### Visibility of Split Parents in Inventory
+
+`GET /ammo` includes any box that has children regardless of the `show_archived` / `show_empty` filters. This means fully-split parents (which have `is_archived=true` and `qty_remaining=0`) are visible in the default Active-only / Has-rounds inventory view — without this, users couldn't easily reach the parent's notes and history. Manually-archived or empty-and-archived boxes that have NO children are still hidden by default.
+
+The same bypass applies to `GET /ammo/export/csv`. Split parents always export with the rest of the inventory.
+
+#### Modal Lock on Success and Review Panes
+
+The SplitBoxDialog's Form and Preview panes follow standard dialog dismiss behavior — clicking outside or pressing Esc closes them. The **Success** pane (post-confirm labeling list) and **Review** pane (re-opened from history) are modal-locked: the only way to dismiss is the explicit `Done` or `Close` button. This prevents users from losing the labeling list while reading or transcribing it.
 
 ### 9.2.5 Restock / Add Same
 

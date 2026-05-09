@@ -10,6 +10,9 @@ import type {
   ExpendResponse,
   ExpenditureRead,
   RecentExpenditure,
+  SplitParentRead,
+  SplitRequest,
+  SplitResponse,
 } from '@/types'
 
 export const listAmmo = (params?: { search?: string; show_archived?: boolean; show_empty?: boolean }) => {
@@ -36,11 +39,17 @@ export const bulkUpdateAmmo = (data: BulkUpdateRequest) =>
 export const expendAmmo = (boxId: number, data: ExpendRequest) =>
   api.post<ExpendResponse>(`/ammo/${boxId}/expend`, data)
 
+export const splitAmmo = (boxId: number, data: SplitRequest) =>
+  api.post<SplitResponse>(`/ammo/${boxId}/split`, data)
+
 export const getAmmoHistory = (boxId: number) =>
   api.get<ExpenditureRead[]>(`/ammo/${boxId}/history`)
 
 export const getRecentExpenditure = () =>
   api.get<RecentExpenditure[]>('/expenditures/recent')
+
+export const getSplitParents = () =>
+  api.get<SplitParentRead[]>('/ammo/split-parents')
 
 export const exportAmmoCsv = (params?: { search?: string; show_archived?: boolean; show_empty?: boolean }) => {
   const qs = new URLSearchParams()

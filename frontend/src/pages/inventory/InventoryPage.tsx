@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload, Download } from 'lucide-react'
+import { Plus, Search, PackageOpen, AlertTriangle, ChevronDown, ChevronUp, X, CheckSquare, Upload, Download, ArrowUp, ArrowDown } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -9,13 +9,14 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import InventoryTable from '@/components/inventory/InventoryTable'
-import type { GroupByField, ColumnFilters } from '@/components/inventory/InventoryTable'
+import type { GroupByField, ColumnFilters, SortKey, SortDir } from '@/components/inventory/InventoryTable'
 import { DEFAULT_COLUMN_FILTERS } from '@/components/inventory/InventoryTable'
 import InventoryCardList from '@/components/inventory/InventoryCardList'
 import AmmoFormPanel from '@/components/inventory/AmmoFormPanel'
 import BulkEditPanel from '@/components/inventory/BulkEditPanel'
 import DeleteAmmoDialog from '@/components/inventory/DeleteAmmoDialog'
 import ExpendDialog from '@/components/inventory/ExpendDialog'
+import SplitBoxDialog from '@/components/inventory/SplitBoxDialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo, exportAmmoCsv } from '@/api/ammo'
 import {
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useThresholdStatus } from '@/hooks/useThresholdStatus'
+import { useSplitParents } from '@/hooks/useSplitParents'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import type { AmmoBoxRead } from '@/types'
@@ -116,6 +118,7 @@ const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
   { value: 'location', label: 'Location' },
   { value: 'container', label: 'Container' },
   { value: 'condition', label: 'Condition' },
+  { value: 'split_parent', label: 'Split Parent' },
 ]
 
 const SEARCH_FIELD_OPTIONS = [
@@ -176,6 +179,14 @@ export default function InventoryPage() {
     () => (localStorage.getItem('inventory_group_by') as GroupByField) ?? 'none',
   )
 
+  // Sort By — persisted to localStorage
+  const [sortKey, setSortKey] = useState<SortKey>(
+    () => (localStorage.getItem('inventory_sort_key') as SortKey) ?? 'id',
+  )
+  const [sortDir, setSortDir] = useState<SortDir>(
+    () => (localStorage.getItem('inventory_sort_dir') as SortDir) ?? 'asc',
+  )
+
   // Column filters — reset on page refresh
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(DEFAULT_COLUMN_FILTERS)
 
@@ -231,6 +242,8 @@ export default function InventoryPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [expendBox, setExpendBox] = useState<AmmoBoxRead | null>(null)
   const [expendOpen, setExpendOpen] = useState(false)
+  const [splitBox, setSplitBox] = useState<AmmoBoxRead | null>(null)
+  const [splitOpen, setSplitOpen] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(
     () => sessionStorage.getItem(BANNER_DISMISS_KEY) === '1',
   )
@@ -244,6 +257,8 @@ export default function InventoryPage() {
 
   const lookups = useInventoryLookups()
   const { status: thresholdStatus } = useThresholdStatus()
+  const { data: splitParentsData } = useSplitParents()
+  const splitParents = splitParentsData ?? []
 
   // Lookup maps used for column filtering and field-scoped search
   const caliberMap = useMemo(
@@ -480,6 +495,16 @@ export default function InventoryPage() {
         getId = (b) => b.container_id
         getName = (id) => containerMap.get(id) ?? 'Unknown'
         break
+      case 'split_parent':
+        getId = (b) => b.split_from_id
+        getName = (id) => {
+          const parent = allBoxes.find((b) => b.id === id)
+          if (!parent) return `Split from #${id}`
+          const cal = caliberMap.get(parent.caliber_id) ?? '—'
+          const mfg = manufacturerMap.get(parent.manufacturer_id) ?? '—'
+          return `Split from #${id} (${cal}, ${mfg}${parent.product_name ? `, ${parent.product_name}` : ''})`
+        }
+        break
       default:
         getId = (b) => b.caliber_id
         getName = (id) => caliberMap.get(id) ?? 'Unknown'
@@ -501,7 +526,7 @@ export default function InventoryPage() {
     }
 
     return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name))
-  }, [groupBy, filteredBoxes, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, locationMap, containerMap])
+  }, [groupBy, filteredBoxes, allBoxes, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, locationMap, containerMap])
 
   function handleColumnFilterChange(key: keyof ColumnFilters, value: string) {
     setColumnFilters((prev) => ({ ...prev, [key]: value }))
@@ -514,6 +539,13 @@ export default function InventoryPage() {
   function handleGroupByChange(value: GroupByField) {
     setGroupBy(value)
     localStorage.setItem('inventory_group_by', value)
+  }
+
+  function handleSortChange(key: SortKey, dir: SortDir) {
+    setSortKey(key)
+    setSortDir(dir)
+    localStorage.setItem('inventory_sort_key', key)
+    localStorage.setItem('inventory_sort_dir', dir)
   }
 
   function handleEmptyFilterChange(v: EmptyFilter) {
@@ -552,6 +584,11 @@ export default function InventoryPage() {
     setExpendOpen(true)
   }
 
+  function openSplit(box: AmmoBoxRead) {
+    setSplitBox(box)
+    setSplitOpen(true)
+  }
+
   const selectClass =
     'h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 px-2 focus:outline-none focus:ring-2 focus:ring-gold'
 
@@ -581,6 +618,36 @@ export default function InventoryPage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Sort By */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                Sort By
+              </label>
+              <HelpTip text="Choose how to order boxes. When Group By is active, this orders boxes within each group." />
+              <select
+                value={sortKey}
+                onChange={(e) => handleSortChange(e.target.value as SortKey, sortDir)}
+                className={selectClass}
+                aria-label="Sort by field"
+              >
+                <option value="id">Box ID</option>
+                <option value="caliber">Caliber</option>
+                <option value="manufacturer">Manufacturer</option>
+                <option value="qty_remaining">Remaining</option>
+                <option value="purchase_date">Purchase Date</option>
+                <option value="updated_at">Updated Date</option>
+              </select>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => handleSortChange(sortKey, sortDir === 'asc' ? 'desc' : 'asc')}
+                title={sortDir === 'asc' ? 'Ascending — click to switch to descending' : 'Descending — click to switch to ascending'}
+              >
+                {sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+              </Button>
             </div>
 
             {/* Search with field selector */}
@@ -887,6 +954,10 @@ export default function InventoryPage() {
                   onColumnFilterChange={handleColumnFilterChange}
                   onEdit={openEdit}
                   onDelete={openDelete}
+                  splitParents={splitParents}
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSortChange={handleSortChange}
                 />
               </div>
               {/* Mobile cards */}
@@ -901,6 +972,7 @@ export default function InventoryPage() {
                   onEdit={openEdit}
                   onDelete={openDelete}
                   onExpend={openExpend}
+                  onSplit={openSplit}
                 />
               </div>
             </>
@@ -962,6 +1034,20 @@ export default function InventoryPage() {
           if (!o) setExpendBox(null)
         }}
         calibers={lookups.calibers}
+      />
+
+      {/* Split dialog — mobile path (desktop uses internal state in InventoryTable) */}
+      <SplitBoxDialog
+        box={splitBox}
+        open={splitOpen}
+        onOpenChange={(o) => {
+          setSplitOpen(o)
+          if (!o) setSplitBox(null)
+        }}
+        user={user!}
+        calibers={lookups.calibers}
+        manufacturers={lookups.manufacturers}
+        ammoTypes={lookups.ammoTypes}
       />
 
       {/* Export CSV confirmation */}

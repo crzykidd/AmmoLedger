@@ -293,9 +293,18 @@ export default function DashboardPage() {
   )
 
   const stats = useMemo(() => {
-    const source = statsScope === 'current' ? currentBoxes : allBoxes
+    // Lifetime totals: rounds/value count root boxes only (split_from_id IS NULL) to
+    // avoid double-counting — children's qty_original represents the same physical
+    // rounds as the parent's. Total Boxes counts every record because after a split
+    // the user physically has more boxes on the shelf. See PRD §6.13 / §9.2.4.
+    const allRootBoxes = allBoxes.filter((b) => b.split_from_id === null)
+    const source = statsScope === 'current' ? currentBoxes : allRootBoxes
     const useOriginal = statsScope === 'all'
-    const totalBoxes = source.length
+    // Total Boxes counts every record — after a split, the user has more physical
+    // boxes on the shelf and expects this to reflect that. Total Rounds/Value count
+    // root boxes only because parent's qty_original represents the same physical
+    // rounds as the children's combined; counting both would double-count.
+    const totalBoxes = statsScope === 'all' ? allBoxes.length : currentBoxes.length
     const totalRounds = source.reduce(
       (sum, b) => sum + (useOriginal ? b.qty_original : b.qty_remaining),
       0,

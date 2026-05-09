@@ -515,3 +515,43 @@ export interface TaskConstraints {
   max_hours?: number
   requires_exclusive?: boolean
 }
+
+// ---------------------------------------------------------------------------
+// Split parent lookup type — mirrors backend SplitParentRead
+// ---------------------------------------------------------------------------
+
+export interface SplitParentRead {
+  id: number
+  caliber_id: number
+  manufacturer_id: number
+  product_name: string | null
+  qty_original: number
+  qty_remaining: number
+  is_archived: boolean
+  archive_reason: string | null
+  notes: string | null  // null when not visible to current user
+  purchase_date: string | null
+  created_at: string
+  updated_at: string
+  caliber_name: string
+  manufacturer_name: string
+}
+
+// ---------------------------------------------------------------------------
+// Split types — mirrors backend schemas.py
+// ---------------------------------------------------------------------------
+
+export interface SplitChildSpec {
+  qty_original: number
+}
+
+export interface SplitRequest {
+  split_type: 'full' | 'partial'
+  children: SplitChildSpec[]
+}
+
+export interface SplitResponse {
+  parent: AmmoBoxRead
+  children: AmmoBoxRead[]
+  log_entry: ExpenditureRead
+}
