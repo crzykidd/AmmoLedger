@@ -14,6 +14,12 @@
 
 # AmmoLedger
 
+> ### 🆕 New in v0.2.2 — Split Box
+>
+> Break a single ammo box into multiple smaller tracking records — for example, opening a 1000-round case and tracking each individual box. Supports full or partial splits, equal or custom child sizes, with a labeling view to help you mark physical boxes accurately. Every split is recorded in the parent's notes and audit history.
+>
+> **Tip:** if you do a lot of splits in one session, run a backup beforehand. Splits write multiple records in one transaction and a backup gives you a clean rollback point.
+
 A self-hosted web application to track your ammunition inventory. Keep your ammo counts accurate on and off the range.
 
 > 🎯 **AmmoLedger v0.2.0 — First public release.** Self-hosted ammunition inventory tracking. Stable, ready for daily use. **Firearms tracking, range session logging, and accessories management** are on the roadmap — see [What's Coming Next](#whats-coming-next).
@@ -36,7 +42,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 AmmoLedger started with ammunition, but the goal is to track your whole collection. Here's what's on the roadmap:
 
-### Firearms & Range Tracking
+### Firearms & Range Tracking (targeted for v0.3.0)
 
 - **Firearms registry** — track your collection by serial number, manufacturer, model, caliber, and acquisition details.
 - **Range sessions** — log range trips with date, location, firearms used, and rounds expended per firearm. Ties directly into your existing inventory.

@@ -19,6 +19,10 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+_No changes yet._
+
+## [0.2.2] — 2026-05-09
+
 ### Added
 
 - **Split Box**: split a single ammo box into multiple smaller tracking records. Two split types — Full (all rounds distributed, parent archived) and Partial (some rounds peeled off, parent stays active). Two modes — Equal (specify number of boxes; rounds-per-box auto-calculated and editable) and Custom (specify each child's round count individually). Children inherit caliber, manufacturer, product name, grain, type, condition, category, purchase date, cost per round, dealer, sharing, and owner from the parent; container, location, notes, legacy ID, and product link reset for each child. Access via the new Split icon in the inventory row Actions column.
