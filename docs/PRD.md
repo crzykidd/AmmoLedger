@@ -119,7 +119,7 @@ AmmoLedger is a self-hosted web application for tracking personal ammunition inv
 | Multi-User Accounts | User management UI; RBAC roles enforced from day one | v1.0 |
 | RBAC — Admin / Member / Read-Only | Role-based permission enforcement on all API routes | v1.0 |
 | Shared Ownership Model | is_shared flag on ammo boxes; attributed expenditure logging | v1.0 |
-| Ammo Inventory | Full CRUD for ammo boxes with all tracked fields | v1.0 |
+| Ammo | Full CRUD for ammo boxes with all tracked fields | v1.0 |
 | Ammo Condition field | Track production origin (Factory New, Remanufactured, Surplus, etc.) | v1.0 |
 | Storage — Containers & Locations | Containers and locations; optional assignment to boxes | v1.0 |
 | Round Expenditure | Quick-log rounds used; deducts from box quantity | v1.0 |
@@ -901,7 +901,7 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 | Calibers Tracked | Distinct caliber count in the current scope |
 | Low Stock Items | Count of calibers below threshold + locations below threshold (always current state) |
 
-#### Inventory Stats Scope Toggle
+#### Ammo Stats Scope Toggle
 
 A **Current / All** toggle appears above the stats row.
 
@@ -938,7 +938,7 @@ Slide-out sheet accessible by tapping any caliber row on the dashboard or the ca
 Two subsections — By Caliber and By Location.
 
 - Each caliber row in **By Caliber** opens the Caliber Threshold Drawer on click.
-- Each location row in **By Location** links to Inventory filtered by that location.
+- Each location row in **By Location** links to the Ammo page filtered by that location.
 
 #### Recent Activity
 
@@ -1257,7 +1257,7 @@ Access from the inventory row Actions column → **Split** icon (visible only wh
 
 The dialog can be re-opened from the parent's expanded-row history later: each `log_type = "split"` entry renders as a clickable amber line `Split into N boxes (#X–#Y)`. Clicking re-opens the labeling pane in review mode.
 
-#### Inventory Integration
+#### Ammo Page Integration
 
 - **Group By "Split Parent"** — 9th option in the inventory Group By dropdown. Headers render as `Split from #N (Caliber, Mfg, Product)` and sort numerically by parent ID. Boxes with no split parent fall into a "No Split Parent" group.
 - **Lifetime totals** (dashboard "All" scope) filter on `split_from_id IS NULL` to count parent boxes only and avoid double-counting (see §6.13).
@@ -1277,7 +1277,7 @@ Backed by `GET /ammo/split-parents`, which returns one row per box that has at l
 | --- | --- | --- | --- |
 | `GET` | `/ammo/split-parents` | Any | Returns metadata for every box that has at least one child. Used by Group By "Split Parent" headers and SplitParentDetailsDialog. `notes` field is nulled out for parents not visible to the caller under standard RBAC. |
 
-#### Visibility of Split Parents in Inventory
+#### Visibility of Split Parents in the Ammo List
 
 `GET /ammo` includes any box that has children regardless of the `show_archived` / `show_empty` filters. This means fully-split parents (which have `is_archived=true` and `qty_remaining=0`) are visible in the default Active-only / Has-rounds inventory view — without this, users couldn't easily reach the parent's notes and history. Manually-archived or empty-and-archived boxes that have NO children are still hidden by default.
 
@@ -1325,7 +1325,7 @@ Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an 
 
 **Result card layout:** the text container inside each result card uses `flex-1 min-w-0` so long box descriptions (long product names, manufacturer names) wrap within the `max-w-lg` boundary rather than forcing the entire page wider. Both description lines use `break-words`.
 
-**Import navigation change:** Import has been moved from the top nav section (Dashboard / Inventory / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Inventory, Products, At Range.
+**Import navigation change:** Import has been moved from the top nav section (Dashboard / Ammo / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Ammo, Products, At Range.
 
 ### 9.3 Expend Rounds
 
@@ -1533,7 +1533,7 @@ When archived rows were imported, the success page shows a breakdown:
 - A note that archived boxes are hidden by the default Status filter ("Active only")
 - A **"View Archived Boxes"** button that navigates to `/ammo?statusFilter=archived&emptyFilter=all`, deep-linking into the pre-filtered archived view
 
-When `archived_imported === 0`, only a "Go to Inventory" / "Import Another" button pair is shown (existing behavior).
+When `archived_imported === 0`, only a "Go to Ammo" / "Import Another" button pair is shown (existing behavior).
 
 #### Legacy ID Mode
 
@@ -1775,7 +1775,7 @@ Single source of truth for the entire app. Docker image built with this version 
 - Search input at top — filters to sections and items matching the query; highlights matching text
 - Collapsible sections (## headings) — click to expand/collapse all items in a section
 - Collapsible Q&A items (### headings) — individual accordion, auto-expanded when a search is active
-- Covers: Getting Started, Inventory, Stock Thresholds, Import, Backup & Restore, User Management, About
+- Covers: Getting Started, Ammo, Stock Thresholds, Import, Backup & Restore, User Management, About
 
 #### Contextual Help Tooltips (HelpTip component)
 
@@ -1788,7 +1788,7 @@ Single source of truth for the entire app. Docker image built with this version 
 
 #### Products Page (`/products`)
 
-- Accessible to all authenticated roles via sidebar (BookOpen icon, between Inventory and Import)
+- Accessible to all authenticated roles via sidebar (BookOpen icon, between Ammo and Import)
 - Two view modes: **Grid** (image card layout) and **List** (compact rows) — toggled by icon buttons, saved to localStorage
 - Search input filters by name, caliber, or manufacturer (client-side across loaded results)
 - Caliber filter dropdown to narrow list to a single caliber
@@ -1811,7 +1811,7 @@ Image upload area: click to browse or drag-and-drop; shows preview with remove b
 - Selecting a product calls `applyProduct()` — fills caliber, manufacturer, product_name, gr_oz, weight_unit, type, category, condition, cost_per_round from the product and switches to manual mode
 - In manual mode: shows selected product name in a muted chip with a ×Clear link
 - "Enter details manually" hides the selector and lets the user fill all fields themselves
-- When navigating from the Products page ("Add Box" button), the URL carries `?product_id={id}`; InventoryPage reads the param, opens the Add form, and passes `initialProductId` to `AmmoFormPanel` which fetches the product and auto-fills
+- When navigating from the Products page ("Add Box" button), the URL carries `?product_id={id}`; AmmoPage reads the param, opens the Add form, and passes `initialProductId` to `AmmoFormPanel` which fetches the product and auto-fills
 
 #### Save as Template Dialog
 

@@ -456,7 +456,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
               <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                Inventory Stats
+                Ammo Stats
               </h2>
               <HelpTip text="Current shows your active inventory. All includes every box ever tracked — archived, empty, and expended rounds — based on original purchase quantities." />
             </div>
