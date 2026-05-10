@@ -11,6 +11,7 @@ import {
   Clock,
   Pencil,
   Trash2,
+  Target,
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import FirearmFormDrawer from '@/components/firearms/FirearmFormDrawer'
 import DeleteFirearmDialog from '@/components/firearms/DeleteFirearmDialog'
+import LogRangeDayDialog from '@/components/range/LogRangeDayDialog'
 import { UserTagBadge } from '@/components/firearms/UserTagPicker'
 import FirearmIcon from '@/components/icons/FirearmIcon'
 import { listFirearms } from '@/api/firearms'
@@ -241,6 +243,7 @@ export default function FirearmsListPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editFirearm, setEditFirearm] = useState<FirearmRead | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<FirearmRead | null>(null)
+  const [logRangeOpen, setLogRangeOpen] = useState(false)
 
   const { data: firearms = [], isLoading } = useQuery({
     queryKey: ['firearms', filters],
@@ -384,10 +387,16 @@ export default function FirearmsListPage() {
         subtitle="Track firearms, cleaning history, and service intervals"
         actions={
           user?.role !== 'read_only' ? (
-            <Button size="sm" onClick={openAdd}>
-              <Plus className="w-4 h-4 mr-1.5" />
-              Add Firearm
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setLogRangeOpen(true)}>
+                <Target className="w-4 h-4 mr-1.5" />
+                Log Range Day
+              </Button>
+              <Button size="sm" onClick={openAdd}>
+                <Plus className="w-4 h-4 mr-1.5" />
+                Add Firearm
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -723,6 +732,11 @@ export default function FirearmsListPage() {
         onOpenChange={(o) => {
           if (!o) setDeleteTarget(null)
         }}
+      />
+
+      <LogRangeDayDialog
+        open={logRangeOpen}
+        onOpenChange={setLogRangeOpen}
       />
     </AppShell>
   )

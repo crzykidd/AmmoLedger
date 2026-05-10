@@ -758,3 +758,84 @@ export interface SplitResponse {
   children: AmmoBoxRead[]
   log_entry: ExpenditureRead
 }
+
+// ---------------------------------------------------------------------------
+// Range session types — mirrors backend schemas.py
+// ---------------------------------------------------------------------------
+
+export interface RangeSessionLineRead {
+  id: number
+  session_id: number
+  firearm_id: number | null
+  firearm_display: string | null
+  ammo_box_id: number | null
+  ammo_box_display: string | null
+  rounds_fired: number
+  notes: string | null
+  created_at: string
+}
+
+export interface RangeSessionLineCreate {
+  firearm_id?: number | null
+  ammo_box_id?: number | null
+  rounds_fired: number
+  notes?: string | null
+}
+
+export interface RangeSessionLineUpdate {
+  firearm_id?: number | null
+  ammo_box_id?: number | null
+  rounds_fired?: number
+  notes?: string | null
+}
+
+export interface RangeSessionRead {
+  id: number
+  owner_id: number
+  owner_name: string
+  is_shared: boolean
+  date: string            // YYYY-MM-DD
+  location_name: string | null
+  notes: string | null
+  lines: RangeSessionLineRead[]
+  total_rounds: number
+  distinct_firearms: number
+  distinct_boxes: number
+  created_at: string
+  updated_at: string
+}
+
+export interface RangeSessionCreate {
+  is_shared?: boolean
+  date: string            // YYYY-MM-DD
+  location_name?: string | null
+  notes?: string | null
+  lines: RangeSessionLineCreate[]
+}
+
+export interface RangeSessionUpdate {
+  is_shared?: boolean
+  date?: string           // YYYY-MM-DD
+  location_name?: string | null
+  notes?: string | null
+}
+
+export interface RangeSessionListItem {
+  id: number
+  date: string            // YYYY-MM-DD
+  location_name: string | null
+  owner_id: number
+  owner_name: string
+  is_shared: boolean
+  total_rounds: number
+  distinct_firearms: number
+  distinct_boxes: number
+  line_count: number
+}
+
+export interface RangeSessionListFilters {
+  firearm_id?: number
+  after?: string          // YYYY-MM-DD
+  before?: string         // YYYY-MM-DD
+  limit?: number
+}

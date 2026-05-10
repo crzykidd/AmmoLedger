@@ -17,6 +17,7 @@ import {
   ChevronRight,
   LogOut,
   Crosshair,
+  Target,
 } from 'lucide-react'
 import CartridgeIcon from '@/components/icons/CartridgeIcon'
 import FirearmIcon from '@/components/icons/FirearmIcon'
@@ -50,6 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Ammo', icon: CartridgeIcon, href: '/ammo' },
       { label: 'Products', icon: BookOpen, href: '/products' },
       { label: 'Firearms', icon: FirearmIcon, href: '/firearms' },
+      { label: 'Range', icon: Target, href: '/range' },
       { label: 'At Range', icon: Crosshair, href: '/at-range', readOnlyHidden: true },
     ],
   },
@@ -84,6 +86,7 @@ function isActive(href: string, pathname: string): boolean {
   if (href === '/settings/profile') return pathname === '/settings/profile'
   if (href === '/settings/thresholds') return pathname === '/settings/thresholds'
   if (href === '/firearms') return pathname === '/firearms' || pathname.startsWith('/firearms/')
+  if (href === '/range') return pathname === '/range' || pathname.startsWith('/range-sessions/')
   return pathname === href
 }
 

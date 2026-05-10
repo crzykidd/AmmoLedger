@@ -20,6 +20,8 @@ import ProductsPage from '@/pages/ProductsPage'
 import FirearmsListPage from '@/pages/firearms/FirearmsListPage'
 import FirearmDetailPage from '@/pages/firearms/FirearmDetailPage'
 import AtRangePage from '@/pages/AtRangePage'
+import RangePage from '@/pages/range/RangePage'
+import RangeSessionDetailPage from '@/pages/range/RangeSessionDetailPage'
 import AboutPage from '@/pages/AboutPage'
 import HelpPage from '@/pages/HelpPage'
 import WhatsNewModal from '@/components/WhatsNewModal'
@@ -122,6 +124,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AtRangePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/range"
+        element={
+          <ProtectedRoute>
+            <RangePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/range-sessions/:id"
+        element={
+          <ProtectedRoute>
+            <RangeSessionDetailPage />
           </ProtectedRoute>
         }
       />

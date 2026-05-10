@@ -53,6 +53,11 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Cross-firearm visibility into shared sessions.** Sessions with `is_shared=True` are visible to all members; only admins can create shared sessions. A member can fire from a shared ammo box even if they don't own it, matching existing `/ammo/{id}/expend` semantics.
 - **Filter `GET /range-sessions` by firearm.** `?firearm_id=N` returns sessions with at least one line referencing the firearm. Optional `?after=` / `?before=` date filters and `?limit=` (default 50, max 200).
 
+- **Range page (`/range`).** Sidebar entry for browsing past range days. Filter by firearm, date range, and sort. Per-card summary of date, location, total rounds, distinct firearms, distinct boxes, and owner. Click-through to per-session detail. Stats bar surfaces sessions logged, 90-day round total, most-used firearm, and most-used caliber.
+- **Log Range Day dialog.** Multi-line session entry with cascading firearm and ammo box pickers per line. Box picker prioritizes ammo matching the selected firearm's caliber (with a "Match" badge); non-matching boxes are still available with a non-blocking caliber-mismatch warning. Atomic single-POST create for new sessions; diff-based PATCH/POST/DELETE for edits.
+- **Range session detail page (`/range-sessions/:id`).** Full session view with per-line table, click-through navigation to involved firearms and ammo boxes, and a destructive-action-aware delete confirmation that previews exactly which ammo box quantities and firearm counters will be restored.
+- **Log Range Day entry points** on the Range page and the Firearms page. (Dashboard quick-action entry deferred to P5 to land alongside the dashboard's Recent Sessions widget.)
+
 ### Changed
 
 - **`manufacturers.types` JSON column added.** Existing rows backfilled to `["ammo"]`. No change to the `/lookups/manufacturers` default response shape; the `types` field is additive, and unfiltered callers see all manufacturers regardless of domain.
