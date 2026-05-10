@@ -2,6 +2,8 @@ import json
 import os
 import shutil
 import sqlite3
+import tempfile
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -12,7 +14,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from database import get_session
-from utils.config import BACKUP_PATH
+from utils.config import BACKUP_PATH, UPLOADS_PATH, load_and_validate_config
 from utils.logging import get_logger
 from utils.rbac import require_role
 from version import __version__
@@ -122,14 +124,68 @@ def _validate_filename(filename: str) -> Path:
     return path
 
 
+_TYPE_MAP = {".db": "sqlite", ".json": "json", ".zip": "zip"}
+
+
 def _file_meta(path: Path) -> dict:
     stat = path.stat()
     return {
         "filename": path.name,
         "size_bytes": stat.st_size,
         "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-        "type": "sqlite" if path.suffix == ".db" else "json",
+        "type": _TYPE_MAP.get(path.suffix, "unknown"),
     }
+
+
+def _backup_to_db(db_path: Path, dest: Path) -> None:
+    """WAL-safe SQLite copy."""
+    src = sqlite3.connect(str(db_path))
+    try:
+        dst = sqlite3.connect(str(dest))
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
+
+
+def _backup_to_zip(db_path: Path, dest: Path) -> None:
+    """Bundle SQLite + photos directory into a single zip.
+
+    Order: take a WAL-safe SQLite copy to a temp file first (the live DB
+    file is unsafe to read directly while the app is running — the WAL
+    sidecar holds recent writes), then zip the temp DB plus the photos
+    directory. The zip preserves the on-disk `firearm_photos/<id>/` layout
+    so restore is a straight rename.
+    """
+    temp_db = dest.parent / f"{dest.stem}.tmp.db"
+    _backup_to_db(db_path, temp_db)
+
+    photos_root = Path(UPLOADS_PATH) / "firearm_photos"
+
+    try:
+        with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(str(temp_db), "ammoledger.db")
+            if photos_root.exists():
+                for path in photos_root.rglob("*"):
+                    if path.is_file():
+                        # Archive name preserves firearm_photos/... structure.
+                        arcname = path.relative_to(photos_root.parent)
+                        zf.write(str(path), str(arcname))
+    finally:
+        temp_db.unlink(missing_ok=True)
+
+
+def _backup_include_photos() -> bool:
+    """Read backup.include_photos from current config. Defaults to True."""
+    try:
+        cfg = load_and_validate_config()
+        backup_cfg = cfg.get("backup") or {}
+        val = backup_cfg.get("include_photos", True)
+        return bool(val)
+    except Exception:
+        return True
 
 
 def _parse_import_json(contents: bytes) -> dict:
@@ -244,20 +300,20 @@ def trigger_backup(_: Any = Depends(require_role("admin"))):
         pass  # Never block a backup over a statistics update
 
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    filename = f"ammoledger_{ts}.db"
-    dest = backup_dir / filename
+    include_photos = _backup_include_photos()
+    if include_photos:
+        filename = f"ammoledger_{ts}.zip"
+        dest = backup_dir / filename
+    else:
+        filename = f"ammoledger_{ts}.db"
+        dest = backup_dir / filename
 
     try:
-        src = sqlite3.connect(str(db_path))
-        try:
-            dst = sqlite3.connect(str(dest))
-            try:
-                src.backup(dst)
-            finally:
-                dst.close()
-        finally:
-            src.close()
-    except (OSError, sqlite3.Error) as exc:
+        if include_photos:
+            _backup_to_zip(db_path, dest)
+        else:
+            _backup_to_db(db_path, dest)
+    except (OSError, sqlite3.Error, zipfile.BadZipFile) as exc:
         logger.error("Backup failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Backup failed: {exc}") from exc
 
@@ -289,7 +345,10 @@ def list_backups(_: Any = Depends(require_role("admin"))):
     if not backup_dir.exists():
         return []
     files = sorted(
-        [f for f in backup_dir.iterdir() if f.suffix in (".db", ".json") and f.is_file()],
+        [
+            f for f in backup_dir.iterdir()
+            if f.suffix in (".db", ".json", ".zip") and f.is_file()
+        ],
         key=lambda f: f.stat().st_mtime,
         reverse=True,
     )
@@ -411,71 +470,204 @@ def export_csv_all(_: Any = Depends(require_role("admin")), db=Depends(get_sessi
 
 
 # ---------------------------------------------------------------------------
-# POST /backup/restore/sqlite
+# POST /backup/restore  (and the deprecated /backup/restore/sqlite alias)
 # ---------------------------------------------------------------------------
 
-@router.post("/restore/sqlite")
-async def restore_sqlite(
-    file: UploadFile = File(...),
-    _: Any = Depends(require_role("admin")),
-):
-    if not (file.filename or "").endswith(".db"):
-        raise HTTPException(status_code=400, detail="File must be a .db SQLite database")
+def _migrate_db_to_head(db_file: Path) -> None:
+    """Run Alembic upgrade head on an arbitrary SQLite file."""
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    alembic_cfg = AlembicConfig(os.path.join(backend_dir, "alembic.ini"))
+    alembic_cfg.set_main_option(
+        "script_location", os.path.join(backend_dir, "migrations")
+    )
+    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_file}")
+    alembic_command.upgrade(alembic_cfg, "head")
 
-    contents = await file.read()
+
+def _validate_sqlite_file(path: Path) -> None:
+    """PRAGMA integrity_check on the candidate file. Raises HTTPException."""
+    try:
+        con = sqlite3.connect(str(path))
+        result = con.execute("PRAGMA integrity_check").fetchone()
+        con.close()
+        if not result or result[0] != "ok":
+            raise HTTPException(
+                status_code=400,
+                detail="SQLite integrity check failed — the file may be corrupted",
+            )
+    except sqlite3.DatabaseError as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Not a valid SQLite database: {exc}"
+        ) from exc
+
+
+async def _restore_sqlite_impl(contents: bytes) -> dict:
+    """Replace the live DB with the contents of an uploaded .db file."""
     if len(contents) < 100:
-        raise HTTPException(status_code=400, detail="File too small to be a valid SQLite database")
+        raise HTTPException(
+            status_code=400, detail="File too small to be a valid SQLite database"
+        )
 
     temp_path = Path("/data/ammoledger_restore_temp.db")
     try:
         temp_path.write_bytes(contents)
     except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Could not write temp file: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Could not write temp file: {exc}"
+        ) from exc
 
-    # Validate SQLite integrity
     try:
-        con = sqlite3.connect(str(temp_path))
-        result = con.execute("PRAGMA integrity_check").fetchone()
-        con.close()
-        if not result or result[0] != "ok":
-            temp_path.unlink(missing_ok=True)
-            raise HTTPException(status_code=400, detail="SQLite integrity check failed — the file may be corrupted")
-    except sqlite3.DatabaseError as exc:
+        _validate_sqlite_file(temp_path)
+    except HTTPException:
         temp_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail=f"Not a valid SQLite database: {exc}") from exc
+        raise
 
-    # Run Alembic migrations on temp file to bring it up to current schema
     try:
-        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        alembic_cfg = AlembicConfig(os.path.join(backend_dir, "alembic.ini"))
-        alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "migrations"))
-        alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{temp_path}")
-        alembic_command.upgrade(alembic_cfg, "head")
+        _migrate_db_to_head(temp_path)
     except Exception as exc:
         temp_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Migration failed on uploaded database: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Migration failed on uploaded database: {exc}"
+        ) from exc
 
-    # Replace the main DB
     db_path = _db_path()
-    logger.info("Restore started from: %s", file.filename or "unknown")
     try:
         shutil.move(str(temp_path), str(db_path))
     except OSError as exc:
         temp_path.unlink(missing_ok=True)
         logger.error("Restore failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Could not replace database: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Could not replace database: {exc}"
+        ) from exc
 
-    # Flush all pooled SQLAlchemy connections so the next request opens the new file
     from database import engine  # noqa: PLC0415
     engine.dispose()
 
-    logger.info("Restore complete")
+    logger.info("Restore complete (db only)")
     return {
         "success": True,
         "message": "Database restored successfully.",
         "force_logout": True,
-        "logout_reason": "The user database was replaced. Please log in with your restored credentials.",
+        "logout_reason": (
+            "The user database was replaced. Please log in with your "
+            "restored credentials."
+        ),
     }
+
+
+async def _restore_zip_impl(contents: bytes) -> dict:
+    """Replace DB + photos directory from a .zip archive."""
+    if len(contents) < 100:
+        raise HTTPException(
+            status_code=400, detail="File too small to be a valid zip backup"
+        )
+
+    staging = Path(tempfile.mkdtemp(prefix="ammoledger_restore_"))
+    try:
+        zip_path = staging / "upload.zip"
+        zip_path.write_bytes(contents)
+
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                names = zf.namelist()
+                if "ammoledger.db" not in names:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Zip does not contain ammoledger.db at the root",
+                    )
+                # Path-traversal defense — reject absolute paths and `..`
+                # components before extraction.
+                for n in names:
+                    parts = Path(n).parts
+                    if n.startswith("/") or n.startswith("\\") or ".." in parts:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Zip contains unsafe path: {n}",
+                        )
+                zf.extractall(staging)
+        except zipfile.BadZipFile as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Not a valid zip file: {exc}"
+            ) from exc
+
+        extracted_db = staging / "ammoledger.db"
+        if not extracted_db.is_file():
+            raise HTTPException(
+                status_code=400, detail="ammoledger.db missing after extraction"
+            )
+        _validate_sqlite_file(extracted_db)
+
+        try:
+            _migrate_db_to_head(extracted_db)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500, detail=f"Migration failed: {exc}"
+            ) from exc
+
+        db_path = _db_path()
+        shutil.move(str(extracted_db), str(db_path))
+
+        photos_root = Path(UPLOADS_PATH) / "firearm_photos"
+        extracted_photos = staging / "firearm_photos"
+        if photos_root.exists():
+            shutil.rmtree(photos_root, ignore_errors=True)
+        if extracted_photos.exists():
+            photos_root.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(extracted_photos), str(photos_root))
+        # If the zip had no photos directory, leave the photos root empty —
+        # fresh state matches the .db we just put in.
+
+        from database import engine  # noqa: PLC0415
+        engine.dispose()
+
+        logger.info("Restore complete (zip — db + photos)")
+        return {
+            "success": True,
+            "message": "Database and photos restored successfully.",
+            "force_logout": True,
+            "logout_reason": (
+                "The user database was replaced. Please log in with your "
+                "restored credentials."
+            ),
+        }
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+@router.post("/restore")
+async def restore_backup(
+    file: UploadFile = File(...),
+    _: Any = Depends(require_role("admin")),
+):
+    """Restore from a `.db` SQLite backup or a `.zip` (db + photos) archive."""
+    name = (file.filename or "").lower()
+    contents = await file.read()
+    logger.info("Restore started from: %s", file.filename or "unknown")
+    if name.endswith(".zip"):
+        return await _restore_zip_impl(contents)
+    if name.endswith(".db"):
+        return await _restore_sqlite_impl(contents)
+    raise HTTPException(
+        status_code=400,
+        detail="Upload must be a .db or .zip backup file",
+    )
+
+
+@router.post("/restore/sqlite", deprecated=True)
+async def restore_sqlite(
+    file: UploadFile = File(...),
+    _: Any = Depends(require_role("admin")),
+):
+    """Deprecated alias for /backup/restore. Kept for one release cycle."""
+    name = (file.filename or "").lower()
+    contents = await file.read()
+    if name.endswith(".zip"):
+        return await _restore_zip_impl(contents)
+    if name.endswith(".db"):
+        return await _restore_sqlite_impl(contents)
+    raise HTTPException(
+        status_code=400, detail="File must be a .db or .zip backup file"
+    )
 
 
 # ---------------------------------------------------------------------------

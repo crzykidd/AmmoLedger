@@ -253,6 +253,23 @@ class FirearmUserTagLink(SQLModel, table=True):
     tag_id: int = Field(foreign_key="firearm_user_tags.id", primary_key=True)
 
 
+class FirearmPhoto(SQLModel, table=True):
+    __tablename__ = "firearm_photos"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    firearm_id: int = Field(foreign_key="firearms.id")
+    filename: str
+    original_name: Optional[str] = None
+    content_type: str
+    size_bytes: int
+    width: int
+    height: int
+    is_default: bool = Field(default=False)
+    sort_order: int = Field(default=0)
+    uploaded_by: int = Field(foreign_key="users.id")
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 # ---------------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------------

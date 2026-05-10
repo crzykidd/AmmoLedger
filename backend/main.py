@@ -18,6 +18,7 @@ from database import engine, get_session, run_migrations
 from routers import auth, ammo, expenditure, lookups, users
 from routers.backup import router as backup_router
 from routers.community import router as community_router
+from routers.firearm_photos import router as firearm_photos_router
 from routers.firearms import router as firearms_router
 from routers.firearms_importer import router as firearms_import_router
 from routers.geo import router as geo_router
@@ -68,6 +69,7 @@ app.include_router(lookups.router)
 app.include_router(backup_router)
 app.include_router(community_router, prefix="/community")
 app.include_router(firearms_router)
+app.include_router(firearm_photos_router)
 app.include_router(firearms_import_router)
 app.include_router(geo_router, prefix="/geo")
 app.include_router(import_router, prefix="/import")
@@ -427,6 +429,7 @@ def get_system_config(_=Depends(require_role("admin"))):
             "enabled": bool(backup.get("enabled", True)),
             "schedule": str(backup.get("schedule", "03:00")),
             "retention_days": int(backup.get("retention_days", 30)),
+            "include_photos": bool(backup.get("include_photos", True)),
         }
     }
 
@@ -440,6 +443,7 @@ def save_system_config(body: dict, _=Depends(require_role("admin"))):
         "enabled": bool(incoming.get("enabled", True)),
         "schedule": str(incoming.get("schedule", "03:00")),
         "retention_days": int(incoming.get("retention_days", 30)),
+        "include_photos": bool(incoming.get("include_photos", True)),
     }
     test_cfg = {"backup": patch, "security": {"session_secret": "x" * 32}, "app": {"session_timeout_hours": 8}}
     result = validate_config(test_cfg)

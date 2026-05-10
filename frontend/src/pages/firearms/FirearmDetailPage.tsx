@@ -5,6 +5,7 @@ import { format, parseISO, formatDistanceToNow } from 'date-fns'
 import {
   AlertTriangle,
   ArrowLeft,
+  Camera,
   CheckCircle2,
   Clock,
   Crosshair,
@@ -34,12 +35,16 @@ import {
 import FirearmFormDrawer from '@/components/firearms/FirearmFormDrawer'
 import DeleteFirearmDialog from '@/components/firearms/DeleteFirearmDialog'
 import LogEventDialog from '@/components/firearms/LogEventDialog'
+import FirearmPhotoManager from '@/components/firearms/FirearmPhotoManager'
+import PhotoLightbox from '@/components/firearms/PhotoLightbox'
+import FirearmIcon from '@/components/icons/FirearmIcon'
 import { UserTagBadge } from '@/components/firearms/UserTagPicker'
 import {
   deleteFirearmLog,
   getFirearm,
   listFirearmLog,
 } from '@/api/firearms'
+import { listFirearmPhotos, photoSrc } from '@/api/firearmPhotos'
 import { listRangeSessions } from '@/api/rangeSessions'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
@@ -336,6 +341,8 @@ export default function FirearmDetailPage() {
   const [logDialogOpen, setLogDialogOpen] = useState(false)
   const [editLog, setEditLog] = useState<FirearmLogRead | null>(null)
   const [deleteLog, setDeleteLog] = useState<FirearmLogRead | null>(null)
+  const [photoManagerOpen, setPhotoManagerOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   const {
     data: firearm,
@@ -359,6 +366,12 @@ export default function FirearmDetailPage() {
     queryKey: ['firearm-sessions', firearmId],
     queryFn: () => listRangeSessions({ firearm_id: firearmId, limit: 200 }),
     enabled: !isNaN(firearmId) && firearm != null,
+  })
+
+  const { data: photos = [] } = useQuery({
+    queryKey: ['firearm-photos', firearmId],
+    queryFn: () => listFirearmPhotos(firearmId),
+    enabled: !isNaN(firearmId) && firearm != null && (firearm?.photo_count ?? 0) > 0,
   })
 
   const sortedLogs = useMemo(() => {
@@ -525,6 +538,67 @@ export default function FirearmDetailPage() {
       />
 
       <div className="flex-1 overflow-auto">
+        {/* Photo hero */}
+        {firearm.photo_count > 0 && firearm.default_photo_url ? (
+          <div className="bg-black/5 dark:bg-black/40 border-b border-gray-200 dark:border-gray-800">
+            <button
+              type="button"
+              onClick={() => setLightboxIndex(0)}
+              className="block w-full"
+              aria-label="View photo"
+            >
+              <img
+                src={photoSrc(firearm.default_photo_url)}
+                alt={heroTitle}
+                className="w-full max-h-[400px] object-contain mx-auto"
+              />
+            </button>
+            <div className="flex flex-wrap items-center gap-2 px-6 py-3">
+              {photos.slice(0, 5).map((p, i) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setLightboxIndex(i)}
+                  className={cn(
+                    'rounded overflow-hidden w-16 h-16 border-2 transition-colors',
+                    p.is_default
+                      ? 'border-gold'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gold',
+                  )}
+                >
+                  <img
+                    src={photoSrc(p.thumb_url)}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+              {editable && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPhotoManagerOpen(true)}
+                  className="ml-auto"
+                >
+                  <Camera className="w-4 h-4 mr-1.5" />
+                  Manage Photos
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : editable ? (
+          <div className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-800 px-6 py-8 flex flex-col items-center gap-3">
+            <FirearmIcon className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Up to 5 photos. The first uploaded photo becomes the default.
+            </p>
+            <Button size="sm" onClick={() => setPhotoManagerOpen(true)}>
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add Photos
+            </Button>
+          </div>
+        ) : null}
+
         {/* Hero */}
         <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-5">
           <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -812,6 +886,21 @@ export default function FirearmDetailPage() {
         }}
         firearm={firearm}
         editLog={editLog}
+      />
+
+      {/* Photo manager */}
+      <FirearmPhotoManager
+        firearmId={firearmId}
+        open={photoManagerOpen}
+        onOpenChange={setPhotoManagerOpen}
+      />
+
+      {/* Lightbox */}
+      <PhotoLightbox
+        photos={photos}
+        initialIndex={lightboxIndex ?? 0}
+        open={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
       />
 
       {/* Delete log confirm */}

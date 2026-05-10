@@ -472,6 +472,33 @@ class FirearmCreate(BaseModel):
             )
 
 
+class FirearmPhotoRead(BaseModel):
+    id: int
+    firearm_id: int
+    original_name: Optional[str] = None
+    content_type: str
+    size_bytes: int
+    width: int
+    height: int
+    is_default: bool
+    sort_order: int
+    uploaded_by: int
+    uploaded_at: datetime
+    # Server-rendered URLs. The on-disk filename is intentionally not
+    # exposed — both endpoints are auth-gated.
+    url: str        # full-size: /firearms/{firearm_id}/photos/{photo_id}
+    thumb_url: str  # thumbnail: /firearms/{firearm_id}/photos/{photo_id}/thumb
+
+
+class FirearmPhotoReorderItem(BaseModel):
+    photo_id: int
+    sort_order: int
+
+
+class FirearmPhotoReorderRequest(BaseModel):
+    items: List[FirearmPhotoReorderItem]
+
+
 class FirearmRead(_OrmBase):
     id: int
     owner_id: int
@@ -520,6 +547,11 @@ class FirearmRead(_OrmBase):
 
     compliance_tags: List[FirearmComplianceTagRead] = []
     user_tags: List[FirearmUserTagRead] = []
+
+    # Photo summary — populated by the router from a single grouped query.
+    photo_count: int = 0
+    default_photo_url: Optional[str] = None
+    default_photo_thumb_url: Optional[str] = None
 
     created_at: datetime
     updated_at: datetime

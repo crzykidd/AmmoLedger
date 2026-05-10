@@ -31,6 +31,7 @@ import LogRangeDayDialog from '@/components/range/LogRangeDayDialog'
 import { UserTagBadge } from '@/components/firearms/UserTagPicker'
 import FirearmIcon from '@/components/icons/FirearmIcon'
 import { listFirearms, exportFirearmsCsvUrl } from '@/api/firearms'
+import { photoSrc } from '@/api/firearmPhotos'
 import { getCalibersLookup, getManufacturersByType } from '@/api/lookups'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
@@ -133,6 +134,17 @@ function FirearmCard({ firearm, onClick }: FirearmCardProps) {
       onClick={onClick}
       className="text-left flex flex-col rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700 transition-all"
     >
+      <div className="aspect-[16/9] bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
+        {firearm.default_photo_thumb_url ? (
+          <img
+            src={photoSrc(firearm.default_photo_thumb_url)}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <FirearmIcon className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+        )}
+      </div>
       <div className="p-4 flex flex-col gap-2 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className="font-semibold text-base text-gray-900 dark:text-white leading-tight line-clamp-2">
@@ -568,6 +580,9 @@ export default function FirearmsListPage() {
                 <tbody>
                   {Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
+                      <td className="px-2 py-2">
+                        <div className="w-9 h-9 animate-pulse bg-gray-200 dark:bg-gray-800 rounded" />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="h-4 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-48" />
                       </td>
@@ -630,6 +645,7 @@ export default function FirearmsListPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                  <th className="px-2 py-3 w-12" aria-label="Photo" />
                   <SortableHeader field="name" label="Display Model" />
                   <SortableHeader field="manufacturer" label="Manufacturer" className="hidden md:table-cell" />
                   <SortableHeader field="caliber" label="Caliber" className="hidden md:table-cell" />
@@ -653,6 +669,19 @@ export default function FirearmsListPage() {
                     )}
                     onClick={() => navigate(`/firearms/${f.id}`)}
                   >
+                    <td className="px-2 py-2">
+                      <div className="w-9 h-9 rounded bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
+                        {f.default_photo_thumb_url ? (
+                          <img
+                            src={photoSrc(f.default_photo_thumb_url)}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <FirearmIcon className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900 dark:text-white leading-tight">
                         {f.display_model}

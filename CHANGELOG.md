@@ -29,6 +29,9 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Multi-select compliance tags.** Twelve seeded tags covering common state classifications (CA, NY, MA, NJ) and federal NFA categories (SBR, suppressor host, MG, AOW, SBS), plus federal pre-ban. Multi-select per firearm so a single gun can carry orthogonal compliance facts (e.g. CA Featureless + NFA SBR). Users can add their own compliance tags when the community list lags new legislation. One-time disclaimer surfaces on first open: tags are community-maintained, AmmoLedger does not provide legal advice.
 - **Personal tags.** Per-user free-form colored tags (Carry, Heirloom, Range Only, EDC, etc.) with an 8-color palette. Managed inline from the firearm form — no separate admin page.
 - **Firearm maintenance log.** Three event types per firearm: Cleaning (resets `rounds_since_clean`, updates `last_cleaned_at`), Service (gunsmith trips, parts replacement), and Note (free-form milestones). Backdated entries supported with user-overridable rounds-at-event count. Editing or deleting any log entry recalculates the firearm's denormalized cleaning state from the full log history, so the snapshot fields never drift from the source of truth.
+- **Firearm photos.** Up to 5 photos per firearm with one designated as default. Photos auto-resize on upload (longest side ≤ 2048 px, server-generated 256 px thumbnails) and are stored on the filesystem under `${UPLOADS_PATH}/firearm_photos/<firearm_id>/`. JPEG, PNG, and WebP accepted; HEIC rejected with a friendly export-as-JPEG hint. EXIF orientation honored so portrait phone photos land upright. Photo URLs are auth-gated streaming endpoints — not served from a public static path.
+- **Photo manager** drawer with drag-to-reorder, set-default, and delete actions. The 5-photo cap is enforced API-side (not in the schema) so it can be tuned later without a migration.
+- **Photos on cards and detail page.** The firearms list-page card grid shows the default photo at the top of each card with a FirearmIcon fallback for firearms without photos; the firearm detail page replaces the prior text-only hero with a default-photo + thumb-strip layout that opens a lightbox on click. List view gains a small thumbnail in a leading column.
 - **Service intervals.** Per-firearm round-based and time-based intervals (either, both, or neither). Cleaning status — green (`ok`) / amber (`due_soon`, ≥80% of either threshold) / red (`overdue`) — reflects whichever threshold is most pressing and surfaces on every firearm card and on the dashboard.
 - **Firearm detail page (`/firearms/:id`).** Three tabs — Overview (full specs + cleaning state + tags + notes), Log (per-entry edit and delete), and Sessions (per-firearm range history). Header Edit and Delete actions are gated by RBAC.
 
@@ -66,9 +69,16 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Pre-import backup** is hard-blocking before any rows are written (matches ammo import behavior). Backup filename is returned on success; a backup failure rolls the request back with no firearms created.
 - **Firearms import template** download at `GET /import/firearms/template` — blank-with-examples CSV showing every supported column.
 
+### Added — Backup formats
+
+- **Backup zip option.** New `backup.include_photos` setting (default true) controls whether scheduled and manual backups produce a single `.zip` containing the WAL-safely-copied SQLite file plus the firearm photos directory, or a bare `.db` file. The zip layout preserves `firearm_photos/<firearm_id>/<file>` so restore is a straight rename. `AL_BACKUP_INCLUDE_PHOTOS` env var override.
+- **Unified `/backup/restore` endpoint** accepts both `.db` and `.zip` uploads, dispatching by extension. Zip restore validates each archive entry against path-traversal (rejects absolute paths and `..` components) before extracting into a temp directory; the candidate database is integrity-checked and Alembic-upgraded to head before replacing the live DB. The existing `/backup/restore/sqlite` endpoint remains as a deprecated alias for one release.
+
 ### Changed
 
 - **`expenditure_log` extended** with optional `range_session_line_id` FK to the new `range_session_lines` table, providing a bidirectional audit trail for session-driven ammo expenditures. Pre-existing expenditures (logged via `/ammo/:id/expend` or At Range) leave this column NULL.
+- **`backup.trigger` produces zip by default** for v0.3.0+ installations (controllable via `backup.include_photos`). `/backup/list` now surfaces `.zip` files alongside `.db` and `.json` with a new `zip` type badge.
+- **`firearms` CSV export** gains a `photo_count` column. Photo bytes remain out-of-band — they live in the zip backup or are fetched per-firearm via the new photo endpoints.
 - **`GET /firearms?cleaning_status=` accepts comma-separated values** for fetching multiple status buckets in one request — e.g. `?cleaning_status=due_soon,overdue`. Single-value filtering still works. Used by the dashboard Firearms Needing Service widget.
 - **`GET /range-sessions?firearm_id=` response extended** with `rounds_for_filter_firearm` so the firearm-detail Sessions tab can show per-session rounds totals without an N+1 fetch loop.
 - **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, the `firearms`, `firearm_log`, and the two firearm tag-link tables, plus `range_sessions` and `range_session_lines`. The export order now places `expenditure_log` after `range_session_lines` to satisfy the new FK on restore. Schema-migration validation continues to require an exact match against the current Alembic head.
@@ -87,13 +97,19 @@ and create a fresh empty `## [Unreleased]` block above it.
   audit FK. Replaces the previously-staged 0002 / 0003 / 0004 split — collapsed
   pre-release for a clean v0.3.0 schema baseline. No schema downgrade path
   is provided beyond reverting to v0.1.9's `0001_initial_schema.py`.
+- `0003_add_firearm_photos.py` — adds the `firearm_photos` table for the
+  per-firearm photo gallery. FK indexes on `firearm_id` and `uploaded_by`
+  are created in the same migration; a SQLite partial unique index
+  (`WHERE is_default = 1`) enforces "at-most-one default photo per firearm"
+  at the DB layer. The 5-photo cap is left as an API-layer rule for easy
+  future tuning. New runtime dependency: Pillow (image processing).
 
 ### Deferred
 
 The following items were deliberately scoped out of this release and remain on the roadmap:
 
 - **Multi-caliber firearms.** v1 firearms have a single caliber FK plus a free-text `caliber_notes` field for the workaround. A `firearm_calibers` join table will be added in a future migration without renaming the existing column.
-- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet; future migration adds it when the feature ships.
+- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet; future migration adds it when the feature ships. (Firearm photos shipped in v0.3.0 — this is line-level target photos only.)
 - **Range sessions CSV import.** Export-only this release; import will follow when its remap UX is designed.
 - **Accessories module** (PRD v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
 - **At Range / Range workflow merge.** The mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.

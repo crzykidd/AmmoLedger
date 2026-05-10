@@ -255,8 +255,38 @@ export interface FirearmRead {
   compliance_tags: FirearmComplianceTagItem[]
   user_tags: FirearmUserTagItem[]
 
+  /** Number of photos attached to this firearm (0–5). */
+  photo_count: number
+  /** Server-rendered URL for the default photo (full-size); null when no photos. */
+  default_photo_url: string | null
+  /** Server-rendered URL for the default photo thumbnail; null when no photos. */
+  default_photo_thumb_url: string | null
+
   created_at: string
   updated_at: string
+}
+
+export interface FirearmPhoto {
+  id: number
+  firearm_id: number
+  original_name: string | null
+  content_type: string
+  size_bytes: number
+  width: number
+  height: number
+  is_default: boolean
+  sort_order: number
+  uploaded_by: number
+  uploaded_at: string
+  /** Auth-gated full-size URL (relative to /api). */
+  url: string
+  /** Auth-gated thumbnail URL (relative to /api). */
+  thumb_url: string
+}
+
+export interface FirearmPhotoReorderItem {
+  photo_id: number
+  sort_order: number
 }
 
 export interface FirearmCreate {

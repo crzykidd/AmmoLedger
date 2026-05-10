@@ -22,7 +22,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import delete, or_
+from sqlalchemy import delete, func, or_
 from sqlmodel import Session, select
 
 from database import get_session
@@ -38,6 +38,7 @@ from models import (
     FirearmLog,
     FirearmModel,
     FirearmOpticCut,
+    FirearmPhoto,
     FirearmRailType,
     FirearmUserTag,
     FirearmUserTagLink,
@@ -154,6 +155,8 @@ _EMPTY_MAPS: dict = {
     "finish": {},
     "compliance_tags": {},
     "user_tags": {},
+    "photo_count": {},
+    "default_photo": {},
 }
 
 
@@ -252,6 +255,29 @@ def _build_firearm_maps(firearms: list[Firearm], db: Session) -> dict:
         if tag is not None:
             user_by_firearm.setdefault(link.firearm_id, []).append(tag)
 
+    # Photo summary — single grouped query for count, plus a small fetch
+    # for default photos (capped at 1 per firearm by the partial unique
+    # index, so this stays O(N firearms with photos)).
+    photo_count_map: dict[int, int] = {}
+    default_photo_map: dict[int, FirearmPhoto] = {}
+    if firearm_ids:
+        count_rows = db.exec(
+            select(FirearmPhoto.firearm_id, func.count(FirearmPhoto.id))
+            .where(FirearmPhoto.firearm_id.in_(firearm_ids))
+            .group_by(FirearmPhoto.firearm_id)
+        ).all()
+        for row in count_rows:
+            fid, count = row
+            photo_count_map[fid] = count
+
+        default_rows = db.exec(
+            select(FirearmPhoto)
+            .where(FirearmPhoto.firearm_id.in_(firearm_ids))
+            .where(FirearmPhoto.is_default == True)  # noqa: E712
+        ).all()
+        for p in default_rows:
+            default_photo_map[p.firearm_id] = p
+
     return {
         "manufacturer": mfr_map,
         "model": model_map,
@@ -264,12 +290,22 @@ def _build_firearm_maps(firearms: list[Firearm], db: Session) -> dict:
         "finish": finish_map,
         "compliance_tags": comp_by_firearm,
         "user_tags": user_by_firearm,
+        "photo_count": photo_count_map,
+        "default_photo": default_photo_map,
     }
 
 
 def _enrich_firearm_with_maps(f: Firearm, maps: dict, today: date) -> FirearmRead:
     model_name = maps["model"].get(f.firearm_model_id) if f.firearm_model_id else None
     display_model = model_name or f.custom_model_name or ""
+    photo_count = maps["photo_count"].get(f.id, 0)
+    default_photo = maps["default_photo"].get(f.id)
+    default_photo_url = (
+        f"/firearms/{f.id}/photos/{default_photo.id}" if default_photo else None
+    )
+    default_photo_thumb_url = (
+        f"/firearms/{f.id}/photos/{default_photo.id}/thumb" if default_photo else None
+    )
     return FirearmRead(
         id=f.id,
         owner_id=f.owner_id,
@@ -316,6 +352,9 @@ def _enrich_firearm_with_maps(f: Firearm, maps: dict, today: date) -> FirearmRea
             FirearmUserTagRead.model_validate(t)
             for t in maps["user_tags"].get(f.id, [])
         ],
+        photo_count=photo_count,
+        default_photo_url=default_photo_url,
+        default_photo_thumb_url=default_photo_thumb_url,
         created_at=f.created_at,
         updated_at=f.updated_at,
     )
@@ -598,7 +637,8 @@ _CSV_COLUMNS = [
     "custom_model_name", "display_model", "firearm_type", "action_type",
     "caliber", "caliber_notes", "serial", "barrel_length_in",
     "frame_size", "optic_cut", "rail_type", "finish", "standard_capacity",
-    "purchase_date", "purchase_price", "dealer", "notes", "rounds_lifetime",
+    "purchase_date", "purchase_price", "dealer", "notes", "photo_count",
+    "rounds_lifetime",
     "rounds_since_clean", "last_cleaned_at", "service_interval_rounds",
     "service_interval_days", "cleaning_status", "compliance_tags", "user_tags",
     "created_at", "updated_at",
@@ -645,6 +685,7 @@ def _build_firearm_csv(
             "purchase_price": f.purchase_price if f.purchase_price is not None else "",
             "dealer": maps["dealer"].get(f.dealer_id, "") if f.dealer_id else "",
             "notes": f.notes or "",
+            "photo_count": maps["photo_count"].get(f.id, 0),
             "rounds_lifetime": f.rounds_lifetime,
             "rounds_since_clean": f.rounds_since_clean,
             "last_cleaned_at": f.last_cleaned_at.isoformat() if f.last_cleaned_at else "",
@@ -799,8 +840,13 @@ def delete_firearm(
     db.exec(
         delete(FirearmUserTagLink).where(FirearmUserTagLink.firearm_id == firearm_id)
     )
+    db.exec(delete(FirearmPhoto).where(FirearmPhoto.firearm_id == firearm_id))
     db.delete(firearm)
     db.commit()
+
+    from utils.firearm_photos import delete_firearm_photo_dir  # noqa: PLC0415
+    delete_firearm_photo_dir(firearm_id)
+
     logger.info("Firearm deleted: id=%d by %s", firearm_id, user.email or user.username)
 
 

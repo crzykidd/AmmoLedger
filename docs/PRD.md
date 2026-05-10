@@ -71,6 +71,7 @@
 | 3.30 | 2026-05-09 | Firearms P6 — closing-the-loop polish for v0.3.0. Added firearms CSV export at `GET /firearms/export/csv` (one row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter) plus an Export CSV button on the Firearms list page. Added range sessions CSV export at `GET /range-sessions/export/csv` (denormalized, one row per line) plus an Export CSV button on the Range page. §10.1, §10.2, §10.3 version annotations updated from "(v2.0)" to "(v0.3.0 — shipped)". §6.7 heading similarly updated. New §10.8 Deferred subsection consolidates roadmap items deliberately scoped out of v0.3.0 (multi-caliber firearms, target photo uploads, firearms CSV import, accessories module, At Range / Range workflow merge, additional community lookups). |
 | 3.31 | 2026-05-10 | Firearms CSV import — final v0.3.0 firearms feature work before tagging. New `backend/routers/firearms_importer.py` mounts `POST /import/firearms/validate` → `POST /import/firearms/confirm` → `GET /import/firearms/template`, mirroring the ammo importer (token TTL 15 min, hard-blocking pre-import backup, single-transaction commit). Round-trip compatible with the v0.3.0 firearms export. Cascading model resolution scopes models under their manufacturer; new manufacturers are created with `types=["firearm"]`, existing manufacturers have `firearm` unioned in. Round counts and `last_cleaned_at` seed synthetic firearm-log entries (`note` at purchase + `cleaning` on the recorded date) so subsequent recalc rebuilds the cleaning state from the log being source-of-truth. Frontend Import page gets an Ammo / Firearms tab; the firearms preview UI handles a cascading `firearm_models_by_manufacturer` group plus per-value remap. `is_shared` on confirm is admin-only; member submissions return 403. §10.1 updated. |
 | 3.32 | 2026-05-10 | Firearms v0.3.0 polish — pre-tag schema baseline. Migrations `0002` / `0003` / `0004` collapsed into a single `0002_firearms_feature.py` (same final schema, one diff to review; matches v0.1.9 squash precedent; safe because v0.3.0 has not been released yet so no migration history needs preserving — old files deleted, not archived). Free-text `firearms.finish` column replaced by FK `finish_id` → new `firearm_finishes` community lookup; no compatibility shim. New per-firearm columns: `frame_size_id` → `firearm_frame_sizes`, `optic_cut_id` → `firearm_optic_cuts`, `rail_type_id` → `firearm_rail_types`, plus `standard_capacity` (integer). New `firearm_models.default_barrel_length_in` column drives the form drawer auto-fill cascade alongside caliber + action type. Catalog expanded from 48 to ~100 popular models with seeded barrel lengths from manufacturer spec sheets; five new firearm manufacturers seeded (Taurus, Bergara, IWI, Kel-Tec, Stoeger). Firearms CSV export shape updated — `finish` becomes a name-resolved value from the FK, new `frame_size` / `optic_cut` / `rail_type` / `standard_capacity` columns inserted in the Physical section (no round-trip concern with prior exports — none have shipped). Lookups admin page gains four new sections; firearm form drawer's Physical section replaces the free-text Finish input with a dropdown and adds Frame Size / Optic Cut / Rail Type / Capacity controls; auto-fill flash extended from caliber+action to caliber+action+barrel. §6.7 schema block, §10.1 narrative bullets, §10.8 Deferred all updated. Note: the firearms CSV importer is left consuming the original column set and gains a TODO to map the new physical-attribute columns in a follow-up prompt. |
+| 3.33 | 2026-05-10 | Firearm photos (v0.3.0). Migration `0003_add_firearm_photos.py` adds the `firearm_photos` table — up to 5 photos per firearm with one designated default. Files live on disk under `${UPLOADS_PATH}/firearm_photos/<firearm_id>/`; Pillow normalizes uploads to JPEG q85 with a 256px thumbnail. Server-side resize (longest side ≤ 2048px), EXIF orientation honored, JPEG/PNG/WebP accepted, HEIC/HEIF rejected with a friendly export-as-JPEG hint. Photo URLs are auth-gated streams (not served from a public static path). Backup/restore extended: new `backup.include_photos` config setting (default true) makes scheduled and manual backups produce a `.zip` containing the WAL-safely-copied SQLite database plus the photos directory, so photo data isn't orphaned from the DB that references it. New `/backup/restore` endpoint accepts both `.zip` and `.db`; the existing `/backup/restore/sqlite` endpoint remains as a deprecated alias for one release. Path-traversal defense on zip extraction. Firearms list-page cards gain a default-photo header with FirearmIcon fallback; detail page replaces the prior text-only hero with a default-photo + thumb-strip layout that opens a lightbox on click. Firearms CSV export gains a `photo_count` column (photo bytes remain out-of-band — they live in the zip backup). §6.7 schema block, §10.1 narrative bullets, §10.8 Deferred (Photos line removed), and §11 Backup Formats all updated. |
 
 ---
 
@@ -564,6 +565,51 @@ firearm_log
 ```
 
 `firearms.last_cleaned_at` and `firearms.rounds_since_clean` are denormalized snapshots of the most-recent `cleaning` event. They are recomputed from the full `firearm_log` history on every insert / update / delete of a log row, so the snapshots never drift from the source of truth — even when entries are backdated, edited, or deleted.
+
+#### 6.7.0b Firearm photos (v0.3.0)
+
+Up to 5 photos per firearm with one designated default. Photo files live on
+the filesystem under `${UPLOADS_PATH}/firearm_photos/<firearm_id>/`; this
+table holds metadata only.
+
+```
+firearm_photos
+├── id              INTEGER    Primary key
+├── firearm_id      INTEGER    FK → firearms
+├── filename        TEXT       Server-generated UUID + .jpg (always normalized)
+├── original_name   TEXT       Original upload filename (display only); nullable
+├── content_type    TEXT       Always "image/jpeg" after server-side normalization
+├── size_bytes      INTEGER    Size of the resized full-size file
+├── width           INTEGER    Resized full-size width
+├── height          INTEGER    Resized full-size height
+├── is_default      BOOLEAN    Partial unique index — at most one true per firearm
+├── sort_order      INTEGER    Display order (0-based)
+├── uploaded_by     INTEGER    FK → users.id
+└── uploaded_at     DATETIME
+```
+
+Server-side processing on upload:
+
+- JPEG / PNG / WebP accepted; HEIC/HEIF rejected with an "export as JPEG"
+  hint
+- Max upload 10 MB; longest dimension resized to ≤ 2048 px
+- EXIF orientation honored so portrait phone photos land upright
+- 256 px thumbnail generated alongside the full-size image (filename
+  suffix `_thumb`)
+- All output normalized to JPEG q85 — sidesteps PNG transparency / WebP
+  compatibility questions and keeps a single serve path
+- The 5-photo cap is enforced at the API layer, not the DB, so it can be
+  changed later without a migration
+
+Photo URLs (`/firearms/{firearm_id}/photos/{photo_id}` and
+`.../thumb`) are auth-gated streaming endpoints — the browser ships the
+session cookie automatically. Files are not served from a public static
+path.
+
+Cascade behavior: deleting a firearm removes the photo rows and the
+per-firearm directory. Deleting a photo removes both file variants and,
+if it was the default, promotes the next photo by `sort_order` to
+default.
 
 #### 6.7.0a Firearm tag links (P1b)
 
@@ -2095,6 +2141,21 @@ Shipped in v0.3.0 across phases P1a (lookups), P1b (registry + log), P2 (fronten
   blank, consistent with the existing caliber / action auto-fill
   cascade. Threaded barrels and custom shop variants are handled by the
   user overriding the auto-filled value per firearm.
+- **Photos (v0.3.0).** Each firearm supports up to 5 photos with one
+  designated as default; the cap is API-enforced (not DB-enforced) so
+  it's adjustable later without a migration. Photos auto-resize on
+  upload (longest side ≤ 2048 px) and a 256 px thumbnail is generated;
+  EXIF orientation is honored so portrait phone photos land upright.
+  JPEG / PNG / WebP accepted; HEIC/HEIF rejected with a friendly
+  export-as-JPEG hint. Storage is filesystem-backed under
+  `${UPLOADS_PATH}/firearm_photos/<firearm_id>/`; URLs are auth-gated
+  streams (no public static path). The firearms list-page card grid
+  shows the default photo at the top of each card with a FirearmIcon
+  fallback; the firearm detail page replaces the prior text-only hero
+  with a default-photo + thumb-strip layout that opens a lightbox on
+  click. Photos are bundled into zip backups when
+  `backup.include_photos` is true (default) so the database and the
+  files it references are never separated.
 
 ### 10.2 Range Sessions (v0.3.0 — shipped)
 
@@ -2243,8 +2304,10 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
   v0.3.0+. Users record alternative-caliber compatibility (e.g. ".357
   Magnum chamber, also fires .38 Special") in the existing free-text
   `caliber_notes` field on each firearm.
-- **Photo uploads (firearm photos).** Landing as a separate prompt
-  against the v0.3.0 polish schema before the v0.3.0 tag.
+- **Target photo uploads on range session lines.** Firearm photos
+  shipped in v0.3.0 (see §6.7.0b and §10.1). Per-line target photos
+  remain deferred until a range-session-line `target_photo` column is
+  added in a future migration.
 
 ---
 
@@ -2254,12 +2317,29 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
 
 #### Format A — SQLite File Backup (scheduled/quick)
 
-- Direct copy of `ammoledger.db` file
+- Direct copy of `ammoledger.db` file via `sqlite3.Connection.backup()` (WAL-safe)
 - Filename: `ammoledger_YYYY-MM-DD_HH-MM.db`
 - Stored in `/data/backups/`
 - Used for: daily safety net, quick restore to same version
 - Restore: stop app, replace `ammoledger.db`, restart — Alembic detects version and migrates automatically if needed
 - Cannot be used to restore across major breaking schema changes
+- Does **not** include firearm photos — use Format C (zip) when photos exist
+
+#### Format C — Zip Archive (default for v0.3.0+)
+
+- Single `.zip` containing `ammoledger.db` (WAL-safely copied) plus the
+  `firearm_photos/` directory under its native layout
+- Filename: `ammoledger_YYYY-MM-DD_HH-MM.zip`
+- Used for: complete restore set when firearm photos are in play; the
+  database and the files it references travel together
+- Controlled by the `backup.include_photos` config setting (default `true`).
+  Set to `false` to fall back to bare `.db` files (Format A)
+- `/backup/restore` accepts either `.db` or `.zip` and dispatches by
+  extension. Zip restore validates each archive entry against
+  path-traversal before extraction (rejects absolute paths and `..`
+  components)
+- The deprecated `/backup/restore/sqlite` alias accepts both formats and
+  remains for one release
 
 #### Format B — JSON Export (on-demand/migration)
 

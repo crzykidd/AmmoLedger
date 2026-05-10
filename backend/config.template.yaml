@@ -102,6 +102,13 @@ backup:
   retention_days: 30
   # Override with AL_BACKUP_PATH env var.
   path: /data/backups
+  # When true, scheduled and manual backups bundle the SQLite database
+  # together with the firearm photos directory in a single .zip archive
+  # (default for v0.3.0+ — keeps photo data tied to the database that
+  # references it). When false, backups are bare .db files and photos are
+  # not included. Existing zip backups remain restorable either way.
+  # Override with AL_BACKUP_INCLUDE_PHOTOS env var.
+  include_photos: true
 
 smtp:
   # Set enabled to true to activate email features (v2.0 — scheduled reports).
