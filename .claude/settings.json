@@ -20,7 +20,15 @@
       "PowerShell(docker --version 2>$null)",
       "Bash(docker exec *)",
       "Bash(git commit -m ' *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:8000/import/firearms/template)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://127.0.0.1:8000/import/firearms/validate)",
+      "Bash(docker compose *)",
+      "Bash(docker run *)",
+      "Bash(curl -s http://localhost:8000/firearm-frame-sizes)"
+    ],
+    "additionalDirectories": [
+      "C:\\projects\\AmmoLedger\\backend\\migrations\\versions"
     ]
   },
   "hooks": {
