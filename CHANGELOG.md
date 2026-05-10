@@ -19,6 +19,23 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Added
+
+- **Firearm community lookups (foundation for firearms tracking).**
+  - New `firearm_models` table: community-curated catalog of firearm models, scoped under their manufacturer with default caliber and action type.
+  - New `firearm_action_types` table: community-curated list of action types (semi-auto pistol, revolver, bolt-action rifle, etc.).
+  - New `firearm_compliance_tags` table: community-curated jurisdiction-status tags (CA Compliant, NFA SBR, etc.). Multi-select per firearm; users can extend with their own entries when the community list lags new legislation.
+  - New `firearm_user_tags` table: per-user, free-form colored tags for personal organization (Carry, Heirloom, Range Only, etc.).
+- **`manufacturers.types` column.** Single manufacturer table now serves both ammo and firearm domains, distinguished by a `types` JSON array. Existing manufacturers backfilled to `["ammo"]`; firearm-only manufacturers like Glock get `["firearm"]`; shared manufacturers like Federal or Sig Sauer get both.
+- **Lookup endpoint filters.** `GET /lookups/manufacturers` now accepts `?type=ammo|firearm`. New endpoints: `GET /lookups/firearm-models` (with `?manufacturer_id=` filter for cascading dropdown), `GET /lookups/firearm-action-types`, `GET /lookups/firearm-compliance-tags`, `GET /lookups/firearm-user-tags`.
+- **Admin community pages** for Firearm Models, Action Types, and Compliance Tags (alongside the existing Manufacturers / Calibers admin pages). Manufacturers admin row now shows Ammo / Firearm checkboxes that PATCH the row's `types`.
+- **Seed data.** ~20 firearm manufacturers (merged into the existing community list), ~50 popular models, 11 action types, 12 compliance tags. Calibers and ammo manufacturers are unchanged.
+
+### Changed
+
+- **`manufacturers.types` JSON column added.** Existing rows backfilled to `["ammo"]`. No change to the `/lookups/manufacturers` default response shape; the `types` field is additive, and unfiltered callers see all manufacturers regardless of domain.
+- **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, and `firearm_user_tags`. Schema-migration validation continues to require an exact match against the current Alembic head.
+
 ## [0.2.3] — 2026-05-09
 
 ### Changed

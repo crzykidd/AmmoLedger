@@ -1,5 +1,16 @@
 import { api } from './client'
-import type { ContainerItem, DealerItem, LocationItem, LookupItem, ManufacturerItem } from '@/types'
+import type {
+  ContainerItem,
+  DealerItem,
+  FirearmActionTypeItem,
+  FirearmComplianceTagItem,
+  FirearmModelItem,
+  FirearmUserTagItem,
+  LocationItem,
+  LookupItem,
+  ManufacturerDomain,
+  ManufacturerItem,
+} from '@/types'
 
 // ---------------------------------------------------------------------------
 // Form dropdown getters — active entries only (default active_only=true)
@@ -7,6 +18,10 @@ import type { ContainerItem, DealerItem, LocationItem, LookupItem, ManufacturerI
 
 export const getCalibersLookup = () => api.get<LookupItem[]>('/calibers')
 export const getManufacturers = () => api.get<ManufacturerItem[]>('/manufacturers')
+
+/** Domain-filtered manufacturers (e.g. firearm makers only). For cascading dropdowns. */
+export const getManufacturersByType = (type: ManufacturerDomain) =>
+  api.get<ManufacturerItem[]>(`/manufacturers?type=${type}`)
 export const getAmmoTypes = () => api.get<LookupItem[]>('/ammo-types')
 export const getAmmoConditions = () => api.get<LookupItem[]>('/ammo-conditions')
 export const getCategories = () => api.get<LookupItem[]>('/categories')
@@ -70,3 +85,105 @@ export const createLocationEntry = (name: string) =>
 
 export const createContainerEntry = (name: string) =>
   api.post<ContainerItem>('/containers', { name })
+
+// ---------------------------------------------------------------------------
+// Manufacturers — types (ammo / firearm) admin mutation
+// ---------------------------------------------------------------------------
+
+export const updateManufacturerTypes = (id: number, types: ManufacturerDomain[]) =>
+  api.patch<ManufacturerItem>(`/manufacturers/${id}/types`, { types: JSON.stringify(types) })
+
+// ---------------------------------------------------------------------------
+// Firearm Action Types
+// ---------------------------------------------------------------------------
+
+export const getFirearmActionTypes = () =>
+  api.get<FirearmActionTypeItem[]>('/firearm-action-types')
+
+export const getFirearmActionTypesAdmin = () =>
+  api.get<FirearmActionTypeItem[]>('/firearm-action-types?active_only=false')
+
+export const createFirearmActionType = (name: string) =>
+  api.post<FirearmActionTypeItem>('/firearm-action-types', { name })
+
+export const updateFirearmActionType = (id: number, payload: { name?: string }) =>
+  api.patch<FirearmActionTypeItem>(`/firearm-action-types/${id}`, payload)
+
+export const deleteFirearmActionType = (id: number) =>
+  api.delete<void>(`/firearm-action-types/${id}`)
+
+// ---------------------------------------------------------------------------
+// Firearm Models
+// ---------------------------------------------------------------------------
+
+export const getFirearmModels = (manufacturerId?: number) =>
+  api.get<FirearmModelItem[]>(
+    manufacturerId
+      ? `/firearm-models?manufacturer_id=${manufacturerId}`
+      : '/firearm-models',
+  )
+
+export const getFirearmModelsAdmin = () =>
+  api.get<FirearmModelItem[]>('/firearm-models?active_only=false')
+
+export const createFirearmModel = (payload: {
+  manufacturer_id: number
+  name: string
+  default_caliber_id?: number | null
+  default_action_type_id?: number | null
+}) => api.post<FirearmModelItem>('/firearm-models', payload)
+
+export const updateFirearmModel = (
+  id: number,
+  payload: {
+    manufacturer_id?: number
+    name?: string
+    default_caliber_id?: number | null
+    default_action_type_id?: number | null
+  },
+) => api.patch<FirearmModelItem>(`/firearm-models/${id}`, payload)
+
+export const deleteFirearmModel = (id: number) =>
+  api.delete<void>(`/firearm-models/${id}`)
+
+// ---------------------------------------------------------------------------
+// Firearm Compliance Tags
+// ---------------------------------------------------------------------------
+
+export const getFirearmComplianceTags = () =>
+  api.get<FirearmComplianceTagItem[]>('/firearm-compliance-tags')
+
+export const getFirearmComplianceTagsAdmin = () =>
+  api.get<FirearmComplianceTagItem[]>('/firearm-compliance-tags?active_only=false')
+
+export const createFirearmComplianceTag = (payload: {
+  name: string
+  description?: string | null
+  jurisdiction?: string | null
+}) => api.post<FirearmComplianceTagItem>('/firearm-compliance-tags', payload)
+
+export const updateFirearmComplianceTag = (
+  id: number,
+  payload: { name?: string; description?: string | null; jurisdiction?: string | null },
+) => api.patch<FirearmComplianceTagItem>(`/firearm-compliance-tags/${id}`, payload)
+
+export const deleteFirearmComplianceTag = (id: number) =>
+  api.delete<void>(`/firearm-compliance-tags/${id}`)
+
+// ---------------------------------------------------------------------------
+// Firearm User Tags (per-user; NOT community-managed)
+// ---------------------------------------------------------------------------
+
+export const getFirearmUserTags = () =>
+  api.get<FirearmUserTagItem[]>('/firearm-user-tags')
+
+export const createFirearmUserTag = (payload: { name: string; color?: string | null }) =>
+  api.post<FirearmUserTagItem>('/firearm-user-tags', payload)
+
+export const updateFirearmUserTag = (
+  id: number,
+  payload: { name?: string; color?: string | null },
+) => api.patch<FirearmUserTagItem>(`/firearm-user-tags/${id}`, payload)
+
+export const deleteFirearmUserTag = (id: number) =>
+  api.delete<void>(`/firearm-user-tags/${id}`)

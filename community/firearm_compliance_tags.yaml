@@ -1,0 +1,50 @@
+version: 1
+firearm_compliance_tags:
+  - name: "CA Compliant"
+    jurisdiction: "CA"
+    description: "Configured to comply with California firearms regulations"
+    community_key: comp-ca-compliant
+  - name: "CA Featureless"
+    jurisdiction: "CA"
+    description: "Rifle configured without regulated features per CA Penal Code 30515"
+    community_key: comp-ca-featureless
+  - name: "CA Roster Listed"
+    jurisdiction: "CA"
+    description: "Handgun listed on CA DOJ Roster of Certified Handguns"
+    community_key: comp-ca-roster-listed
+  - name: "NY SAFE Act Compliant"
+    jurisdiction: "NY"
+    description: "Compliant with New York SAFE Act feature restrictions"
+    community_key: comp-ny-safe-compliant
+  - name: "MA AG Compliant"
+    jurisdiction: "MA"
+    description: "Compliant with Massachusetts Attorney General firearms regulations"
+    community_key: comp-ma-ag-compliant
+  - name: "NJ Compliant"
+    jurisdiction: "NJ"
+    description: "Configured to comply with New Jersey firearms regulations"
+    community_key: comp-nj-compliant
+  - name: "Pre-ban"
+    jurisdiction: "Federal"
+    description: "Manufactured before the relevant ban date — verify applicability per jurisdiction"
+    community_key: comp-pre-ban-federal
+  - name: "NFA Registered — SBR"
+    jurisdiction: "NFA"
+    description: "Registered as a Short-Barreled Rifle on ATF Form 1 or Form 4"
+    community_key: comp-nfa-sbr
+  - name: "NFA Registered — Suppressor Host"
+    jurisdiction: "NFA"
+    description: "Firearm configured as a suppressor host"
+    community_key: comp-nfa-suppressor-host
+  - name: "NFA Registered — Machine Gun"
+    jurisdiction: "NFA"
+    description: "Registered transferable or pre-1986 machine gun"
+    community_key: comp-nfa-mg
+  - name: "NFA Registered — AOW"
+    jurisdiction: "NFA"
+    description: "Any Other Weapon classification"
+    community_key: comp-nfa-aow
+  - name: "NFA Registered — SBS"
+    jurisdiction: "NFA"
+    description: "Registered as a Short-Barreled Shotgun"
+    community_key: comp-nfa-sbs

@@ -16,18 +16,41 @@ import {
   updateLookupEntry, toggleLookupActive, deleteLookupEntry,
   createCalibersEntry, createManufacturerEntry, createAmmoTypeEntry, createAmmoConditionEntry,
   createCategoryEntry, createDealerEntry, createLocationEntry, createContainerEntry,
+  getFirearmActionTypesAdmin, createFirearmActionType,
+  getFirearmModelsAdmin, createFirearmModel,
+  getFirearmComplianceTagsAdmin, createFirearmComplianceTag,
+  updateManufacturerTypes,
 } from '@/api/lookups'
 import {
   getCommunityStatus, triggerCommunitySync, importCommunityEntries,
   hideCommunityEntries, getContributeYaml,
 } from '@/api/community'
-import type { LookupItem, ManufacturerItem, DealerItem, LocationItem, ContainerItem } from '@/types'
+import {
+  parseManufacturerTypes,
+  type FirearmActionTypeItem,
+  type FirearmComplianceTagItem,
+  type FirearmModelItem,
+  type LookupItem,
+  type ManufacturerDomain,
+  type ManufacturerItem,
+  type DealerItem,
+  type LocationItem,
+  type ContainerItem,
+} from '@/types'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type AnyLookupItem = LookupItem | ManufacturerItem | DealerItem | LocationItem | ContainerItem
+type AnyLookupItem =
+  | LookupItem
+  | ManufacturerItem
+  | DealerItem
+  | LocationItem
+  | ContainerItem
+  | FirearmActionTypeItem
+  | FirearmModelItem
+  | FirearmComplianceTagItem
 
 interface SectionConfig {
   key: string
@@ -51,6 +74,41 @@ const SECTIONS: SectionConfig[] = [
   { key: 'dealers',         label: 'Dealers',         hasUrl: true,  communityManaged: true,  queryFn: getDealersAdmin,        createFn: (n, u) => createDealerEntry(n, u) },
   { key: 'locations',       label: 'Locations',       hasUrl: false, communityManaged: false, queryFn: getLocationsAdmin,      createFn: (n) => createLocationEntry(n) },
   { key: 'containers',      label: 'Containers',      hasUrl: false, communityManaged: false, queryFn: getContainersAdmin,     createFn: (n) => createContainerEntry(n) },
+  // Firearm lookups (P1a). Models/compliance tags use the basic name-only
+  // editor here; richer FK / jurisdiction editing lands with the dedicated
+  // Firearms admin views in P1b.
+  {
+    key: 'firearm-action-types',
+    label: 'Firearm Action Types',
+    hasUrl: false,
+    communityManaged: true,
+    queryFn: getFirearmActionTypesAdmin,
+    createFn: (n) => createFirearmActionType(n),
+  },
+  {
+    key: 'firearm-models',
+    label: 'Firearm Models',
+    hasUrl: false,
+    communityManaged: true,
+    queryFn: getFirearmModelsAdmin,
+    // Add-form here only captures the name; manufacturer is required by the
+    // backend, so opening the dedicated Models dialog (P1b) is the right path
+    // for new entries. We keep an optimistic create that requires picking a
+    // manufacturer first via a dropdown in the add row.
+    createFn: () =>
+      Promise.reject({
+        detail:
+          'Use the Firearm Models dialog (cascading dropdowns) to add a new model. Coming in P1b — for now, edit community/firearm_models.yaml or use the API directly.',
+      }),
+  },
+  {
+    key: 'firearm-compliance-tags',
+    label: 'Firearm Compliance Tags',
+    hasUrl: false,
+    communityManaged: true,
+    queryFn: getFirearmComplianceTagsAdmin,
+    createFn: (n) => createFirearmComplianceTag({ name: n }),
+  },
 ]
 
 // community table key used in /community/status (ammo-types → ammo_types)
@@ -59,6 +117,9 @@ const COMMUNITY_KEY_MAP: Record<string, string> = {
   'manufacturers': 'manufacturers',
   'ammo-types': 'ammo_types',
   'dealers': 'dealers',
+  'firearm-action-types': 'firearm_action_types',
+  'firearm-models': 'firearm_models',
+  'firearm-compliance-tags': 'firearm_compliance_tags',
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +332,55 @@ function SourceBadge({ source }: { source: string }) {
 // Entry row
 // ---------------------------------------------------------------------------
 
+function ManufacturerTypesCell({
+  entry, onChanged,
+}: { entry: ManufacturerItem; onChanged: () => void }) {
+  const queryClient = useQueryClient()
+  const types = parseManufacturerTypes(entry.types)
+  const has = (t: ManufacturerDomain) => types.includes(t)
+
+  const mut = useMutation({
+    mutationFn: (next: ManufacturerDomain[]) => updateManufacturerTypes(entry.id, next),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['manufacturers', 'admin'] })
+      void queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
+      onChanged()
+    },
+    onError: (err: { detail?: string }) =>
+      toast({ title: 'Error', description: err.detail ?? 'Failed to update types', variant: 'destructive' }),
+  })
+
+  const toggle = (t: ManufacturerDomain) => {
+    const next = has(t) ? types.filter((x) => x !== t) : [...types, t]
+    mut.mutate(next)
+  }
+
+  return (
+    <div className="flex gap-1.5 items-center">
+      {(['ammo', 'firearm'] as ManufacturerDomain[]).map((t) => (
+        <label
+          key={t}
+          className={cn(
+            'inline-flex items-center gap-1 text-xs cursor-pointer select-none px-1.5 py-0.5 rounded border',
+            has(t)
+              ? 'bg-gold/15 border-gold/40 text-gold-700 dark:text-gold'
+              : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400',
+            mut.isPending && 'opacity-50 pointer-events-none',
+          )}
+        >
+          <input
+            type="checkbox"
+            checked={has(t)}
+            onChange={() => toggle(t)}
+            className="h-3 w-3 rounded border-gray-300 text-gold focus:ring-gold"
+          />
+          {t === 'ammo' ? 'Ammo' : 'Firearm'}
+        </label>
+      ))}
+    </div>
+  )
+}
+
 function EntryRow({
   entry, tableKey, hasUrl, onUpdated, onToggled, onDeleted,
 }: {
@@ -322,6 +432,8 @@ function EntryRow({
   const handleCancel = () => { setName(entry.name); setUrl('url' in entry ? (entry.url ?? '') : ''); setEditing(false) }
   const inactive = !entry.is_active
 
+  const showTypes = tableKey === 'manufacturers'
+
   if (editing) {
     return (
       <tr className="border-b border-gray-100 dark:border-gray-800 bg-amber-50/40 dark:bg-amber-900/10">
@@ -335,6 +447,7 @@ function EntryRow({
               placeholder="https://…" onKeyDown={(e) => { if (e.key === 'Escape') handleCancel() }} />
           </td>
         )}
+        {showTypes && <td className="py-2 pr-3" />}
         <td className="py-2 pr-3" /><td className="py-2 pr-3" />
         <td className="py-2 pr-3">
           <div className="flex gap-1.5">
@@ -383,6 +496,12 @@ function EntryRow({
             ) : (
               <span className="text-xs text-gray-400">—</span>
             )}
+          </td>
+        )}
+
+        {showTypes && (
+          <td className="py-2 pr-3">
+            <ManufacturerTypesCell entry={entry as ManufacturerItem} onChanged={onUpdated} />
           </td>
         )}
 
@@ -560,6 +679,9 @@ function AccordionSection({ config, communityStatus, isOpen, onToggle }: {
                     <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                       <th className="pl-3 py-2.5 pr-3 font-medium">Name</th>
                       {config.hasUrl && <th className="py-2.5 pr-3 font-medium">Website</th>}
+                      {config.key === 'manufacturers' && (
+                        <th className="py-2.5 pr-3 font-medium">Type</th>
+                      )}
                       <th className="py-2.5 pr-3 font-medium">Source</th>
                       <th className="py-2.5 pr-3 font-medium">In Use</th>
                       <th className="py-2.5 pr-3 w-20 font-medium">Actions</th>

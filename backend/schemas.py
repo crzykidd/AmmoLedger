@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, model_serializer
+from pydantic import BaseModel, ConfigDict, field_validator, model_serializer
 
 # Matches naive ISO datetime strings: YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SS.ffffff
 _NAIVE_ISO_RE = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$')
@@ -45,6 +46,40 @@ class LookupCreate(BaseModel):
     name: str
 
 
+_VALID_MFR_TYPES = {"ammo", "firearm"}
+
+
+def _validate_mfr_types(value):
+    """Accept None | list[str] | JSON-encoded list. Stores as a JSON string.
+
+    Each list element must be in {"ammo", "firearm"}. Returns the JSON-encoded
+    string the DB column holds, so create/update payloads land verbatim on the
+    column without further coercion.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"types must be a JSON array of strings: {exc}") from exc
+    else:
+        parsed = value
+    if not isinstance(parsed, list):
+        raise ValueError("types must be a JSON array")
+    cleaned: list[str] = []
+    for item in parsed:
+        if not isinstance(item, str):
+            raise ValueError("types entries must be strings")
+        if item not in _VALID_MFR_TYPES:
+            raise ValueError(
+                f"types entries must be one of {sorted(_VALID_MFR_TYPES)}; got {item!r}"
+            )
+        if item not in cleaned:
+            cleaned.append(item)
+    return json.dumps(cleaned)
+
+
 class ManufacturerRead(_OrmBase):
     id: int
     name: str
@@ -53,17 +88,30 @@ class ManufacturerRead(_OrmBase):
     source: str
     community_key: Optional[str] = None
     is_imported: bool = True
+    types: Optional[str] = None  # JSON-encoded array, e.g. '["ammo","firearm"]'
     usage_count: int = 0
 
 
 class ManufacturerCreate(BaseModel):
     name: str
     url: Optional[str] = None
+    types: Optional[str] = None
+
+    @field_validator("types", mode="before")
+    @classmethod
+    def _check_types(cls, v):
+        return _validate_mfr_types(v)
 
 
 class ManufacturerUpdate(BaseModel):
     name: Optional[str] = None
     url: Optional[str] = None
+    types: Optional[str] = None
+
+    @field_validator("types", mode="before")
+    @classmethod
+    def _check_types(cls, v):
+        return _validate_mfr_types(v)
 
 
 class DealerRead(_OrmBase):
@@ -124,6 +172,122 @@ class ContainerCreate(BaseModel):
 class LookupUpdate(BaseModel):
     name: Optional[str] = None
     url: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Firearm lookup schemas (P1a — firearm itself lands in P1b)
+# ---------------------------------------------------------------------------
+
+class FirearmActionTypeRead(_OrmBase):
+    id: int
+    name: str
+    is_active: bool
+    source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    usage_count: int = 0
+
+
+class FirearmActionTypeCreate(BaseModel):
+    name: str
+
+
+class FirearmActionTypeUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class FirearmModelRead(_OrmBase):
+    id: int
+    manufacturer_id: int
+    name: str
+    default_caliber_id: Optional[int]
+    default_action_type_id: Optional[int]
+    is_active: bool
+    source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    # Joined names — populated by the router for cascading-dropdown UX
+    manufacturer_name: Optional[str] = None
+    default_caliber_name: Optional[str] = None
+    default_action_type_name: Optional[str] = None
+    usage_count: int = 0
+
+
+class FirearmModelCreate(BaseModel):
+    manufacturer_id: int
+    name: str
+    default_caliber_id: Optional[int] = None
+    default_action_type_id: Optional[int] = None
+
+
+class FirearmModelUpdate(BaseModel):
+    manufacturer_id: Optional[int] = None
+    name: Optional[str] = None
+    default_caliber_id: Optional[int] = None
+    default_action_type_id: Optional[int] = None
+
+
+class FirearmComplianceTagRead(_OrmBase):
+    id: int
+    name: str
+    description: Optional[str]
+    jurisdiction: Optional[str]
+    is_active: bool
+    source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    usage_count: int = 0
+
+
+class FirearmComplianceTagCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    jurisdiction: Optional[str] = None
+
+
+class FirearmComplianceTagUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    jurisdiction: Optional[str] = None
+
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def _validate_hex_color(value: Optional[str]) -> Optional[str]:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str) or not _HEX_COLOR_RE.match(value):
+        raise ValueError("color must match ^#[0-9A-Fa-f]{6}$ or be null")
+    return value
+
+
+class FirearmUserTagRead(_OrmBase):
+    id: int
+    owner_id: int
+    name: str
+    color: Optional[str]
+    created_at: datetime
+
+
+class FirearmUserTagCreate(BaseModel):
+    name: str
+    color: Optional[str] = None
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def _check_color(cls, v):
+        return _validate_hex_color(v)
+
+
+class FirearmUserTagUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def _check_color(cls, v):
+        return _validate_hex_color(v)
 
 
 # ---------------------------------------------------------------------------

@@ -46,6 +46,12 @@ _EXPORT_TABLES = [
     "dealers",
     "locations",
     "containers",
+    # Firearm lookups — action_types before firearm_models (FK ordering).
+    # firearm_user_tags FKs users (already above).
+    "firearm_action_types",
+    "firearm_models",
+    "firearm_compliance_tags",
+    "firearm_user_tags",
     # Catalog
     "products",
     # Inventory and history (children)

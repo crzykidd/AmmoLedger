@@ -29,6 +29,7 @@ class Manufacturer(SQLModel, table=True):
     source: str = Field(default="user")  # yaml | community | user
     community_key: Optional[str] = None
     is_imported: bool = Field(default=True)
+    types: Optional[str] = None  # JSON array: '["ammo"]' | '["firearm"]' | '["ammo","firearm"]'
 
 
 class AmmoType(SQLModel, table=True):
@@ -74,6 +75,66 @@ class Dealer(SQLModel, table=True):
     country: Optional[str] = Field(default="US")
     state: Optional[str] = None
     is_standard_geo: bool = Field(default=True)
+
+
+# ---------------------------------------------------------------------------
+# Firearm lookup tables (P1a foundation; firearms table itself lands in P1b)
+# ---------------------------------------------------------------------------
+
+class FirearmActionType(SQLModel, table=True):
+    __tablename__ = "firearm_action_types"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmModel(SQLModel, table=True):
+    __tablename__ = "firearm_models"
+    __table_args__ = (
+        UniqueConstraint("manufacturer_id", "name", name="uq_firearm_models_mfr_name"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    manufacturer_id: int = Field(foreign_key="manufacturers.id")
+    name: str
+    default_caliber_id: Optional[int] = Field(default=None, foreign_key="calibers.id")
+    default_action_type_id: Optional[int] = Field(
+        default=None, foreign_key="firearm_action_types.id"
+    )
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmComplianceTag(SQLModel, table=True):
+    __tablename__ = "firearm_compliance_tags"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    description: Optional[str] = None
+    jurisdiction: Optional[str] = None  # "CA" | "NY" | "NFA" | "Federal" — UI grouping
+    is_active: bool = Field(default=True)
+    source: str = Field(default="community")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmUserTag(SQLModel, table=True):
+    __tablename__ = "firearm_user_tags"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "name", name="uq_firearm_user_tags_owner_name"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="users.id")
+    name: str
+    color: Optional[str] = None  # validated as ^#[0-9A-Fa-f]{6}$ on the API layer
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------

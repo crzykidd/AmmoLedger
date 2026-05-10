@@ -1,14 +1,42 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlmodel import Session, select
 
 from database import get_session
-from models import AmmoCondition, AmmoType, Caliber, Category, Container, Dealer, Location, Manufacturer
+from models import (
+    AmmoCondition,
+    AmmoType,
+    Caliber,
+    Category,
+    Container,
+    Dealer,
+    FirearmActionType,
+    FirearmComplianceTag,
+    FirearmModel,
+    FirearmUserTag,
+    Location,
+    Manufacturer,
+    User,
+)
 from schemas import (
     ContainerCreate,
     ContainerRead,
     DealerCreate,
     DealerRead,
+    FirearmActionTypeCreate,
+    FirearmActionTypeRead,
+    FirearmActionTypeUpdate,
+    FirearmComplianceTagCreate,
+    FirearmComplianceTagRead,
+    FirearmComplianceTagUpdate,
+    FirearmModelCreate,
+    FirearmModelRead,
+    FirearmModelUpdate,
+    FirearmUserTagCreate,
+    FirearmUserTagRead,
+    FirearmUserTagUpdate,
     LocationCreate,
     LocationRead,
     LookupCreate,
@@ -34,6 +62,10 @@ _TABLE_CONFIG: dict = {
     "dealers": Dealer,
     "locations": Location,
     "containers": Container,
+    # Firearm lookups (firearms table itself ships in P1b — no usage counts yet)
+    "firearm-models": FirearmModel,
+    "firearm-action-types": FirearmActionType,
+    "firearm-compliance-tags": FirearmComplianceTag,
 }
 
 # SQL fragments that count non-archived ammo_box rows per lookup entry
@@ -140,10 +172,35 @@ def create_caliber(
 @router.get("/manufacturers", response_model=list[ManufacturerRead])
 def list_manufacturers(
     active_only: bool = Query(True),
+    type: str | None = Query(
+        None,
+        regex="^(ammo|firearm)$",
+        description="Filter to manufacturers whose types JSON array contains this value.",
+    ),
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
-    return _fetch_entries(Manufacturer, "manufacturers", active_only, db)
+    entries = _fetch_entries(Manufacturer, "manufacturers", active_only, db)
+    if not type:
+        return entries
+    # Filter in Python — `types` is a JSON-encoded TEXT column, not queryable
+    # by SQLite operators in a portable way. NULL falls back to ["ammo"] so
+    # any pre-migration row stays visible for ammo callers (defensive — the
+    # 0002 migration backfills, so NULL should never reach this code path).
+    filtered: list[dict] = []
+    for entry in entries:
+        raw = entry.get("types")
+        if raw is None:
+            entry_types = ["ammo"]
+        else:
+            try:
+                parsed = json.loads(raw)
+                entry_types = parsed if isinstance(parsed, list) else []
+            except json.JSONDecodeError:
+                entry_types = []
+        if type in entry_types:
+            filtered.append(entry)
+    return filtered
 
 
 @router.post("/manufacturers", response_model=ManufacturerRead, status_code=status.HTTP_201_CREATED)
@@ -154,11 +211,44 @@ def create_manufacturer(
 ):
     if db.exec(select(Manufacturer).where(Manufacturer.name == payload.name)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Manufacturer already exists")
-    m = Manufacturer(name=payload.name, url=payload.url or None)
+    m = Manufacturer(
+        name=payload.name,
+        url=payload.url or None,
+        types=payload.types,  # already JSON-encoded by the schema validator
+    )
     db.add(m)
     db.commit()
     db.refresh(m)
     return m
+
+
+@router.patch("/manufacturers/{entry_id}/types", response_model=ManufacturerRead)
+def update_manufacturer_types(
+    entry_id: int,
+    payload: dict,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    """Replace the types array on a manufacturer.
+
+    Body: ``{"types": ["ammo"] | ["firearm"] | ["ammo","firearm"]}``.
+    Validation matches ManufacturerCreate.types — JSON list of {"ammo","firearm"}.
+    """
+    from schemas import _validate_mfr_types  # noqa: PLC0415
+
+    m = db.get(Manufacturer, entry_id)
+    if not m:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manufacturer not found")
+    try:
+        m.types = _validate_mfr_types(payload.get("types"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    d = m.model_dump()
+    d["usage_count"] = _get_single_count("manufacturers", entry_id, db)
+    return d
 
 
 # ---------------------------------------------------------------------------
@@ -426,5 +516,461 @@ def delete_lookup_entry(
         )
 
     db.delete(entry)
+    db.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Firearm Action Types — community-managed flat list
+# ---------------------------------------------------------------------------
+
+def _action_type_dict(entry: FirearmActionType) -> dict:
+    d = entry.model_dump()
+    d["usage_count"] = 0  # firearms table ships in P1b
+    return d
+
+
+@router.get("/firearm-action-types", response_model=list[FirearmActionTypeRead])
+def list_firearm_action_types(
+    active_only: bool = Query(True),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = select(FirearmActionType)
+    if active_only:
+        stmt = stmt.where(FirearmActionType.is_active == True)  # noqa: E712
+        stmt = stmt.where(FirearmActionType.is_imported == True)  # noqa: E712
+    return [_action_type_dict(e) for e in db.exec(stmt).all()]
+
+
+@router.post(
+    "/firearm-action-types",
+    response_model=FirearmActionTypeRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_action_type(
+    payload: FirearmActionTypeCreate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if db.exec(select(FirearmActionType).where(FirearmActionType.name == name)).first():
+        raise HTTPException(status_code=409, detail="Action type already exists")
+    e = FirearmActionType(name=name)
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _action_type_dict(e)
+
+
+@router.patch("/firearm-action-types/{entry_id}", response_model=FirearmActionTypeRead)
+def update_firearm_action_type(
+    entry_id: int,
+    payload: FirearmActionTypeUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmActionType, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Action type not found")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        clash = db.exec(
+            select(FirearmActionType)
+            .where(FirearmActionType.name == name)
+            .where(FirearmActionType.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="Name already exists")
+        if e.source == "community" and name.lower() != e.name.lower():
+            e.source = "local"
+            e.community_key = None
+        e.name = name
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _action_type_dict(e)
+
+
+@router.delete(
+    "/firearm-action-types/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_action_type(
+    entry_id: int,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmActionType, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Action type not found")
+    if e.source not in ("user", "local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete community entries — use Hide instead",
+        )
+    # When P1b ships firearm_models we'll need a usage count guard here.
+    db.delete(e)
+    db.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Firearm Models — community-managed; resolves manufacturer/caliber/action names
+# ---------------------------------------------------------------------------
+
+def _resolve_model_names(model: FirearmModel, db: Session) -> dict:
+    d = model.model_dump()
+    mfr = db.get(Manufacturer, model.manufacturer_id)
+    d["manufacturer_name"] = mfr.name if mfr else None
+    if model.default_caliber_id is not None:
+        cal = db.get(Caliber, model.default_caliber_id)
+        d["default_caliber_name"] = cal.name if cal else None
+    else:
+        d["default_caliber_name"] = None
+    if model.default_action_type_id is not None:
+        act = db.get(FirearmActionType, model.default_action_type_id)
+        d["default_action_type_name"] = act.name if act else None
+    else:
+        d["default_action_type_name"] = None
+    d["usage_count"] = 0  # firearms table ships in P1b
+    return d
+
+
+@router.get("/firearm-models", response_model=list[FirearmModelRead])
+def list_firearm_models(
+    active_only: bool = Query(True),
+    manufacturer_id: int | None = Query(None),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = select(FirearmModel)
+    if active_only:
+        stmt = stmt.where(FirearmModel.is_active == True)  # noqa: E712
+        stmt = stmt.where(FirearmModel.is_imported == True)  # noqa: E712
+    if manufacturer_id is not None:
+        stmt = stmt.where(FirearmModel.manufacturer_id == manufacturer_id)
+    return [_resolve_model_names(m, db) for m in db.exec(stmt).all()]
+
+
+@router.post(
+    "/firearm-models",
+    response_model=FirearmModelRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_model(
+    payload: FirearmModelCreate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if not db.get(Manufacturer, payload.manufacturer_id):
+        raise HTTPException(status_code=400, detail="manufacturer_id does not exist")
+    if payload.default_caliber_id is not None and not db.get(Caliber, payload.default_caliber_id):
+        raise HTTPException(status_code=400, detail="default_caliber_id does not exist")
+    if (
+        payload.default_action_type_id is not None
+        and not db.get(FirearmActionType, payload.default_action_type_id)
+    ):
+        raise HTTPException(status_code=400, detail="default_action_type_id does not exist")
+
+    clash = db.exec(
+        select(FirearmModel)
+        .where(FirearmModel.manufacturer_id == payload.manufacturer_id)
+        .where(FirearmModel.name == name)
+    ).first()
+    if clash:
+        raise HTTPException(status_code=409, detail="Model already exists for this manufacturer")
+
+    m = FirearmModel(
+        manufacturer_id=payload.manufacturer_id,
+        name=name,
+        default_caliber_id=payload.default_caliber_id,
+        default_action_type_id=payload.default_action_type_id,
+    )
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return _resolve_model_names(m, db)
+
+
+@router.patch("/firearm-models/{entry_id}", response_model=FirearmModelRead)
+def update_firearm_model(
+    entry_id: int,
+    payload: FirearmModelUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    m = db.get(FirearmModel, entry_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    new_name = m.name if payload.name is None else payload.name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    new_mfr_id = m.manufacturer_id if payload.manufacturer_id is None else payload.manufacturer_id
+
+    if payload.manufacturer_id is not None and not db.get(Manufacturer, new_mfr_id):
+        raise HTTPException(status_code=400, detail="manufacturer_id does not exist")
+    if payload.default_caliber_id is not None and not db.get(Caliber, payload.default_caliber_id):
+        raise HTTPException(status_code=400, detail="default_caliber_id does not exist")
+    if (
+        payload.default_action_type_id is not None
+        and not db.get(FirearmActionType, payload.default_action_type_id)
+    ):
+        raise HTTPException(status_code=400, detail="default_action_type_id does not exist")
+
+    if new_name != m.name or new_mfr_id != m.manufacturer_id:
+        clash = db.exec(
+            select(FirearmModel)
+            .where(FirearmModel.manufacturer_id == new_mfr_id)
+            .where(FirearmModel.name == new_name)
+            .where(FirearmModel.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="Model already exists for this manufacturer")
+        if m.source == "community":
+            m.source = "local"
+            m.community_key = None
+
+    m.manufacturer_id = new_mfr_id
+    m.name = new_name
+    if payload.default_caliber_id is not None:
+        m.default_caliber_id = payload.default_caliber_id or None
+    if payload.default_action_type_id is not None:
+        m.default_action_type_id = payload.default_action_type_id or None
+
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return _resolve_model_names(m, db)
+
+
+@router.delete(
+    "/firearm-models/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_model(
+    entry_id: int,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    m = db.get(FirearmModel, entry_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Model not found")
+    if m.source not in ("user", "local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete community entries — use Hide instead",
+        )
+    db.delete(m)
+    db.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Firearm Compliance Tags — community-managed; jurisdiction-grouped
+# ---------------------------------------------------------------------------
+
+def _compliance_tag_dict(t: FirearmComplianceTag) -> dict:
+    d = t.model_dump()
+    d["usage_count"] = 0  # firearms table ships in P1b
+    return d
+
+
+@router.get("/firearm-compliance-tags", response_model=list[FirearmComplianceTagRead])
+def list_firearm_compliance_tags(
+    active_only: bool = Query(True),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = select(FirearmComplianceTag)
+    if active_only:
+        stmt = stmt.where(FirearmComplianceTag.is_active == True)  # noqa: E712
+        stmt = stmt.where(FirearmComplianceTag.is_imported == True)  # noqa: E712
+    return [_compliance_tag_dict(t) for t in db.exec(stmt).all()]
+
+
+@router.post(
+    "/firearm-compliance-tags",
+    response_model=FirearmComplianceTagRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_compliance_tag(
+    payload: FirearmComplianceTagCreate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if db.exec(select(FirearmComplianceTag).where(FirearmComplianceTag.name == name)).first():
+        raise HTTPException(status_code=409, detail="Tag already exists")
+    t = FirearmComplianceTag(
+        name=name,
+        description=payload.description,
+        jurisdiction=payload.jurisdiction,
+    )
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return _compliance_tag_dict(t)
+
+
+@router.patch(
+    "/firearm-compliance-tags/{entry_id}",
+    response_model=FirearmComplianceTagRead,
+)
+def update_firearm_compliance_tag(
+    entry_id: int,
+    payload: FirearmComplianceTagUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    t = db.get(FirearmComplianceTag, entry_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        clash = db.exec(
+            select(FirearmComplianceTag)
+            .where(FirearmComplianceTag.name == name)
+            .where(FirearmComplianceTag.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="Name already exists")
+        if t.source == "community" and name.lower() != t.name.lower():
+            t.source = "local"
+            t.community_key = None
+        t.name = name
+    if payload.description is not None:
+        t.description = payload.description or None
+    if payload.jurisdiction is not None:
+        t.jurisdiction = payload.jurisdiction or None
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return _compliance_tag_dict(t)
+
+
+@router.delete(
+    "/firearm-compliance-tags/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_compliance_tag(
+    entry_id: int,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    t = db.get(FirearmComplianceTag, entry_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    if t.source not in ("user", "local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete community entries — use Hide instead",
+        )
+    db.delete(t)
+    db.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Firearm User Tags — owner-scoped, free-form colored tags. NOT community.
+# ---------------------------------------------------------------------------
+
+@router.get("/firearm-user-tags", response_model=list[FirearmUserTagRead])
+def list_firearm_user_tags(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    """Return only the calling user's tags."""
+    rows = db.exec(
+        select(FirearmUserTag).where(FirearmUserTag.owner_id == user.id)
+    ).all()
+    return rows
+
+
+@router.post(
+    "/firearm-user-tags",
+    response_model=FirearmUserTagRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_user_tag(
+    payload: FirearmUserTagCreate,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    clash = db.exec(
+        select(FirearmUserTag)
+        .where(FirearmUserTag.owner_id == user.id)
+        .where(FirearmUserTag.name == name)
+    ).first()
+    if clash:
+        raise HTTPException(status_code=409, detail="You already have a tag with that name")
+    t = FirearmUserTag(owner_id=user.id, name=name, color=payload.color)
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+@router.patch("/firearm-user-tags/{entry_id}", response_model=FirearmUserTagRead)
+def update_firearm_user_tag(
+    entry_id: int,
+    payload: FirearmUserTagUpdate,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    t = db.get(FirearmUserTag, entry_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    if t.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Tag not found")  # don't leak existence
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        clash = db.exec(
+            select(FirearmUserTag)
+            .where(FirearmUserTag.owner_id == user.id)
+            .where(FirearmUserTag.name == name)
+            .where(FirearmUserTag.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="You already have a tag with that name")
+        t.name = name
+    if payload.color is not None:
+        t.color = payload.color or None  # validator already coerced "" to None
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+@router.delete(
+    "/firearm-user-tags/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_user_tag(
+    entry_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    t = db.get(FirearmUserTag, entry_id)
+    if not t or t.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    db.delete(t)
     db.commit()
     return None

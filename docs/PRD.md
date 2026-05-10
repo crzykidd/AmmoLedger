@@ -62,6 +62,7 @@
 | 3.21 | May 2026 | Split Box — §9.2.4 reconciled with implementation: dated note auto-appended to parent on split, strict-mode odd-size warning on preview/success panes, post-split labeling view, Group By "Split Parent" added, lifetime totals (dashboard "All" scope) filter on split_from_id IS NULL to prevent double-counting. §6.13 Reporting Integrity Rules updated to use split_from_id IS NULL instead of is_leaf. |
 | 3.22 | May 2026 | Split Box QA fixes and UX additions: GET /ammo/split-parents endpoint added (parent metadata lookup with joined caliber/manufacturer names, notes scoped by RBAC); SplitParentDetailsDialog accessible from Group By "Split Parent" group header info icon; Sort By toolbar dropdown with six options including Purchase Date and Updated Date; Purchase Date and Updated Date now shown in expanded inventory rows; child boxes created by a split now have notes pre-populated with "[Split YYYY-MM-DD] Split from #N"; list_ammo includes any box with children regardless of show_archived/show_empty filters; SplitBoxDialog success and review panes are modal-locked; Preview pane row labels switched from "Box 1/Box 2" (mistaken for IDs) to plain "1./2." with disclaimer; Total Boxes (lifetime) now counts all records, not just root boxes — Total Rounds and Total Value still filter on split_from_id IS NULL. §6.13 reporting table updated; §9.2.4 expanded with QA-discovered behavior and new UI surfaces. |
 | 3.23 | May 2026 | Renamed Inventory page to Ammo (preparing for Firearms in v0.3.0). Frontend route changed from /inventory to /ammo with no redirect. localStorage keys migrated from inventory_* to ammo_*. Backend /ammo/* API unchanged. §9.2 updated. |
+| 3.24 | 2026-05-09 | Firearms P1a — community-curated lookup foundation. New tables `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`. New `manufacturers.types` JSON column (backfilled to `["ammo"]`); `GET /lookups/manufacturers` accepts `?type=ammo\|firearm`. New endpoints under `/firearm-models`, `/firearm-action-types`, `/firearm-compliance-tags`, `/firearm-user-tags`. Migration `0002_add_firearm_lookups.py` is the first incremental migration on top of the v0.1.9 squashed schema. PRD §6.7 duplicate-heading bug fixed (Range Sessions renumbered to §6.15); firearms schema block updated with `caliber_notes`, `barrel_length_in`, `finish`, `service_interval_*`, `manufacturer_id` / `firearm_model_id` / `action_type_id` foreign keys. §6.7.1 added documenting the four new lookup tables. §6.7.2 added explicitly deferring multi-caliber firearms, target photo uploads, and CSV import from the v2.0 firearms feature. Backup/restore extended to cover the new tables. |
 
 ---
 
@@ -454,14 +455,22 @@ All shared across users. `source` distinguishes YAML-seeded defaults from user-c
 
 ```
 calibers        — id, name, is_active, source (yaml | user)
-manufacturers   — id, name, url, is_active, source
+manufacturers   — id, name, url, is_active, source, types (JSON: ["ammo"|"firearm"])
 ammo_types      — id, name, is_active, source
 ammo_conditions — id, name, is_active, source
 categories      — id, name, is_active, source
 dealers         — id, name, url, is_active, source
+
+# Firearms domain — see §6.7.1 for full schemas
+firearm_action_types     — id, name, is_active, source, community_key
+firearm_models           — id, manufacturer_id, name, default_caliber_id, ...
+firearm_compliance_tags  — id, name, jurisdiction, description, is_active, source
+firearm_user_tags        — id, owner_id, name, color (per-user, NOT community)
 ```
 
 `url` on manufacturers is optional. Pre-populated for known brands via `defaults.yaml`; blank for private-label or unknown brands. Admins can update the URL via the Lookups settings page without affecting the `source` field.
+
+`manufacturers.types` distinguishes ammo vs. firearm domains so a single manufacturer record (e.g. "Sig Sauer") can serve both sides of the app. Existing rows are backfilled to `["ammo"]`. `GET /lookups/manufacturers?type=ammo|firearm` filters by domain for cascading dropdowns.
 
 ### 6.6 App Settings
 
@@ -483,25 +492,93 @@ Current keys written by the application:
 
 ### 6.7 Firearms (v2.0)
 
+The firearms feature is built up across a small number of phases:
+
+- **Phase P1a (v0.3.0 dev)** — community lookup foundation only: `firearm_models`, `firearm_action_types`, `firearm_compliance_tags`, plus the per-user `firearm_user_tags` table and a `manufacturers.types` JSON column so a single manufacturer record serves both ammo and firearm domains. **No `firearms` table is created in this phase.**
+- **Phase P1b** — adds the `firearms` table itself, the `firearm_log` table, and the join tables that link firearms to compliance/user tags. CRUD endpoints, frontend pages, and dashboard widgets land here.
+
+The agreed shape for the eventual `firearms` table (lands in P1b — listed here as the canonical spec):
+
 ```
 firearms
-├── id               INTEGER    Primary key
-├── owner_id         INTEGER    FK → users.id
-├── is_shared        BOOLEAN    True = Members can log sessions against it
-├── make             TEXT       e.g. Glock, Ruger, Smith & Wesson
-├── model            TEXT       e.g. 19 Gen 5, 10/22, Model 686
-├── caliber_id       INTEGER    FK → calibers
-├── serial           TEXT       Optional
-├── purchase_date    DATE       Optional
-├── notes            TEXT       Optional
-├── rounds_lifetime  INTEGER    Total rounds fired through this firearm; auto-incremented
-├── rounds_since_clean INTEGER  Rounds since last cleaning; reset on cleaning log entry
-├── last_cleaned_at  DATE       Date of last cleaning/service; nullable
-├── created_at       DATETIME
-└── updated_at       DATETIME
+├── id                       INTEGER    Primary key
+├── owner_id                 INTEGER    FK → users.id
+├── is_shared                BOOLEAN    True = Members can log sessions against it
+├── manufacturer_id          INTEGER    FK → manufacturers (with types containing "firearm")
+├── firearm_model_id         INTEGER    FK → firearm_models; nullable for "freeform" entries
+├── model_name               TEXT       Free-text override / freeform; populated from
+│                                       firearm_models.name when firearm_model_id is set
+├── action_type_id           INTEGER    FK → firearm_action_types; nullable
+├── caliber_id               INTEGER    FK → calibers
+├── caliber_notes            TEXT       Free-text caliber qualification (e.g. "+P only",
+│                                       ".357 Mag chamber, also fires .38 Special")
+├── barrel_length_in         FLOAT      Barrel length in inches; nullable
+├── finish                   TEXT       Finish / coating (Stainless, Cerakote FDE, etc.); nullable
+├── serial                   TEXT       Optional
+├── purchase_date            DATE       Optional
+├── service_interval_rounds  INTEGER    Recommended rounds between cleanings; nullable
+├── service_interval_days    INTEGER    Recommended days between cleanings; nullable
+├── notes                    TEXT       Optional
+├── rounds_lifetime          INTEGER    Total rounds fired through this firearm; auto-incremented
+├── rounds_since_clean       INTEGER    Rounds since last cleaning; reset on cleaning log entry
+├── last_cleaned_at          DATE       Date of last cleaning/service; nullable
+├── created_at               DATETIME
+└── updated_at               DATETIME
 ```
 
-### 6.7 Range Sessions (v2.0)
+#### 6.7.1 Firearm lookup tables (shipped in P1a)
+
+```
+firearm_action_types
+├── id              INTEGER    Primary key
+├── name            TEXT       UNIQUE, e.g. "Bolt-action rifle", "Semi-auto pistol"
+├── is_active       BOOLEAN
+├── source          TEXT       yaml | community | user | local
+├── community_key   TEXT       e.g. "action-bolt-action-rifle"
+└── is_imported     BOOLEAN
+
+firearm_models
+├── id                       INTEGER    Primary key
+├── manufacturer_id          INTEGER    FK → manufacturers (NOT NULL)
+├── name                     TEXT       e.g. "10/22", "P320"
+├── default_caliber_id       INTEGER    FK → calibers; nullable
+├── default_action_type_id   INTEGER    FK → firearm_action_types; nullable
+├── is_active                BOOLEAN
+├── source                   TEXT
+├── community_key            TEXT       e.g. "model-glock-19-gen5"
+└── is_imported              BOOLEAN
+   UNIQUE (manufacturer_id, name)
+
+firearm_compliance_tags
+├── id              INTEGER    Primary key
+├── name            TEXT       UNIQUE, e.g. "CA Featureless", "NFA Registered — SBR"
+├── description     TEXT       nullable
+├── jurisdiction    TEXT       "CA" | "NY" | "NFA" | "Federal" — for UI grouping; nullable
+├── is_active       BOOLEAN
+├── source          TEXT       defaults to "community"
+├── community_key   TEXT
+└── is_imported     BOOLEAN
+
+firearm_user_tags
+├── id              INTEGER    Primary key
+├── owner_id        INTEGER    FK → users.id (NOT NULL)
+├── name            TEXT       Free-form, e.g. "Carry", "Heirloom"
+├── color           TEXT       Hex code "#RRGGBB"; nullable
+└── created_at      DATETIME
+   UNIQUE (owner_id, name)
+```
+
+`manufacturers.types` is a JSON-encoded array distinguishing the manufacturer's domain. Existing rows are backfilled to `["ammo"]` by migration 0002. New firearm-only manufacturers get `["firearm"]`. Manufacturers that make both (e.g. Sig Sauer, Browning, Federal, Winchester, Remington) get `["ammo","firearm"]`. The `GET /lookups/manufacturers` endpoint accepts `?type=ammo|firearm` to filter by domain for cascading dropdowns.
+
+#### 6.7.2 Deferred from v2.0 firearms
+
+The following are explicitly out of scope for the initial firearms feature and tracked as future work:
+
+- **Multi-caliber firearms.** A revolver chambered for .357 Magnum that also fires .38 Special is recorded with a single `caliber_id` plus free-text `caliber_notes`. Modeling secondary calibers as structured rows (e.g. a `firearm_alternate_calibers` join) is deferred.
+- **Target photo uploads.** `range_session_lines.target_photo` exists as an optional path field, but the upload UI, image storage, and image management screens are deferred.
+- **CSV import for firearms.** Firearms are entered via the UI in v0.3.0. Bulk CSV import (analogous to ammo CSV import) is deferred.
+
+### 6.15 Range Sessions (v2.0)
 
 ```
 range_sessions

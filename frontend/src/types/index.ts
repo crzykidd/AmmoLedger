@@ -92,7 +92,23 @@ export interface ManufacturerItem {
   source: string
   community_key?: string | null
   is_imported: boolean
+  /** JSON-encoded array, e.g. '["ammo"]' or '["ammo","firearm"]'. Parse via parseManufacturerTypes(). */
+  types: string | null
   usage_count: number
+}
+
+export type ManufacturerDomain = 'ammo' | 'firearm'
+
+/** Parse manufacturers.types JSON column. NULL → ["ammo"] (matches the migration backfill). */
+export function parseManufacturerTypes(raw: string | null | undefined): ManufacturerDomain[] {
+  if (raw === null || raw === undefined || raw === '') return ['ammo']
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((v): v is ManufacturerDomain => v === 'ammo' || v === 'firearm')
+  } catch {
+    return []
+  }
 }
 
 export interface DealerItem {
@@ -110,6 +126,56 @@ export interface DealerItem {
   usage_count: number
 }
 
+// ---------------------------------------------------------------------------
+// Firearm lookup types (P1a — firearm itself ships in P1b)
+// ---------------------------------------------------------------------------
+
+export interface FirearmActionTypeItem {
+  id: number
+  name: string
+  is_active: boolean
+  source: string
+  community_key?: string | null
+  is_imported: boolean
+  usage_count: number
+}
+
+export interface FirearmModelItem {
+  id: number
+  manufacturer_id: number
+  name: string
+  default_caliber_id: number | null
+  default_action_type_id: number | null
+  is_active: boolean
+  source: string
+  community_key?: string | null
+  is_imported: boolean
+  manufacturer_name: string | null
+  default_caliber_name: string | null
+  default_action_type_name: string | null
+  usage_count: number
+}
+
+export interface FirearmComplianceTagItem {
+  id: number
+  name: string
+  description: string | null
+  jurisdiction: string | null
+  is_active: boolean
+  source: string
+  community_key?: string | null
+  is_imported: boolean
+  usage_count: number
+}
+
+export interface FirearmUserTagItem {
+  id: number
+  owner_id: number
+  name: string
+  color: string | null
+  created_at: string
+}
+
 export interface CommunityTableStatus {
   total: number
   imported: number
@@ -123,6 +189,9 @@ export interface CommunityStatus {
   manufacturers: CommunityTableStatus
   calibers: CommunityTableStatus
   ammo_types: CommunityTableStatus
+  firearm_action_types?: CommunityTableStatus
+  firearm_models?: CommunityTableStatus
+  firearm_compliance_tags?: CommunityTableStatus
 }
 
 export interface CommunityContribute {
