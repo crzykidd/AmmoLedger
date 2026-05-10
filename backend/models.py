@@ -138,6 +138,72 @@ class FirearmUserTag(SQLModel, table=True):
 
 
 # ---------------------------------------------------------------------------
+# Firearms (P1b)
+# ---------------------------------------------------------------------------
+
+class Firearm(SQLModel, table=True):
+    __tablename__ = "firearms"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="users.id")
+    is_shared: bool = Field(default=False)
+
+    manufacturer_id: int = Field(foreign_key="manufacturers.id")
+    firearm_model_id: Optional[int] = Field(default=None, foreign_key="firearm_models.id")
+    custom_model_name: Optional[str] = None
+
+    firearm_type: str  # pistol | rifle | shotgun | other
+    action_type_id: Optional[int] = Field(default=None, foreign_key="firearm_action_types.id")
+
+    caliber_id: int = Field(foreign_key="calibers.id")
+    caliber_notes: Optional[str] = None
+
+    serial: Optional[str] = None
+    barrel_length_in: Optional[float] = None
+    finish: Optional[str] = None
+    purchase_date: Optional[date] = None
+    purchase_price: Optional[float] = None
+    dealer_id: Optional[int] = Field(default=None, foreign_key="dealers.id")
+    notes: Optional[str] = None
+
+    rounds_lifetime: int = Field(default=0)
+    rounds_since_clean: int = Field(default=0)
+    last_cleaned_at: Optional[date] = None
+    service_interval_rounds: Optional[int] = None
+    service_interval_days: Optional[int] = None
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class FirearmLog(SQLModel, table=True):
+    __tablename__ = "firearm_log"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    firearm_id: int = Field(foreign_key="firearms.id")
+    event_type: str  # cleaning | service | note
+    event_date: date
+    rounds_at_event: int
+    notes: Optional[str] = None
+    logged_by: int = Field(foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class FirearmComplianceTagLink(SQLModel, table=True):
+    __tablename__ = "firearm_compliance_tag_links"
+
+    firearm_id: int = Field(foreign_key="firearms.id", primary_key=True)
+    tag_id: int = Field(foreign_key="firearm_compliance_tags.id", primary_key=True)
+
+
+class FirearmUserTagLink(SQLModel, table=True):
+    __tablename__ = "firearm_user_tag_links"
+
+    firearm_id: int = Field(foreign_key="firearms.id", primary_key=True)
+    tag_id: int = Field(foreign_key="firearm_user_tags.id", primary_key=True)
+
+
+# ---------------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------------
 

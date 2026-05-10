@@ -291,6 +291,241 @@ class FirearmUserTagUpdate(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Firearm schemas (P1b — registry + event log)
+# ---------------------------------------------------------------------------
+
+_VALID_FIREARM_TYPES = {"pistol", "rifle", "shotgun", "other"}
+_VALID_FIREARM_EVENT_TYPES = {"cleaning", "service", "note"}
+
+
+class FirearmCreate(BaseModel):
+    is_shared: bool = False
+    manufacturer_id: int
+    firearm_model_id: Optional[int] = None
+    custom_model_name: Optional[str] = None
+    firearm_type: str
+    action_type_id: Optional[int] = None
+    caliber_id: int
+    caliber_notes: Optional[str] = None
+    serial: Optional[str] = None
+    barrel_length_in: Optional[float] = None
+    finish: Optional[str] = None
+    purchase_date: Optional[date] = None
+    purchase_price: Optional[float] = None
+    dealer_id: Optional[int] = None
+    notes: Optional[str] = None
+    service_interval_rounds: Optional[int] = None
+    service_interval_days: Optional[int] = None
+    compliance_tag_ids: List[int] = []
+    user_tag_ids: List[int] = []
+
+    @field_validator("firearm_type")
+    @classmethod
+    def _check_firearm_type(cls, v: str) -> str:
+        if v not in _VALID_FIREARM_TYPES:
+            raise ValueError(
+                f"firearm_type must be one of {sorted(_VALID_FIREARM_TYPES)}; got {v!r}"
+            )
+        return v
+
+    @field_validator("barrel_length_in")
+    @classmethod
+    def _check_barrel(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("barrel_length_in must be >= 0")
+        return v
+
+    @field_validator("purchase_price")
+    @classmethod
+    def _check_price(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("purchase_price must be >= 0")
+        return v
+
+    @field_validator("service_interval_rounds")
+    @classmethod
+    def _check_si_rounds(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("service_interval_rounds must be >= 1")
+        return v
+
+    @field_validator("service_interval_days")
+    @classmethod
+    def _check_si_days(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("service_interval_days must be >= 1")
+        return v
+
+    def model_post_init(self, __context) -> None:
+        if self.firearm_model_id is None and not self.custom_model_name:
+            raise ValueError(
+                "either firearm_model_id or custom_model_name must be provided"
+            )
+
+
+class FirearmRead(_OrmBase):
+    id: int
+    owner_id: int
+    is_shared: bool
+
+    manufacturer_id: int
+    manufacturer_name: Optional[str] = None
+    firearm_model_id: Optional[int] = None
+    firearm_model_name: Optional[str] = None
+    custom_model_name: Optional[str] = None
+    display_model: str  # firearm_model_name OR custom_model_name (frontend convenience)
+
+    firearm_type: str
+    action_type_id: Optional[int] = None
+    action_type_name: Optional[str] = None
+
+    caliber_id: int
+    caliber_name: Optional[str] = None
+    caliber_notes: Optional[str] = None
+
+    serial: Optional[str] = None
+    barrel_length_in: Optional[float] = None
+    finish: Optional[str] = None
+    purchase_date: Optional[date] = None
+    purchase_price: Optional[float] = None
+    dealer_id: Optional[int] = None
+    dealer_name: Optional[str] = None
+    notes: Optional[str] = None
+
+    rounds_lifetime: int
+    rounds_since_clean: int
+    last_cleaned_at: Optional[date] = None
+    service_interval_rounds: Optional[int] = None
+    service_interval_days: Optional[int] = None
+    cleaning_status: str  # ok | due_soon | overdue
+
+    compliance_tags: List[FirearmComplianceTagRead] = []
+    user_tags: List[FirearmUserTagRead] = []
+
+    created_at: datetime
+    updated_at: datetime
+
+
+class FirearmUpdate(BaseModel):
+    is_shared: Optional[bool] = None
+    manufacturer_id: Optional[int] = None
+    firearm_model_id: Optional[int] = None
+    custom_model_name: Optional[str] = None
+    firearm_type: Optional[str] = None
+    action_type_id: Optional[int] = None
+    caliber_id: Optional[int] = None
+    caliber_notes: Optional[str] = None
+    serial: Optional[str] = None
+    barrel_length_in: Optional[float] = None
+    finish: Optional[str] = None
+    purchase_date: Optional[date] = None
+    purchase_price: Optional[float] = None
+    dealer_id: Optional[int] = None
+    notes: Optional[str] = None
+    service_interval_rounds: Optional[int] = None
+    service_interval_days: Optional[int] = None
+    compliance_tag_ids: Optional[List[int]] = None  # if provided, replaces full set
+    user_tag_ids: Optional[List[int]] = None        # if provided, replaces full set
+
+    @field_validator("firearm_type")
+    @classmethod
+    def _check_firearm_type(cls, v):
+        if v is not None and v not in _VALID_FIREARM_TYPES:
+            raise ValueError(
+                f"firearm_type must be one of {sorted(_VALID_FIREARM_TYPES)}; got {v!r}"
+            )
+        return v
+
+    @field_validator("barrel_length_in")
+    @classmethod
+    def _check_barrel(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("barrel_length_in must be >= 0")
+        return v
+
+    @field_validator("purchase_price")
+    @classmethod
+    def _check_price(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("purchase_price must be >= 0")
+        return v
+
+    @field_validator("service_interval_rounds")
+    @classmethod
+    def _check_si_rounds(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("service_interval_rounds must be >= 1")
+        return v
+
+    @field_validator("service_interval_days")
+    @classmethod
+    def _check_si_days(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("service_interval_days must be >= 1")
+        return v
+
+
+class FirearmLogCreate(BaseModel):
+    event_type: str
+    event_date: date
+    # Snapshot of firearm.rounds_lifetime at event time. None → server snapshots
+    # the firearm's current rounds_lifetime when the row is inserted.
+    rounds_at_event: Optional[int] = None
+    notes: Optional[str] = None
+
+    @field_validator("event_type")
+    @classmethod
+    def _check_event_type(cls, v: str) -> str:
+        if v not in _VALID_FIREARM_EVENT_TYPES:
+            raise ValueError(
+                f"event_type must be one of {sorted(_VALID_FIREARM_EVENT_TYPES)}; got {v!r}"
+            )
+        return v
+
+    @field_validator("rounds_at_event")
+    @classmethod
+    def _check_rounds(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("rounds_at_event must be >= 0")
+        return v
+
+
+class FirearmLogRead(_OrmBase):
+    id: int
+    firearm_id: int
+    event_type: str
+    event_date: date
+    rounds_at_event: int
+    notes: Optional[str] = None
+    logged_by: int
+    logged_by_name: str
+    created_at: datetime
+
+
+class FirearmLogUpdate(BaseModel):
+    event_type: Optional[str] = None
+    event_date: Optional[date] = None
+    rounds_at_event: Optional[int] = None
+    notes: Optional[str] = None
+
+    @field_validator("event_type")
+    @classmethod
+    def _check_event_type(cls, v):
+        if v is not None and v not in _VALID_FIREARM_EVENT_TYPES:
+            raise ValueError(
+                f"event_type must be one of {sorted(_VALID_FIREARM_EVENT_TYPES)}; got {v!r}"
+            )
+        return v
+
+    @field_validator("rounds_at_event")
+    @classmethod
+    def _check_rounds(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("rounds_at_event must be >= 0")
+        return v
+
+
+# ---------------------------------------------------------------------------
 # Product schemas
 # ---------------------------------------------------------------------------
 

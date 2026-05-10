@@ -176,6 +176,140 @@ export interface FirearmUserTagItem {
   created_at: string
 }
 
+// ---------------------------------------------------------------------------
+// Firearm registry types (P1b)
+// ---------------------------------------------------------------------------
+
+export type FirearmType = 'pistol' | 'rifle' | 'shotgun' | 'other'
+export type FirearmEventType = 'cleaning' | 'service' | 'note'
+export type CleaningStatus = 'ok' | 'due_soon' | 'overdue'
+
+export interface FirearmRead {
+  id: number
+  owner_id: number
+  is_shared: boolean
+
+  manufacturer_id: number
+  manufacturer_name: string | null
+  firearm_model_id: number | null
+  firearm_model_name: string | null
+  custom_model_name: string | null
+  /** firearm_model_name OR custom_model_name — frontend display convenience. */
+  display_model: string
+
+  firearm_type: FirearmType
+  action_type_id: number | null
+  action_type_name: string | null
+
+  caliber_id: number
+  caliber_name: string | null
+  caliber_notes: string | null
+
+  serial: string | null
+  barrel_length_in: number | null
+  finish: string | null
+  purchase_date: string | null
+  purchase_price: number | null
+  dealer_id: number | null
+  dealer_name: string | null
+  notes: string | null
+
+  rounds_lifetime: number
+  rounds_since_clean: number
+  last_cleaned_at: string | null
+  service_interval_rounds: number | null
+  service_interval_days: number | null
+  cleaning_status: CleaningStatus
+
+  compliance_tags: FirearmComplianceTagItem[]
+  user_tags: FirearmUserTagItem[]
+
+  created_at: string
+  updated_at: string
+}
+
+export interface FirearmCreate {
+  is_shared?: boolean
+  manufacturer_id: number
+  firearm_model_id?: number | null
+  custom_model_name?: string | null
+  firearm_type: FirearmType
+  action_type_id?: number | null
+  caliber_id: number
+  caliber_notes?: string | null
+  serial?: string | null
+  barrel_length_in?: number | null
+  finish?: string | null
+  purchase_date?: string | null
+  purchase_price?: number | null
+  dealer_id?: number | null
+  notes?: string | null
+  service_interval_rounds?: number | null
+  service_interval_days?: number | null
+  compliance_tag_ids?: number[]
+  user_tag_ids?: number[]
+}
+
+export interface FirearmUpdate {
+  is_shared?: boolean
+  manufacturer_id?: number
+  firearm_model_id?: number | null
+  custom_model_name?: string | null
+  firearm_type?: FirearmType
+  action_type_id?: number | null
+  caliber_id?: number
+  caliber_notes?: string | null
+  serial?: string | null
+  barrel_length_in?: number | null
+  finish?: string | null
+  purchase_date?: string | null
+  purchase_price?: number | null
+  dealer_id?: number | null
+  notes?: string | null
+  service_interval_rounds?: number | null
+  service_interval_days?: number | null
+  /** If provided, replaces the full set of compliance tag links (no delta). */
+  compliance_tag_ids?: number[]
+  /** If provided, replaces the full set of user tag links (no delta). */
+  user_tag_ids?: number[]
+}
+
+export interface FirearmListFilters {
+  firearm_type?: FirearmType
+  manufacturer_id?: number
+  caliber_id?: number
+  cleaning_status?: CleaningStatus
+  compliance_tag_id?: number
+  user_tag_id?: number
+}
+
+export interface FirearmLogRead {
+  id: number
+  firearm_id: number
+  event_type: FirearmEventType
+  event_date: string
+  rounds_at_event: number
+  notes: string | null
+  logged_by: number
+  logged_by_name: string
+  created_at: string
+}
+
+export interface FirearmLogCreate {
+  event_type: FirearmEventType
+  event_date: string
+  /** Defaults server-side to firearm.rounds_lifetime when omitted. */
+  rounds_at_event?: number | null
+  notes?: string | null
+}
+
+export interface FirearmLogUpdate {
+  event_type?: FirearmEventType
+  event_date?: string
+  rounds_at_event?: number | null
+  notes?: string | null
+}
+
 export interface CommunityTableStatus {
   total: number
   imported: number

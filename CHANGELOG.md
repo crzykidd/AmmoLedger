@@ -31,10 +31,16 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Admin community pages** for Firearm Models, Action Types, and Compliance Tags (alongside the existing Manufacturers / Calibers admin pages). Manufacturers admin row now shows Ammo / Firearm checkboxes that PATCH the row's `types`.
 - **Seed data.** ~20 firearm manufacturers (merged into the existing community list), ~50 popular models, 11 action types, 12 compliance tags. Calibers and ammo manufacturers are unchanged.
 
+- **Firearms registry.** New `/firearms` API: full CRUD, ownership model (`owner_id` + `is_shared`) matching ammo boxes and products. Members see shared firearms plus their own; admins see everything; read-only users see shared firearms only. Each firearm requires either a community-curated `firearm_model_id` or a free-form `custom_model_name` (CHECK constraint), plus `firearm_type` (`pistol` / `rifle` / `shotgun` / `other`), `caliber_id`, and `manufacturer_id` (which must be flagged with `firearm` in its `types`).
+- **Firearm log.** Per-firearm event log with three event types: `cleaning` (resets `rounds_since_clean`, updates `last_cleaned_at`), `service` (gunsmith trips, parts replacement), and `note` (free-form milestones). Editing or deleting a log entry triggers recalculation of the firearm's denormalized cleaning state from the full log history. Backdated entries supported with user-overridable `rounds_at_event`; default is a snapshot of current `rounds_lifetime` at insert time.
+- **Service intervals.** Each firearm carries optional `service_interval_rounds` and `service_interval_days` (either, both, or neither). Cleaning status — `ok`, `due_soon` (≥80% of either threshold), `overdue` — is computed at read time and exposed on `FirearmRead` for dashboard widget consumption.
+- **Compliance and personal tag links.** Many-to-many between firearms and `firearm_compliance_tags` (multi-select, community + user-extensible) and `firearm_user_tags` (per-user, colored). Tag links replaced wholesale on PATCH when the corresponding `*_tag_ids` array is supplied.
+- **Filters on `GET /firearms`.** `firearm_type`, `manufacturer_id`, `caliber_id`, `cleaning_status` (computed in Python after enrichment), `compliance_tag_id`, `user_tag_id`.
+
 ### Changed
 
 - **`manufacturers.types` JSON column added.** Existing rows backfilled to `["ammo"]`. No change to the `/lookups/manufacturers` default response shape; the `types` field is additive, and unfiltered callers see all manufacturers regardless of domain.
-- **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, and `firearm_user_tags`. Schema-migration validation continues to require an exact match against the current Alembic head.
+- **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, plus the P1b `firearms`, `firearm_log`, `firearm_compliance_tag_links`, and `firearm_user_tag_links` tables. Schema-migration validation continues to require an exact match against the current Alembic head.
 
 ## [0.2.3] — 2026-05-09
 

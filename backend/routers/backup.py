@@ -57,6 +57,13 @@ _EXPORT_TABLES = [
     # Inventory and history (children)
     "ammo_box",
     "expenditure_log",
+    # Firearms registry + log + tag link tables (P1b).
+    # Order: firearms → firearm_log + tag links (link tables FK both firearms and
+    # the lookup tables already above).
+    "firearms",
+    "firearm_log",
+    "firearm_compliance_tag_links",
+    "firearm_user_tag_links",
     # Threshold configuration
     "caliber_thresholds",
     "location_thresholds",

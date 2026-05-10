@@ -18,6 +18,7 @@ from database import engine, get_session, run_migrations
 from routers import auth, ammo, expenditure, lookups, users
 from routers.backup import router as backup_router
 from routers.community import router as community_router
+from routers.firearms import router as firearms_router
 from routers.geo import router as geo_router
 from routers.importer import router as import_router
 from routers.products import router as products_router
@@ -64,6 +65,7 @@ app.include_router(expenditure.expenditures_router)
 app.include_router(lookups.router)
 app.include_router(backup_router)
 app.include_router(community_router, prefix="/community")
+app.include_router(firearms_router)
 app.include_router(geo_router, prefix="/geo")
 app.include_router(import_router, prefix="/import")
 app.include_router(products_router, prefix="/products")

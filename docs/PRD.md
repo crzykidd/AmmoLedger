@@ -63,6 +63,7 @@
 | 3.22 | May 2026 | Split Box QA fixes and UX additions: GET /ammo/split-parents endpoint added (parent metadata lookup with joined caliber/manufacturer names, notes scoped by RBAC); SplitParentDetailsDialog accessible from Group By "Split Parent" group header info icon; Sort By toolbar dropdown with six options including Purchase Date and Updated Date; Purchase Date and Updated Date now shown in expanded inventory rows; child boxes created by a split now have notes pre-populated with "[Split YYYY-MM-DD] Split from #N"; list_ammo includes any box with children regardless of show_archived/show_empty filters; SplitBoxDialog success and review panes are modal-locked; Preview pane row labels switched from "Box 1/Box 2" (mistaken for IDs) to plain "1./2." with disclaimer; Total Boxes (lifetime) now counts all records, not just root boxes — Total Rounds and Total Value still filter on split_from_id IS NULL. §6.13 reporting table updated; §9.2.4 expanded with QA-discovered behavior and new UI surfaces. |
 | 3.23 | May 2026 | Renamed Inventory page to Ammo (preparing for Firearms in v0.3.0). Frontend route changed from /inventory to /ammo with no redirect. localStorage keys migrated from inventory_* to ammo_*. Backend /ammo/* API unchanged. §9.2 updated. |
 | 3.24 | 2026-05-09 | Firearms P1a — community-curated lookup foundation. New tables `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`. New `manufacturers.types` JSON column (backfilled to `["ammo"]`); `GET /lookups/manufacturers` accepts `?type=ammo\|firearm`. New endpoints under `/firearm-models`, `/firearm-action-types`, `/firearm-compliance-tags`, `/firearm-user-tags`. Migration `0002_add_firearm_lookups.py` is the first incremental migration on top of the v0.1.9 squashed schema. PRD §6.7 duplicate-heading bug fixed (Range Sessions renumbered to §6.15); firearms schema block updated with `caliber_notes`, `barrel_length_in`, `finish`, `service_interval_*`, `manufacturer_id` / `firearm_model_id` / `action_type_id` foreign keys. §6.7.1 added documenting the four new lookup tables. §6.7.2 added explicitly deferring multi-caliber firearms, target photo uploads, and CSV import from the v2.0 firearms feature. Backup/restore extended to cover the new tables. |
+| 3.25 | 2026-05-09 | Firearms P1b — `firearms` table, `firearm_log` event table, and the two tag-link join tables. Migration `0003_add_firearms.py` adds all four tables with FK indexes and a CHECK constraint enforcing "model_id OR custom_model_name". New `/firearms` API: full CRUD with `_visibility_filter` / `_check_write` matching ammo boxes; nested `/firearms/{id}/log` for the maintenance event log (cleaning / service / note); `cleaning_status` (`ok` / `due_soon` / `overdue`) computed at read time. Editing or deleting a firearm log entry recalculates `last_cleaned_at` and `rounds_since_clean` from the full log history. PRD §6.7 schema block updated to match the implemented columns (`custom_model_name`, `firearm_type`, `purchase_price`, `dealer_id`, CHECK); §6.7.0 firearm_log and §6.7.0a tag-link sections added. §10.1 expanded; §10.3 renamed "Firearm Maintenance Log" and rewritten for the three event types. Backup/restore extended to cover `firearms`, `firearm_log`, `firearm_compliance_tag_links`, `firearm_user_tag_links`. |
 
 ---
 
@@ -495,9 +496,9 @@ Current keys written by the application:
 The firearms feature is built up across a small number of phases:
 
 - **Phase P1a (v0.3.0 dev)** — community lookup foundation only: `firearm_models`, `firearm_action_types`, `firearm_compliance_tags`, plus the per-user `firearm_user_tags` table and a `manufacturers.types` JSON column so a single manufacturer record serves both ammo and firearm domains. **No `firearms` table is created in this phase.**
-- **Phase P1b** — adds the `firearms` table itself, the `firearm_log` table, and the join tables that link firearms to compliance/user tags. CRUD endpoints, frontend pages, and dashboard widgets land here.
+- **Phase P1b (v0.3.0 dev)** — adds the `firearms` table itself, the `firearm_log` event table, and the two join tables that link firearms to compliance / user tags. Full CRUD endpoints under `/firearms`. Frontend pages and dashboard widgets ship in P2 and P5.
 
-The agreed shape for the eventual `firearms` table (lands in P1b — listed here as the canonical spec):
+The implemented `firearms` table:
 
 ```
 firearms
@@ -506,25 +507,61 @@ firearms
 ├── is_shared                BOOLEAN    True = Members can log sessions against it
 ├── manufacturer_id          INTEGER    FK → manufacturers (with types containing "firearm")
 ├── firearm_model_id         INTEGER    FK → firearm_models; nullable for "freeform" entries
-├── model_name               TEXT       Free-text override / freeform; populated from
-│                                       firearm_models.name when firearm_model_id is set
+├── custom_model_name        TEXT       Free-text model name when firearm_model_id is null
+│                                       (e.g. one-off custom builds, missing community models)
+├── firearm_type             TEXT       pistol | rifle | shotgun | other
 ├── action_type_id           INTEGER    FK → firearm_action_types; nullable
 ├── caliber_id               INTEGER    FK → calibers
 ├── caliber_notes            TEXT       Free-text caliber qualification (e.g. "+P only",
 │                                       ".357 Mag chamber, also fires .38 Special")
+├── serial                   TEXT       Optional
 ├── barrel_length_in         FLOAT      Barrel length in inches; nullable
 ├── finish                   TEXT       Finish / coating (Stainless, Cerakote FDE, etc.); nullable
-├── serial                   TEXT       Optional
 ├── purchase_date            DATE       Optional
+├── purchase_price           FLOAT      Optional
+├── dealer_id                INTEGER    FK → dealers; nullable
+├── notes                    TEXT       Optional
+├── rounds_lifetime          INTEGER    Total rounds fired through this firearm; updated by
+│                                       range sessions in P3
+├── rounds_since_clean       INTEGER    Rounds since last cleaning; recomputed from firearm_log
+├── last_cleaned_at          DATE       Date of last cleaning event; recomputed from firearm_log
 ├── service_interval_rounds  INTEGER    Recommended rounds between cleanings; nullable
 ├── service_interval_days    INTEGER    Recommended days between cleanings; nullable
-├── notes                    TEXT       Optional
-├── rounds_lifetime          INTEGER    Total rounds fired through this firearm; auto-incremented
-├── rounds_since_clean       INTEGER    Rounds since last cleaning; reset on cleaning log entry
-├── last_cleaned_at          DATE       Date of last cleaning/service; nullable
 ├── created_at               DATETIME
 └── updated_at               DATETIME
+   CHECK (firearm_model_id IS NOT NULL OR custom_model_name IS NOT NULL)
 ```
+
+The CHECK constraint enforces "at least one of catalog model or custom name" — mirrors the AmmoBox `product_id` / `product_name` pattern.
+
+#### 6.7.0 firearm_log (P1b)
+
+Per-firearm event log. Replaces the originally-spec'd "cleaning event" with three event types so service trips and milestone notes share one timeline:
+
+```
+firearm_log
+├── id                INTEGER    Primary key
+├── firearm_id        INTEGER    FK → firearms
+├── event_type        TEXT       cleaning | service | note
+├── event_date        DATE       User-supplied; backdating supported
+├── rounds_at_event   INTEGER    Snapshot of firearms.rounds_lifetime; user-overridable
+├── notes             TEXT       Optional
+├── logged_by         INTEGER    FK → users.id
+└── created_at        DATETIME
+```
+
+`firearms.last_cleaned_at` and `firearms.rounds_since_clean` are denormalized snapshots of the most-recent `cleaning` event. They are recomputed from the full `firearm_log` history on every insert / update / delete of a log row, so the snapshots never drift from the source of truth — even when entries are backdated, edited, or deleted.
+
+#### 6.7.0a Firearm tag links (P1b)
+
+Two join tables bind firearms to multi-select tag sets:
+
+```
+firearm_compliance_tag_links     firearm_user_tag_links
+(firearm_id, tag_id) PK          (firearm_id, tag_id) PK
+```
+
+PATCH replaces the full set when `compliance_tag_ids` / `user_tag_ids` is supplied — no delta semantics. `user_tag_ids` are validated against the requesting user's ownership (admins can use any tag).
 
 #### 6.7.1 Firearm lookup tables (shipped in P1a)
 
@@ -624,6 +661,12 @@ Indexes required for search and filter performance targets (sub-200ms at 10,000 
 **ammo_box:** `caliber_id`, `manufacturer_id`, `type_id`, `category_id`, `owner_id`, `is_shared`, `qty_remaining`, `is_archived`, `created_at`, `legacy_id`, `split_from_id`
 
 **expenditure_log:** `ammo_box_id`, `logged_by`, `date`, `log_type`
+
+**firearms:** `owner_id`, `is_shared`, `manufacturer_id`, `firearm_model_id`, `caliber_id`, `firearm_type`, `action_type_id`, `dealer_id`
+
+**firearm_log:** `firearm_id`, `event_date`, `event_type`, `logged_by`
+
+**firearm_compliance_tag_links / firearm_user_tag_links:** `tag_id` (forward queries already covered by composite PK on `firearm_id, tag_id`)
 
 **users:** `username`, `email`
 
@@ -1978,11 +2021,14 @@ Returns `history_id` (int). The caller fetches the record from DB in its own ses
 
 ### 10.1 Firearms Registry (v2.0)
 
-- Track owned firearms with the same `owner_id` + `is_shared` model as ammo boxes
-- Fields: make, model, caliber, serial (optional), purchase date, notes
-- Lifetime round count auto-incremented by range sessions
-- Round count at last cleaning; configurable service interval
-- Admin sees all; Members see shared + their own
+- Track owned firearms with the same `owner_id` + `is_shared` model as ammo boxes (Admin sees all; Members see shared + their own; Read-Only sees shared only)
+- Either a community-curated `firearm_model_id` OR a free-form `custom_model_name` is required (CHECK constraint)
+- Compliance tags (multi-select; community-curated, user-extensible — e.g. "CA Featureless", "NFA Registered — SBR") and personal user tags (per-user free-form, color-coded) are both attached via many-to-many link tables
+- Per-firearm service intervals — rounds-based (`service_interval_rounds`) and time-based (`service_interval_days`); either, both, or neither
+- `cleaning_status` (`ok` | `due_soon` | `overdue`) is computed at read time from those intervals plus `rounds_since_clean` and `last_cleaned_at`. `due_soon` triggers at ≥80% of either threshold; missing `last_cleaned_at` with a `service_interval_days` set is treated as overdue (never cleaned)
+- Firearm log generalizes the original "cleaning event" into three event types — `cleaning` (resets the cleaning snapshot), `service` (gunsmith / parts), and `note` (free-form milestones)
+- Editing or deleting a firearm log entry recalculates `last_cleaned_at` and `rounds_since_clean` from the full log history — denormalized snapshots never drift from the source of truth
+- Lifetime round count is updated by range sessions (P3)
 
 ### 10.2 Range Sessions (v2.0)
 
@@ -1993,11 +2039,17 @@ Returns `history_id` (int). The caller fetches the record from DB in its own ses
 - Attach target photos to a session line (stored in `/data/uploads/`)
 - Shared sessions visible to all Members on the instance
 
-### 10.3 Cleaning Reminders (v2.0)
+### 10.3 Firearm Maintenance Log (v2.0)
 
-- Set service interval per firearm: round count threshold or calendar interval
-- Dashboard widget shows firearms approaching or past their service interval
-- Log a cleaning event: resets `rounds_since_clean`, records `last_cleaned_at` and round count at service
+Generalizes "cleaning reminders" from the original spec — the underlying table is `firearm_log`, the dashboard widget reads it.
+
+- Set service interval per firearm: round count threshold and/or calendar interval (either, both, or neither)
+- Dashboard widget (P5) lists firearms whose `cleaning_status` is `due_soon` or `overdue`
+- Log a `cleaning` event: resets `rounds_since_clean` and updates `last_cleaned_at` to the event date
+- Log a `service` event: records gunsmith trips, part replacements, etc.
+- Log a `note` event: free-form milestone (zero confirmed, optic mounted, etc.)
+- Backdating is supported; `rounds_at_event` defaults to a snapshot of the firearm's current `rounds_lifetime` but is user-overridable for backdated entries
+- Editing or deleting a log entry triggers full recalculation of the firearm's denormalized cleaning state
 
 ### 10.4 Reporting (v2.0)
 
