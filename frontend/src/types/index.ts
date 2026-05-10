@@ -146,6 +146,9 @@ export interface FirearmModelItem {
   name: string
   default_caliber_id: number | null
   default_action_type_id: number | null
+  /** Standard production barrel length (inches). Drives the firearm form
+   *  drawer's auto-fill cascade alongside caliber + action type. */
+  default_barrel_length_in: number | null
   is_active: boolean
   source: string
   community_key?: string | null
@@ -155,6 +158,24 @@ export interface FirearmModelItem {
   default_action_type_name: string | null
   usage_count: number
 }
+
+/** Common shape for the four physical-attribute community lookups
+ *  (frame size, optic cut, rail type, finish). All share the
+ *  FirearmActionType pattern. */
+export interface FirearmAttributeLookupItem {
+  id: number
+  name: string
+  is_active: boolean
+  source: string
+  community_key?: string | null
+  is_imported: boolean
+  usage_count: number
+}
+
+export type FirearmFrameSizeItem = FirearmAttributeLookupItem
+export type FirearmOpticCutItem = FirearmAttributeLookupItem
+export type FirearmRailTypeItem = FirearmAttributeLookupItem
+export type FirearmFinishItem = FirearmAttributeLookupItem
 
 export interface FirearmComplianceTagItem {
   id: number
@@ -207,7 +228,17 @@ export interface FirearmRead {
 
   serial: string | null
   barrel_length_in: number | null
-  finish: string | null
+  // Physical attribute FKs (v0.3.0 — replaces free-text finish). Resolved
+  // name fields populated by the router.
+  frame_size_id: number | null
+  frame_size_name: string | null
+  optic_cut_id: number | null
+  optic_cut_name: string | null
+  rail_type_id: number | null
+  rail_type_name: string | null
+  finish_id: number | null
+  finish_name: string | null
+  standard_capacity: number | null
   purchase_date: string | null
   purchase_price: number | null
   dealer_id: number | null
@@ -239,7 +270,11 @@ export interface FirearmCreate {
   caliber_notes?: string | null
   serial?: string | null
   barrel_length_in?: number | null
-  finish?: string | null
+  frame_size_id?: number | null
+  optic_cut_id?: number | null
+  rail_type_id?: number | null
+  finish_id?: number | null
+  standard_capacity?: number | null
   purchase_date?: string | null
   purchase_price?: number | null
   dealer_id?: number | null
@@ -261,7 +296,11 @@ export interface FirearmUpdate {
   caliber_notes?: string | null
   serial?: string | null
   barrel_length_in?: number | null
-  finish?: string | null
+  frame_size_id?: number | null
+  optic_cut_id?: number | null
+  rail_type_id?: number | null
+  finish_id?: number | null
+  standard_capacity?: number | null
   purchase_date?: string | null
   purchase_price?: number | null
   dealer_id?: number | null

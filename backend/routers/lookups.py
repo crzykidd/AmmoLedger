@@ -14,7 +14,11 @@ from models import (
     Dealer,
     FirearmActionType,
     FirearmComplianceTag,
+    FirearmFinish,
+    FirearmFrameSize,
     FirearmModel,
+    FirearmOpticCut,
+    FirearmRailType,
     FirearmUserTag,
     Location,
     Manufacturer,
@@ -31,9 +35,21 @@ from schemas import (
     FirearmComplianceTagCreate,
     FirearmComplianceTagRead,
     FirearmComplianceTagUpdate,
+    FirearmFinishCreate,
+    FirearmFinishRead,
+    FirearmFinishUpdate,
+    FirearmFrameSizeCreate,
+    FirearmFrameSizeRead,
+    FirearmFrameSizeUpdate,
     FirearmModelCreate,
     FirearmModelRead,
     FirearmModelUpdate,
+    FirearmOpticCutCreate,
+    FirearmOpticCutRead,
+    FirearmOpticCutUpdate,
+    FirearmRailTypeCreate,
+    FirearmRailTypeRead,
+    FirearmRailTypeUpdate,
     FirearmUserTagCreate,
     FirearmUserTagRead,
     FirearmUserTagUpdate,
@@ -62,10 +78,15 @@ _TABLE_CONFIG: dict = {
     "dealers": Dealer,
     "locations": Location,
     "containers": Container,
-    # Firearm lookups (firearms table itself ships in P1b — no usage counts yet)
+    # Firearm lookups (usage counts are firearm-table-driven; not wired into
+    # the ammo_box-centric _COUNT_SQL above, so usage_count stays 0 here).
     "firearm-models": FirearmModel,
     "firearm-action-types": FirearmActionType,
     "firearm-compliance-tags": FirearmComplianceTag,
+    "firearm-frame-sizes": FirearmFrameSize,
+    "firearm-optic-cuts": FirearmOpticCut,
+    "firearm-rail-types": FirearmRailType,
+    "firearm-finishes": FirearmFinish,
 }
 
 # SQL fragments that count non-archived ammo_box rows per lookup entry
@@ -693,6 +714,7 @@ def create_firearm_model(
         name=name,
         default_caliber_id=payload.default_caliber_id,
         default_action_type_id=payload.default_action_type_id,
+        default_barrel_length_in=payload.default_barrel_length_in,
     )
     db.add(m)
     db.commit()
@@ -745,6 +767,8 @@ def update_firearm_model(
         m.default_caliber_id = payload.default_caliber_id or None
     if payload.default_action_type_id is not None:
         m.default_action_type_id = payload.default_action_type_id or None
+    if payload.default_barrel_length_in is not None:
+        m.default_barrel_length_in = payload.default_barrel_length_in
 
     db.add(m)
     db.commit()
@@ -972,5 +996,386 @@ def delete_firearm_user_tag(
     if not t or t.owner_id != user.id:
         raise HTTPException(status_code=404, detail="Tag not found")
     db.delete(t)
+    db.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Firearm physical attribute lookups (v0.3.0)
+#
+# Frame size, optic cut, rail type, finish — same shape and CRUD pattern as
+# firearm_action_types. The endpoints below are intentionally near-identical
+# blocks rather than a generic helper because the dependency-injected types
+# differ per route and the per-table 404 / 409 messages stay readable.
+# ---------------------------------------------------------------------------
+
+def _attr_lookup_dict(entry) -> dict:
+    """Common shape for the four physical-attribute lookup reads.
+
+    `usage_count` is left at 0 — the firearms table writes here happen via
+    FK on the firearms row, but a usage rollup would require a separate
+    aggregate query that isn't worth the cost on the lookups admin page.
+    """
+    d = entry.model_dump()
+    d["usage_count"] = 0
+    return d
+
+
+# Firearm Frame Sizes ---------------------------------------------------------
+
+@router.get("/firearm-frame-sizes", response_model=list[FirearmFrameSizeRead])
+def list_firearm_frame_sizes(
+    active_only: bool = Query(True),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = select(FirearmFrameSize)
+    if active_only:
+        stmt = stmt.where(FirearmFrameSize.is_active == True)  # noqa: E712
+        stmt = stmt.where(FirearmFrameSize.is_imported == True)  # noqa: E712
+    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+
+
+@router.post(
+    "/firearm-frame-sizes",
+    response_model=FirearmFrameSizeRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_frame_size(
+    payload: FirearmFrameSizeCreate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if db.exec(select(FirearmFrameSize).where(FirearmFrameSize.name == name)).first():
+        raise HTTPException(status_code=409, detail="Frame size already exists")
+    e = FirearmFrameSize(name=name)
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.patch("/firearm-frame-sizes/{entry_id}", response_model=FirearmFrameSizeRead)
+def update_firearm_frame_size(
+    entry_id: int,
+    payload: FirearmFrameSizeUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmFrameSize, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Frame size not found")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        clash = db.exec(
+            select(FirearmFrameSize)
+            .where(FirearmFrameSize.name == name)
+            .where(FirearmFrameSize.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="Name already exists")
+        if e.source == "community" and name.lower() != e.name.lower():
+            e.source = "local"
+            e.community_key = None
+        e.name = name
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.delete(
+    "/firearm-frame-sizes/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_frame_size(
+    entry_id: int,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmFrameSize, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Frame size not found")
+    if e.source not in ("user", "local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete community entries — use Hide instead",
+        )
+    db.delete(e)
+    db.commit()
+    return None
+
+
+# Firearm Optic Cuts ----------------------------------------------------------
+
+@router.get("/firearm-optic-cuts", response_model=list[FirearmOpticCutRead])
+def list_firearm_optic_cuts(
+    active_only: bool = Query(True),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = select(FirearmOpticCut)
+    if active_only:
+        stmt = stmt.where(FirearmOpticCut.is_active == True)  # noqa: E712
+        stmt = stmt.where(FirearmOpticCut.is_imported == True)  # noqa: E712
+    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+
+
+@router.post(
+    "/firearm-optic-cuts",
+    response_model=FirearmOpticCutRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_optic_cut(
+    payload: FirearmOpticCutCreate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if db.exec(select(FirearmOpticCut).where(FirearmOpticCut.name == name)).first():
+        raise HTTPException(status_code=409, detail="Optic cut already exists")
+    e = FirearmOpticCut(name=name)
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.patch("/firearm-optic-cuts/{entry_id}", response_model=FirearmOpticCutRead)
+def update_firearm_optic_cut(
+    entry_id: int,
+    payload: FirearmOpticCutUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmOpticCut, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Optic cut not found")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        clash = db.exec(
+            select(FirearmOpticCut)
+            .where(FirearmOpticCut.name == name)
+            .where(FirearmOpticCut.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="Name already exists")
+        if e.source == "community" and name.lower() != e.name.lower():
+            e.source = "local"
+            e.community_key = None
+        e.name = name
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.delete(
+    "/firearm-optic-cuts/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_optic_cut(
+    entry_id: int,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmOpticCut, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Optic cut not found")
+    if e.source not in ("user", "local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete community entries — use Hide instead",
+        )
+    db.delete(e)
+    db.commit()
+    return None
+
+
+# Firearm Rail Types ----------------------------------------------------------
+
+@router.get("/firearm-rail-types", response_model=list[FirearmRailTypeRead])
+def list_firearm_rail_types(
+    active_only: bool = Query(True),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = select(FirearmRailType)
+    if active_only:
+        stmt = stmt.where(FirearmRailType.is_active == True)  # noqa: E712
+        stmt = stmt.where(FirearmRailType.is_imported == True)  # noqa: E712
+    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+
+
+@router.post(
+    "/firearm-rail-types",
+    response_model=FirearmRailTypeRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_rail_type(
+    payload: FirearmRailTypeCreate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if db.exec(select(FirearmRailType).where(FirearmRailType.name == name)).first():
+        raise HTTPException(status_code=409, detail="Rail type already exists")
+    e = FirearmRailType(name=name)
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.patch("/firearm-rail-types/{entry_id}", response_model=FirearmRailTypeRead)
+def update_firearm_rail_type(
+    entry_id: int,
+    payload: FirearmRailTypeUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmRailType, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Rail type not found")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        clash = db.exec(
+            select(FirearmRailType)
+            .where(FirearmRailType.name == name)
+            .where(FirearmRailType.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="Name already exists")
+        if e.source == "community" and name.lower() != e.name.lower():
+            e.source = "local"
+            e.community_key = None
+        e.name = name
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.delete(
+    "/firearm-rail-types/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_rail_type(
+    entry_id: int,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmRailType, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Rail type not found")
+    if e.source not in ("user", "local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete community entries — use Hide instead",
+        )
+    db.delete(e)
+    db.commit()
+    return None
+
+
+# Firearm Finishes ------------------------------------------------------------
+
+@router.get("/firearm-finishes", response_model=list[FirearmFinishRead])
+def list_firearm_finishes(
+    active_only: bool = Query(True),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = select(FirearmFinish)
+    if active_only:
+        stmt = stmt.where(FirearmFinish.is_active == True)  # noqa: E712
+        stmt = stmt.where(FirearmFinish.is_imported == True)  # noqa: E712
+    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+
+
+@router.post(
+    "/firearm-finishes",
+    response_model=FirearmFinishRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_finish(
+    payload: FirearmFinishCreate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if db.exec(select(FirearmFinish).where(FirearmFinish.name == name)).first():
+        raise HTTPException(status_code=409, detail="Finish already exists")
+    e = FirearmFinish(name=name)
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.patch("/firearm-finishes/{entry_id}", response_model=FirearmFinishRead)
+def update_firearm_finish(
+    entry_id: int,
+    payload: FirearmFinishUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmFinish, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Finish not found")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        clash = db.exec(
+            select(FirearmFinish)
+            .where(FirearmFinish.name == name)
+            .where(FirearmFinish.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="Name already exists")
+        if e.source == "community" and name.lower() != e.name.lower():
+            e.source = "local"
+            e.community_key = None
+        e.name = name
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.delete(
+    "/firearm-finishes/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_finish(
+    entry_id: int,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmFinish, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Finish not found")
+    if e.source not in ("user", "local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete community entries — use Hide instead",
+        )
+    db.delete(e)
     db.commit()
     return None

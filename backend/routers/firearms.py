@@ -33,8 +33,12 @@ from models import (
     FirearmActionType,
     FirearmComplianceTag,
     FirearmComplianceTagLink,
+    FirearmFinish,
+    FirearmFrameSize,
     FirearmLog,
     FirearmModel,
+    FirearmOpticCut,
+    FirearmRailType,
     FirearmUserTag,
     FirearmUserTagLink,
     Manufacturer,
@@ -144,6 +148,10 @@ _EMPTY_MAPS: dict = {
     "action": {},
     "caliber": {},
     "dealer": {},
+    "frame_size": {},
+    "optic_cut": {},
+    "rail_type": {},
+    "finish": {},
     "compliance_tags": {},
     "user_tags": {},
 }
@@ -152,7 +160,7 @@ _EMPTY_MAPS: dict = {
 def _build_firearm_maps(firearms: list[Firearm], db: Session) -> dict:
     """Batch-load all lookup names + tag links for a list of firearms.
 
-    ~7-9 queries total, regardless of list size — avoids per-row N+1.
+    ~10-12 queries total, regardless of list size — avoids per-row N+1.
     """
     if not firearms:
         return {**_EMPTY_MAPS}
@@ -162,6 +170,10 @@ def _build_firearm_maps(firearms: list[Firearm], db: Session) -> dict:
     action_ids = {f.action_type_id for f in firearms if f.action_type_id}
     caliber_ids = {f.caliber_id for f in firearms}
     dealer_ids = {f.dealer_id for f in firearms if f.dealer_id}
+    frame_size_ids = {f.frame_size_id for f in firearms if f.frame_size_id}
+    optic_cut_ids = {f.optic_cut_id for f in firearms if f.optic_cut_id}
+    rail_type_ids = {f.rail_type_id for f in firearms if f.rail_type_id}
+    finish_ids = {f.finish_id for f in firearms if f.finish_id}
     firearm_ids = [f.id for f in firearms if f.id is not None]
 
     mfr_map = {
@@ -184,6 +196,22 @@ def _build_firearm_maps(firearms: list[Firearm], db: Session) -> dict:
         d.id: d.name
         for d in db.exec(select(Dealer).where(Dealer.id.in_(dealer_ids))).all()
     } if dealer_ids else {}
+    frame_size_map = {
+        x.id: x.name
+        for x in db.exec(select(FirearmFrameSize).where(FirearmFrameSize.id.in_(frame_size_ids))).all()
+    } if frame_size_ids else {}
+    optic_cut_map = {
+        x.id: x.name
+        for x in db.exec(select(FirearmOpticCut).where(FirearmOpticCut.id.in_(optic_cut_ids))).all()
+    } if optic_cut_ids else {}
+    rail_type_map = {
+        x.id: x.name
+        for x in db.exec(select(FirearmRailType).where(FirearmRailType.id.in_(rail_type_ids))).all()
+    } if rail_type_ids else {}
+    finish_map = {
+        x.id: x.name
+        for x in db.exec(select(FirearmFinish).where(FirearmFinish.id.in_(finish_ids))).all()
+    } if finish_ids else {}
 
     # Tag links — two queries per side (link rows + tag rows).
     comp_link_rows = list(
@@ -230,6 +258,10 @@ def _build_firearm_maps(firearms: list[Firearm], db: Session) -> dict:
         "action": action_map,
         "caliber": caliber_map,
         "dealer": dealer_map,
+        "frame_size": frame_size_map,
+        "optic_cut": optic_cut_map,
+        "rail_type": rail_type_map,
+        "finish": finish_map,
         "compliance_tags": comp_by_firearm,
         "user_tags": user_by_firearm,
     }
@@ -256,7 +288,15 @@ def _enrich_firearm_with_maps(f: Firearm, maps: dict, today: date) -> FirearmRea
         caliber_notes=f.caliber_notes,
         serial=f.serial,
         barrel_length_in=f.barrel_length_in,
-        finish=f.finish,
+        frame_size_id=f.frame_size_id,
+        frame_size_name=maps["frame_size"].get(f.frame_size_id) if f.frame_size_id else None,
+        optic_cut_id=f.optic_cut_id,
+        optic_cut_name=maps["optic_cut"].get(f.optic_cut_id) if f.optic_cut_id else None,
+        rail_type_id=f.rail_type_id,
+        rail_type_name=maps["rail_type"].get(f.rail_type_id) if f.rail_type_id else None,
+        finish_id=f.finish_id,
+        finish_name=maps["finish"].get(f.finish_id) if f.finish_id else None,
+        standard_capacity=f.standard_capacity,
         purchase_date=f.purchase_date,
         purchase_price=f.purchase_price,
         dealer_id=f.dealer_id,
@@ -354,6 +394,24 @@ def _validate_user_tags(
                 status_code=422,
                 detail=f"user_tag_ids belong to another user: {sorted(bad)}",
             )
+
+
+def _validate_attribute_fk(
+    db: Session, model_class, value: Optional[int], field_name: str
+) -> None:
+    """Generic guard for the four physical-attribute FK columns.
+
+    `value` may be None (clearing the attribute). When set, the row must exist
+    AND be active — picking a hidden community entry is a 422.
+    """
+    if value is None:
+        return
+    row = db.get(model_class, value)
+    if row is None or not row.is_active:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{field_name} not found or not active",
+        )
 
 
 def _validate_compliance_tags(db: Session, tag_ids: list[int]) -> None:
@@ -489,6 +547,11 @@ def create_firearm(
     if payload.dealer_id is not None and not db.get(Dealer, payload.dealer_id):
         raise HTTPException(status_code=422, detail="dealer_id not found")
 
+    _validate_attribute_fk(db, FirearmFrameSize, payload.frame_size_id, "frame_size_id")
+    _validate_attribute_fk(db, FirearmOpticCut,  payload.optic_cut_id,  "optic_cut_id")
+    _validate_attribute_fk(db, FirearmRailType,  payload.rail_type_id,  "rail_type_id")
+    _validate_attribute_fk(db, FirearmFinish,    payload.finish_id,     "finish_id")
+
     _validate_compliance_tags(db, payload.compliance_tag_ids)
     _validate_user_tags(db, payload.user_tag_ids, user)
 
@@ -504,7 +567,11 @@ def create_firearm(
         caliber_notes=payload.caliber_notes,
         serial=payload.serial,
         barrel_length_in=payload.barrel_length_in,
-        finish=payload.finish,
+        frame_size_id=payload.frame_size_id,
+        optic_cut_id=payload.optic_cut_id,
+        rail_type_id=payload.rail_type_id,
+        finish_id=payload.finish_id,
+        standard_capacity=payload.standard_capacity,
         purchase_date=payload.purchase_date,
         purchase_price=payload.purchase_price,
         dealer_id=payload.dealer_id,
@@ -529,7 +596,8 @@ def create_firearm(
 _CSV_COLUMNS = [
     "id", "owner_username", "is_shared", "manufacturer", "model",
     "custom_model_name", "display_model", "firearm_type", "action_type",
-    "caliber", "caliber_notes", "serial", "barrel_length_in", "finish",
+    "caliber", "caliber_notes", "serial", "barrel_length_in",
+    "frame_size", "optic_cut", "rail_type", "finish", "standard_capacity",
     "purchase_date", "purchase_price", "dealer", "notes", "rounds_lifetime",
     "rounds_since_clean", "last_cleaned_at", "service_interval_rounds",
     "service_interval_days", "cleaning_status", "compliance_tags", "user_tags",
@@ -568,7 +636,11 @@ def _build_firearm_csv(
             "caliber_notes": f.caliber_notes or "",
             "serial": f.serial or "",
             "barrel_length_in": f.barrel_length_in if f.barrel_length_in is not None else "",
-            "finish": f.finish or "",
+            "frame_size": maps["frame_size"].get(f.frame_size_id, "") if f.frame_size_id else "",
+            "optic_cut": maps["optic_cut"].get(f.optic_cut_id, "") if f.optic_cut_id else "",
+            "rail_type": maps["rail_type"].get(f.rail_type_id, "") if f.rail_type_id else "",
+            "finish": maps["finish"].get(f.finish_id, "") if f.finish_id else "",
+            "standard_capacity": f.standard_capacity if f.standard_capacity is not None else "",
             "purchase_date": f.purchase_date.isoformat() if f.purchase_date else "",
             "purchase_price": f.purchase_price if f.purchase_price is not None else "",
             "dealer": maps["dealer"].get(f.dealer_id, "") if f.dealer_id else "",
@@ -670,6 +742,14 @@ def update_firearm(
     if "dealer_id" in update_data and update_data["dealer_id"] is not None \
             and not db.get(Dealer, update_data["dealer_id"]):
         raise HTTPException(status_code=422, detail="dealer_id not found")
+    if "frame_size_id" in update_data:
+        _validate_attribute_fk(db, FirearmFrameSize, update_data["frame_size_id"], "frame_size_id")
+    if "optic_cut_id" in update_data:
+        _validate_attribute_fk(db, FirearmOpticCut,  update_data["optic_cut_id"],  "optic_cut_id")
+    if "rail_type_id" in update_data:
+        _validate_attribute_fk(db, FirearmRailType,  update_data["rail_type_id"],  "rail_type_id")
+    if "finish_id" in update_data:
+        _validate_attribute_fk(db, FirearmFinish,    update_data["finish_id"],     "finish_id")
 
     for key, value in update_data.items():
         setattr(firearm, key, value)

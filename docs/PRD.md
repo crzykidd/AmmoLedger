@@ -70,6 +70,7 @@
 | 3.29 | 2026-05-09 | Firearms P5 — cross-cutting integration. Sessions tab on `/firearms/:id` is now real — lists every range session involving the firearm with per-session rounds total scoped to THIS firearm specifically, computed via a single grouped query on the backend (new `rounds_for_filter_firearm` field on `RangeSessionListItem`, populated only when `GET /range-sessions?firearm_id=N` is set; avoids any frontend N+1). Dashboard gets two new widgets: Recent Range Sessions (last 5, with View All link to /range) and Firearms Needing Service (overdue + due-soon grouped, with the rounds-based or time-based reason text and a Log Cleaning quick-action that opens the firearm log dialog pre-set to Cleaning; hidden when no firearms need attention). New Quick Actions row on the dashboard exposes Log Range Day, Add Firearm, Add Ammo Box (hidden for read-only users). `GET /firearms?cleaning_status=` now accepts comma-separated values (e.g. `?cleaning_status=due_soon,overdue`) so the cleaning widget fetches both buckets in one request; single-value filtering still works. §10.1, §10.2, §10.3 implementation reference. |
 | 3.30 | 2026-05-09 | Firearms P6 — closing-the-loop polish for v0.3.0. Added firearms CSV export at `GET /firearms/export/csv` (one row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter) plus an Export CSV button on the Firearms list page. Added range sessions CSV export at `GET /range-sessions/export/csv` (denormalized, one row per line) plus an Export CSV button on the Range page. §10.1, §10.2, §10.3 version annotations updated from "(v2.0)" to "(v0.3.0 — shipped)". §6.7 heading similarly updated. New §10.8 Deferred subsection consolidates roadmap items deliberately scoped out of v0.3.0 (multi-caliber firearms, target photo uploads, firearms CSV import, accessories module, At Range / Range workflow merge, additional community lookups). |
 | 3.31 | 2026-05-10 | Firearms CSV import — final v0.3.0 firearms feature work before tagging. New `backend/routers/firearms_importer.py` mounts `POST /import/firearms/validate` → `POST /import/firearms/confirm` → `GET /import/firearms/template`, mirroring the ammo importer (token TTL 15 min, hard-blocking pre-import backup, single-transaction commit). Round-trip compatible with the v0.3.0 firearms export. Cascading model resolution scopes models under their manufacturer; new manufacturers are created with `types=["firearm"]`, existing manufacturers have `firearm` unioned in. Round counts and `last_cleaned_at` seed synthetic firearm-log entries (`note` at purchase + `cleaning` on the recorded date) so subsequent recalc rebuilds the cleaning state from the log being source-of-truth. Frontend Import page gets an Ammo / Firearms tab; the firearms preview UI handles a cascading `firearm_models_by_manufacturer` group plus per-value remap. `is_shared` on confirm is admin-only; member submissions return 403. §10.1 updated. |
+| 3.32 | 2026-05-10 | Firearms v0.3.0 polish — pre-tag schema baseline. Migrations `0002` / `0003` / `0004` collapsed into a single `0002_firearms_feature.py` (same final schema, one diff to review; matches v0.1.9 squash precedent; safe because v0.3.0 has not been released yet so no migration history needs preserving — old files deleted, not archived). Free-text `firearms.finish` column replaced by FK `finish_id` → new `firearm_finishes` community lookup; no compatibility shim. New per-firearm columns: `frame_size_id` → `firearm_frame_sizes`, `optic_cut_id` → `firearm_optic_cuts`, `rail_type_id` → `firearm_rail_types`, plus `standard_capacity` (integer). New `firearm_models.default_barrel_length_in` column drives the form drawer auto-fill cascade alongside caliber + action type. Catalog expanded from 48 to ~100 popular models with seeded barrel lengths from manufacturer spec sheets; five new firearm manufacturers seeded (Taurus, Bergara, IWI, Kel-Tec, Stoeger). Firearms CSV export shape updated — `finish` becomes a name-resolved value from the FK, new `frame_size` / `optic_cut` / `rail_type` / `standard_capacity` columns inserted in the Physical section (no round-trip concern with prior exports — none have shipped). Lookups admin page gains four new sections; firearm form drawer's Physical section replaces the free-text Finish input with a dropdown and adds Frame Size / Optic Cut / Rail Type / Capacity controls; auto-fill flash extended from caliber+action to caliber+action+barrel. §6.7 schema block, §10.1 narrative bullets, §10.8 Deferred all updated. Note: the firearms CSV importer is left consuming the original column set and gains a TODO to map the new physical-attribute columns in a follow-up prompt. |
 
 ---
 
@@ -522,7 +523,13 @@ firearms
 │                                       ".357 Mag chamber, also fires .38 Special")
 ├── serial                   TEXT       Optional
 ├── barrel_length_in         FLOAT      Barrel length in inches; nullable
-├── finish                   TEXT       Finish / coating (Stainless, Cerakote FDE, etc.); nullable
+├── frame_size_id            INTEGER    FK → firearm_frame_sizes; nullable (v0.3.0 polish)
+├── optic_cut_id             INTEGER    FK → firearm_optic_cuts; nullable
+├── rail_type_id             INTEGER    FK → firearm_rail_types; nullable
+├── finish_id                INTEGER    FK → firearm_finishes; nullable (replaces v0.3.0
+│                                       early-dev free-text `finish`)
+├── standard_capacity        INTEGER    Magazine capacity the firearm was designed for;
+│                                       nullable (v0.3.0 polish)
 ├── purchase_date            DATE       Optional
 ├── purchase_price           FLOAT      Optional
 ├── dealer_id                INTEGER    FK → dealers; nullable
@@ -586,11 +593,26 @@ firearm_models
 ├── name                     TEXT       e.g. "10/22", "P320"
 ├── default_caliber_id       INTEGER    FK → calibers; nullable
 ├── default_action_type_id   INTEGER    FK → firearm_action_types; nullable
+├── default_barrel_length_in FLOAT      Standard production barrel length in inches;
+│                                       nullable (v0.3.0 polish — drives the form
+│                                       drawer auto-fill alongside caliber + action)
 ├── is_active                BOOLEAN
 ├── source                   TEXT
 ├── community_key            TEXT       e.g. "model-glock-19-gen5"
 └── is_imported              BOOLEAN
    UNIQUE (manufacturer_id, name)
+
+firearm_frame_sizes / firearm_optic_cuts / firearm_rail_types / firearm_finishes
+                              (v0.3.0 polish — four community-curated lookups
+                              that replace the original free-text `finish`
+                              column on firearms with structured FK references.
+                              All four share the FirearmActionType shape:)
+├── id              INTEGER    Primary key
+├── name            TEXT       UNIQUE
+├── is_active       BOOLEAN
+├── source          TEXT       yaml | community | user | local
+├── community_key   TEXT       e.g. "frame-size-compact", "finish-cerakote"
+└── is_imported     BOOLEAN
 
 firearm_compliance_tags
 ├── id              INTEGER    Primary key
@@ -2054,6 +2076,25 @@ Shipped in v0.3.0 across phases P1a (lookups), P1b (registry + log), P2 (fronten
 - Lifetime round count is updated by range sessions (P3) — atomic with the ammo deduction
 - CSV export at `GET /firearms/export/csv` — one row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter (P6)
 - **CSV import.** Firearms can be imported in bulk via the same validate / preview / confirm pattern used for ammo (`POST /import/firearms/validate` → `POST /import/firearms/confirm`). The CSV format matches the export, so an unmodified round-trip is supported. Unmatched lookup values surface in the preview step with fuzzy-match suggestions; the user decides per value whether to map to an existing entry or create new. New manufacturers, models, action types, dealers, and tags are created with `source="user"` so they're locally editable but never overwrite community rows. Round counts on import seed a synthetic firearm-log `note` entry; a non-null `last_cleaned_at` adds a synthetic `cleaning` entry so the denormalized cleaning state recalculates correctly. A pre-import backup is hard-blocking — the import aborts with no rows written if the backup fails. (P6 follow-on)
+- **Physical attribute community lookups (v0.3.0 polish).** Frame size,
+  optic cut, rail type, and finish are community-curated lookup tables
+  matching the existing firearm taxonomy pattern (same shape as
+  `firearm_action_types`, syncable from `community/*.yaml`,
+  user-extensible with `source="user"` entries when the community list
+  is incomplete). The previous free-text `finish` column was replaced
+  outright — no compatibility layer; this happened pre-release while
+  v0.3.0 was still on the `dev` branch.
+- **Standard capacity (v0.3.0 polish).** Per-firearm integer for the
+  magazine capacity the firearm was designed for. Tracks the spec, not
+  the magazine the user has loaded — accessory-level capacity tracking
+  belongs to a future Accessories module.
+- **Catalog default barrel length (v0.3.0 polish).** Catalog
+  `firearm_models` rows seed `default_barrel_length_in` where the
+  standard production length is reliably known. Picking a catalog model
+  in the form drawer auto-fills the firearm's `barrel_length_in` when
+  blank, consistent with the existing caliber / action auto-fill
+  cascade. Threaded barrels and custom shop variants are handled by the
+  user overriding the auto-filled value per firearm.
 
 ### 10.2 Range Sessions (v0.3.0 — shipped)
 
@@ -2189,7 +2230,21 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
 - **Firearms CSV import.** Export-only in v0.3.0. Import will follow the existing CSV import validate/preview/confirm pattern used for ammo, but is not in this release.
 - **Accessories module** (§10.6 / v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
 - **At Range / Range workflow merge.** The mobile quick-expend page (§8.18 At Range) and the multi-line Range Sessions page (§10.2) remain separate. Future UX research will determine whether to unify them.
-- **Additional community lookups for firearms taxonomies.** Sight types, finishes, and other descriptors are currently free-text on firearms. They become candidates for community lookups based on user feedback.
+- **Additional community lookups for firearms taxonomies.** Sight types
+  and other descriptors not in the v0.3.0 polish set (frame size, optic
+  cut, rail type, finish — those four shipped) remain candidates for
+  community lookups based on user feedback. The free-text `finish`
+  column was upgraded to an FK lookup in the v0.3.0 polish pass; future
+  taxonomy upgrades follow the same pattern.
+- **"Community Connection" panel.** Reliability ratings, holster
+  fitment lists, trending upgrades — requires user-base scale and the
+  Accessories module before becoming meaningful. Tracked for v1.0+.
+- **Per-model alternative-caliber catalog.** Explicitly rejected for
+  v0.3.0+. Users record alternative-caliber compatibility (e.g. ".357
+  Magnum chamber, also fires .38 Special") in the existing free-text
+  `caliber_notes` field on each firearm.
+- **Photo uploads (firearm photos).** Landing as a separate prompt
+  against the v0.3.0 polish schema before the v0.3.0 tag.
 
 ---
 

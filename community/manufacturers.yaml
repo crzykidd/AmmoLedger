@@ -156,3 +156,18 @@ manufacturers:
   - name: "Aero Precision"
     url: "https://aeroprecisionusa.com"
     types: ["firearm"]
+  - name: "Taurus"
+    url: "https://www.taurususa.com"
+    types: ["firearm"]
+  - name: "Bergara"
+    url: "https://www.bergara.online"
+    types: ["firearm"]
+  - name: "IWI"
+    url: "https://iwi.us"
+    types: ["firearm"]
+  - name: "Kel-Tec"
+    url: "https://www.keltecweapons.com"
+    types: ["firearm"]
+  - name: "Stoeger"
+    url: "https://www.stoegerindustries.com"
+    types: ["firearm"]

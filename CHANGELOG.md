@@ -22,7 +22,10 @@ and create a fresh empty `## [Unreleased]` block above it.
 ### Added — Firearms tracking
 
 - **Firearms registry (`/firearms`).** Track each firearm with manufacturer, model, caliber, serial, barrel length, finish, purchase details, and dealer. Card-grid or list view with search and filters by manufacturer, caliber, type, and cleaning status. Same ownership model as ammo boxes — members own private firearms by default; admins can mark firearms as shared so all members see them. View mode, filter selections, and sort order persist across sessions.
-- **Firearm catalog.** Built-in community catalog of ~20 popular manufacturers and ~50 popular models (Glock 17/19, Ruger 10/22, S&W M&P, Sig P320/P365, AR-platform rifles, common shotguns, etc.) with default caliber and action type — adding a cataloged gun is two clicks. Custom model names supported for off-catalog firearms.
+- **Firearm catalog.** Built-in community catalog of ~25 popular manufacturers and ~100 popular models (Glock 17/19, Ruger 10/22, S&W M&P, Sig P320/P365, AR-platform rifles, common shotguns, etc.) with default caliber, action type, and standard barrel length — adding a cataloged gun is two clicks and barrel length auto-fills from the catalog when the field is blank. Custom model names supported for off-catalog firearms.
+- **Physical attribute community lookups.** Frame size (Micro / Subcompact / Compact / Full-Size / Competition / Other), optic cut (RMR / DeltaPoint Pro / RMSc / 507K / Aimpoint Acro / Trijicon SRO / Holosun K-series / Proprietary / Other), rail type (Picatinny / M-LOK / KeyMod / Proprietary / Other), and finish (Cerakote / Nitron / nDLC / Blued / Stainless / etc.). All four are community-curated with user-extensible local entries. Replaced the prior pre-release free-text Finish field with a structured FK lookup so users can't fragment data by typing "Cerakote" vs "cerakote" vs "FDE Cerakote."
+- **Standard capacity** column on firearms for tracking the magazine capacity the firearm was designed for (the spec, not the magazine the user has loaded).
+- **Default barrel length on catalog models.** ~80 popular firearm models carry seeded barrel-length values from manufacturer spec sheets, auto-filling on the firearm form when the user hasn't entered one. Users can override per firearm to handle threaded barrels, custom shop variants, etc. Threaded variants are not seeded as separate catalog entries.
 - **Multi-select compliance tags.** Twelve seeded tags covering common state classifications (CA, NY, MA, NJ) and federal NFA categories (SBR, suppressor host, MG, AOW, SBS), plus federal pre-ban. Multi-select per firearm so a single gun can carry orthogonal compliance facts (e.g. CA Featureless + NFA SBR). Users can add their own compliance tags when the community list lags new legislation. One-time disclaimer surfaces on first open: tags are community-maintained, AmmoLedger does not provide legal advice.
 - **Personal tags.** Per-user free-form colored tags (Carry, Heirloom, Range Only, EDC, etc.) with an 8-color palette. Managed inline from the firearm form — no separate admin page.
 - **Firearm maintenance log.** Three event types per firearm: Cleaning (resets `rounds_since_clean`, updates `last_cleaned_at`), Service (gunsmith trips, parts replacement), and Note (free-form milestones). Backdated entries supported with user-overridable rounds-at-event count. Editing or deleting any log entry recalculates the firearm's denormalized cleaning state from the full log history, so the snapshot fields never drift from the source of truth.
@@ -49,7 +52,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **`manufacturers.types` column.** A single manufacturers table now serves ammo and firearm domains, distinguished by a JSON array on each row (`["ammo"]`, `["firearm"]`, or both). Existing manufacturers backfilled to ammo-only; firearm-only manufacturers like Glock seed as firearm-only; shared manufacturers like Federal or Sig Sauer carry both.
 - **New community lookups.** Firearm Models, Action Types (~11 seeded), and Compliance Tags (~12 seeded), each with the same community-curated source / community_key / is_imported pattern as the existing manufacturer and caliber lookups.
-- **Admin pages.** Manage Firearm Models, Action Types, and Compliance Tags alongside the existing Manufacturers / Calibers admin pages. Manufacturers admin gets a Type column (Ammo / Firearm checkboxes) for explicit type assignment.
+- **Admin pages.** Manage Firearm Models, Action Types, Compliance Tags, plus the four new Frame Sizes / Optic Cuts / Rail Types / Finishes lookups alongside the existing Manufacturers / Calibers admin pages. Manufacturers admin gets a Type column (Ammo / Firearm checkboxes) for explicit type assignment.
 - **Lookup endpoint extensions.** `GET /lookups/manufacturers?type=ammo|firearm` filter; new `GET /lookups/firearm-models` (with `?manufacturer_id=` for cascading dropdowns), `/firearm-action-types`, `/firearm-compliance-tags`, and per-user `/firearm-user-tags`.
 
 ### Added — Exports & Imports
@@ -74,9 +77,16 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Database migrations
 
-- `0002_add_firearm_lookups.py` — adds `manufacturers.types`, `firearm_models`, `firearm_action_types`, `firearm_compliance_tags`, `firearm_user_tags`. Backfills existing manufacturers to `["ammo"]`.
-- `0003_add_firearms.py` — adds `firearms`, `firearm_log`, and the two tag-link tables. CHECK constraint enforces "either `firearm_model_id` or `custom_model_name` set."
-- `0004_add_range_sessions.py` — adds `range_sessions`, `range_session_lines`, and the `expenditure_log.range_session_line_id` column.
+- `0002_firearms_feature.py` — single migration covering the entire firearms
+  feature. Adds `manufacturers.types`, the firearm and range-session domain
+  tables (`firearm_models`, `firearm_action_types`, `firearm_compliance_tags`,
+  `firearm_user_tags`, `firearm_frame_sizes`, `firearm_optic_cuts`,
+  `firearm_rail_types`, `firearm_finishes`, `firearms`, `firearm_log`,
+  `firearm_compliance_tag_links`, `firearm_user_tag_links`, `range_sessions`,
+  `range_session_lines`), and the `expenditure_log.range_session_line_id`
+  audit FK. Replaces the previously-staged 0002 / 0003 / 0004 split — collapsed
+  pre-release for a clean v0.3.0 schema baseline. No schema downgrade path
+  is provided beyond reverting to v0.1.9's `0001_initial_schema.py`.
 
 ### Deferred
 

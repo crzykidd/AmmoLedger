@@ -610,7 +610,18 @@ export default function FirearmDetailPage() {
                     firearm.barrel_length_in != null ? `${firearm.barrel_length_in}"` : null
                   }
                 />
-                <DetailRow label="Finish" value={firearm.finish} />
+                <DetailRow label="Frame size" value={firearm.frame_size_name} />
+                <DetailRow label="Optic cut" value={firearm.optic_cut_name} />
+                <DetailRow label="Rail type" value={firearm.rail_type_name} />
+                <DetailRow label="Finish" value={firearm.finish_name} />
+                <DetailRow
+                  label="Capacity"
+                  value={
+                    firearm.standard_capacity != null
+                      ? `${firearm.standard_capacity} rounds`
+                      : null
+                  }
+                />
                 <DetailRow label="Caliber notes" value={firearm.caliber_notes} />
                 <DetailRow
                   label="Purchase date"

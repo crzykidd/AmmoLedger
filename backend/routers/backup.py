@@ -46,9 +46,16 @@ _EXPORT_TABLES = [
     "dealers",
     "locations",
     "containers",
-    # Firearm lookups — action_types before firearm_models (FK ordering).
-    # firearm_user_tags FKs users (already above).
+    # Firearm lookups — action_types and the physical-attribute lookups
+    # come before firearm_models / firearms (FK ordering). The four
+    # frame_size / optic_cut / rail_type / finish tables are FK targets
+    # of the firearms row added in v0.3.0; firearm_user_tags FKs users
+    # (already above).
     "firearm_action_types",
+    "firearm_frame_sizes",
+    "firearm_optic_cuts",
+    "firearm_rail_types",
+    "firearm_finishes",
     "firearm_models",
     "firearm_compliance_tags",
     "firearm_user_tags",

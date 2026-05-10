@@ -1,0 +1,14 @@
+version: 1
+firearm_frame_sizes:
+  - name: "Micro"
+    community_key: frame-size-micro
+  - name: "Subcompact"
+    community_key: frame-size-subcompact
+  - name: "Compact"
+    community_key: frame-size-compact
+  - name: "Full-Size"
+    community_key: frame-size-full-size
+  - name: "Competition"
+    community_key: frame-size-competition
+  - name: "Other"
+    community_key: frame-size-other

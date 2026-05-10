@@ -8,10 +8,14 @@ from sqlmodel import Session
 from models import (
     Caliber,
     Firearm,
+    FirearmFinish,
+    FirearmFrameSize,
     FirearmLog,
     FirearmComplianceTag,
     FirearmComplianceTagLink,
     FirearmModel,
+    FirearmOpticCut,
+    FirearmRailType,
     FirearmUserTag,
     FirearmUserTagLink,
     Manufacturer,
@@ -579,3 +583,156 @@ def test_delete_firearm_cascades_log_and_links(
     assert db_session.exec(
         select(FirearmUserTagLink).where(FirearmUserTagLink.firearm_id == f.id)
     ).first() is None
+
+
+# ---------------------------------------------------------------------------
+# Physical attribute FKs (v0.3.0)
+#
+# Frame size, optic cut, rail type, finish — replaces the prior free-text
+# `finish` column with FK lookups, plus standard_capacity. Tests verify the
+# full round-trip (create → enrich → name fields populated) and the FK
+# validation error paths.
+# ---------------------------------------------------------------------------
+
+def _seed_attr_lookups(db: Session) -> dict:
+    """Seed one active row per physical-attribute lookup. Returns id map."""
+    fs = FirearmFrameSize(name="Compact", source="community", community_key="frame-size-compact")
+    oc = FirearmOpticCut(name="RMR", source="community", community_key="optic-cut-rmr")
+    rt = FirearmRailType(name="Picatinny", source="community", community_key="rail-type-picatinny")
+    fn = FirearmFinish(name="Cerakote", source="community", community_key="finish-cerakote")
+    db.add_all([fs, oc, rt, fn])
+    db.commit()
+    for row in (fs, oc, rt, fn):
+        db.refresh(row)
+    return {"frame_size": fs.id, "optic_cut": oc.id, "rail_type": rt.id, "finish": fn.id}
+
+
+def test_firearm_create_with_physical_attributes(
+    client: TestClient,
+    db_session: Session,
+    firearm_mfr: Manufacturer,
+    caliber: Caliber,
+):
+    _make_user(db_session, "member@test.com")
+    _login(client, "member@test.com", "MemberPass1!")
+    ids = _seed_attr_lookups(db_session)
+
+    payload = _base_payload(
+        firearm_mfr.id, caliber.id,
+        frame_size_id=ids["frame_size"],
+        optic_cut_id=ids["optic_cut"],
+        rail_type_id=ids["rail_type"],
+        finish_id=ids["finish"],
+        standard_capacity=15,
+    )
+    r = client.post("/firearms", json=payload)
+    assert r.status_code == 201, r.text
+    body = r.json()
+
+    # Echo + resolved names
+    assert body["frame_size_id"] == ids["frame_size"]
+    assert body["frame_size_name"] == "Compact"
+    assert body["optic_cut_id"] == ids["optic_cut"]
+    assert body["optic_cut_name"] == "RMR"
+    assert body["rail_type_id"] == ids["rail_type"]
+    assert body["rail_type_name"] == "Picatinny"
+    assert body["finish_id"] == ids["finish"]
+    assert body["finish_name"] == "Cerakote"
+    assert body["standard_capacity"] == 15
+
+
+def test_firearm_create_with_invalid_lookup_fk_returns_422(
+    client: TestClient,
+    db_session: Session,
+    firearm_mfr: Manufacturer,
+    caliber: Caliber,
+):
+    _make_user(db_session, "member@test.com")
+    _login(client, "member@test.com", "MemberPass1!")
+
+    payload = _base_payload(firearm_mfr.id, caliber.id, frame_size_id=9999)
+    r = client.post("/firearms", json=payload)
+    assert r.status_code == 422
+    assert "frame_size_id" in r.json()["detail"]
+
+
+def test_firearm_patch_clears_physical_attribute_fks(
+    client: TestClient,
+    db_session: Session,
+    firearm_mfr: Manufacturer,
+    caliber: Caliber,
+):
+    """Setting an attribute FK back to null in a PATCH must persist as NULL."""
+    user = _make_user(db_session, "member@test.com")
+    _login(client, "member@test.com", "MemberPass1!")
+    ids = _seed_attr_lookups(db_session)
+
+    f = Firearm(
+        owner_id=user.id,
+        manufacturer_id=firearm_mfr.id,
+        custom_model_name="X",
+        firearm_type="pistol",
+        caliber_id=caliber.id,
+        frame_size_id=ids["frame_size"],
+        finish_id=ids["finish"],
+    )
+    db_session.add(f)
+    db_session.commit()
+    db_session.refresh(f)
+
+    r = client.patch(f"/firearms/{f.id}", json={"frame_size_id": None})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["frame_size_id"] is None
+    assert body["frame_size_name"] is None
+    # Untouched FK persists.
+    assert body["finish_id"] == ids["finish"]
+
+
+def test_firearm_model_default_barrel_length_in_returned(
+    client: TestClient,
+    db_session: Session,
+    firearm_mfr: Manufacturer,
+    caliber: Caliber,
+):
+    """Catalog models with seeded barrel length surface it on the lookup endpoint."""
+    _make_user(db_session, "member@test.com")
+    _login(client, "member@test.com", "MemberPass1!")
+
+    fm = FirearmModel(
+        manufacturer_id=firearm_mfr.id,
+        name="19 Gen5",
+        default_caliber_id=caliber.id,
+        default_barrel_length_in=4.02,
+    )
+    db_session.add(fm)
+    db_session.commit()
+
+    r = client.get(f"/firearm-models?manufacturer_id={firearm_mfr.id}")
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    assert len(rows) == 1
+    assert rows[0]["default_barrel_length_in"] == 4.02
+
+
+def test_firearm_attribute_lookups_endpoints_smoke(
+    client: TestClient,
+    db_session: Session,
+):
+    """All four new lookup endpoints round-trip a freshly created entry."""
+    _make_user(db_session, "admin@test.com", role="admin")
+    _login(client, "admin@test.com", "MemberPass1!")
+
+    for table, name in [
+        ("firearm-frame-sizes", "Subcompact"),
+        ("firearm-optic-cuts", "DeltaPoint Pro"),
+        ("firearm-rail-types", "M-LOK"),
+        ("firearm-finishes", "Blued"),
+    ]:
+        r = client.post(f"/{table}", json={"name": name})
+        assert r.status_code == 201, f"{table}: {r.text}"
+        assert r.json()["name"] == name
+
+        r = client.get(f"/{table}")
+        assert r.status_code == 200, r.text
+        assert any(row["name"] == name for row in r.json())

@@ -19,6 +19,10 @@ import {
   getFirearmActionTypesAdmin, createFirearmActionType,
   getFirearmModelsAdmin, createFirearmModel,
   getFirearmComplianceTagsAdmin, createFirearmComplianceTag,
+  getFirearmFrameSizesAdmin, createFirearmFrameSize,
+  getFirearmOpticCutsAdmin, createFirearmOpticCut,
+  getFirearmRailTypesAdmin, createFirearmRailType,
+  getFirearmFinishesAdmin, createFirearmFinish,
   updateManufacturerTypes,
 } from '@/api/lookups'
 import {
@@ -28,6 +32,7 @@ import {
 import {
   parseManufacturerTypes,
   type FirearmActionTypeItem,
+  type FirearmAttributeLookupItem,
   type FirearmComplianceTagItem,
   type FirearmModelItem,
   type LookupItem,
@@ -51,6 +56,7 @@ type AnyLookupItem =
   | FirearmActionTypeItem
   | FirearmModelItem
   | FirearmComplianceTagItem
+  | FirearmAttributeLookupItem
 
 interface SectionConfig {
   key: string
@@ -109,6 +115,38 @@ const SECTIONS: SectionConfig[] = [
     queryFn: getFirearmComplianceTagsAdmin,
     createFn: (n) => createFirearmComplianceTag({ name: n }),
   },
+  {
+    key: 'firearm-frame-sizes',
+    label: 'Firearm Frame Sizes',
+    hasUrl: false,
+    communityManaged: true,
+    queryFn: getFirearmFrameSizesAdmin,
+    createFn: (n) => createFirearmFrameSize(n),
+  },
+  {
+    key: 'firearm-optic-cuts',
+    label: 'Firearm Optic Cuts',
+    hasUrl: false,
+    communityManaged: true,
+    queryFn: getFirearmOpticCutsAdmin,
+    createFn: (n) => createFirearmOpticCut(n),
+  },
+  {
+    key: 'firearm-rail-types',
+    label: 'Firearm Rail Types',
+    hasUrl: false,
+    communityManaged: true,
+    queryFn: getFirearmRailTypesAdmin,
+    createFn: (n) => createFirearmRailType(n),
+  },
+  {
+    key: 'firearm-finishes',
+    label: 'Firearm Finishes',
+    hasUrl: false,
+    communityManaged: true,
+    queryFn: getFirearmFinishesAdmin,
+    createFn: (n) => createFirearmFinish(n),
+  },
 ]
 
 // community table key used in /community/status (ammo-types → ammo_types)
@@ -120,6 +158,10 @@ const COMMUNITY_KEY_MAP: Record<string, string> = {
   'firearm-action-types': 'firearm_action_types',
   'firearm-models': 'firearm_models',
   'firearm-compliance-tags': 'firearm_compliance_tags',
+  'firearm-frame-sizes': 'firearm_frame_sizes',
+  'firearm-optic-cuts': 'firearm_optic_cuts',
+  'firearm-rail-types': 'firearm_rail_types',
+  'firearm-finishes': 'firearm_finishes',
 }
 
 // ---------------------------------------------------------------------------

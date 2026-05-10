@@ -58,10 +58,15 @@ router = APIRouter(prefix="/import/firearms", tags=["firearms_import"])
 
 # All columns the v0.3.0 export produces. Required-ness is enforced by
 # _validate_row, not by column presence; extra columns are silently ignored.
+# TODO(firearms-import-v2): the export shape gained frame_size / optic_cut /
+# rail_type / finish (now FK) / standard_capacity in the v0.3.0 polish pass.
+# Importer still only consumes the original column set — extending it to
+# resolve the new lookup columns is tracked as a follow-up prompt.
 ALL_COLUMNS = {
     "id", "owner_username", "is_shared", "manufacturer", "model",
     "custom_model_name", "display_model", "firearm_type", "action_type",
-    "caliber", "caliber_notes", "serial", "barrel_length_in", "finish",
+    "caliber", "caliber_notes", "serial", "barrel_length_in",
+    "frame_size", "optic_cut", "rail_type", "finish", "standard_capacity",
     "purchase_date", "purchase_price", "dealer", "notes", "rounds_lifetime",
     "rounds_since_clean", "last_cleaned_at", "service_interval_rounds",
     "service_interval_days", "cleaning_status", "compliance_tags", "user_tags",
@@ -730,7 +735,10 @@ async def confirm_firearms_import(
                 caliber_notes=row.get("caliber_notes", "").strip() or None,
                 serial=row.get("serial", "").strip() or None,
                 barrel_length_in=barrel_length,
-                finish=row.get("finish", "").strip() or None,
+                # TODO(firearms-import-v2): map row["frame_size"] / "optic_cut"
+                # / "rail_type" / "finish" / "standard_capacity" to the FK
+                # columns added in v0.3.0. Skipped here so the existing import
+                # flow keeps working until the import-v2 prompt lands.
                 purchase_date=purchase_date,
                 purchase_price=purchase_price,
                 dealer_id=dealer_id,
@@ -833,7 +841,8 @@ def get_firearms_template(user=Depends(require_auth)):
     columns = [
         "manufacturer", "model", "custom_model_name", "firearm_type",
         "action_type", "caliber", "caliber_notes", "serial",
-        "barrel_length_in", "finish", "purchase_date", "purchase_price",
+        "barrel_length_in", "frame_size", "optic_cut", "rail_type", "finish",
+        "standard_capacity", "purchase_date", "purchase_price",
         "dealer", "notes", "rounds_lifetime", "rounds_since_clean",
         "last_cleaned_at", "service_interval_rounds", "service_interval_days",
         "compliance_tags", "user_tags", "is_shared", "owner_username",
@@ -844,7 +853,9 @@ def get_firearms_template(user=Depends(require_auth)):
             "manufacturer": "Glock", "model": "19 Gen 5", "custom_model_name": "",
             "firearm_type": "pistol", "action_type": "Semi-auto pistol",
             "caliber": "9mm Luger", "caliber_notes": "",
-            "serial": "ABC123", "barrel_length_in": "4.02", "finish": "Black nDLC",
+            "serial": "ABC123", "barrel_length_in": "4.02",
+            "frame_size": "Compact", "optic_cut": "RMR", "rail_type": "Picatinny",
+            "finish": "nDLC", "standard_capacity": "15",
             "purchase_date": "2024-08-12", "purchase_price": "599.00",
             "dealer": "Local Gun Shop", "notes": "EDC",
             "rounds_lifetime": "1250", "rounds_since_clean": "180",
@@ -858,7 +869,9 @@ def get_firearms_template(user=Depends(require_auth)):
             "manufacturer": "Custom Builder", "model": "", "custom_model_name": "Custom 1911",
             "firearm_type": "pistol", "action_type": "Semi-auto pistol",
             "caliber": "45 ACP", "caliber_notes": "",
-            "serial": "", "barrel_length_in": "5.0", "finish": "Stainless",
+            "serial": "", "barrel_length_in": "5.0",
+            "frame_size": "", "optic_cut": "None", "rail_type": "None",
+            "finish": "Stainless", "standard_capacity": "8",
             "purchase_date": "2023-03-15", "purchase_price": "2200.00",
             "dealer": "", "notes": "Custom build",
             "rounds_lifetime": "300", "rounds_since_clean": "300",

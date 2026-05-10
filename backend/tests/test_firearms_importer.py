@@ -76,7 +76,8 @@ def _csv(rows: list[dict[str, str]], columns: list[str] | None = None) -> bytes:
         columns = [
             "id", "owner_username", "is_shared", "manufacturer", "model",
             "custom_model_name", "display_model", "firearm_type", "action_type",
-            "caliber", "caliber_notes", "serial", "barrel_length_in", "finish",
+            "caliber", "caliber_notes", "serial", "barrel_length_in",
+            "frame_size", "optic_cut", "rail_type", "finish", "standard_capacity",
             "purchase_date", "purchase_price", "dealer", "notes",
             "rounds_lifetime", "rounds_since_clean", "last_cleaned_at",
             "service_interval_rounds", "service_interval_days",

@@ -51,17 +51,48 @@ COMMUNITY_TABLES = {
         "model": "FirearmActionType",
         "fields": ["name"],
     },
+    "firearm_frame_sizes": {
+        "github_path": "community/firearm_frame_sizes.yaml",
+        "bundled_path": "/app/community/firearm_frame_sizes.yaml",
+        "list_key": "firearm_frame_sizes",
+        "model": "FirearmFrameSize",
+        "fields": ["name"],
+    },
+    "firearm_optic_cuts": {
+        "github_path": "community/firearm_optic_cuts.yaml",
+        "bundled_path": "/app/community/firearm_optic_cuts.yaml",
+        "list_key": "firearm_optic_cuts",
+        "model": "FirearmOpticCut",
+        "fields": ["name"],
+    },
+    "firearm_rail_types": {
+        "github_path": "community/firearm_rail_types.yaml",
+        "bundled_path": "/app/community/firearm_rail_types.yaml",
+        "list_key": "firearm_rail_types",
+        "model": "FirearmRailType",
+        "fields": ["name"],
+    },
+    "firearm_finishes": {
+        "github_path": "community/firearm_finishes.yaml",
+        "bundled_path": "/app/community/firearm_finishes.yaml",
+        "list_key": "firearm_finishes",
+        "model": "FirearmFinish",
+        "fields": ["name"],
+    },
     "firearm_models": {
         "github_path": "community/firearm_models.yaml",
         "bundled_path": "/app/community/firearm_models.yaml",
         "list_key": "firearm_models",
         "model": "FirearmModel",
-        # FK lookups are resolved by community_key via _resolve_firearm_model_fks
+        # FK lookups are resolved by community_key via _resolve_firearm_model_fks.
+        # `default_barrel_length_in` is a plain scalar field handled below in the
+        # update + insert paths (added v0.3.0 for the form-drawer auto-fill cascade).
         "fields": [
             "name",
             "manufacturer_key",
             "default_caliber_key",
             "default_action_type_key",
+            "default_barrel_length_in",
         ],
     },
     "firearm_compliance_tags": {
@@ -93,7 +124,11 @@ def _get_model_class(model_name: str):
         Dealer,
         FirearmActionType,
         FirearmComplianceTag,
+        FirearmFinish,
+        FirearmFrameSize,
         FirearmModel,
+        FirearmOpticCut,
+        FirearmRailType,
         Manufacturer,
     )
     return {
@@ -102,6 +137,10 @@ def _get_model_class(model_name: str):
         "Caliber": Caliber,
         "AmmoType": AmmoType,
         "FirearmActionType": FirearmActionType,
+        "FirearmFrameSize": FirearmFrameSize,
+        "FirearmOpticCut": FirearmOpticCut,
+        "FirearmRailType": FirearmRailType,
+        "FirearmFinish": FirearmFinish,
         "FirearmModel": FirearmModel,
         "FirearmComplianceTag": FirearmComplianceTag,
     }[model_name]
@@ -274,6 +313,13 @@ def sync_community_table(table_key: str, session: Session, first_run: bool = Fal
                     if getattr(existing, fk_field) != fk_val:
                         setattr(existing, fk_field, fk_val)
                         changed = True
+            # firearm_models also carries default_barrel_length_in as a
+            # plain scalar (added v0.3.0 for the form-drawer auto-fill).
+            if is_firearm_models:
+                incoming_barrel = item.get("default_barrel_length_in")
+                if getattr(existing, "default_barrel_length_in", None) != incoming_barrel:
+                    existing.default_barrel_length_in = incoming_barrel
+                    changed = True
             if existing.source != "community":
                 existing.source = "community"
                 changed = True
@@ -321,6 +367,10 @@ def sync_community_table(table_key: str, session: Session, first_run: bool = Fal
             if fk_resolved is not None:
                 for fk_field, fk_val in fk_resolved.items():
                     setattr(existing_by_name, fk_field, fk_val)
+            if is_firearm_models:
+                existing_by_name.default_barrel_length_in = item.get(
+                    "default_barrel_length_in"
+                )
             session.add(existing_by_name)
             stats["updated"] += 1
             continue
@@ -346,6 +396,8 @@ def sync_community_table(table_key: str, session: Session, first_run: bool = Fal
             fields["state"] = item.get("state")
         if fk_resolved is not None:
             fields.update(fk_resolved)
+        if is_firearm_models:
+            fields["default_barrel_length_in"] = item.get("default_barrel_length_in")
 
         session.add(Model(**fields))
         if first_run:

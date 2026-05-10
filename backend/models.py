@@ -92,6 +92,50 @@ class FirearmActionType(SQLModel, table=True):
     is_imported: bool = Field(default=True)
 
 
+class FirearmFrameSize(SQLModel, table=True):
+    __tablename__ = "firearm_frame_sizes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmOpticCut(SQLModel, table=True):
+    __tablename__ = "firearm_optic_cuts"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmRailType(SQLModel, table=True):
+    __tablename__ = "firearm_rail_types"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmFinish(SQLModel, table=True):
+    __tablename__ = "firearm_finishes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
 class FirearmModel(SQLModel, table=True):
     __tablename__ = "firearm_models"
     __table_args__ = (
@@ -105,6 +149,7 @@ class FirearmModel(SQLModel, table=True):
     default_action_type_id: Optional[int] = Field(
         default=None, foreign_key="firearm_action_types.id"
     )
+    default_barrel_length_in: Optional[float] = None
     is_active: bool = Field(default=True)
     source: str = Field(default="user")
     community_key: Optional[str] = None
@@ -160,7 +205,12 @@ class Firearm(SQLModel, table=True):
 
     serial: Optional[str] = None
     barrel_length_in: Optional[float] = None
-    finish: Optional[str] = None
+    # Physical attribute FKs (v0.3.0). Replaces the previous free-text `finish`.
+    frame_size_id: Optional[int] = Field(default=None, foreign_key="firearm_frame_sizes.id")
+    optic_cut_id: Optional[int] = Field(default=None, foreign_key="firearm_optic_cuts.id")
+    rail_type_id: Optional[int] = Field(default=None, foreign_key="firearm_rail_types.id")
+    finish_id: Optional[int] = Field(default=None, foreign_key="firearm_finishes.id")
+    standard_capacity: Optional[int] = None
     purchase_date: Optional[date] = None
     purchase_price: Optional[float] = None
     dealer_id: Optional[int] = Field(default=None, foreign_key="dealers.id")

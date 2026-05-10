@@ -202,6 +202,7 @@ class FirearmModelRead(_OrmBase):
     name: str
     default_caliber_id: Optional[int]
     default_action_type_id: Optional[int]
+    default_barrel_length_in: Optional[float] = None
     is_active: bool
     source: str
     community_key: Optional[str] = None
@@ -218,6 +219,14 @@ class FirearmModelCreate(BaseModel):
     name: str
     default_caliber_id: Optional[int] = None
     default_action_type_id: Optional[int] = None
+    default_barrel_length_in: Optional[float] = None
+
+    @field_validator("default_barrel_length_in")
+    @classmethod
+    def _check_barrel(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("default_barrel_length_in must be >= 0")
+        return v
 
 
 class FirearmModelUpdate(BaseModel):
@@ -225,6 +234,94 @@ class FirearmModelUpdate(BaseModel):
     name: Optional[str] = None
     default_caliber_id: Optional[int] = None
     default_action_type_id: Optional[int] = None
+    default_barrel_length_in: Optional[float] = None
+
+    @field_validator("default_barrel_length_in")
+    @classmethod
+    def _check_barrel(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("default_barrel_length_in must be >= 0")
+        return v
+
+
+# ---------------------------------------------------------------------------
+# Firearm physical attribute lookups (v0.3.0)
+#
+# Frame size, optic cut, rail type, and finish all share the same
+# community-curated shape as FirearmActionType. Read schemas include
+# `usage_count` populated by the router.
+# ---------------------------------------------------------------------------
+
+class FirearmFrameSizeRead(_OrmBase):
+    id: int
+    name: str
+    is_active: bool
+    source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    usage_count: int = 0
+
+
+class FirearmFrameSizeCreate(BaseModel):
+    name: str
+
+
+class FirearmFrameSizeUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class FirearmOpticCutRead(_OrmBase):
+    id: int
+    name: str
+    is_active: bool
+    source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    usage_count: int = 0
+
+
+class FirearmOpticCutCreate(BaseModel):
+    name: str
+
+
+class FirearmOpticCutUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class FirearmRailTypeRead(_OrmBase):
+    id: int
+    name: str
+    is_active: bool
+    source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    usage_count: int = 0
+
+
+class FirearmRailTypeCreate(BaseModel):
+    name: str
+
+
+class FirearmRailTypeUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class FirearmFinishRead(_OrmBase):
+    id: int
+    name: str
+    is_active: bool
+    source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    usage_count: int = 0
+
+
+class FirearmFinishCreate(BaseModel):
+    name: str
+
+
+class FirearmFinishUpdate(BaseModel):
+    name: Optional[str] = None
 
 
 class FirearmComplianceTagRead(_OrmBase):
@@ -309,7 +406,12 @@ class FirearmCreate(BaseModel):
     caliber_notes: Optional[str] = None
     serial: Optional[str] = None
     barrel_length_in: Optional[float] = None
-    finish: Optional[str] = None
+    # Physical attribute FKs (v0.3.0 — replaces free-text finish).
+    frame_size_id: Optional[int] = None
+    optic_cut_id: Optional[int] = None
+    rail_type_id: Optional[int] = None
+    finish_id: Optional[int] = None
+    standard_capacity: Optional[int] = None
     purchase_date: Optional[date] = None
     purchase_price: Optional[float] = None
     dealer_id: Optional[int] = None
@@ -333,6 +435,13 @@ class FirearmCreate(BaseModel):
     def _check_barrel(cls, v):
         if v is not None and v < 0:
             raise ValueError("barrel_length_in must be >= 0")
+        return v
+
+    @field_validator("standard_capacity")
+    @classmethod
+    def _check_capacity(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("standard_capacity must be >= 0")
         return v
 
     @field_validator("purchase_price")
@@ -385,7 +494,17 @@ class FirearmRead(_OrmBase):
 
     serial: Optional[str] = None
     barrel_length_in: Optional[float] = None
-    finish: Optional[str] = None
+    # Physical attribute FKs (v0.3.0 — replaces free-text finish). Resolved
+    # name fields populated by the router for read-time convenience.
+    frame_size_id: Optional[int] = None
+    frame_size_name: Optional[str] = None
+    optic_cut_id: Optional[int] = None
+    optic_cut_name: Optional[str] = None
+    rail_type_id: Optional[int] = None
+    rail_type_name: Optional[str] = None
+    finish_id: Optional[int] = None
+    finish_name: Optional[str] = None
+    standard_capacity: Optional[int] = None
     purchase_date: Optional[date] = None
     purchase_price: Optional[float] = None
     dealer_id: Optional[int] = None
@@ -417,7 +536,12 @@ class FirearmUpdate(BaseModel):
     caliber_notes: Optional[str] = None
     serial: Optional[str] = None
     barrel_length_in: Optional[float] = None
-    finish: Optional[str] = None
+    # Physical attribute FKs (v0.3.0).
+    frame_size_id: Optional[int] = None
+    optic_cut_id: Optional[int] = None
+    rail_type_id: Optional[int] = None
+    finish_id: Optional[int] = None
+    standard_capacity: Optional[int] = None
     purchase_date: Optional[date] = None
     purchase_price: Optional[float] = None
     dealer_id: Optional[int] = None
@@ -441,6 +565,13 @@ class FirearmUpdate(BaseModel):
     def _check_barrel(cls, v):
         if v is not None and v < 0:
             raise ValueError("barrel_length_in must be >= 0")
+        return v
+
+    @field_validator("standard_capacity")
+    @classmethod
+    def _check_capacity(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("standard_capacity must be >= 0")
         return v
 
     @field_validator("purchase_price")

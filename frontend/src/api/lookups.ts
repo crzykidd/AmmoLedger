@@ -4,7 +4,11 @@ import type {
   DealerItem,
   FirearmActionTypeItem,
   FirearmComplianceTagItem,
+  FirearmFinishItem,
+  FirearmFrameSizeItem,
   FirearmModelItem,
+  FirearmOpticCutItem,
+  FirearmRailTypeItem,
   FirearmUserTagItem,
   LocationItem,
   LookupItem,
@@ -187,3 +191,52 @@ export const updateFirearmUserTag = (
 
 export const deleteFirearmUserTag = (id: number) =>
   api.delete<void>(`/firearm-user-tags/${id}`)
+
+// ---------------------------------------------------------------------------
+// Firearm physical attribute lookups (v0.3.0) — frame size, optic cut,
+// rail type, finish. All four mirror the firearm_action_types pattern.
+// ---------------------------------------------------------------------------
+
+export const getFirearmFrameSizes = () =>
+  api.get<FirearmFrameSizeItem[]>('/firearm-frame-sizes')
+export const getFirearmFrameSizesAdmin = () =>
+  api.get<FirearmFrameSizeItem[]>('/firearm-frame-sizes?active_only=false')
+export const createFirearmFrameSize = (name: string) =>
+  api.post<FirearmFrameSizeItem>('/firearm-frame-sizes', { name })
+export const updateFirearmFrameSize = (id: number, payload: { name?: string }) =>
+  api.patch<FirearmFrameSizeItem>(`/firearm-frame-sizes/${id}`, payload)
+export const deleteFirearmFrameSize = (id: number) =>
+  api.delete<void>(`/firearm-frame-sizes/${id}`)
+
+export const getFirearmOpticCuts = () =>
+  api.get<FirearmOpticCutItem[]>('/firearm-optic-cuts')
+export const getFirearmOpticCutsAdmin = () =>
+  api.get<FirearmOpticCutItem[]>('/firearm-optic-cuts?active_only=false')
+export const createFirearmOpticCut = (name: string) =>
+  api.post<FirearmOpticCutItem>('/firearm-optic-cuts', { name })
+export const updateFirearmOpticCut = (id: number, payload: { name?: string }) =>
+  api.patch<FirearmOpticCutItem>(`/firearm-optic-cuts/${id}`, payload)
+export const deleteFirearmOpticCut = (id: number) =>
+  api.delete<void>(`/firearm-optic-cuts/${id}`)
+
+export const getFirearmRailTypes = () =>
+  api.get<FirearmRailTypeItem[]>('/firearm-rail-types')
+export const getFirearmRailTypesAdmin = () =>
+  api.get<FirearmRailTypeItem[]>('/firearm-rail-types?active_only=false')
+export const createFirearmRailType = (name: string) =>
+  api.post<FirearmRailTypeItem>('/firearm-rail-types', { name })
+export const updateFirearmRailType = (id: number, payload: { name?: string }) =>
+  api.patch<FirearmRailTypeItem>(`/firearm-rail-types/${id}`, payload)
+export const deleteFirearmRailType = (id: number) =>
+  api.delete<void>(`/firearm-rail-types/${id}`)
+
+export const getFirearmFinishes = () =>
+  api.get<FirearmFinishItem[]>('/firearm-finishes')
+export const getFirearmFinishesAdmin = () =>
+  api.get<FirearmFinishItem[]>('/firearm-finishes?active_only=false')
+export const createFirearmFinish = (name: string) =>
+  api.post<FirearmFinishItem>('/firearm-finishes', { name })
+export const updateFirearmFinish = (id: number, payload: { name?: string }) =>
+  api.patch<FirearmFinishItem>(`/firearm-finishes/${id}`, payload)
+export const deleteFirearmFinish = (id: number) =>
+  api.delete<void>(`/firearm-finishes/${id}`)

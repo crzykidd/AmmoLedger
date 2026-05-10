@@ -38,7 +38,11 @@ import {
   getCalibersLookup,
   getDealers,
   getFirearmActionTypes,
+  getFirearmFinishes,
+  getFirearmFrameSizes,
   getFirearmModels,
+  getFirearmOpticCuts,
+  getFirearmRailTypes,
   getManufacturersByType,
 } from '@/api/lookups'
 import { useAuth } from '@/hooks/useAuth'
@@ -99,7 +103,12 @@ interface FormState {
   caliber_notes: string
   serial: string
   barrel_length_in: string
-  finish: string
+  // Physical attribute FKs (v0.3.0). Empty string = unset; otherwise string id.
+  frame_size_id: string
+  optic_cut_id: string
+  rail_type_id: string
+  finish_id: string
+  standard_capacity: string
   purchase_date: string
   purchase_price: string
   dealer_id: string
@@ -122,7 +131,11 @@ const DEFAULTS: FormState = {
   caliber_notes: '',
   serial: '',
   barrel_length_in: '',
-  finish: '',
+  frame_size_id: '',
+  optic_cut_id: '',
+  rail_type_id: '',
+  finish_id: '',
+  standard_capacity: '',
   purchase_date: '',
   purchase_price: '',
   dealer_id: '',
@@ -147,9 +160,14 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
   const [vals, setVals] = useState<FormState>(DEFAULTS)
   const [originalVals, setOriginalVals] = useState<FormState>(DEFAULTS)
   const [error, setError] = useState<string | null>(null)
-  const [autofillFlash, setAutofillFlash] = useState<{ caliber: boolean; action: boolean }>({
+  const [autofillFlash, setAutofillFlash] = useState<{
+    caliber: boolean
+    action: boolean
+    barrel: boolean
+  }>({
     caliber: false,
     action: false,
+    barrel: false,
   })
   const [confirmDiscard, setConfirmDiscard] = useState(false)
 
@@ -175,6 +193,27 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
   const { data: dealers = [] } = useQuery({
     queryKey: ['dealers'],
     queryFn: getDealers,
+    staleTime: 5 * 60 * 1000,
+  })
+  // Physical attribute lookups (v0.3.0)
+  const { data: frameSizes = [] } = useQuery({
+    queryKey: ['firearm-frame-sizes'],
+    queryFn: getFirearmFrameSizes,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: opticCuts = [] } = useQuery({
+    queryKey: ['firearm-optic-cuts'],
+    queryFn: getFirearmOpticCuts,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: railTypes = [] } = useQuery({
+    queryKey: ['firearm-rail-types'],
+    queryFn: getFirearmRailTypes,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: finishes = [] } = useQuery({
+    queryKey: ['firearm-finishes'],
+    queryFn: getFirearmFinishes,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -204,7 +243,12 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
         serial: editFirearm.serial ?? '',
         barrel_length_in:
           editFirearm.barrel_length_in != null ? String(editFirearm.barrel_length_in) : '',
-        finish: editFirearm.finish ?? '',
+        frame_size_id: toIdStr(editFirearm.frame_size_id),
+        optic_cut_id: toIdStr(editFirearm.optic_cut_id),
+        rail_type_id: toIdStr(editFirearm.rail_type_id),
+        finish_id: toIdStr(editFirearm.finish_id),
+        standard_capacity:
+          editFirearm.standard_capacity != null ? String(editFirearm.standard_capacity) : '',
         purchase_date: editFirearm.purchase_date ?? '',
         purchase_price:
           editFirearm.purchase_price != null ? String(editFirearm.purchase_price) : '',
@@ -228,10 +272,11 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
       setOriginalVals(DEFAULTS)
     }
     setError(null)
-    setAutofillFlash({ caliber: false, action: false })
+    setAutofillFlash({ caliber: false, action: false, barrel: false })
   }, [open, editFirearm])
 
-  // Auto-fill caliber & action_type from selected model (only if empty)
+  // Auto-fill caliber, action_type, and barrel length from selected model
+  // (only if currently empty — never overwrites user-entered values).
   const handleModelChange = (modelIdStr: string) => {
     set('firearm_model_id', modelIdStr)
     set('use_custom_name', false)
@@ -241,6 +286,7 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
     if (!model) return
     let flashCaliber = false
     let flashAction = false
+    let flashBarrel = false
     setVals((prev) => {
       const next = { ...prev }
       if (!next.caliber_id && model.default_caliber_id) {
@@ -251,11 +297,18 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
         next.action_type_id = String(model.default_action_type_id)
         flashAction = true
       }
+      if (!next.barrel_length_in && model.default_barrel_length_in != null) {
+        next.barrel_length_in = String(model.default_barrel_length_in)
+        flashBarrel = true
+      }
       return next
     })
-    if (flashCaliber || flashAction) {
-      setAutofillFlash({ caliber: flashCaliber, action: flashAction })
-      setTimeout(() => setAutofillFlash({ caliber: false, action: false }), 3000)
+    if (flashCaliber || flashAction || flashBarrel) {
+      setAutofillFlash({ caliber: flashCaliber, action: flashAction, barrel: flashBarrel })
+      setTimeout(
+        () => setAutofillFlash({ caliber: false, action: false, barrel: false }),
+        3000,
+      )
     }
   }
 
@@ -305,6 +358,12 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
   ) {
     validationErrors.push('Service interval (days) must be ≥ 1')
   }
+  if (
+    vals.standard_capacity &&
+    (isNaN(parseInt(vals.standard_capacity)) || parseInt(vals.standard_capacity) < 0)
+  ) {
+    validationErrors.push('Standard capacity must be ≥ 0')
+  }
   const isValid = validationErrors.length === 0
 
   const buildPayload = (): FirearmCreate | FirearmUpdate => {
@@ -326,7 +385,21 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
       caliber_notes: vals.caliber_notes.trim() || null,
       serial: vals.serial.trim() || null,
       barrel_length_in: vals.barrel_length_in ? parseFloat(vals.barrel_length_in) : null,
-      finish: vals.finish.trim() || null,
+      frame_size_id:
+        vals.frame_size_id && vals.frame_size_id !== NONE
+          ? parseInt(vals.frame_size_id)
+          : null,
+      optic_cut_id:
+        vals.optic_cut_id && vals.optic_cut_id !== NONE
+          ? parseInt(vals.optic_cut_id)
+          : null,
+      rail_type_id:
+        vals.rail_type_id && vals.rail_type_id !== NONE
+          ? parseInt(vals.rail_type_id)
+          : null,
+      finish_id:
+        vals.finish_id && vals.finish_id !== NONE ? parseInt(vals.finish_id) : null,
+      standard_capacity: vals.standard_capacity ? parseInt(vals.standard_capacity) : null,
       purchase_date: vals.purchase_date || null,
       purchase_price: vals.purchase_price ? parseFloat(vals.purchase_price) : null,
       dealer_id:
@@ -633,8 +706,8 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
                   onChange={(e) => set('serial', e.target.value)}
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Barrel Length (in.)">
+              <Field label="Barrel Length (in.)">
+                <div className="relative">
                   <input
                     className={inputCls}
                     type="number"
@@ -644,16 +717,118 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
                     value={vals.barrel_length_in}
                     onChange={(e) => set('barrel_length_in', e.target.value)}
                   />
+                  {autofillFlash.barrel && (
+                    <span className="absolute -top-2 right-0 text-xs text-gold flex items-center gap-1 bg-white dark:bg-gray-900 px-1.5">
+                      <Sparkles className="w-3 h-3" /> Auto-filled
+                    </span>
+                  )}
+                </div>
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Frame Size">
+                  <Select
+                    value={vals.frame_size_id || NONE}
+                    onValueChange={(v) => set('frame_size_id', v === NONE ? '' : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select frame size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>
+                        <span className="text-gray-400">None</span>
+                      </SelectItem>
+                      {frameSizes
+                        .filter((f) => f.is_active)
+                        .map((f) => (
+                          <SelectItem key={f.id} value={String(f.id)}>
+                            {f.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
-                <Field label="Finish">
-                  <input
-                    className={inputCls}
-                    placeholder="e.g. Black, Stainless, FDE"
-                    value={vals.finish}
-                    onChange={(e) => set('finish', e.target.value)}
-                  />
+                <Field label="Optic Cut">
+                  <Select
+                    value={vals.optic_cut_id || NONE}
+                    onValueChange={(v) => set('optic_cut_id', v === NONE ? '' : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select optic cut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>
+                        <span className="text-gray-400">None</span>
+                      </SelectItem>
+                      {opticCuts
+                        .filter((o) => o.is_active)
+                        .map((o) => (
+                          <SelectItem key={o.id} value={String(o.id)}>
+                            {o.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Rail Type">
+                  <Select
+                    value={vals.rail_type_id || NONE}
+                    onValueChange={(v) => set('rail_type_id', v === NONE ? '' : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select rail type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>
+                        <span className="text-gray-400">None</span>
+                      </SelectItem>
+                      {railTypes
+                        .filter((r) => r.is_active)
+                        .map((r) => (
+                          <SelectItem key={r.id} value={String(r.id)}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Finish">
+                  <Select
+                    value={vals.finish_id || NONE}
+                    onValueChange={(v) => set('finish_id', v === NONE ? '' : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select finish" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>
+                        <span className="text-gray-400">None</span>
+                      </SelectItem>
+                      {finishes
+                        .filter((f) => f.is_active)
+                        .map((f) => (
+                          <SelectItem key={f.id} value={String(f.id)}>
+                            {f.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              <Field
+                label="Standard Capacity"
+                hint="Magazine capacity the firearm was designed for."
+              >
+                <input
+                  className={inputCls}
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 17"
+                  value={vals.standard_capacity}
+                  onChange={(e) => set('standard_capacity', e.target.value)}
+                />
+              </Field>
             </section>
 
             {/* Acquisition */}
