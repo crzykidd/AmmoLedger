@@ -52,10 +52,16 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Admin pages.** Manage Firearm Models, Action Types, and Compliance Tags alongside the existing Manufacturers / Calibers admin pages. Manufacturers admin gets a Type column (Ammo / Firearm checkboxes) for explicit type assignment.
 - **Lookup endpoint extensions.** `GET /lookups/manufacturers?type=ammo|firearm` filter; new `GET /lookups/firearm-models` (with `?manufacturer_id=` for cascading dropdowns), `/firearm-action-types`, `/firearm-compliance-tags`, and per-user `/firearm-user-tags`.
 
-### Added — Exports
+### Added — Exports & Imports
 
 - **Firearms CSV export** at `GET /firearms/export/csv` plus an Export CSV button on the Firearms list toolbar. One row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter (members see own + shared, read-only sees shared only).
 - **Range sessions CSV export** at `GET /range-sessions/export/csv` plus an Export CSV button on the Range page toolbar. One row per line, denormalized for spreadsheet pivot tables — session-level fields (date, location, notes, owner) repeat across the lines of one session.
+- **Firearms CSV import** at `POST /import/firearms/validate` → `POST /import/firearms/confirm`. Three-stage flow matching the existing ammo import: upload → preview → confirm. Round-trip compatible with the v0.3.0 firearms export — re-importing an unmodified export produces semantically equivalent rows. Surfaced as a new "Firearms" tab on the existing Import page.
+- **Per-value remap UI** in the firearms preview step. Unmatched values (manufacturer, model, caliber, action type, dealer, compliance tags, user tags) surface with fuzzy-match suggestions; the user decides per value whether to map to an existing entry or create new. Community-curated lookups default to "use existing" on similarity match; user-scoped lookups default to "create new."
+- **Cascading firearm model resolution.** Models are scoped under their manufacturer during validation and creation, so a "P226" under Sig Sauer doesn't fuzzy-match to a "P226" under any other manufacturer. New manufacturers created during import always carry `types: ["firearm"]`; existing manufacturers get `firearm` unioned into their types.
+- **Synthetic firearm-log entries on import.** When a CSV row carries a non-zero `rounds_lifetime`, a synthetic `note` log entry is created at the firearm's purchase date (or today) seeding the lifetime count. When `last_cleaned_at` is set, an additional synthetic `cleaning` entry is created on that date so `rounds_since_clean` and the cleaning status pipeline remain consistent with the firearm log being the source of truth.
+- **Pre-import backup** is hard-blocking before any rows are written (matches ammo import behavior). Backup filename is returned on success; a backup failure rolls the request back with no firearms created.
+- **Firearms import template** download at `GET /import/firearms/template` — blank-with-examples CSV showing every supported column.
 
 ### Changed
 
@@ -78,7 +84,7 @@ The following items were deliberately scoped out of this release and remain on t
 
 - **Multi-caliber firearms.** v1 firearms have a single caliber FK plus a free-text `caliber_notes` field for the workaround. A `firearm_calibers` join table will be added in a future migration without renaming the existing column.
 - **Target photo uploads on range session lines.** Schema has no `target_photo` column yet; future migration adds it when the feature ships.
-- **Firearms CSV import.** Export-only in v1. Import will follow the existing CSV import validate/preview/confirm pattern used for ammo, but is not in this release.
+- **Range sessions CSV import.** Export-only this release; import will follow when its remap UX is designed.
 - **Accessories module** (PRD v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
 - **At Range / Range workflow merge.** The mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.
 - **Additional community lookups.** Sight types, finishes, and other taxonomies are currently free-text on firearms. They become candidates for community lookups based on user feedback.

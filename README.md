@@ -33,6 +33,7 @@ Highlights since v0.2.x:
 - **Firearm maintenance log** — cleaning, service, and note events per firearm. Round-based and time-based service intervals drive a green/amber/red cleaning status that surfaces on every firearm card and on the dashboard.
 - **Dashboard widgets** — Firearms Needing Service (overdue + due-soon with inline Log Cleaning) and Recent Range Sessions; Quick Actions row for Log Range Day / Add Firearm / Add Ammo Box.
 - **CSV exports** — `GET /firearms/export/csv` and `GET /range-sessions/export/csv` plus Export buttons on the Firearms and Range pages.
+- **Firearms CSV import** — round-trip with the firearms export. Same validate / preview / confirm flow as ammo, plus cascading model resolution under each manufacturer and synthetic firearm-log entries seeded from imported round counts. Surfaced as a new "Firearms" tab on the Import page.
 - **Lookups & admin** — new community-curated lookups for Firearm Models, Action Types, and Compliance Tags, plus a `manufacturers.types` JSON column so a single manufacturer table serves both ammo and firearm domains.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list.
@@ -45,7 +46,7 @@ AmmoLedger covers ammo, firearms, and range sessions. Here's what's on the roadm
 
 - **Multi-caliber firearms** — v1 firearms have a single caliber FK plus a free-text `caliber_notes` field. A `firearm_calibers` join table will follow in a future migration.
 - **Target photo uploads on range session lines** — schema groundwork is done; the upload UI, image storage, and image management screens land in a follow-on release.
-- **Firearms CSV import** — export-only in v1. Import will follow the existing CSV import validate/preview/confirm pattern used for ammo.
+- **Range sessions CSV import** — sessions export-only this release; import will follow when its remap UX is designed.
 - **At Range / Range workflow merge** — the mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.
 - **Additional community lookups** — sight types, finishes, and other taxonomies are currently free-text on firearms. They become candidates for community lookups based on user feedback.
 
@@ -77,6 +78,7 @@ No firm timeline on either set — watch the [Releases page](https://github.com/
 - **Dashboard By Caliber toggle** — switch between Mix (% of total inventory) and Stock (proximity to threshold) views with color-coded bars; persists across sessions
 - **Dashboard Current / All scope toggle** — flip between active inventory totals and lifetime totals including archived and expended rounds; Total Boxes stat card
 - **CSV import with legacy ID mode** — two-step validation, fuzzy matching with interactive resolution, optional preservation of existing box IDs; post-import breakdown of active vs archived rows
+- **Firearms CSV import** — round-trip compatible with the firearms CSV export. Same validate / preview / confirm pattern as ammo, with cascading model resolution under each manufacturer, per-value remap UI for unmatched lookups, and synthetic firearm-log entries seeded from imported round counts. Surfaced as a tab on the Import page.
 - **CSV export** — export filtered ammo inventory from the Ammo toolbar or full archive from the Backup page; export firearms and range sessions from their respective page toolbars
 - **Backup and restore** — manual SQLite backup (WAL-safe via `Connection.backup()`), JSON export, scheduled nightly backup, restore from `.db`, import from JSON
 - **User management with inline invitations** — list users, change roles, deactivate accounts; generate and revoke invite links from the same page

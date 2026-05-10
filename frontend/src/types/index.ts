@@ -682,6 +682,50 @@ export interface ImportConfirmResult {
 }
 
 // ---------------------------------------------------------------------------
+// Firearms import types — parallel to the ammo import shape, with two
+// firearms-specific extras: similarity matches may include a
+// `manufacturer_context` (cascading model lookups), and `new_values` may
+// carry a `firearm_models_by_manufacturer: {mfr: [models]}` group instead
+// of a flat list.
+// ---------------------------------------------------------------------------
+
+export interface FirearmsImportSimilarityMatch {
+  field: string
+  csv_value: string
+  existing_value: string
+  table_key: string
+  /** Set only for cascading model matches — names the manufacturer the model is scoped under. */
+  manufacturer_context?: string
+  default_action: 'use_existing' | 'import_new'
+}
+
+export interface FirearmsImportValidationResult {
+  valid: boolean
+  total_rows: number
+  importable_rows: number
+  error_rows: number
+  warning_count: number
+  /** Flat lookup table → unmatched values, plus the special key
+   *  "firearm_models_by_manufacturer" which maps manufacturer name → unmatched models. */
+  new_values: Record<string, string[] | Record<string, string[]>>
+  similarity_matches: FirearmsImportSimilarityMatch[]
+  errors: { row: number; field: string; message: string }[]
+  warnings: { row: number | null; field: string; message: string }[]
+  validation_token: string
+  token_expires_at: string
+}
+
+export interface FirearmsImportConfirmResult {
+  success: boolean
+  imported: number
+  skipped: number
+  new_lookup_values_created: number
+  synthetic_log_entries_created: number
+  pre_import_backup: string
+  warnings: { row: number | null; field: string; message: string }[]
+}
+
+// ---------------------------------------------------------------------------
 // Task types
 // ---------------------------------------------------------------------------
 
