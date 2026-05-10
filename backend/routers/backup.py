@@ -54,9 +54,9 @@ _EXPORT_TABLES = [
     "firearm_user_tags",
     # Catalog
     "products",
-    # Inventory and history (children)
+    # Inventory (children of users + lookups). expenditure_log comes after
+    # range_session_lines because expenditure_log carries an FK to it (P3).
     "ammo_box",
-    "expenditure_log",
     # Firearms registry + log + tag link tables (P1b).
     # Order: firearms → firearm_log + tag links (link tables FK both firearms and
     # the lookup tables already above).
@@ -64,6 +64,12 @@ _EXPORT_TABLES = [
     "firearm_log",
     "firearm_compliance_tag_links",
     "firearm_user_tag_links",
+    # Range sessions (P3) — sessions before lines; lines FK firearms + ammo_box.
+    # expenditure_log FKs range_session_lines for the session-driven audit link,
+    # so expenditure_log must be inserted after range_session_lines on restore.
+    "range_sessions",
+    "range_session_lines",
+    "expenditure_log",
     # Threshold configuration
     "caliber_thresholds",
     "location_thresholds",

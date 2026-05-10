@@ -22,6 +22,7 @@ from routers.firearms import router as firearms_router
 from routers.geo import router as geo_router
 from routers.importer import router as import_router
 from routers.products import router as products_router
+from routers.range_sessions import router as range_sessions_router
 from routers.tasks import router as tasks_router
 from routers.thresholds import router as thresholds_router
 from utils.config import (
@@ -69,6 +70,7 @@ app.include_router(firearms_router)
 app.include_router(geo_router, prefix="/geo")
 app.include_router(import_router, prefix="/import")
 app.include_router(products_router, prefix="/products")
+app.include_router(range_sessions_router)
 app.include_router(tasks_router, prefix="/tasks")
 app.include_router(thresholds_router, prefix="/thresholds")
 

@@ -45,11 +45,24 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Log Event dialog** for cleaning, service, and note entries. Backdated entries supported with overridable `rounds_at_event` (defaults to current lifetime count). Editing or deleting a cleaning log entry triggers backend recalculation of the firearm's denormalized cleaning state.
 - **Sidebar Firearms entry** between Products and At Range, with a custom firearm SVG icon matching the existing CartridgeIcon style.
 
+- **Range Sessions API.** Full CRUD at `/range-sessions` with multi-line sessions tying firearms to ammo boxes. Each line optionally references a firearm, optionally references an ammo box, and records rounds fired. At least one line per session; at least one of firearm or box per line. Lines may set `rounds_fired = 0` (e.g. dry-fire entries paired with a firearm).
+- **Atomic ammo deduction + firearm counter increment.** Range session lines deduct `ammo_box.qty_remaining` through the existing `expenditure_log` table — no parallel deduction path. Firearm `rounds_lifetime` and `rounds_since_clean` increment in the same transaction. New `expenditure_log.range_session_line_id` FK provides a bidirectional audit link so deletion or PATCH of a line can cleanly reverse the deduction.
+- **Reversible mutations.** Editing or deleting a session or line reverses every side effect: ammo restored, firearm counters decremented (clamped at 0), expenditure log rows removed. Members can edit / delete their own sessions; admins can edit / delete any session. PATCH on a line is implemented as reverse-then-apply so firearm/box swaps net out correctly.
+- **Atomic multi-line POST.** A two-line session whose second line overdraws its box rolls back the entire transaction — no partial state, no orphan session row, no stranded log entries.
+- **Line-level endpoints.** `POST /range-sessions/:id/lines`, `PATCH /range-sessions/:id/lines/:line_id`, `DELETE /range-sessions/:id/lines/:line_id` for incremental line changes after a session is created. Session header (`date`, `location_name`, `notes`, `is_shared`) is updated separately via `PATCH /range-sessions/:id` to avoid ambiguity over what a header PATCH does to lines. Deleting the last line of a session is rejected (delete the session instead).
+- **Cross-firearm visibility into shared sessions.** Sessions with `is_shared=True` are visible to all members; only admins can create shared sessions. A member can fire from a shared ammo box even if they don't own it, matching existing `/ammo/{id}/expend` semantics.
+- **Filter `GET /range-sessions` by firearm.** `?firearm_id=N` returns sessions with at least one line referencing the firearm. Optional `?after=` / `?before=` date filters and `?limit=` (default 50, max 200).
+
 ### Changed
 
 - **`manufacturers.types` JSON column added.** Existing rows backfilled to `["ammo"]`. No change to the `/lookups/manufacturers` default response shape; the `types` field is additive, and unfiltered callers see all manufacturers regardless of domain.
-- **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, plus the P1b `firearms`, `firearm_log`, `firearm_compliance_tag_links`, and `firearm_user_tag_links` tables. Schema-migration validation continues to require an exact match against the current Alembic head.
+- **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, plus the P1b `firearms`, `firearm_log`, `firearm_compliance_tag_links`, and `firearm_user_tag_links` tables, plus the P3 `range_sessions` and `range_session_lines` tables. The export order now places `expenditure_log` after `range_session_lines` to satisfy the new `expenditure_log.range_session_line_id` FK on restore. Schema-migration validation continues to require an exact match against the current Alembic head.
+- **`expenditure_log` extended** with optional `range_session_line_id` FK. Pre-existing expenditures (logged via `/ammo/:id/expend`) leave this NULL. Session-driven rows set it so reversal queries on the link.
 - **Sidebar layout** updated to include the Firearms entry between Products and At Range. No other sidebar entries moved.
+
+### Deferred
+
+- **Target photo uploads on range session lines.** No `target_photo` column was added in this migration. The upload UI, image storage, and image management screens land in a future release; a follow-on migration will add the column at that time.
 
 ## [0.2.3] — 2026-05-09
 

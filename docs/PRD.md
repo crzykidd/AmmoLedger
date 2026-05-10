@@ -65,6 +65,7 @@
 | 3.24 | 2026-05-09 | Firearms P1a — community-curated lookup foundation. New tables `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`. New `manufacturers.types` JSON column (backfilled to `["ammo"]`); `GET /lookups/manufacturers` accepts `?type=ammo\|firearm`. New endpoints under `/firearm-models`, `/firearm-action-types`, `/firearm-compliance-tags`, `/firearm-user-tags`. Migration `0002_add_firearm_lookups.py` is the first incremental migration on top of the v0.1.9 squashed schema. PRD §6.7 duplicate-heading bug fixed (Range Sessions renumbered to §6.15); firearms schema block updated with `caliber_notes`, `barrel_length_in`, `finish`, `service_interval_*`, `manufacturer_id` / `firearm_model_id` / `action_type_id` foreign keys. §6.7.1 added documenting the four new lookup tables. §6.7.2 added explicitly deferring multi-caliber firearms, target photo uploads, and CSV import from the v2.0 firearms feature. Backup/restore extended to cover the new tables. |
 | 3.25 | 2026-05-09 | Firearms P1b — `firearms` table, `firearm_log` event table, and the two tag-link join tables. Migration `0003_add_firearms.py` adds all four tables with FK indexes and a CHECK constraint enforcing "model_id OR custom_model_name". New `/firearms` API: full CRUD with `_visibility_filter` / `_check_write` matching ammo boxes; nested `/firearms/{id}/log` for the maintenance event log (cleaning / service / note); `cleaning_status` (`ok` / `due_soon` / `overdue`) computed at read time. Editing or deleting a firearm log entry recalculates `last_cleaned_at` and `rounds_since_clean` from the full log history. PRD §6.7 schema block updated to match the implemented columns (`custom_model_name`, `firearm_type`, `purchase_price`, `dealer_id`, CHECK); §6.7.0 firearm_log and §6.7.0a tag-link sections added. §10.1 expanded; §10.3 renamed "Firearm Maintenance Log" and rewritten for the three event types. Backup/restore extended to cover `firearms`, `firearm_log`, `firearm_compliance_tag_links`, `firearm_user_tag_links`. |
 | 3.26 | 2026-05-09 | Firearms P2 — frontend UI on top of the P1b backend. New `/firearms` list page (card-grid + list-view toggle, search across manufacturer / model / serial, filters for manufacturer / caliber / firearm type / cleaning status, persistent view + filter + sort selections in localStorage, per-card cleaning status indicator dot). New `/firearms/:id` detail page with three tabs (Overview, Log, Sessions placeholder for P5). Add / Edit Firearm drawer with cascading Manufacturer → Model dropdowns that auto-fill caliber and action type from the catalog without overriding user-set values. Compliance Tag Picker with jurisdiction grouping and inline custom-tag creation; one-time disclaimer (community-maintained, not legal advice) on first open. Personal Tag Picker with 8-color preset palette, inline tag create/delete. Log Event dialog for cleaning / service / note entries with backdated date and overridable `rounds_at_event`. Sidebar Firearms entry between Products and At Range with a custom firearm SVG icon. §10.1 and §10.3 are the implementation reference. |
+| 3.27 | 2026-05-09 | Range Sessions P3 — backend API for multi-line range sessions. Migration `0004_add_range_sessions.py` adds `range_sessions` and `range_session_lines` plus a new `expenditure_log.range_session_line_id` FK that bidirectionally links session-driven deductions to the line that created them. New `/range-sessions` router exposes full CRUD with atomic multi-line POST, line-level POST/PATCH/DELETE, and full reversal of side effects on session/line deletion or PATCH (ammo restored via the existing `expenditure_log` table — no parallel deduction path; firearm `rounds_lifetime` and `rounds_since_clean` decremented, clamped at 0). RBAC mirrors firearms/ammo: admins can create shared sessions; members can fire from shared boxes (matches `/ammo/{id}/expend` semantics). Backup/restore extended to cover the two new tables; export order updated so `expenditure_log` inserts after `range_session_lines` to satisfy the new FK. PRD §6.15 schema block synced; §10.2 rewritten to match the implementation (target photos remain deferred). Frontend lands in P4. |
 
 ---
 
@@ -616,7 +617,7 @@ The following are explicitly out of scope for the initial firearms feature and t
 - **Target photo uploads.** `range_session_lines.target_photo` exists as an optional path field, but the upload UI, image storage, and image management screens are deferred.
 - **CSV import for firearms.** Firearms are entered via the UI in v0.3.0. Bulk CSV import (analogous to ammo CSV import) is deferred.
 
-### 6.15 Range Sessions (v2.0)
+### 6.15 Range Sessions (v0.3.0 — P3)
 
 ```
 range_sessions
@@ -626,17 +627,32 @@ range_sessions
 ├── date             DATE
 ├── location_name    TEXT       Free text location name (range, field, etc.)
 ├── notes            TEXT       Optional: conditions, goals, etc.
-└── created_at       DATETIME
+├── created_at       DATETIME
+└── updated_at       DATETIME
 
 range_session_lines
 ├── id               INTEGER    Primary key
 ├── session_id       INTEGER    FK → range_sessions
 ├── firearm_id       INTEGER    FK → firearms; nullable (dry fire, etc.)
 ├── ammo_box_id      INTEGER    FK → ammo_box; nullable
-├── rounds_fired     INTEGER
-├── target_photo     TEXT       File path to uploaded photo; nullable (v2.0)
-└── notes            TEXT       Optional
+├── rounds_fired     INTEGER    >= 0 (CHECK)
+├── notes            TEXT       Optional
+└── created_at       DATETIME
+   CHECK (firearm_id IS NOT NULL OR ammo_box_id IS NOT NULL)
 ```
+
+`expenditure_log` carries an additional FK column `range_session_line_id`
+(nullable) that points back at the line whose creation produced the row.
+Ad-hoc `/ammo/{id}/expend` rows leave it NULL; rows written by a session
+line set it. Editing or deleting a session/line uses this link to undo
+the deduction (restore `ammo_box.qty_remaining`, drop the log row) and
+to decrement firearm `rounds_lifetime` / `rounds_since_clean` (clamped
+at 0). The link is the source of truth for reversal — we do not
+reconstruct it from `notes` text.
+
+Target photo uploads on session lines remain deferred (see §6.7.2). The
+column is **not** present in this implementation; it lands in a future
+migration when the upload UI ships.
 
 ### 6.8 Accessories (v3.0)
 
@@ -2031,14 +2047,29 @@ Returns `history_id` (int). The caller fetches the record from DB in its own ses
 - Editing or deleting a firearm log entry recalculates `last_cleaned_at` and `rounds_since_clean` from the full log history — denormalized snapshots never drift from the source of truth
 - Lifetime round count is updated by range sessions (P3)
 
-### 10.2 Range Sessions (v2.0)
+### 10.2 Range Sessions (v0.3.0 — P3 backend, P4+ frontend)
 
-- Log a session: date, location name (free text), notes, `is_shared` flag
-- Multiple line items per session: firearm + ammo box + rounds fired
-- Auto-deducts from `ammo_box.qty_remaining`
-- Auto-increments `firearms.rounds_lifetime` and `rounds_since_clean`
-- Attach target photos to a session line (stored in `/data/uploads/`)
-- Shared sessions visible to all Members on the instance
+- Log a session: date, location name (free text), notes, `is_shared` flag.
+- Multi-line per session — at least one line required. Each line has an
+  optional `firearm_id` and optional `ammo_box_id` plus `rounds_fired`
+  (>= 0). At least one of firearm or box must be set per line.
+- Auto-deducts from `ammo_box.qty_remaining` via the existing
+  `expenditure_log` table (no parallel deduction path). Each session-driven
+  expend row carries `range_session_line_id` for the audit/reversal link.
+- Auto-increments `firearms.rounds_lifetime` and `rounds_since_clean`.
+- Editing or deleting a line / session reverses every side effect
+  atomically: ammo restored, firearm counters decremented, log rows
+  removed. PATCH on a line is implemented as reverse-then-apply.
+- Multi-line POST is a single transaction — a partial overdraw on the
+  second line rolls back the first line's effects with no session row
+  persisted.
+- Shared sessions visible to all Members. Only admins can create a
+  shared session. Members can fire from a shared ammo box even if they
+  don't own it (matches existing `/ammo/{id}/expend` semantics).
+- The at-range page (mobile quick-expend, §8.18) and Range Sessions
+  remain separate workflows; they are not unified in v0.3.0.
+- Attach target photos to a session line (stored in `/data/uploads/`) —
+  **deferred**, no schema column yet.
 
 ### 10.3 Firearm Maintenance Log (v2.0)
 

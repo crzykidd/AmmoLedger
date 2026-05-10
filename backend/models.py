@@ -326,6 +326,40 @@ class ExpenditureLog(SQLModel, table=True):
     log_type: str = Field(default="expend")  # expend | split | adjust
     related_ids: Optional[str] = None  # JSON array of related box IDs
     notes: Optional[str] = None
+    # NULL for ad-hoc /ammo/:id/expend rows; set when an entry was created by a
+    # range session line (P3) so deletion of the line can reverse the deduction.
+    range_session_line_id: Optional[int] = Field(
+        default=None, foreign_key="range_session_lines.id"
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Range Sessions (P3)
+# ---------------------------------------------------------------------------
+
+class RangeSession(SQLModel, table=True):
+    __tablename__ = "range_sessions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="users.id")
+    is_shared: bool = Field(default=False)
+    date: date
+    location_name: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RangeSessionLine(SQLModel, table=True):
+    __tablename__ = "range_session_lines"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: int = Field(foreign_key="range_sessions.id")
+    firearm_id: Optional[int] = Field(default=None, foreign_key="firearms.id")
+    ammo_box_id: Optional[int] = Field(default=None, foreign_key="ammo_box.id")
+    rounds_fired: int = Field(default=0)
+    notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
