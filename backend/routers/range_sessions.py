@@ -414,6 +414,23 @@ def list_sessions(
         if bid is not None:
             distinct_boxes_map.setdefault(sid, set()).add(bid)
 
+    # Per-firearm rounds aggregate — only computed when filtered. One grouped
+    # query summing rounds_fired for the filter firearm, keyed by session.
+    rounds_for_filter_map: dict[int, int] = {}
+    if firearm_id is not None:
+        per_firearm_rows = db.exec(
+            select(
+                RangeSessionLine.session_id,
+                func.coalesce(func.sum(RangeSessionLine.rounds_fired), 0).label("rounds"),
+            )
+            .where(
+                RangeSessionLine.session_id.in_(session_ids),
+                RangeSessionLine.firearm_id == firearm_id,
+            )
+            .group_by(RangeSessionLine.session_id)
+        ).all()
+        rounds_for_filter_map = {r.session_id: r.rounds for r in per_firearm_rows}
+
     owner_map = _build_owner_name_map(sessions, db)
     out: list[RangeSessionListItem] = []
     for s in sessions:
@@ -430,6 +447,9 @@ def list_sessions(
                 distinct_firearms=len(distinct_firearms_map.get(s.id, set())),
                 distinct_boxes=len(distinct_boxes_map.get(s.id, set())),
                 line_count=line_count,
+                rounds_for_filter_firearm=(
+                    rounds_for_filter_map.get(s.id, 0) if firearm_id is not None else None
+                ),
             )
         )
     return out

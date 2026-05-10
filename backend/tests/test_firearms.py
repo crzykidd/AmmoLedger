@@ -489,6 +489,51 @@ def test_cleaning_status_no_intervals_set(
     assert r.json()["cleaning_status"] == "ok"
 
 
+def test_cleaning_status_filter_multi_value(
+    client: TestClient, db_session: Session, admin_user: User, firearm_mfr, caliber
+):
+    """The cleaning_status filter accepts comma-separated values so the dashboard
+    Cleaning Due widget can fetch overdue + due_soon in a single request.
+    """
+    f_overdue = _create_firearm_direct(
+        db_session, firearm_mfr.id, caliber.id, admin_user.id,
+        rounds_lifetime=1500, rounds_since_clean=1500,
+        service_interval_rounds=1000,
+    )
+    f_due_soon = _create_firearm_direct(
+        db_session, firearm_mfr.id, caliber.id, admin_user.id,
+        last_cleaned_at=date.today() - timedelta(days=25),
+        service_interval_days=30,
+    )
+    f_ok = _create_firearm_direct(
+        db_session, firearm_mfr.id, caliber.id, admin_user.id,
+        rounds_lifetime=100, rounds_since_clean=100,
+        last_cleaned_at=date.today() - timedelta(days=5),
+        service_interval_rounds=1000,
+        service_interval_days=90,
+    )
+    _login(client, "admin@test.com", "AdminPass1!")
+
+    # Single value still works
+    r = client.get("/firearms?cleaning_status=overdue")
+    assert r.status_code == 200
+    assert {f["id"] for f in r.json()} == {f_overdue.id}
+
+    # Comma-separated values returns the union
+    r = client.get("/firearms?cleaning_status=due_soon,overdue")
+    assert r.status_code == 200
+    assert {f["id"] for f in r.json()} == {f_overdue.id, f_due_soon.id}
+
+    # Whitespace tolerated around values
+    r = client.get("/firearms?cleaning_status=ok, due_soon")
+    assert r.status_code == 200
+    assert {f["id"] for f in r.json()} == {f_ok.id, f_due_soon.id}
+
+    # Invalid value yields 422
+    r = client.get("/firearms?cleaning_status=overdue,bogus")
+    assert r.status_code == 422
+
+
 # ---------------------------------------------------------------------------
 # Delete cascade
 # ---------------------------------------------------------------------------

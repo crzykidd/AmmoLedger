@@ -405,7 +405,11 @@ def list_firearms(
     manufacturer_id: Optional[int] = Query(default=None),
     caliber_id: Optional[int] = Query(default=None),
     cleaning_status: Optional[str] = Query(
-        default=None, description="ok | due_soon | overdue"
+        default=None,
+        description=(
+            "Single value (ok | due_soon | overdue) or comma-separated list "
+            "(e.g. 'due_soon,overdue'). Default returns all."
+        ),
     ),
     compliance_tag_id: Optional[int] = Query(default=None),
     user_tag_id: Optional[int] = Query(default=None),
@@ -444,12 +448,17 @@ def list_firearms(
     enriched = [_enrich_firearm_with_maps(f, maps, today) for f in firearms]
 
     if cleaning_status:
-        if cleaning_status not in ("ok", "due_soon", "overdue"):
+        wanted = {s.strip() for s in cleaning_status.split(",") if s.strip()}
+        invalid = wanted - {"ok", "due_soon", "overdue"}
+        if invalid:
             raise HTTPException(
                 status_code=422,
-                detail="cleaning_status must be one of ok | due_soon | overdue",
+                detail=(
+                    "cleaning_status values must be ok | due_soon | overdue "
+                    f"(got: {sorted(invalid)})"
+                ),
             )
-        enriched = [e for e in enriched if e.cleaning_status == cleaning_status]
+        enriched = [e for e in enriched if e.cleaning_status in wanted]
 
     return enriched
 

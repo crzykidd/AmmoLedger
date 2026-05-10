@@ -687,6 +687,56 @@ def test_list_filter_by_firearm(
     assert locations == ["WithA", "WithBoth"]
 
 
+def test_list_rounds_for_filter_firearm(
+    client: TestClient, db_session: Session, admin_user: User,
+    firearm_mfr, ammo_mfr, caliber,
+):
+    """When firearm_id is set, each session reports the rounds fired by THAT
+    firearm — not the session total. Powers the firearm detail Sessions tab.
+    """
+    fA = _make_firearm(db_session, firearm_mfr.id, caliber.id, admin_user.id, name="FA")
+    fB = _make_firearm(db_session, firearm_mfr.id, caliber.id, admin_user.id, name="FB")
+    b = _make_box(db_session, ammo_mfr.id, caliber.id, admin_user.id, qty=500)
+
+    _login(client, "admin@test.com", "AdminPass1!")
+    today = date.today().isoformat()
+    # Solo session for fA
+    client.post("/range-sessions", json={
+        "date": today, "location_name": "Solo",
+        "lines": [{"firearm_id": fA.id, "ammo_box_id": b.id, "rounds_fired": 25}],
+    })
+    # Mixed session — fA fires 10, fB fires 40 — fA total should be 10
+    client.post("/range-sessions", json={
+        "date": today, "location_name": "Mixed",
+        "lines": [
+            {"firearm_id": fA.id, "ammo_box_id": b.id, "rounds_fired": 10},
+            {"firearm_id": fB.id, "ammo_box_id": b.id, "rounds_fired": 40},
+        ],
+    })
+    # Session that doesn't include fA at all — should not appear in the filtered list
+    client.post("/range-sessions", json={
+        "date": today, "location_name": "OtherOnly",
+        "lines": [{"firearm_id": fB.id, "ammo_box_id": b.id, "rounds_fired": 5}],
+    })
+
+    # Without filter: rounds_for_filter_firearm should be null on every row
+    r = client.get("/range-sessions")
+    assert r.status_code == 200
+    for item in r.json():
+        assert item["rounds_for_filter_firearm"] is None
+
+    # With filter: only sessions involving fA, with per-firearm rounds populated
+    r = client.get(f"/range-sessions?firearm_id={fA.id}")
+    assert r.status_code == 200
+    items = r.json()
+    by_loc = {item["location_name"]: item for item in items}
+    assert set(by_loc.keys()) == {"Solo", "Mixed"}
+    assert by_loc["Solo"]["rounds_for_filter_firearm"] == 25
+    assert by_loc["Solo"]["total_rounds"] == 25
+    assert by_loc["Mixed"]["rounds_for_filter_firearm"] == 10
+    assert by_loc["Mixed"]["total_rounds"] == 50
+
+
 def test_session_list_aggregates(
     client: TestClient, db_session: Session, admin_user: User,
     firearm_mfr, ammo_mfr, caliber,

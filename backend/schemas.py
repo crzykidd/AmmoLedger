@@ -841,6 +841,11 @@ class RangeSessionListItem(BaseModel):
     distinct_firearms: int
     distinct_boxes: int
     line_count: int
+    # Populated only when the list endpoint is filtered by firearm_id — sums
+    # rounds_fired across this session's lines that reference the filter
+    # firearm. Lets the firearm detail Sessions tab show per-firearm totals
+    # without an N+1 fetch loop.
+    rounds_for_filter_firearm: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------

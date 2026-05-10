@@ -278,7 +278,8 @@ export interface FirearmListFilters {
   firearm_type?: FirearmType
   manufacturer_id?: number
   caliber_id?: number
-  cleaning_status?: CleaningStatus
+  /** Single status, OR comma-separated list of statuses (e.g. 'due_soon,overdue'). */
+  cleaning_status?: CleaningStatus | string
   compliance_tag_id?: number
   user_tag_id?: number
 }
@@ -831,6 +832,10 @@ export interface RangeSessionListItem {
   distinct_firearms: number
   distinct_boxes: number
   line_count: number
+  /** Populated only when the list is filtered by firearm_id — sum of
+   *  rounds_fired across this session's lines that reference the filter
+   *  firearm. Powers per-firearm totals on the firearm detail Sessions tab. */
+  rounds_for_filter_firearm: number | null
 }
 
 export interface RangeSessionListFilters {

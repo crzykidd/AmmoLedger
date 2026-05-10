@@ -58,12 +58,19 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Range session detail page (`/range-sessions/:id`).** Full session view with per-line table, click-through navigation to involved firearms and ammo boxes, and a destructive-action-aware delete confirmation that previews exactly which ammo box quantities and firearm counters will be restored.
 - **Log Range Day entry points** on the Range page and the Firearms page. (Dashboard quick-action entry deferred to P5 to land alongside the dashboard's Recent Sessions widget.)
 
+- **Sessions tab on firearm detail page** — populated from `GET /range-sessions?firearm_id=`. Per-firearm stats (total sessions, total rounds through this firearm, first / most recent session date), per-session rows showing the rounds fired by THIS firearm in each session, click-through to full session detail.
+- **Recent Range Sessions dashboard widget** — last 5 sessions visible to the user, with a "View All" link to `/range`.
+- **Cleaning / Service Due dashboard widget** — firearms grouped by Overdue (red) and Due Soon (amber) status, with the specific reason (rounds-based or time-based interval breach) and a "Log Cleaning" quick-action that opens the firearm log dialog with event_type pre-set to Cleaning. Hidden when no firearms need attention.
+- **Dashboard Quick Actions** — "+ Log Range Day", "+ Add Firearm", "+ Add Ammo Box" shortcuts (hidden for read-only users).
+
 ### Changed
 
 - **`manufacturers.types` JSON column added.** Existing rows backfilled to `["ammo"]`. No change to the `/lookups/manufacturers` default response shape; the `types` field is additive, and unfiltered callers see all manufacturers regardless of domain.
 - **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, plus the P1b `firearms`, `firearm_log`, `firearm_compliance_tag_links`, and `firearm_user_tag_links` tables, plus the P3 `range_sessions` and `range_session_lines` tables. The export order now places `expenditure_log` after `range_session_lines` to satisfy the new `expenditure_log.range_session_line_id` FK on restore. Schema-migration validation continues to require an exact match against the current Alembic head.
 - **`expenditure_log` extended** with optional `range_session_line_id` FK. Pre-existing expenditures (logged via `/ammo/:id/expend`) leave this NULL. Session-driven rows set it so reversal queries on the link.
 - **Sidebar layout** updated to include the Firearms entry between Products and At Range. No other sidebar entries moved.
+- **`GET /range-sessions` list response extended** with optional `rounds_for_filter_firearm` field, populated when the `firearm_id` query parameter is set. Powers the per-firearm rounds total on the firearm detail Sessions tab without an N+1 fetch loop on the frontend.
+- **`GET /firearms?cleaning_status=` accepts comma-separated values** — e.g. `?cleaning_status=due_soon,overdue` returns both buckets in one request. Single-value filtering still works.
 
 ### Deferred
 

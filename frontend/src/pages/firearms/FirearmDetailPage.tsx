@@ -7,9 +7,12 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
+  Crosshair,
+  MapPin,
   Pencil,
   Plus,
   Sparkles,
+  Target,
   Trash2,
   StickyNote,
   Wrench,
@@ -37,6 +40,7 @@ import {
   getFirearm,
   listFirearmLog,
 } from '@/api/firearms'
+import { listRangeSessions } from '@/api/rangeSessions'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -45,6 +49,7 @@ import type {
   FirearmEventType,
   FirearmLogRead,
   FirearmRead,
+  RangeSessionListItem,
   User,
 } from '@/types'
 
@@ -203,6 +208,121 @@ function LogRow({ log, canModify, onEdit, onDelete }: LogRowProps) {
   )
 }
 
+interface SessionsTabProps {
+  sessions: RangeSessionListItem[]
+  loading: boolean
+  stats: {
+    total: number
+    roundsThisFirearm: number
+    firstDate: string | null
+    lastDate: string | null
+  }
+  onSelect: (id: number) => void
+}
+
+function SessionsTab({ sessions, loading, stats, onSelect }: SessionsTabProps) {
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full rounded-lg" />
+        ))}
+      </div>
+    )
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
+        <Target className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+        <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+          No range sessions logged for this firearm yet.
+        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+          Log Range Day from the Range page or the Firearms list.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatBlock
+          label="Total Sessions"
+          value={stats.total.toLocaleString()}
+        />
+        <StatBlock
+          label="Total Rounds (this firearm)"
+          value={stats.roundsThisFirearm.toLocaleString()}
+        />
+        <StatBlock
+          label="First Session"
+          value={stats.firstDate ? format(parseISO(stats.firstDate), 'MMM d, yyyy') : '—'}
+        />
+        <StatBlock
+          label="Most Recent Session"
+          value={stats.lastDate ? format(parseISO(stats.lastDate), 'MMM d, yyyy') : '—'}
+        />
+      </div>
+
+      <div className="space-y-2">
+        {sessions.map((s) => {
+          const dateObj = parseISO(s.date)
+          const otherFirearms = Math.max(0, s.distinct_firearms - 1)
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onSelect(s.id)}
+              className="w-full text-left rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700 transition-all"
+            >
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {format(dateObj, 'EEE, MMM d, yyyy')}
+                  </p>
+                  {s.location_name && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      {s.location_name}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-lg font-bold text-gray-900 dark:text-white leading-none flex items-center gap-1 justify-end">
+                    <Crosshair className="w-4 h-4 text-gold" />
+                    {(s.rounds_for_filter_firearm ?? 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                    rounds (this firearm)
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-3 gap-y-0.5">
+                <span>
+                  Session total: {s.total_rounds.toLocaleString()} rds
+                </span>
+                {otherFirearms > 0 && (
+                  <span>
+                    + {otherFirearms} other {otherFirearms === 1 ? 'firearm' : 'firearms'}
+                  </span>
+                )}
+                {s.distinct_boxes > 0 && (
+                  <span>
+                    {s.distinct_boxes} {s.distinct_boxes === 1 ? 'box' : 'boxes'}
+                  </span>
+                )}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function FirearmDetailPage() {
   const { id } = useParams<{ id: string }>()
   const firearmId = id ? parseInt(id) : NaN
@@ -235,6 +355,12 @@ export default function FirearmDetailPage() {
     enabled: !isNaN(firearmId) && firearm != null,
   })
 
+  const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
+    queryKey: ['firearm-sessions', firearmId],
+    queryFn: () => listRangeSessions({ firearm_id: firearmId, limit: 200 }),
+    enabled: !isNaN(firearmId) && firearm != null,
+  })
+
   const sortedLogs = useMemo(() => {
     return [...logs].sort((a, b) => {
       // event_date desc, then created_at desc
@@ -243,6 +369,32 @@ export default function FirearmDetailPage() {
       return b.created_at.localeCompare(a.created_at)
     })
   }, [logs])
+
+  const sortedSessions = useMemo(() => {
+    return [...sessions].sort((a, b) => b.date.localeCompare(a.date))
+  }, [sessions])
+
+  const sessionStats = useMemo(() => {
+    if (sessions.length === 0) {
+      return {
+        total: 0,
+        roundsThisFirearm: 0,
+        firstDate: null as string | null,
+        lastDate: null as string | null,
+      }
+    }
+    const dates = sessions.map((s) => s.date).sort()
+    const roundsThisFirearm = sessions.reduce(
+      (sum, s) => sum + (s.rounds_for_filter_firearm ?? 0),
+      0,
+    )
+    return {
+      total: sessions.length,
+      roundsThisFirearm,
+      firstDate: dates[0],
+      lastDate: dates[dates.length - 1],
+    }
+  }, [sessions])
 
   const deleteLogMutation = useMutation({
     mutationFn: (logId: number) => deleteFirearmLog(firearmId, logId),
@@ -408,7 +560,7 @@ export default function FirearmDetailPage() {
           <div className="flex">
             <TabButton value="overview" label="Overview" />
             <TabButton value="log" label="Log" count={logs.length} />
-            <TabButton value="sessions" label="Sessions" />
+            <TabButton value="sessions" label="Sessions" count={sessions.length} />
           </div>
         </div>
 
@@ -615,15 +767,12 @@ export default function FirearmDetailPage() {
           )}
 
           {tab === 'sessions' && (
-            <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
-                Range session history
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                Range session history will appear here once you log range sessions involving
-                this firearm.
-              </p>
-            </div>
+            <SessionsTab
+              sessions={sortedSessions}
+              loading={sessionsLoading}
+              stats={sessionStats}
+              onSelect={(id) => navigate(`/range-sessions/${id}`)}
+            />
           )}
         </div>
       </div>
