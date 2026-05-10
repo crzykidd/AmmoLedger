@@ -10,7 +10,28 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-GITHUB_RAW_BASE = "https://raw.githubusercontent.com/crzykidd/AmmoLedger/main"
+
+def _github_raw_base() -> str:
+    """Pick the GitHub branch to fetch community YAMLs from.
+
+    Dev builds (anything where GIT_BRANCH is set and not `main` or a release
+    tag) read from the dev branch, so `:dev` images can pick up newly-added
+    community files (lookup tables, manufacturers, etc.) before they ship to
+    main. Stable / release / unknown-environment installs stay on main.
+
+    Override with `AL_COMMUNITY_BRANCH` when you need to point a specific
+    install at a feature branch for testing.
+    """
+    override = os.environ.get("AL_COMMUNITY_BRANCH")
+    if override:
+        return f"https://raw.githubusercontent.com/crzykidd/AmmoLedger/{override}"
+    branch = os.environ.get("GIT_BRANCH", "")
+    if branch and branch != "main" and not branch.startswith("v"):
+        return "https://raw.githubusercontent.com/crzykidd/AmmoLedger/dev"
+    return "https://raw.githubusercontent.com/crzykidd/AmmoLedger/main"
+
+
+GITHUB_RAW_BASE = _github_raw_base()
 
 COMMUNITY_TABLES = {
     "dealers": {
