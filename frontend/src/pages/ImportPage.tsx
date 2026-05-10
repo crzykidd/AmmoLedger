@@ -735,7 +735,7 @@ function ResultState({
               <li>{result.archived_imported} archived (imported with is_archived=true)</li>
             </ul>
             <p className="text-xs text-amber-600 dark:text-amber-500">
-              Archived boxes are hidden by default. To view them on the Inventory page, set the <strong>Status</strong> filter to "Archived only" and the <strong>Empty</strong> filter to "All boxes".
+              Archived boxes are hidden by default. To view them on the Ammo page, set the <strong>Status</strong> filter to "Archived only" and the <strong>Empty</strong> filter to "All boxes".
             </p>
           </div>
         )}
@@ -757,13 +757,13 @@ function ResultState({
         )}
 
         <div className="flex gap-3 pt-2">
-          <Button onClick={() => navigate('/inventory')} className="flex-1">
-            {result.archived_imported > 0 ? 'Go to Inventory' : 'View Inventory'}
+          <Button onClick={() => navigate('/ammo')} className="flex-1">
+            {result.archived_imported > 0 ? 'Go to Ammo' : 'View Ammo'}
           </Button>
           {result.archived_imported > 0 && (
             <Button
               variant="outline"
-              onClick={() => navigate('/inventory?statusFilter=archived&emptyFilter=all')}
+              onClick={() => navigate('/ammo?statusFilter=archived&emptyFilter=all')}
             >
               View Archived Boxes
             </Button>

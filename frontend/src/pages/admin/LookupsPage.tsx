@@ -292,7 +292,7 @@ function EntryRow({
       'containers': 'container',
     }
     const field = fieldMap[tableKey] ?? 'all'
-    navigate(`/inventory?searchField=${field}&search=${encodeURIComponent(entry.name)}`)
+    navigate(`/ammo?searchField=${field}&search=${encodeURIComponent(entry.name)}`)
   }
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(entry.name)

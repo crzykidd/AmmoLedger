@@ -33,6 +33,29 @@ import type { AmmoBoxRead } from '@/types'
 const BANNER_DISMISS_KEY = 'low_stock_banner_dismissed'
 
 // ---------------------------------------------------------------------------
+// One-shot localStorage migration: inventory_* -> ammo_* (v0.2.3 page rename).
+// Mirrors the inventory_show_empty -> inventory_empty_filter migration shipped
+// in PRD v3.15. Runs at module load, before any useState initializer reads.
+// ---------------------------------------------------------------------------
+
+;(() => {
+  const renames: Array<[string, string]> = [
+    ['inventory_group_by', 'ammo_group_by'],
+    ['inventory_sort_key', 'ammo_sort_key'],
+    ['inventory_sort_dir', 'ammo_sort_dir'],
+    ['inventory_empty_filter', 'ammo_empty_filter'],
+    ['inventory_archived_filter', 'ammo_archived_filter'],
+  ]
+  for (const [oldKey, newKey] of renames) {
+    if (localStorage.getItem(newKey) == null) {
+      const oldVal = localStorage.getItem(oldKey)
+      if (oldVal != null) localStorage.setItem(newKey, oldVal)
+    }
+    localStorage.removeItem(oldKey)
+  }
+})()
+
+// ---------------------------------------------------------------------------
 // Numeric filter helper — supports <N, >N, N-M, and exact N
 // ---------------------------------------------------------------------------
 
@@ -151,7 +174,7 @@ interface FieldSummary {
 // Page
 // ---------------------------------------------------------------------------
 
-export default function InventoryPage() {
+export default function AmmoPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -163,28 +186,28 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('')
   const [searchField, setSearchField] = useState<string>('all')
   const [emptyFilter, setEmptyFilter] = useState<EmptyFilter>(() => {
-    const v = localStorage.getItem('inventory_empty_filter')
+    const v = localStorage.getItem('ammo_empty_filter')
     if (v === 'active' || v === 'empty' || v === 'all') return v
     const old = localStorage.getItem('inventory_show_empty')
     return old === 'true' ? 'all' : 'active'
   })
   const [archivedFilter, setArchivedFilter] = useState<ArchivedFilter>(() => {
-    const v = localStorage.getItem('inventory_archived_filter')
+    const v = localStorage.getItem('ammo_archived_filter')
     return (v === 'active' || v === 'archived' || v === 'all') ? v : 'active'
   })
   const [conditionFilter, setConditionFilter] = useState<string>('')
 
   // Group By — persisted to localStorage
   const [groupBy, setGroupBy] = useState<GroupByField>(
-    () => (localStorage.getItem('inventory_group_by') as GroupByField) ?? 'none',
+    () => (localStorage.getItem('ammo_group_by') as GroupByField) ?? 'none',
   )
 
   // Sort By — persisted to localStorage
   const [sortKey, setSortKey] = useState<SortKey>(
-    () => (localStorage.getItem('inventory_sort_key') as SortKey) ?? 'id',
+    () => (localStorage.getItem('ammo_sort_key') as SortKey) ?? 'id',
   )
   const [sortDir, setSortDir] = useState<SortDir>(
-    () => (localStorage.getItem('inventory_sort_dir') as SortDir) ?? 'asc',
+    () => (localStorage.getItem('ammo_sort_dir') as SortDir) ?? 'asc',
   )
 
   // Column filters — reset on page refresh
@@ -222,11 +245,11 @@ export default function InventoryPage() {
 
     if (emptyFilterParam === 'active' || emptyFilterParam === 'empty' || emptyFilterParam === 'all') {
       setEmptyFilter(emptyFilterParam)
-      localStorage.setItem('inventory_empty_filter', emptyFilterParam)
+      localStorage.setItem('ammo_empty_filter', emptyFilterParam)
     }
     if (statusFilterParam === 'active' || statusFilterParam === 'archived' || statusFilterParam === 'all') {
       setArchivedFilter(statusFilterParam)
-      localStorage.setItem('inventory_archived_filter', statusFilterParam)
+      localStorage.setItem('ammo_archived_filter', statusFilterParam)
     }
 
     if (pid || searchFieldParam || searchVal || emptyFilterParam || statusFilterParam) {
@@ -538,24 +561,24 @@ export default function InventoryPage() {
 
   function handleGroupByChange(value: GroupByField) {
     setGroupBy(value)
-    localStorage.setItem('inventory_group_by', value)
+    localStorage.setItem('ammo_group_by', value)
   }
 
   function handleSortChange(key: SortKey, dir: SortDir) {
     setSortKey(key)
     setSortDir(dir)
-    localStorage.setItem('inventory_sort_key', key)
-    localStorage.setItem('inventory_sort_dir', dir)
+    localStorage.setItem('ammo_sort_key', key)
+    localStorage.setItem('ammo_sort_dir', dir)
   }
 
   function handleEmptyFilterChange(v: EmptyFilter) {
     setEmptyFilter(v)
-    localStorage.setItem('inventory_empty_filter', v)
+    localStorage.setItem('ammo_empty_filter', v)
   }
 
   function handleArchivedFilterChange(v: ArchivedFilter) {
     setArchivedFilter(v)
-    localStorage.setItem('inventory_archived_filter', v)
+    localStorage.setItem('ammo_archived_filter', v)
   }
 
   function dismissBanner() {
@@ -594,7 +617,7 @@ export default function InventoryPage() {
 
   return (
     <AppShell>
-      <TopBar title="Inventory" />
+      <TopBar title="Ammo" />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* ── Toolbar ── */}
         <div className="px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-800 space-y-2">

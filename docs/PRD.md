@@ -61,6 +61,7 @@
 | 3.20 | May 2026 | Restore rework (v0.2.1) — §11 updated: additive import mode removed (was silently corrupting cross-installation restores, closes #10); `/backup/import/preview` now returns user conflicts, `app_settings` diff, and per-user ownership summary; schema migration validation added to both preview and commit endpoints (exports whose `schema_migration` doesn't match the Alembic head are rejected). |
 | 3.21 | May 2026 | Split Box — §9.2.4 reconciled with implementation: dated note auto-appended to parent on split, strict-mode odd-size warning on preview/success panes, post-split labeling view, Group By "Split Parent" added, lifetime totals (dashboard "All" scope) filter on split_from_id IS NULL to prevent double-counting. §6.13 Reporting Integrity Rules updated to use split_from_id IS NULL instead of is_leaf. |
 | 3.22 | May 2026 | Split Box QA fixes and UX additions: GET /ammo/split-parents endpoint added (parent metadata lookup with joined caliber/manufacturer names, notes scoped by RBAC); SplitParentDetailsDialog accessible from Group By "Split Parent" group header info icon; Sort By toolbar dropdown with six options including Purchase Date and Updated Date; Purchase Date and Updated Date now shown in expanded inventory rows; child boxes created by a split now have notes pre-populated with "[Split YYYY-MM-DD] Split from #N"; list_ammo includes any box with children regardless of show_archived/show_empty filters; SplitBoxDialog success and review panes are modal-locked; Preview pane row labels switched from "Box 1/Box 2" (mistaken for IDs) to plain "1./2." with disclaimer; Total Boxes (lifetime) now counts all records, not just root boxes — Total Rounds and Total Value still filter on split_from_id IS NULL. §6.13 reporting table updated; §9.2.4 expanded with QA-discovered behavior and new UI surfaces. |
+| 3.23 | May 2026 | Renamed Inventory page to Ammo (preparing for Firearms in v0.3.0). Frontend route changed from /inventory to /ammo with no redirect. localStorage keys migrated from inventory_* to ammo_*. Backend /ammo/* API unchanged. §9.2 updated. |
 
 ---
 
@@ -118,7 +119,7 @@ AmmoLedger is a self-hosted web application for tracking personal ammunition inv
 | Multi-User Accounts | User management UI; RBAC roles enforced from day one | v1.0 |
 | RBAC — Admin / Member / Read-Only | Role-based permission enforcement on all API routes | v1.0 |
 | Shared Ownership Model | is_shared flag on ammo boxes; attributed expenditure logging | v1.0 |
-| Ammo Inventory | Full CRUD for ammo boxes with all tracked fields | v1.0 |
+| Ammo | Full CRUD for ammo boxes with all tracked fields | v1.0 |
 | Ammo Condition field | Track production origin (Factory New, Remanufactured, Surplus, etc.) | v1.0 |
 | Storage — Containers & Locations | Containers and locations; optional assignment to boxes | v1.0 |
 | Round Expenditure | Quick-log rounds used; deducts from box quantity | v1.0 |
@@ -900,7 +901,7 @@ Any user can submit a pull request to `defaults.yaml` to add calibers, manufactu
 | Calibers Tracked | Distinct caliber count in the current scope |
 | Low Stock Items | Count of calibers below threshold + locations below threshold (always current state) |
 
-#### Inventory Stats Scope Toggle
+#### Ammo Stats Scope Toggle
 
 A **Current / All** toggle appears above the stats row.
 
@@ -926,7 +927,7 @@ Tapping any caliber row in either view opens the **Caliber Threshold Drawer** (s
 
 #### Caliber Threshold Drawer
 
-Slide-out sheet accessible by tapping any caliber row on the dashboard or the caliber summary panel in the inventory page.
+Slide-out sheet accessible by tapping any caliber row on the dashboard or the caliber summary panel on the Ammo page.
 
 - Shows: caliber name, rounds on hand, current threshold, threshold source (Global Default or Per-Caliber Override).
 - **Admin-only controls** — input to set a custom threshold for this caliber; Save button; "Reset to Default" button shown only when a per-caliber override exists (`is_override: true`).
@@ -937,7 +938,7 @@ Slide-out sheet accessible by tapping any caliber row on the dashboard or the ca
 Two subsections — By Caliber and By Location.
 
 - Each caliber row in **By Caliber** opens the Caliber Threshold Drawer on click.
-- Each location row in **By Location** links to Inventory filtered by that location.
+- Each location row in **By Location** links to the Ammo page filtered by that location.
 
 #### Recent Activity
 
@@ -980,7 +981,7 @@ Checklist:
 
 "Don't show again" checkbox saved to `localStorage`. Reopenable from the nav bar help icon or the About page.
 
-### 9.2 Ammo Inventory
+### 9.2 Ammo
 
 #### Add Ammo Box
 
@@ -1001,7 +1002,7 @@ Checklist:
 - Success message: "Added N boxes (#X–#Y)"
 - Use case: buying a case that contains multiple identical boxes
 
-#### Inventory List
+#### Ammo List
 
 | Column | Content | Notes |
 |--------|---------|-------|
@@ -1031,7 +1032,7 @@ Checklist:
 
 #### Group By
 
-Toolbar dropdown (persisted to `localStorage` key `inventory_group_by`):
+Toolbar dropdown (persisted to `localStorage` key `ammo_group_by`):
 
 | Option | Groups by |
 | -------- | ----------- |
@@ -1063,7 +1064,7 @@ Toolbar dropdown next to Group By. Six options:
 - Purchase Date
 - Updated Date
 
-Adjacent asc/desc toggle button. Selection persists to `localStorage['inventory_sort_key']` and `localStorage['inventory_sort_dir']`.
+Adjacent asc/desc toggle button. Selection persists to `localStorage['ammo_sort_key']` and `localStorage['ammo_sort_dir']`.
 
 When Group By is active, sort applies **within each group**; group ordering remains by group key (alphabetical for most fields; numeric parent ID for Split Parent). When Group By is None, sort applies to the full list.
 
@@ -1098,21 +1099,21 @@ Two three-state select dropdowns in the main toolbar, each persisted to `localSt
 
 | Control | Key | Options | Behavior |
 | ------- | --- | ------- | -------- |
-| **Empty** | `inventory_empty_filter` | Has rounds (default) / Empty only / All boxes | "Has rounds" sends `show_empty: false` to backend. "Empty only" and "All boxes" send `show_empty: true`; "Empty only" also applies a client-side filter keeping only `qty_remaining === 0` rows. |
-| **Status** | `inventory_archived_filter` | Active only (default) / Archived only / All boxes | "Active only" sends `show_archived: false`. "Archived only" and "All boxes" send `show_archived: true`; "Archived only" also applies a client-side filter keeping only `is_archived === true` rows. |
+| **Empty** | `ammo_empty_filter` | Has rounds (default) / Empty only / All boxes | "Has rounds" sends `show_empty: false` to backend. "Empty only" and "All boxes" send `show_empty: true`; "Empty only" also applies a client-side filter keeping only `qty_remaining === 0` rows. |
+| **Status** | `ammo_archived_filter` | Active only (default) / Archived only / All boxes | "Active only" sends `show_archived: false`. "Archived only" and "All boxes" send `show_archived: true`; "Archived only" also applies a client-side filter keeping only `is_archived === true` rows. |
 
-On first load, the old `inventory_show_empty` key (`"true"` / `"false"`) is migrated to `inventory_empty_filter` (`"all"` / `"active"`) automatically.
+On first load, the old `inventory_show_empty` key (`"true"` / `"false"`) is migrated to `ammo_empty_filter` (`"all"` / `"active"`) automatically. The v0.2.3 page rename additionally migrates `inventory_group_by`, `inventory_sort_key`, `inventory_sort_dir`, `inventory_empty_filter`, and `inventory_archived_filter` to their `ammo_*` counterparts at module load (one-shot, then the old keys are removed).
 
 ##### Deep-link filter params
 
-The inventory page reads `emptyFilter` and `statusFilter` URL query params on mount and applies them as the initial filter state, also persisting the values to `localStorage`:
+The Ammo page reads `emptyFilter` and `statusFilter` URL query params on mount and applies them as the initial filter state, also persisting the values to `localStorage`:
 
 | Param | Accepted values | Maps to |
 | ----- | --------------- | ------- |
-| `emptyFilter` | `active` / `empty` / `all` | `inventory_empty_filter` |
-| `statusFilter` | `active` / `archived` / `all` | `inventory_archived_filter` |
+| `emptyFilter` | `active` / `empty` / `all` | `ammo_empty_filter` |
+| `statusFilter` | `active` / `archived` / `all` | `ammo_archived_filter` |
 
-Example: `/inventory?statusFilter=archived&emptyFilter=all` lands on a view showing all archived boxes regardless of quantity.
+Example: `/ammo?statusFilter=archived&emptyFilter=all` lands on a view showing all archived boxes regardless of quantity.
 
 After applying, all query params are stripped from the URL (`replace: true`) so reloading preserves the localStorage values rather than re-applying the params.
 
@@ -1120,7 +1121,7 @@ CSV export uses the broader server-side view — exporting while "Empty only" or
 
 #### Export CSV (Toolbar)
 
-- **Export CSV** button in the inventory toolbar (outline style, with Download icon), right of the search row
+- **Export CSV** button in the Ammo toolbar (outline style, with Download icon), right of the search row
 - Opens a confirmation dialog: "Export N boxes to CSV?" — N reflects currently filtered row count
 - On confirm: `window.location.href` navigates to `GET /ammo/export/csv` with current `search`, `show_archived`, and `show_empty` query params
 - Downloaded file: `ammoledger_export_YYYY-MM-DD.csv`
@@ -1256,7 +1257,7 @@ Access from the inventory row Actions column → **Split** icon (visible only wh
 
 The dialog can be re-opened from the parent's expanded-row history later: each `log_type = "split"` entry renders as a clickable amber line `Split into N boxes (#X–#Y)`. Clicking re-opens the labeling pane in review mode.
 
-#### Inventory Integration
+#### Ammo Page Integration
 
 - **Group By "Split Parent"** — 9th option in the inventory Group By dropdown. Headers render as `Split from #N (Caliber, Mfg, Product)` and sort numerically by parent ID. Boxes with no split parent fall into a "No Split Parent" group.
 - **Lifetime totals** (dashboard "All" scope) filter on `split_from_id IS NULL` to count parent boxes only and avoid double-counting (see §6.13).
@@ -1276,7 +1277,7 @@ Backed by `GET /ammo/split-parents`, which returns one row per box that has at l
 | --- | --- | --- | --- |
 | `GET` | `/ammo/split-parents` | Any | Returns metadata for every box that has at least one child. Used by Group By "Split Parent" headers and SplitParentDetailsDialog. `notes` field is nulled out for parents not visible to the caller under standard RBAC. |
 
-#### Visibility of Split Parents in Inventory
+#### Visibility of Split Parents in the Ammo List
 
 `GET /ammo` includes any box that has children regardless of the `show_archived` / `show_empty` filters. This means fully-split parents (which have `is_archived=true` and `qty_remaining=0`) are visible in the default Active-only / Has-rounds inventory view — without this, users couldn't easily reach the parent's notes and history. Manually-archived or empty-and-archived boxes that have NO children are still hidden by default.
 
@@ -1292,7 +1293,7 @@ Any existing box can be used as a template to quickly add new boxes of the same 
 
 #### Access Points
 
-Inventory list `⋮` → **Restock**, box detail page **Restock This Ammo** button, or empty box detail **Restock This Ammo** call-to-action.
+Ammo list `⋮` → **Restock**, box detail page **Restock This Ammo** button, or empty box detail **Restock This Ammo** call-to-action.
 
 #### Pre-populated Fields
 
@@ -1306,7 +1307,7 @@ Form header: *"Based on Box #47 — edit any fields"*. Submitting creates new bo
 
 Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an active range session. Hidden from the sidebar for `read_only` users; accessible to all other roles.
 
-**Purpose:** inventory page is too dense for range use. At Range provides a stripped-down flow — enter a box ID, see the box, tap to log rounds.
+**Purpose:** the Ammo page is too dense for range use. At Range provides a stripped-down flow — enter a box ID, see the box, tap to log rounds.
 
 **Search:** searches by numeric box ID and `legacy_id` only (no other fields). Client-side filter, no debounce.
 
@@ -1324,7 +1325,7 @@ Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an 
 
 **Result card layout:** the text container inside each result card uses `flex-1 min-w-0` so long box descriptions (long product names, manufacturer names) wrap within the `max-w-lg` boundary rather than forcing the entire page wider. Both description lines use `break-words`.
 
-**Import navigation change:** Import has been moved from the top nav section (Dashboard / Inventory / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Inventory, Products, At Range.
+**Import navigation change:** Import has been moved from the top nav section (Dashboard / Ammo / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Ammo, Products, At Range.
 
 ### 9.3 Expend Rounds
 
@@ -1337,7 +1338,7 @@ Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an 
 
 #### Global Search
 
-Single search box at the top of the inventory list. Searches across: caliber, manufacturer, product_name, legacy_id, type, category, dealer, notes. Fires on keystroke with 300ms debounce; minimum 2 characters; results update without page reload.
+Single search box at the top of the Ammo list. Searches across: caliber, manufacturer, product_name, legacy_id, type, category, dealer, notes. Fires on keystroke with 300ms debounce; minimum 2 characters; results update without page reload.
 
 #### Quick Filter Chips
 
@@ -1530,9 +1531,9 @@ When archived rows were imported, the success page shows a breakdown:
 - Active count: `imported - archived_imported`
 - Archived count: `archived_imported`
 - A note that archived boxes are hidden by the default Status filter ("Active only")
-- A **"View Archived Boxes"** button that navigates to `/inventory?statusFilter=archived&emptyFilter=all`, deep-linking into the pre-filtered archived view
+- A **"View Archived Boxes"** button that navigates to `/ammo?statusFilter=archived&emptyFilter=all`, deep-linking into the pre-filtered archived view
 
-When `archived_imported === 0`, only a "Go to Inventory" / "Import Another" button pair is shown (existing behavior).
+When `archived_imported === 0`, only a "Go to Ammo" / "Import Another" button pair is shown (existing behavior).
 
 #### Legacy ID Mode
 
@@ -1753,8 +1754,8 @@ Single source of truth for the entire app. Docker image built with this version 
 #### Empty Boxes
 
 - Boxes with `qty_remaining = 0` are considered empty
-- Hidden from the inventory list by default
-- Toggle above inventory list: **Show empty boxes**
+- Hidden from the Ammo list by default
+- Toggle above the Ammo list: **Show empty boxes**
 - Toggle state saved to `localStorage` per device
 
 #### Archived Boxes
@@ -1774,26 +1775,26 @@ Single source of truth for the entire app. Docker image built with this version 
 - Search input at top — filters to sections and items matching the query; highlights matching text
 - Collapsible sections (## headings) — click to expand/collapse all items in a section
 - Collapsible Q&A items (### headings) — individual accordion, auto-expanded when a search is active
-- Covers: Getting Started, Inventory, Stock Thresholds, Import, Backup & Restore, User Management, About
+- Covers: Getting Started, Ammo, Stock Thresholds, Import, Backup & Restore, User Management, About
 
 #### Contextual Help Tooltips (HelpTip component)
 
 - Reusable `HelpTip` component renders a small ⓘ icon (Info, 14px, muted gray)
 - Popover opens on hover (150ms close delay) or click; dismisses on click-outside
 - Dark background, light text; max-width 250px; positioned above trigger with auto-flip
-- Placed next to field labels in: Add/Edit Ammo Box form (12 fields), Inventory toolbar (Group By, Empty filter, Status filter), Stock Thresholds page (3 threshold labels), Import page (Ownership and ID Assignment sections)
+- Placed next to field labels in: Add/Edit Ammo Box form (12 fields), Ammo toolbar (Group By, Empty filter, Status filter), Stock Thresholds page (3 threshold labels), Import page (Ownership and ID Assignment sections)
 
 ### 9.13 Product Catalog
 
 #### Products Page (`/products`)
 
-- Accessible to all authenticated roles via sidebar (BookOpen icon, between Inventory and Import)
+- Accessible to all authenticated roles via sidebar (BookOpen icon, between Ammo and Import)
 - Two view modes: **Grid** (image card layout) and **List** (compact rows) — toggled by icon buttons, saved to localStorage
 - Search input filters by name, caliber, or manufacturer (client-side across loaded results)
 - Caliber filter dropdown to narrow list to a single caliber
 - **Add Product** button opens a Sheet drawer (member+ only)
 - Each product card/row shows: name, caliber, bullet weight+unit, type badge, usage count ("X boxes"), and product image (or placeholder icon)
-- Card actions: **Add Box** (navigates to `/inventory?product_id={id}`) and edit/delete (owner or admin)
+- Card actions: **Add Box** (navigates to `/ammo?product_id={id}`) and edit/delete (owner or admin)
 - Delete confirmation AlertDialog before removing a product
 - **Auto-Generate** button (admin only) — triggers `POST /products/auto-generate`; shows counts of created products and linked boxes in a success toast
 
@@ -1810,7 +1811,7 @@ Image upload area: click to browse or drag-and-drop; shows preview with remove b
 - Selecting a product calls `applyProduct()` — fills caliber, manufacturer, product_name, gr_oz, weight_unit, type, category, condition, cost_per_round from the product and switches to manual mode
 - In manual mode: shows selected product name in a muted chip with a ×Clear link
 - "Enter details manually" hides the selector and lets the user fill all fields themselves
-- When navigating from the Products page ("Add Box" button), the URL carries `?product_id={id}`; InventoryPage reads the param, opens the Add form, and passes `initialProductId` to `AmmoFormPanel` which fetches the product and auto-fills
+- When navigating from the Products page ("Add Box" button), the URL carries `?product_id={id}`; AmmoPage reads the param, opens the Add form, and passes `initialProductId` to `AmmoFormPanel` which fetches the product and auto-fills
 
 #### Save as Template Dialog
 
@@ -1999,7 +2000,7 @@ Quick preset buttons support range use with gloves or in poor lighting condition
 
 #### Print Flow
 
-1. Select one or more boxes from the inventory list
+1. Select one or more boxes from the Ammo list
 2. Click **Print Labels**
 3. Choose label size (defaults to last-used preference)
 4. Preview labels before printing

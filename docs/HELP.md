@@ -4,7 +4,7 @@
 
 ### How do I add my first ammo box?
 
-Go to **Inventory** and click **Add Box** in the top-right corner. Fill in at minimum a Caliber, Manufacturer, and Qty Original — all other fields are optional. Click **Add Box** to save. The box appears immediately in your inventory with its remaining count equal to the original quantity.
+Go to **Ammo** and click **Add Box** in the top-right corner. Fill in at minimum a Caliber, Manufacturer, and Qty Original — all other fields are optional. Click **Add Box** to save. The box appears immediately in your ammo list with its remaining count equal to the original quantity.
 
 ### How do I import from another app?
 
@@ -14,11 +14,11 @@ Go to **Import** in the sidebar and upload a CSV file. AmmoLedger validates the 
 
 The Getting Started checklist appears on the Dashboard when you first set up AmmoLedger. It tracks key setup steps — adding a box, inviting a user, configuring thresholds, and so on. Dismiss individual items as you complete them; the checklist disappears once all steps are done.
 
-## Inventory
+## Ammo
 
 ### What does each column mean?
 
-The inventory table shows Caliber and Manufacturer (with product name as a subtitle), bullet weight (Gr/Oz), Type, Category, Remaining rounds, the value of remaining rounds at cost per round, and whether the box is Shared. Click a row to expand it and see full details including purchase date, container, notes, and expenditure history.
+The Ammo table shows Caliber and Manufacturer (with product name as a subtitle), bullet weight (Gr/Oz), Type, Category, Remaining rounds, the value of remaining rounds at cost per round, and whether the box is Shared. Click a row to expand it and see full details including purchase date, container, notes, and expenditure history.
 
 ### How do I expend rounds at the range?
 
@@ -42,7 +42,7 @@ Empty boxes have zero rounds remaining and are hidden by default — check **Sho
 
 ### How do I split a box into smaller boxes?
 
-Click the **Split** icon (the icon between Edit and Archive in any inventory row's Actions column). The Split dialog opens with two choices:
+Click the **Split** icon (the icon between Edit and Archive in any Ammo row's Actions column). The Split dialog opens with two choices:
 
 - **Full split** — all rounds in the box are distributed into new smaller boxes, and the original box is archived. Use this when you've opened a case and want to track every individual box.
 - **Partial split** — peel some rounds off into new boxes, and keep the rest in the original box. Use this when you only want to track a few boxes from a case (e.g. for a range trip) without breaking up the whole thing.
@@ -66,11 +66,11 @@ No. The dashboard's lifetime totals only count parent boxes (boxes you originall
 
 ### How do I see all the boxes that came from a single split?
 
-Switch the inventory **Group By** dropdown to "Split Parent". Boxes from each split cluster under a header like `Split from #121 (9mm Luger, Remington, UMC Bulk)`. Click the small info icon on the right side of the header to open a dialog with the parent box's full details — including the dated split-history notes that record exactly how the parent was broken up.
+Switch the Ammo page's **Group By** dropdown to "Split Parent". Boxes from each split cluster under a header like `Split from #121 (9mm Luger, Remington, UMC Bulk)`. Click the small info icon on the right side of the header to open a dialog with the parent box's full details — including the dated split-history notes that record exactly how the parent was broken up.
 
 If the parent box is private to another user, you'll still see the basic info (caliber, manufacturer, etc.) but the notes will be hidden.
 
-### How do I sort my inventory?
+### How do I sort my ammo?
 
 Use the **Sort By** dropdown next to Group By in the toolbar. Pick one of: Box ID, Caliber, Manufacturer, Remaining, Purchase Date, Updated Date — and use the arrow button next to it to switch between ascending and descending.
 
@@ -114,7 +114,7 @@ Go to **Products** in the sidebar and click **Add Product**. Fill in at minimum 
 
 ### How do I add a box from a product?
 
-On the Products page, find the product card and click **Add Box**. This opens the Add Box form in Inventory with all matching fields pre-filled from the product. Adjust any values as needed and save.
+On the Products page, find the product card and click **Add Box**. This opens the Add Box form on the Ammo page with all matching fields pre-filled from the product. Adjust any values as needed and save.
 
 ### Can I auto-fill a product when adding a box manually?
 
@@ -152,7 +152,7 @@ If your CSV contains calibers, manufacturers, or other lookup values that don't 
 
 ### How do I export my inventory to CSV?
 
-In the Inventory toolbar, click **Export CSV**. A confirmation dialog shows how many boxes will be included, then downloads a CSV file with all visible boxes (filtered by your current search and toggles). To export everything including archived boxes, check **Archived** first. Admins can also export all boxes including archived ones via **Admin → Backup → Export All to CSV**.
+In the Ammo toolbar, click **Export CSV**. A confirmation dialog shows how many boxes will be included, then downloads a CSV file with all visible boxes (filtered by your current search and toggles). To export everything including archived boxes, check **Archived** first. Admins can also export all boxes including archived ones via **Admin → Backup → Export All to CSV**.
 
 ### Can I reimport a CSV export?
 
