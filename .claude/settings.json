@@ -10,7 +10,16 @@
       "Bash(gh issue *)",
       "Bash(gh pr *)",
       "Bash(gh release *)",
-      "Bash(python -c \"from version import __version__; print\\(__version__\\)\")"
+      "Bash(python -c \"from version import __version__; print\\(__version__\\)\")",
+      "Bash(python -c \"from models import RangeSession, RangeSessionLine, ExpenditureLog; print\\(RangeSession.__tablename__, RangeSessionLine.__tablename__\\); print\\('range_session_line_id' in ExpenditureLog.__fields__\\)\")",
+      "PowerShell(Get-Command py, python, python3 -ErrorAction SilentlyContinue)",
+      "Read(//c/Users/mande/**)",
+      "Read(//c/Users/mande/AppData/Local/Programs/**)",
+      "Bash(ls /c/Python*)",
+      "Read(//c/ProgramData/**)",
+      "PowerShell(docker --version 2>$null)",
+      "Bash(docker exec *)",
+      "Bash(git commit -m ' *)"
     ]
   },
   "hooks": {
