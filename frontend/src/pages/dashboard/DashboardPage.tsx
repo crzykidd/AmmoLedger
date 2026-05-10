@@ -104,7 +104,7 @@ function GettingStartedCard({
 }) {
   const items: WizardItem[] = [
     { label: 'Create your account', done: true, path: null },
-    { label: 'Add your first ammo box', done: hasBoxes, path: '/inventory' },
+    { label: 'Add your first ammo box', done: hasBoxes, path: '/ammo' },
     {
       label: 'Import your existing data',
       done: false,
@@ -419,7 +419,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => navigate('/inventory')}>
+              <Button size="sm" onClick={() => navigate('/ammo')}>
                 <Package className="h-4 w-4 mr-1.5" />
                 Add Ammo Box
               </Button>
@@ -569,7 +569,7 @@ export default function DashboardPage() {
                     <button
                       key={item.location_id}
                       className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
-                      onClick={() => navigate(`/inventory?searchField=location&search=${encodeURIComponent(item.location_name)}`)}
+                      onClick={() => navigate(`/ammo?searchField=location&search=${encodeURIComponent(item.location_name)}`)}
                     >
                       <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -721,7 +721,7 @@ export default function DashboardPage() {
           <Card>
             {!recentActivity || recentActivity.length === 0 ? (
               <CardContent className="py-8 text-center text-sm text-gray-400">
-                No rounds logged yet. Use the inventory to log your first range session.
+                No rounds logged yet. Use the ammo page to log your first range session.
               </CardContent>
             ) : (
               <CardContent className="p-0">
@@ -730,7 +730,7 @@ export default function DashboardPage() {
                     <button
                       key={entry.id}
                       className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
-                      onClick={() => navigate('/inventory')}
+                      onClick={() => navigate('/ammo')}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-1.5 flex-wrap">

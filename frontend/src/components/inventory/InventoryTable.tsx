@@ -21,7 +21,7 @@ import SplitParentDetailsDialog from '@/components/inventory/SplitParentDetailsD
 import type { AmmoBoxRead, User, LookupItem, DealerItem, ContainerItem, LocationItem, SplitParentRead } from '@/types'
 
 // ---------------------------------------------------------------------------
-// Public types — imported by InventoryPage
+// Public types — imported by AmmoPage
 // ---------------------------------------------------------------------------
 
 export type GroupByField =

@@ -28,7 +28,7 @@ const HELP_CONTENT: HelpSection[] = [
       {
         id: 'add-first-box',
         q: 'How do I add my first ammo box?',
-        a: 'Go to Inventory and click Add Box in the top-right corner. Fill in at minimum a Caliber, Manufacturer, and Qty Original — all other fields are optional. Click Add Box to save. The box appears immediately in your inventory with its remaining count equal to the original quantity.',
+        a: 'Go to Ammo and click Add Box in the top-right corner. Fill in at minimum a Caliber, Manufacturer, and Qty Original — all other fields are optional. Click Add Box to save. The box appears immediately in your ammo list with its remaining count equal to the original quantity.',
       },
       {
         id: 'import',
@@ -43,13 +43,13 @@ const HELP_CONTENT: HelpSection[] = [
     ],
   },
   {
-    id: 'inventory',
-    title: 'Inventory',
+    id: 'ammo',
+    title: 'Ammo',
     items: [
       {
         id: 'columns',
         q: 'What does each column mean?',
-        a: 'The inventory table shows Caliber and Manufacturer (with product name as a subtitle), bullet weight (Gr/Oz), Type, Category, Remaining rounds, the value of remaining rounds at cost per round, and whether the box is Shared. Click a row to expand it and see full details including purchase date, container, notes, and expenditure history.',
+        a: 'The Ammo table shows Caliber and Manufacturer (with product name as a subtitle), bullet weight (Gr/Oz), Type, Category, Remaining rounds, the value of remaining rounds at cost per round, and whether the box is Shared. Click a row to expand it and see full details including purchase date, container, notes, and expenditure history.',
       },
       {
         id: 'expend',

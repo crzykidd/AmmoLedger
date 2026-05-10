@@ -19,7 +19,13 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
-_No changes yet._
+### Changed
+
+- Renamed the Inventory page to Ammo. The route is now /ammo. Existing bookmarks to /inventory will 404 — update saved links.
+
+### Removed
+
+- The /inventory route. Use /ammo instead.
 
 ## [0.2.2] — 2026-05-09
 

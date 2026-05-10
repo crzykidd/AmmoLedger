@@ -117,7 +117,7 @@ This is the major new feature set teased in the v0.2.0 README. Together these fe
 
 **Spec reference:** PRD §9.4
 
-### Persistent Inventory Hint for Hidden Archived/Empty Rows
+### Persistent Ammo Page Hint for Hidden Archived/Empty Rows
 
 **Reason:** Documented in the v0.2.0 CHANGELOG `### Known limitations`. Discoverability via the filter dropdowns and post-import deep-links is sufficient for most users. Polish.
 

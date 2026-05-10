@@ -46,7 +46,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-      { label: 'Inventory', icon: Package, href: '/inventory' },
+      { label: 'Ammo', icon: Package, href: '/ammo' },
       { label: 'Products', icon: BookOpen, href: '/products' },
       { label: 'At Range', icon: Crosshair, href: '/at-range', readOnlyHidden: true },
     ],

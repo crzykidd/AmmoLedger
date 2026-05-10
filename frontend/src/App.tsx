@@ -8,7 +8,7 @@ import SetupPage from '@/pages/auth/SetupPage'
 import RegisterPage from '@/pages/auth/RegisterPage'
 import ResetPage from '@/pages/auth/ResetPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
-import InventoryPage from '@/pages/inventory/InventoryPage'
+import AmmoPage from '@/pages/ammo/AmmoPage'
 import ThresholdSettingsPage from '@/pages/settings/ThresholdSettingsPage'
 import ProfilePage from '@/pages/settings/ProfilePage'
 import UserManagementPage from '@/pages/admin/UserManagementPage'
@@ -76,10 +76,10 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/inventory"
+        path="/ammo"
         element={
           <ProtectedRoute>
-            <InventoryPage />
+            <AmmoPage />
           </ProtectedRoute>
         }
       />

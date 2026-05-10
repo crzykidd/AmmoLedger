@@ -952,7 +952,7 @@ export default function ProductsPage() {
   }, [filteredProducts, sortField, sortDir])
 
   const handleAddBox = (product: ProductRead) => {
-    navigate(`/inventory?product_id=${product.id}`)
+    navigate(`/ammo?product_id=${product.id}`)
   }
 
   const openAdd = () => {
@@ -1319,7 +1319,7 @@ export default function ProductsPage() {
                 onClick={() => {
                   const target = deleteTarget
                   setDeleteTarget(null)
-                  navigate(`/inventory?searchField=product&search=${encodeURIComponent(target.product_name || target.name)}`)
+                  navigate(`/ammo?searchField=product&search=${encodeURIComponent(target.product_name || target.name)}`)
                 }}
               >
                 View Linked Ammo

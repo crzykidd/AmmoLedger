@@ -68,7 +68,7 @@ No firm timeline on either set — watch the [Releases page](https://github.com/
 - **Field-scoped search** — dropdown next to the search box lets users narrow results to a specific field (Caliber, Manufacturer, Type, Location, Box ID, etc.)
 - **Per-column filters** — filter by ID, Caliber, Manufacturer, Gr/Oz, Type, Category, Remaining, Value, and Shared; range operators (`<50`, `>100`, `10-50`) supported
 - **Inventory filter dropdowns** — three-state Empty filter (Has rounds / Empty only / All boxes) and Status filter (Active only / Archived only / All boxes); both persist across reloads
-- **Three-tier stock threshold system** — global default, per-caliber overrides, and per-location overrides; stored server-side; admin-only writes; caliber threshold drawer accessible from dashboard and inventory
+- **Three-tier stock threshold system** — global default, per-caliber overrides, and per-location overrides; stored server-side; admin-only writes; caliber threshold drawer accessible from dashboard and the Ammo page
 - **Dashboard By Caliber toggle** — switch between Mix (% of total inventory) and Stock (proximity to threshold) views with color-coded bars; persists across sessions
 - **Dashboard Current / All scope toggle** — flip between active inventory totals and lifetime totals including archived and expended rounds; Total Boxes stat card
 - **CSV import with legacy ID mode** — two-step validation, fuzzy matching with interactive resolution, optional preservation of existing box IDs; post-import breakdown of active vs archived rows
@@ -76,7 +76,7 @@ No firm timeline on either set — watch the [Releases page](https://github.com/
 - **Backup and restore** — manual SQLite backup (WAL-safe via `Connection.backup()`), JSON export, scheduled nightly backup, restore from `.db`, import from JSON
 - **User management with inline invitations** — list users, change roles, deactivate accounts; generate and revoke invite links from the same page
 - **Password reset** — admin-generated single-use reset links; emergency self-recovery via `config.yaml` token
-- **Help page with searchable FAQ** — covers Getting Started, Inventory, Thresholds, Import, Backup, and User Management; TOC sidebar on desktop; search highlights matching text
+- **Help page with searchable FAQ** — covers Getting Started, Ammo, Thresholds, Import, Backup, and User Management; TOC sidebar on desktop; search highlights matching text
 - **Contextual help tooltips** — hover or click ⓘ on key form fields to see a brief description
 - **About page with version check** — displays current version, checks GitHub Releases API for updates (24-hour cache), shows update-available banner; dev builds detect newer commits on the `dev` branch
 - **Post-upgrade What's New modal** — automatically shows release notes between the previous and current version after an upgrade; dismissible
