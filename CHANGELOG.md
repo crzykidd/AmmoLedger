@@ -22,6 +22,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 ### Changed
 
 - Renamed the Inventory page to Ammo. The route is now /ammo. Existing bookmarks to /inventory will 404 — update saved links.
+- Replaced the Ammo page sidebar icon with a custom cartridge (bullet) icon, replacing the generic box icon used previously.
 
 ### Removed
 

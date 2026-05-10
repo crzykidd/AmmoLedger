@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard,
-  Package,
   BookOpen,
   FileUp,
   SlidersHorizontal,
@@ -19,6 +18,7 @@ import {
   LogOut,
   Crosshair,
 } from 'lucide-react'
+import CartridgeIcon from '@/components/icons/CartridgeIcon'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { getCommunityStatus } from '@/api/community'
@@ -46,7 +46,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-      { label: 'Ammo', icon: Package, href: '/ammo' },
+      { label: 'Ammo', icon: CartridgeIcon, href: '/ammo' },
       { label: 'Products', icon: BookOpen, href: '/products' },
       { label: 'At Range', icon: Crosshair, href: '/at-range', readOnlyHidden: true },
     ],
