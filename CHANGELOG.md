@@ -37,10 +37,19 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Compliance and personal tag links.** Many-to-many between firearms and `firearm_compliance_tags` (multi-select, community + user-extensible) and `firearm_user_tags` (per-user, colored). Tag links replaced wholesale on PATCH when the corresponding `*_tag_ids` array is supplied.
 - **Filters on `GET /firearms`.** `firearm_type`, `manufacturer_id`, `caliber_id`, `cleaning_status` (computed in Python after enrichment), `compliance_tag_id`, `user_tag_id`.
 
+- **Firearms page (`/firearms`).** Browse, search, and filter firearms with the same card-grid / list-view toggle as the Products page. Filter by manufacturer, caliber, firearm type, and cleaning status. Per-card cleaning status indicator (green / amber / red) shows at-a-glance maintenance state. View mode, filter selections, and sort order persist to localStorage.
+- **Firearm detail page (`/firearms/:id`).** Three tabs — Overview (full specs + cleaning state + tags + notes), Log (cleaning / service / note history with per-entry edit and delete), and Sessions (placeholder until range sessions ship). Header has Edit and Delete actions, gated by RBAC.
+- **Add / Edit Firearm drawer** with cascading Manufacturer → Model dropdowns. Picking a catalog model auto-fills caliber and action type (only when those fields are empty — never overrides user input). Custom model names supported for guns not in the catalog. Sections cover identity, physical specs, acquisition, service intervals, compliance and personal tags, sharing (admin only), and notes.
+- **Compliance Tag Picker** — multi-select grouped by jurisdiction (Federal, NFA, CA, NY, MA, NJ, Other, Custom). Inline "+ Add Custom Compliance Tag" for categories the community list doesn't yet cover. One-time disclaimer surfaces on first open: tags are community-maintained, AmmoLedger does not provide legal advice.
+- **Personal Tag Picker** — per-user colored tags (Carry, Heirloom, Range Only, etc.) with 8-color preset palette. Tags are managed inline in the picker — create with name + color, delete with confirmation; no separate admin page.
+- **Log Event dialog** for cleaning, service, and note entries. Backdated entries supported with overridable `rounds_at_event` (defaults to current lifetime count). Editing or deleting a cleaning log entry triggers backend recalculation of the firearm's denormalized cleaning state.
+- **Sidebar Firearms entry** between Products and At Range, with a custom firearm SVG icon matching the existing CartridgeIcon style.
+
 ### Changed
 
 - **`manufacturers.types` JSON column added.** Existing rows backfilled to `["ammo"]`. No change to the `/lookups/manufacturers` default response shape; the `types` field is additive, and unfiltered callers see all manufacturers regardless of domain.
 - **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, plus the P1b `firearms`, `firearm_log`, `firearm_compliance_tag_links`, and `firearm_user_tag_links` tables. Schema-migration validation continues to require an exact match against the current Alembic head.
+- **Sidebar layout** updated to include the Firearms entry between Products and At Range. No other sidebar entries moved.
 
 ## [0.2.3] — 2026-05-09
 

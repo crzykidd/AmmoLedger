@@ -17,6 +17,8 @@ import DatasetsPage from '@/pages/admin/LookupsPage'
 import TasksPage from '@/pages/admin/TasksPage'
 import ImportPage from '@/pages/ImportPage'
 import ProductsPage from '@/pages/ProductsPage'
+import FirearmsListPage from '@/pages/firearms/FirearmsListPage'
+import FirearmDetailPage from '@/pages/firearms/FirearmDetailPage'
 import AtRangePage from '@/pages/AtRangePage'
 import AboutPage from '@/pages/AboutPage'
 import HelpPage from '@/pages/HelpPage'
@@ -88,6 +90,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ProductsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/firearms"
+        element={
+          <ProtectedRoute>
+            <FirearmsListPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/firearms/:id"
+        element={
+          <ProtectedRoute>
+            <FirearmDetailPage />
           </ProtectedRoute>
         }
       />

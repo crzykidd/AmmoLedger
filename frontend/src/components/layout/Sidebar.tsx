@@ -19,6 +19,7 @@ import {
   Crosshair,
 } from 'lucide-react'
 import CartridgeIcon from '@/components/icons/CartridgeIcon'
+import FirearmIcon from '@/components/icons/FirearmIcon'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { getCommunityStatus } from '@/api/community'
@@ -48,6 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Ammo', icon: CartridgeIcon, href: '/ammo' },
       { label: 'Products', icon: BookOpen, href: '/products' },
+      { label: 'Firearms', icon: FirearmIcon, href: '/firearms' },
       { label: 'At Range', icon: Crosshair, href: '/at-range', readOnlyHidden: true },
     ],
   },
@@ -81,6 +83,7 @@ function isActive(href: string, pathname: string): boolean {
   if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
   if (href === '/settings/profile') return pathname === '/settings/profile'
   if (href === '/settings/thresholds') return pathname === '/settings/thresholds'
+  if (href === '/firearms') return pathname === '/firearms' || pathname.startsWith('/firearms/')
   return pathname === href
 }
 
