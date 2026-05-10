@@ -5,6 +5,7 @@ import { format, parseISO, subDays } from 'date-fns'
 import {
   CalendarIcon,
   Crosshair,
+  Download,
   MapPin,
   Plus,
   Target,
@@ -25,7 +26,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import LogRangeDayDialog from '@/components/range/LogRangeDayDialog'
 import { listFirearms } from '@/api/firearms'
-import { listRangeSessions, getRangeSession } from '@/api/rangeSessions'
+import {
+  listRangeSessions,
+  getRangeSession,
+  exportRangeSessionsCsvUrl,
+} from '@/api/rangeSessions'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import type { RangeSessionListItem } from '@/types'
@@ -315,6 +320,20 @@ export default function RangePage() {
               Clear filters
             </Button>
           )}
+
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                window.location.href = exportRangeSessionsCsvUrl()
+              }}
+              title="Download all visible range sessions as CSV (one row per line)"
+            >
+              <Download className="w-4 h-4 mr-1.5" />
+              Export CSV
+            </Button>
+          </div>
         </div>
 
         {/* Content */}

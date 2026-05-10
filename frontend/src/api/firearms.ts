@@ -58,3 +58,5 @@ export const updateFirearmLog = (
 
 export const deleteFirearmLog = (firearmId: number, logId: number) =>
   api.delete<void>(`/firearms/${firearmId}/log/${logId}`)
+
+export const exportFirearmsCsvUrl = () => '/api/firearms/export/csv'

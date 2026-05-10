@@ -19,62 +19,69 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
-### Added
+### Added — Firearms tracking
 
-- **Firearm community lookups (foundation for firearms tracking).**
-  - New `firearm_models` table: community-curated catalog of firearm models, scoped under their manufacturer with default caliber and action type.
-  - New `firearm_action_types` table: community-curated list of action types (semi-auto pistol, revolver, bolt-action rifle, etc.).
-  - New `firearm_compliance_tags` table: community-curated jurisdiction-status tags (CA Compliant, NFA SBR, etc.). Multi-select per firearm; users can extend with their own entries when the community list lags new legislation.
-  - New `firearm_user_tags` table: per-user, free-form colored tags for personal organization (Carry, Heirloom, Range Only, etc.).
-- **`manufacturers.types` column.** Single manufacturer table now serves both ammo and firearm domains, distinguished by a `types` JSON array. Existing manufacturers backfilled to `["ammo"]`; firearm-only manufacturers like Glock get `["firearm"]`; shared manufacturers like Federal or Sig Sauer get both.
-- **Lookup endpoint filters.** `GET /lookups/manufacturers` now accepts `?type=ammo|firearm`. New endpoints: `GET /lookups/firearm-models` (with `?manufacturer_id=` filter for cascading dropdown), `GET /lookups/firearm-action-types`, `GET /lookups/firearm-compliance-tags`, `GET /lookups/firearm-user-tags`.
-- **Admin community pages** for Firearm Models, Action Types, and Compliance Tags (alongside the existing Manufacturers / Calibers admin pages). Manufacturers admin row now shows Ammo / Firearm checkboxes that PATCH the row's `types`.
-- **Seed data.** ~20 firearm manufacturers (merged into the existing community list), ~50 popular models, 11 action types, 12 compliance tags. Calibers and ammo manufacturers are unchanged.
+- **Firearms registry (`/firearms`).** Track each firearm with manufacturer, model, caliber, serial, barrel length, finish, purchase details, and dealer. Card-grid or list view with search and filters by manufacturer, caliber, type, and cleaning status. Same ownership model as ammo boxes — members own private firearms by default; admins can mark firearms as shared so all members see them. View mode, filter selections, and sort order persist across sessions.
+- **Firearm catalog.** Built-in community catalog of ~20 popular manufacturers and ~50 popular models (Glock 17/19, Ruger 10/22, S&W M&P, Sig P320/P365, AR-platform rifles, common shotguns, etc.) with default caliber and action type — adding a cataloged gun is two clicks. Custom model names supported for off-catalog firearms.
+- **Multi-select compliance tags.** Twelve seeded tags covering common state classifications (CA, NY, MA, NJ) and federal NFA categories (SBR, suppressor host, MG, AOW, SBS), plus federal pre-ban. Multi-select per firearm so a single gun can carry orthogonal compliance facts (e.g. CA Featureless + NFA SBR). Users can add their own compliance tags when the community list lags new legislation. One-time disclaimer surfaces on first open: tags are community-maintained, AmmoLedger does not provide legal advice.
+- **Personal tags.** Per-user free-form colored tags (Carry, Heirloom, Range Only, EDC, etc.) with an 8-color palette. Managed inline from the firearm form — no separate admin page.
+- **Firearm maintenance log.** Three event types per firearm: Cleaning (resets `rounds_since_clean`, updates `last_cleaned_at`), Service (gunsmith trips, parts replacement), and Note (free-form milestones). Backdated entries supported with user-overridable rounds-at-event count. Editing or deleting any log entry recalculates the firearm's denormalized cleaning state from the full log history, so the snapshot fields never drift from the source of truth.
+- **Service intervals.** Per-firearm round-based and time-based intervals (either, both, or neither). Cleaning status — green (`ok`) / amber (`due_soon`, ≥80% of either threshold) / red (`overdue`) — reflects whichever threshold is most pressing and surfaces on every firearm card and on the dashboard.
+- **Firearm detail page (`/firearms/:id`).** Three tabs — Overview (full specs + cleaning state + tags + notes), Log (per-entry edit and delete), and Sessions (per-firearm range history). Header Edit and Delete actions are gated by RBAC.
 
-- **Firearms registry.** New `/firearms` API: full CRUD, ownership model (`owner_id` + `is_shared`) matching ammo boxes and products. Members see shared firearms plus their own; admins see everything; read-only users see shared firearms only. Each firearm requires either a community-curated `firearm_model_id` or a free-form `custom_model_name` (CHECK constraint), plus `firearm_type` (`pistol` / `rifle` / `shotgun` / `other`), `caliber_id`, and `manufacturer_id` (which must be flagged with `firearm` in its `types`).
-- **Firearm log.** Per-firearm event log with three event types: `cleaning` (resets `rounds_since_clean`, updates `last_cleaned_at`), `service` (gunsmith trips, parts replacement), and `note` (free-form milestones). Editing or deleting a log entry triggers recalculation of the firearm's denormalized cleaning state from the full log history. Backdated entries supported with user-overridable `rounds_at_event`; default is a snapshot of current `rounds_lifetime` at insert time.
-- **Service intervals.** Each firearm carries optional `service_interval_rounds` and `service_interval_days` (either, both, or neither). Cleaning status — `ok`, `due_soon` (≥80% of either threshold), `overdue` — is computed at read time and exposed on `FirearmRead` for dashboard widget consumption.
-- **Compliance and personal tag links.** Many-to-many between firearms and `firearm_compliance_tags` (multi-select, community + user-extensible) and `firearm_user_tags` (per-user, colored). Tag links replaced wholesale on PATCH when the corresponding `*_tag_ids` array is supplied.
-- **Filters on `GET /firearms`.** `firearm_type`, `manufacturer_id`, `caliber_id`, `cleaning_status` (computed in Python after enrichment), `compliance_tag_id`, `user_tag_id`.
+### Added — Range sessions
 
-- **Firearms page (`/firearms`).** Browse, search, and filter firearms with the same card-grid / list-view toggle as the Products page. Filter by manufacturer, caliber, firearm type, and cleaning status. Per-card cleaning status indicator (green / amber / red) shows at-a-glance maintenance state. View mode, filter selections, and sort order persist to localStorage.
-- **Firearm detail page (`/firearms/:id`).** Three tabs — Overview (full specs + cleaning state + tags + notes), Log (cleaning / service / note history with per-entry edit and delete), and Sessions (placeholder until range sessions ship). Header has Edit and Delete actions, gated by RBAC.
-- **Add / Edit Firearm drawer** with cascading Manufacturer → Model dropdowns. Picking a catalog model auto-fills caliber and action type (only when those fields are empty — never overrides user input). Custom model names supported for guns not in the catalog. Sections cover identity, physical specs, acquisition, service intervals, compliance and personal tags, sharing (admin only), and notes.
-- **Compliance Tag Picker** — multi-select grouped by jurisdiction (Federal, NFA, CA, NY, MA, NJ, Other, Custom). Inline "+ Add Custom Compliance Tag" for categories the community list doesn't yet cover. One-time disclaimer surfaces on first open: tags are community-maintained, AmmoLedger does not provide legal advice.
-- **Personal Tag Picker** — per-user colored tags (Carry, Heirloom, Range Only, etc.) with 8-color preset palette. Tags are managed inline in the picker — create with name + color, delete with confirmation; no separate admin page.
-- **Log Event dialog** for cleaning, service, and note entries. Backdated entries supported with overridable `rounds_at_event` (defaults to current lifetime count). Editing or deleting a cleaning log entry triggers backend recalculation of the firearm's denormalized cleaning state.
-- **Sidebar Firearms entry** between Products and At Range, with a custom firearm SVG icon matching the existing CartridgeIcon style.
+- **Range sessions (`/range`).** Multi-line range day log: each line ties an optional firearm to an optional ammo box with rounds fired. At least one line per session; at least one of firearm or box per line. Lines may set `rounds_fired = 0` for dry-fire entries paired with a firearm.
+- **Atomic ammo deduction + firearm counter increment.** Range sessions deduct `qty_remaining` from ammo boxes through the existing `expenditure_log` table — no parallel deduction path, no risk of drift. Firearm `rounds_lifetime` and `rounds_since_clean` increment in the same transaction.
+- **Reversible mutations.** Editing or deleting a session or any line reverses every side effect: ammo restored, firearm counters decremented (clamped at 0), expenditure log rows removed. The session detail page previews the exact reversal before deletion so you know what will change. PATCH on a line is implemented as reverse-then-apply so firearm/box swaps net out correctly.
+- **Atomic multi-line create.** A two-line POST whose second line overdraws its box rolls back the entire transaction — no partial state, no orphan session row, no stranded log entries.
+- **Caliber-match awareness.** The Log Range Day dialog highlights ammo boxes matching the line's firearm caliber (with a "Match" badge) and warns (non-blockingly) on caliber mismatch — useful for sub-caliber adapters but obvious when accidental.
+- **Range Sessions tab on each firearm.** Per-firearm session history and rounds-through-this-firearm totals computed in a single grouped query, no N+1 fetching.
+- **Range session detail page (`/range-sessions/:id`).** Full session view with per-line table, click-through navigation to involved firearms and ammo boxes, and a destructive-action-aware delete confirmation.
 
-- **Range Sessions API.** Full CRUD at `/range-sessions` with multi-line sessions tying firearms to ammo boxes. Each line optionally references a firearm, optionally references an ammo box, and records rounds fired. At least one line per session; at least one of firearm or box per line. Lines may set `rounds_fired = 0` (e.g. dry-fire entries paired with a firearm).
-- **Atomic ammo deduction + firearm counter increment.** Range session lines deduct `ammo_box.qty_remaining` through the existing `expenditure_log` table — no parallel deduction path. Firearm `rounds_lifetime` and `rounds_since_clean` increment in the same transaction. New `expenditure_log.range_session_line_id` FK provides a bidirectional audit link so deletion or PATCH of a line can cleanly reverse the deduction.
-- **Reversible mutations.** Editing or deleting a session or line reverses every side effect: ammo restored, firearm counters decremented (clamped at 0), expenditure log rows removed. Members can edit / delete their own sessions; admins can edit / delete any session. PATCH on a line is implemented as reverse-then-apply so firearm/box swaps net out correctly.
-- **Atomic multi-line POST.** A two-line session whose second line overdraws its box rolls back the entire transaction — no partial state, no orphan session row, no stranded log entries.
-- **Line-level endpoints.** `POST /range-sessions/:id/lines`, `PATCH /range-sessions/:id/lines/:line_id`, `DELETE /range-sessions/:id/lines/:line_id` for incremental line changes after a session is created. Session header (`date`, `location_name`, `notes`, `is_shared`) is updated separately via `PATCH /range-sessions/:id` to avoid ambiguity over what a header PATCH does to lines. Deleting the last line of a session is rejected (delete the session instead).
-- **Cross-firearm visibility into shared sessions.** Sessions with `is_shared=True` are visible to all members; only admins can create shared sessions. A member can fire from a shared ammo box even if they don't own it, matching existing `/ammo/{id}/expend` semantics.
-- **Filter `GET /range-sessions` by firearm.** `?firearm_id=N` returns sessions with at least one line referencing the firearm. Optional `?after=` / `?before=` date filters and `?limit=` (default 50, max 200).
+### Added — Dashboard
 
-- **Range page (`/range`).** Sidebar entry for browsing past range days. Filter by firearm, date range, and sort. Per-card summary of date, location, total rounds, distinct firearms, distinct boxes, and owner. Click-through to per-session detail. Stats bar surfaces sessions logged, 90-day round total, most-used firearm, and most-used caliber.
-- **Log Range Day dialog.** Multi-line session entry with cascading firearm and ammo box pickers per line. Box picker prioritizes ammo matching the selected firearm's caliber (with a "Match" badge); non-matching boxes are still available with a non-blocking caliber-mismatch warning. Atomic single-POST create for new sessions; diff-based PATCH/POST/DELETE for edits.
-- **Range session detail page (`/range-sessions/:id`).** Full session view with per-line table, click-through navigation to involved firearms and ammo boxes, and a destructive-action-aware delete confirmation that previews exactly which ammo box quantities and firearm counters will be restored.
-- **Log Range Day entry points** on the Range page and the Firearms page. (Dashboard quick-action entry deferred to P5 to land alongside the dashboard's Recent Sessions widget.)
+- **Firearms Needing Service widget** — overdue (red) and due-soon (amber) firearms with the specific reason (rounds-based or time-based interval breach) and an inline "Log Cleaning" quick-action. Hidden when no firearms need attention.
+- **Recent Range Sessions widget** — last 5 sessions visible to the user, with a "View All" link to `/range`.
+- **Quick Actions row** — "+ Log Range Day", "+ Add Firearm", "+ Add Ammo Box" shortcuts on the dashboard (hidden for read-only users).
 
-- **Sessions tab on firearm detail page** — populated from `GET /range-sessions?firearm_id=`. Per-firearm stats (total sessions, total rounds through this firearm, first / most recent session date), per-session rows showing the rounds fired by THIS firearm in each session, click-through to full session detail.
-- **Recent Range Sessions dashboard widget** — last 5 sessions visible to the user, with a "View All" link to `/range`.
-- **Cleaning / Service Due dashboard widget** — firearms grouped by Overdue (red) and Due Soon (amber) status, with the specific reason (rounds-based or time-based interval breach) and a "Log Cleaning" quick-action that opens the firearm log dialog with event_type pre-set to Cleaning. Hidden when no firearms need attention.
-- **Dashboard Quick Actions** — "+ Log Range Day", "+ Add Firearm", "+ Add Ammo Box" shortcuts (hidden for read-only users).
+### Added — Lookups & admin
+
+- **`manufacturers.types` column.** A single manufacturers table now serves ammo and firearm domains, distinguished by a JSON array on each row (`["ammo"]`, `["firearm"]`, or both). Existing manufacturers backfilled to ammo-only; firearm-only manufacturers like Glock seed as firearm-only; shared manufacturers like Federal or Sig Sauer carry both.
+- **New community lookups.** Firearm Models, Action Types (~11 seeded), and Compliance Tags (~12 seeded), each with the same community-curated source / community_key / is_imported pattern as the existing manufacturer and caliber lookups.
+- **Admin pages.** Manage Firearm Models, Action Types, and Compliance Tags alongside the existing Manufacturers / Calibers admin pages. Manufacturers admin gets a Type column (Ammo / Firearm checkboxes) for explicit type assignment.
+- **Lookup endpoint extensions.** `GET /lookups/manufacturers?type=ammo|firearm` filter; new `GET /lookups/firearm-models` (with `?manufacturer_id=` for cascading dropdowns), `/firearm-action-types`, `/firearm-compliance-tags`, and per-user `/firearm-user-tags`.
+
+### Added — Exports
+
+- **Firearms CSV export** at `GET /firearms/export/csv` plus an Export CSV button on the Firearms list toolbar. One row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter (members see own + shared, read-only sees shared only).
+- **Range sessions CSV export** at `GET /range-sessions/export/csv` plus an Export CSV button on the Range page toolbar. One row per line, denormalized for spreadsheet pivot tables — session-level fields (date, location, notes, owner) repeat across the lines of one session.
 
 ### Changed
 
-- **`manufacturers.types` JSON column added.** Existing rows backfilled to `["ammo"]`. No change to the `/lookups/manufacturers` default response shape; the `types` field is additive, and unfiltered callers see all manufacturers regardless of domain.
-- **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, plus the P1b `firearms`, `firearm_log`, `firearm_compliance_tag_links`, and `firearm_user_tag_links` tables, plus the P3 `range_sessions` and `range_session_lines` tables. The export order now places `expenditure_log` after `range_session_lines` to satisfy the new `expenditure_log.range_session_line_id` FK on restore. Schema-migration validation continues to require an exact match against the current Alembic head.
-- **`expenditure_log` extended** with optional `range_session_line_id` FK. Pre-existing expenditures (logged via `/ammo/:id/expend`) leave this NULL. Session-driven rows set it so reversal queries on the link.
-- **Sidebar layout** updated to include the Firearms entry between Products and At Range. No other sidebar entries moved.
-- **`GET /range-sessions` list response extended** with optional `rounds_for_filter_firearm` field, populated when the `firearm_id` query parameter is set. Powers the per-firearm rounds total on the firearm detail Sessions tab without an N+1 fetch loop on the frontend.
-- **`GET /firearms?cleaning_status=` accepts comma-separated values** — e.g. `?cleaning_status=due_soon,overdue` returns both buckets in one request. Single-value filtering still works.
+- **`expenditure_log` extended** with optional `range_session_line_id` FK to the new `range_session_lines` table, providing a bidirectional audit trail for session-driven ammo expenditures. Pre-existing expenditures (logged via `/ammo/:id/expend` or At Range) leave this column NULL.
+- **`GET /firearms?cleaning_status=` accepts comma-separated values** for fetching multiple status buckets in one request — e.g. `?cleaning_status=due_soon,overdue`. Single-value filtering still works. Used by the dashboard Firearms Needing Service widget.
+- **`GET /range-sessions?firearm_id=` response extended** with `rounds_for_filter_firearm` so the firearm-detail Sessions tab can show per-session rounds totals without an N+1 fetch loop.
+- **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, the `firearms`, `firearm_log`, and the two firearm tag-link tables, plus `range_sessions` and `range_session_lines`. The export order now places `expenditure_log` after `range_session_lines` to satisfy the new FK on restore. Schema-migration validation continues to require an exact match against the current Alembic head.
+- **PRD §6.7 duplicate-heading bug fixed.** The Range Sessions schema block was previously numbered as a second `### 6.7`; it's now correctly sequenced. PRD §10.3 renamed from "Cleaning Reminders" to reflect the generalized firearm log model.
+- **Sidebar layout** updated to include Firearms (between Products and At Range) and Range (between Firearms and At Range), with a custom firearm SVG icon matching the CartridgeIcon precedent and Lucide's Target icon for Range.
+
+### Database migrations
+
+- `0002_add_firearm_lookups.py` — adds `manufacturers.types`, `firearm_models`, `firearm_action_types`, `firearm_compliance_tags`, `firearm_user_tags`. Backfills existing manufacturers to `["ammo"]`.
+- `0003_add_firearms.py` — adds `firearms`, `firearm_log`, and the two tag-link tables. CHECK constraint enforces "either `firearm_model_id` or `custom_model_name` set."
+- `0004_add_range_sessions.py` — adds `range_sessions`, `range_session_lines`, and the `expenditure_log.range_session_line_id` column.
 
 ### Deferred
 
-- **Target photo uploads on range session lines.** No `target_photo` column was added in this migration. The upload UI, image storage, and image management screens land in a future release; a follow-on migration will add the column at that time.
+The following items were deliberately scoped out of this release and remain on the roadmap:
+
+- **Multi-caliber firearms.** v1 firearms have a single caliber FK plus a free-text `caliber_notes` field for the workaround. A `firearm_calibers` join table will be added in a future migration without renaming the existing column.
+- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet; future migration adds it when the feature ships.
+- **Firearms CSV import.** Export-only in v1. Import will follow the existing CSV import validate/preview/confirm pattern used for ammo, but is not in this release.
+- **Accessories module** (PRD v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
+- **At Range / Range workflow merge.** The mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.
+- **Additional community lookups.** Sight types, finishes, and other taxonomies are currently free-text on firearms. They become candidates for community lookups based on user feedback.
 
 ## [0.2.3] — 2026-05-09
 

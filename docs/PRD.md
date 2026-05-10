@@ -68,6 +68,7 @@
 | 3.27 | 2026-05-09 | Range Sessions P3 — backend API for multi-line range sessions. Migration `0004_add_range_sessions.py` adds `range_sessions` and `range_session_lines` plus a new `expenditure_log.range_session_line_id` FK that bidirectionally links session-driven deductions to the line that created them. New `/range-sessions` router exposes full CRUD with atomic multi-line POST, line-level POST/PATCH/DELETE, and full reversal of side effects on session/line deletion or PATCH (ammo restored via the existing `expenditure_log` table — no parallel deduction path; firearm `rounds_lifetime` and `rounds_since_clean` decremented, clamped at 0). RBAC mirrors firearms/ammo: admins can create shared sessions; members can fire from shared boxes (matches `/ammo/{id}/expend` semantics). Backup/restore extended to cover the two new tables; export order updated so `expenditure_log` inserts after `range_session_lines` to satisfy the new FK. PRD §6.15 schema block synced; §10.2 rewritten to match the implementation (target photos remain deferred). Frontend lands in P4. |
 | 3.28 | 2026-05-09 | Range Sessions P4 — frontend UI on top of the P3 backend. New `/range` list page (date / firearm / sort filters, "Load more" pagination, stats bar showing sessions logged, 90-day round total, most-used firearm and caliber). New `/range-sessions/:id` detail page with line table (click-through to firearm detail and ammo page) and a destructive delete confirmation that previews the exact reversal — which boxes will be credited rounds back and which firearms will be decremented. New shared `LogRangeDayDialog` modal (used from /range, /firearms, and /range-sessions/:id) handles both create and edit. Create issues a single atomic POST. Edit diffs the line state and emits the minimal PATCH / POST / DELETE set with progress feedback for sessions with many lines; ordering is "POST new → PATCH modified → DELETE removed" so the session never temporarily drops below one line. Per-line validation enforces "at least one of firearm/box" and "rounds_fired ≤ qty_remaining"; box picker prioritizes caliber matches with a Match badge; mismatches surface a non-blocking warning so sub-caliber adapters and edge cases aren't blocked. Sidebar gets a Range entry (Lucide Target icon) between Firearms and At Range; the At Range page is unchanged in this phase. Frontend `rangeSessions.ts` API client and matching types added (these were not shipped in P3). The dashboard "Quick Action" entry point and the Sessions tab content on the firearm detail page are deferred to P5. |
 | 3.29 | 2026-05-09 | Firearms P5 — cross-cutting integration. Sessions tab on `/firearms/:id` is now real — lists every range session involving the firearm with per-session rounds total scoped to THIS firearm specifically, computed via a single grouped query on the backend (new `rounds_for_filter_firearm` field on `RangeSessionListItem`, populated only when `GET /range-sessions?firearm_id=N` is set; avoids any frontend N+1). Dashboard gets two new widgets: Recent Range Sessions (last 5, with View All link to /range) and Firearms Needing Service (overdue + due-soon grouped, with the rounds-based or time-based reason text and a Log Cleaning quick-action that opens the firearm log dialog pre-set to Cleaning; hidden when no firearms need attention). New Quick Actions row on the dashboard exposes Log Range Day, Add Firearm, Add Ammo Box (hidden for read-only users). `GET /firearms?cleaning_status=` now accepts comma-separated values (e.g. `?cleaning_status=due_soon,overdue`) so the cleaning widget fetches both buckets in one request; single-value filtering still works. §10.1, §10.2, §10.3 implementation reference. |
+| 3.30 | 2026-05-09 | Firearms P6 — closing-the-loop polish for v0.3.0. Added firearms CSV export at `GET /firearms/export/csv` (one row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter) plus an Export CSV button on the Firearms list page. Added range sessions CSV export at `GET /range-sessions/export/csv` (denormalized, one row per line) plus an Export CSV button on the Range page. §10.1, §10.2, §10.3 version annotations updated from "(v2.0)" to "(v0.3.0 — shipped)". §6.7 heading similarly updated. New §10.8 Deferred subsection consolidates roadmap items deliberately scoped out of v0.3.0 (multi-caliber firearms, target photo uploads, firearms CSV import, accessories module, At Range / Range workflow merge, additional community lookups). |
 
 ---
 
@@ -495,7 +496,7 @@ Current keys written by the application:
 | --- | ---------- | ------- |
 | defaults_version | startup sync | Last successfully synced defaults.yaml version |
 
-### 6.7 Firearms (v2.0)
+### 6.7 Firearms (v0.3.0)
 
 The firearms feature is built up across a small number of phases:
 
@@ -2038,7 +2039,9 @@ Returns `history_id` (int). The caller fetches the record from DB in its own ses
 
 ## 10. Future Feature Specifications
 
-### 10.1 Firearms Registry (v2.0)
+### 10.1 Firearms Registry (v0.3.0 — shipped)
+
+Shipped in v0.3.0 across phases P1a (lookups), P1b (registry + log), P2 (frontend), and P5 (cross-cutting integration).
 
 - Track owned firearms with the same `owner_id` + `is_shared` model as ammo boxes (Admin sees all; Members see shared + their own; Read-Only sees shared only)
 - Either a community-curated `firearm_model_id` OR a free-form `custom_model_name` is required (CHECK constraint)
@@ -2047,9 +2050,12 @@ Returns `history_id` (int). The caller fetches the record from DB in its own ses
 - `cleaning_status` (`ok` | `due_soon` | `overdue`) is computed at read time from those intervals plus `rounds_since_clean` and `last_cleaned_at`. `due_soon` triggers at ≥80% of either threshold; missing `last_cleaned_at` with a `service_interval_days` set is treated as overdue (never cleaned)
 - Firearm log generalizes the original "cleaning event" into three event types — `cleaning` (resets the cleaning snapshot), `service` (gunsmith / parts), and `note` (free-form milestones)
 - Editing or deleting a firearm log entry recalculates `last_cleaned_at` and `rounds_since_clean` from the full log history — denormalized snapshots never drift from the source of truth
-- Lifetime round count is updated by range sessions (P3)
+- Lifetime round count is updated by range sessions (P3) — atomic with the ammo deduction
+- CSV export at `GET /firearms/export/csv` — one row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter (P6)
 
-### 10.2 Range Sessions (v0.3.0 — P3 backend, P4+ frontend)
+### 10.2 Range Sessions (v0.3.0 — shipped)
+
+Shipped in v0.3.0 across phases P3 (backend), P4 (frontend), P5 (cross-cutting integration), and P6 (CSV export).
 
 - Log a session: date, location name (free text), notes, `is_shared` flag.
 - Multi-line per session — at least one line required. Each line has an
@@ -2070,12 +2076,15 @@ Returns `history_id` (int). The caller fetches the record from DB in its own ses
   don't own it (matches existing `/ammo/{id}/expend` semantics).
 - The at-range page (mobile quick-expend, §8.18) and Range Sessions
   remain separate workflows; they are not unified in v0.3.0.
+- CSV export at `GET /range-sessions/export/csv` — denormalized one row
+  per line; session-level fields (date, location, notes, owner) repeat
+  across the lines of one session (P6).
 - Attach target photos to a session line (stored in `/data/uploads/`) —
   **deferred**, no schema column yet.
 
-### 10.3 Firearm Maintenance Log (v2.0)
+### 10.3 Firearm Maintenance Log (v0.3.0 — shipped)
 
-Generalizes "cleaning reminders" from the original spec — the underlying table is `firearm_log`, the dashboard widget reads it.
+Generalizes "cleaning reminders" from the original spec — the underlying table is `firearm_log`, the dashboard widget reads it. Shipped in v0.3.0 alongside the firearms registry; previous versions of this PRD called this section "Cleaning Reminders" and tagged it for v2.0.
 
 - Set service interval per firearm: round count threshold and/or calendar interval (either, both, or neither)
 - Dashboard widget (P5) lists firearms whose `cleaning_status` is `due_soon` or `overdue`
@@ -2168,6 +2177,17 @@ Quick preset buttons support range use with gloves or in poor lighting condition
 3. Choose label size (defaults to last-used preference)
 4. Preview labels before printing
 5. Download as PDF or send directly to the browser print dialog
+
+### 10.8 Deferred from v0.3.0 firearms / range release
+
+The following items were deliberately scoped out of the v0.3.0 firearms + range work and remain on the roadmap:
+
+- **Multi-caliber firearms.** v0.3.0 firearms have a single `caliber_id` FK plus a free-text `caliber_notes` field. A `firearm_calibers` join table will be added in a future migration without renaming the existing column. (See also §6.7.2.)
+- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet. The upload UI, image storage, and image management screens land in a future migration when the feature ships. (See also §6.7.2.)
+- **Firearms CSV import.** Export-only in v0.3.0. Import will follow the existing CSV import validate/preview/confirm pattern used for ammo, but is not in this release.
+- **Accessories module** (§10.6 / v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
+- **At Range / Range workflow merge.** The mobile quick-expend page (§8.18 At Range) and the multi-line Range Sessions page (§10.2) remain separate. Future UX research will determine whether to unify them.
+- **Additional community lookups for firearms taxonomies.** Sight types, finishes, and other descriptors are currently free-text on firearms. They become candidates for community lookups based on user feedback.
 
 ---
 

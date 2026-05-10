@@ -15,10 +15,13 @@ Cleaning status (`ok` | `due_soon` | `overdue`) is computed at read time
 from `service_interval_rounds`, `service_interval_days`,
 `rounds_since_clean`, and `last_cleaned_at`.
 """
+import csv
+import io
 from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, or_
 from sqlmodel import Session, select
 
@@ -521,6 +524,93 @@ def create_firearm(
     db.refresh(firearm)
     logger.info("Firearm created: id=%d owner=%d", firearm.id, firearm.owner_id)
     return _enrich_firearm(firearm, db)
+
+
+_CSV_COLUMNS = [
+    "id", "owner_username", "is_shared", "manufacturer", "model",
+    "custom_model_name", "display_model", "firearm_type", "action_type",
+    "caliber", "caliber_notes", "serial", "barrel_length_in", "finish",
+    "purchase_date", "purchase_price", "dealer", "notes", "rounds_lifetime",
+    "rounds_since_clean", "last_cleaned_at", "service_interval_rounds",
+    "service_interval_days", "cleaning_status", "compliance_tags", "user_tags",
+    "created_at", "updated_at",
+]
+
+
+def _build_firearm_csv(
+    firearms: list[Firearm], maps: dict, db: Session, today: date
+) -> bytes:
+    user_ids = {f.owner_id for f in firearms}
+    users_map = {
+        u.id: u.username
+        for u in db.exec(select(User).where(User.id.in_(user_ids))).all()
+    } if user_ids else {}
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=_CSV_COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    for f in firearms:
+        model_name = maps["model"].get(f.firearm_model_id) if f.firearm_model_id else None
+        display_model = model_name or f.custom_model_name or ""
+        compliance_tags = maps["compliance_tags"].get(f.id, [])
+        user_tags = maps["user_tags"].get(f.id, [])
+        writer.writerow({
+            "id": f.id,
+            "owner_username": users_map.get(f.owner_id, ""),
+            "is_shared": str(f.is_shared).lower(),
+            "manufacturer": maps["manufacturer"].get(f.manufacturer_id, ""),
+            "model": model_name or "",
+            "custom_model_name": f.custom_model_name or "",
+            "display_model": display_model,
+            "firearm_type": f.firearm_type or "",
+            "action_type": maps["action"].get(f.action_type_id, "") if f.action_type_id else "",
+            "caliber": maps["caliber"].get(f.caliber_id, ""),
+            "caliber_notes": f.caliber_notes or "",
+            "serial": f.serial or "",
+            "barrel_length_in": f.barrel_length_in if f.barrel_length_in is not None else "",
+            "finish": f.finish or "",
+            "purchase_date": f.purchase_date.isoformat() if f.purchase_date else "",
+            "purchase_price": f.purchase_price if f.purchase_price is not None else "",
+            "dealer": maps["dealer"].get(f.dealer_id, "") if f.dealer_id else "",
+            "notes": f.notes or "",
+            "rounds_lifetime": f.rounds_lifetime,
+            "rounds_since_clean": f.rounds_since_clean,
+            "last_cleaned_at": f.last_cleaned_at.isoformat() if f.last_cleaned_at else "",
+            "service_interval_rounds": f.service_interval_rounds if f.service_interval_rounds is not None else "",
+            "service_interval_days": f.service_interval_days if f.service_interval_days is not None else "",
+            "cleaning_status": _cleaning_status(f, today),
+            "compliance_tags": " | ".join(t.name for t in compliance_tags),
+            "user_tags": " | ".join(t.name for t in user_tags),
+            "created_at": f.created_at.isoformat() if f.created_at else "",
+            "updated_at": f.updated_at.isoformat() if f.updated_at else "",
+        })
+    return output.getvalue().encode("utf-8")
+
+
+@router.get("/export/csv")
+def export_firearms_csv(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    """Export the user's visible firearms as CSV.
+
+    Respects the same visibility filter as GET /firearms (members see own +
+    shared, read-only sees shared only). One row per firearm; multi-value
+    tag fields collapsed to pipe-separated lists.
+    """
+    stmt = _visibility_filter(select(Firearm), user).order_by(Firearm.id)
+    firearms = list(db.exec(stmt).all())
+    maps = _build_firearm_maps(firearms, db)
+    today = date.today()
+    csv_bytes = _build_firearm_csv(firearms, maps, db, today)
+    date_str = datetime.now().strftime("%Y%m%d")
+    filename = f"firearms_{date_str}.csv"
+    logger.info("Firearms CSV export: %d rows for %s", len(firearms), user.email or user.username)
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{firearm_id}", response_model=FirearmRead)

@@ -12,6 +12,7 @@ import {
   Pencil,
   Trash2,
   Target,
+  Download,
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -29,7 +30,7 @@ import DeleteFirearmDialog from '@/components/firearms/DeleteFirearmDialog'
 import LogRangeDayDialog from '@/components/range/LogRangeDayDialog'
 import { UserTagBadge } from '@/components/firearms/UserTagPicker'
 import FirearmIcon from '@/components/icons/FirearmIcon'
-import { listFirearms } from '@/api/firearms'
+import { listFirearms, exportFirearmsCsvUrl } from '@/api/firearms'
 import { getCalibersLookup, getManufacturersByType } from '@/api/lookups'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
@@ -512,6 +513,18 @@ export default function FirearmsListPage() {
               </SelectContent>
             </Select>
           </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              window.location.href = exportFirearmsCsvUrl()
+            }}
+            title="Download all visible firearms as CSV"
+          >
+            <Download className="w-4 h-4 mr-1.5" />
+            Export CSV
+          </Button>
 
           <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
             <button

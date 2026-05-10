@@ -1,4 +1,4 @@
-"""Range Sessions API (P3).
+"""Range Sessions API (P3 + P6 CSV export).
 
 Multi-line range sessions tying firearms to ammo boxes. Each line optionally
 references a firearm and/or an ammo box and records rounds_fired. Side
@@ -25,10 +25,13 @@ existing visibility rules. Following the existing /ammo/:id/expend semantic,
 a member can fire from a shared box even though they cannot otherwise
 modify it.
 """
+import csv
+import io
 from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
@@ -510,6 +513,122 @@ def create_session(
         session.id, session.owner_id, len(payload.lines),
     )
     return _enrich_session(session, db)
+
+
+_CSV_COLUMNS = [
+    "session_id", "session_date", "location", "owner_username", "is_shared",
+    "line_id", "firearm_id", "firearm_display", "ammo_box_id",
+    "ammo_box_display", "caliber", "rounds_fired", "line_notes",
+    "session_notes", "created_at",
+]
+
+
+def _build_session_csv(
+    sessions: list[RangeSession],
+    lines_by_session: dict[int, list[RangeSessionLine]],
+    line_maps: dict,
+    db: Session,
+) -> bytes:
+    user_ids = {s.owner_id for s in sessions}
+    username_map = {
+        u.id: u.username
+        for u in db.exec(select(User).where(User.id.in_(user_ids))).all()
+    } if user_ids else {}
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=_CSV_COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    for s in sessions:
+        lines = lines_by_session.get(s.id, [])
+        if not lines:
+            # Sessions must have at least one line, but be defensive — emit a
+            # single row with empty line columns rather than dropping the session.
+            writer.writerow({
+                "session_id": s.id,
+                "session_date": s.date.isoformat() if s.date else "",
+                "location": s.location_name or "",
+                "owner_username": username_map.get(s.owner_id, ""),
+                "is_shared": str(s.is_shared).lower(),
+                "line_id": "",
+                "firearm_id": "",
+                "firearm_display": "",
+                "ammo_box_id": "",
+                "ammo_box_display": "",
+                "caliber": "",
+                "rounds_fired": "",
+                "line_notes": "",
+                "session_notes": s.notes or "",
+                "created_at": s.created_at.isoformat() if s.created_at else "",
+            })
+            continue
+        for line in lines:
+            firearm_display = _firearm_display_for(
+                line.firearm_id, line_maps["firearm"], line_maps["mfr"], line_maps["model"]
+            )
+            ammo_box_display = _box_display_for(
+                line.ammo_box_id, line_maps["box"], line_maps["cal"], line_maps["mfr"]
+            )
+            box = line_maps["box"].get(line.ammo_box_id) if line.ammo_box_id else None
+            caliber_name = line_maps["cal"].get(box.caliber_id) if box else ""
+            writer.writerow({
+                "session_id": s.id,
+                "session_date": s.date.isoformat() if s.date else "",
+                "location": s.location_name or "",
+                "owner_username": username_map.get(s.owner_id, ""),
+                "is_shared": str(s.is_shared).lower(),
+                "line_id": line.id,
+                "firearm_id": line.firearm_id if line.firearm_id is not None else "",
+                "firearm_display": firearm_display or "",
+                "ammo_box_id": line.ammo_box_id if line.ammo_box_id is not None else "",
+                "ammo_box_display": ammo_box_display or "",
+                "caliber": caliber_name or "",
+                "rounds_fired": line.rounds_fired,
+                "line_notes": line.notes or "",
+                "session_notes": s.notes or "",
+                "created_at": line.created_at.isoformat() if line.created_at else "",
+            })
+    return output.getvalue().encode("utf-8")
+
+
+@router.get("/export/csv")
+def export_sessions_csv(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    """Export visible range sessions as a denormalized CSV (one row per line)."""
+    stmt = _visibility_filter(select(RangeSession), user).order_by(
+        RangeSession.date.desc(), RangeSession.id.desc()
+    )
+    sessions = list(db.exec(stmt).all())
+    if sessions:
+        session_ids = [s.id for s in sessions]
+        all_lines = list(
+            db.exec(
+                select(RangeSessionLine)
+                .where(RangeSessionLine.session_id.in_(session_ids))
+                .order_by(RangeSessionLine.session_id, RangeSessionLine.id)
+            ).all()
+        )
+        lines_by_session: dict[int, list[RangeSessionLine]] = {}
+        for ln in all_lines:
+            lines_by_session.setdefault(ln.session_id, []).append(ln)
+        line_maps = _build_line_lookup_maps(all_lines, db)
+    else:
+        lines_by_session = {}
+        line_maps = {"firearm": {}, "box": {}, "mfr": {}, "cal": {}, "model": {}}
+
+    csv_bytes = _build_session_csv(sessions, lines_by_session, line_maps, db)
+    date_str = datetime.now().strftime("%Y%m%d")
+    filename = f"range_sessions_{date_str}.csv"
+    logger.info(
+        "Range sessions CSV export: %d sessions for %s",
+        len(sessions), user.email or user.username,
+    )
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{session_id}", response_model=RangeSessionRead)

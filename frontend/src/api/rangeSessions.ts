@@ -48,3 +48,5 @@ export const updateRangeSessionLine = (
 
 export const deleteRangeSessionLine = (sessionId: number, lineId: number) =>
   api.delete<void>(`/range-sessions/${sessionId}/lines/${lineId}`)
+
+export const exportRangeSessionsCsvUrl = () => '/api/range-sessions/export/csv'
