@@ -19,7 +19,8 @@
       "Read(//c/ProgramData/**)",
       "PowerShell(docker --version 2>$null)",
       "Bash(docker exec *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git stash *)"
     ]
   },
   "hooks": {
