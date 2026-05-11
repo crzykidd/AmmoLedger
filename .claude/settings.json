@@ -25,7 +25,10 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://127.0.0.1:8000/import/firearms/validate)",
       "Bash(docker compose *)",
       "Bash(docker run *)",
-      "Bash(curl -s http://localhost:8000/firearm-frame-sizes)"
+      "Bash(curl -s http://localhost:8000/firearm-frame-sizes)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s http://localhost:8000/openapi.json)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); paths=[p for p in d['paths'] if 'photo' in p or 'restore' in p]; print\\('\\\\n'.join\\(sorted\\(paths\\)\\)\\)\")"
     ],
     "additionalDirectories": [
       "C:\\projects\\AmmoLedger\\backend\\migrations\\versions"
