@@ -606,7 +606,7 @@ export default function FirearmDetailPage() {
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{heroTitle}</h2>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {firearm.caliber_name && (
-                  <span className="inline-flex items-center rounded-full bg-gold/15 text-gold px-2.5 py-0.5 text-xs font-medium">
+                  <span className="inline-flex items-center rounded-full bg-gold/20 text-gold px-3 py-1 text-sm font-semibold">
                     {firearm.caliber_name}
                   </span>
                 )}
@@ -675,8 +675,9 @@ export default function FirearmDetailPage() {
                 />
               </div>
 
-              {/* Two-column grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+              {/* Detail grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+                <DetailRow label="Caliber" value={firearm.caliber_name} />
                 <DetailRow label="Serial" value={firearm.serial} />
                 <DetailRow
                   label="Barrel length"
@@ -715,20 +716,17 @@ export default function FirearmDetailPage() {
                 />
                 <DetailRow label="Dealer" value={firearm.dealer_name} />
                 <DetailRow
-                  label="Service interval (rounds)"
-                  value={
-                    firearm.service_interval_rounds != null
-                      ? `${firearm.service_interval_rounds.toLocaleString()} rounds`
-                      : null
-                  }
-                />
-                <DetailRow
-                  label="Service interval (days)"
-                  value={
-                    firearm.service_interval_days != null
-                      ? `${firearm.service_interval_days} days`
-                      : null
-                  }
+                  label="Service interval"
+                  value={(() => {
+                    const parts: string[] = []
+                    if (firearm.service_interval_rounds != null) {
+                      parts.push(`${firearm.service_interval_rounds.toLocaleString()} rounds`)
+                    }
+                    if (firearm.service_interval_days != null) {
+                      parts.push(`${firearm.service_interval_days} days`)
+                    }
+                    return parts.length > 0 ? parts.join(' · ') : null
+                  })()}
                 />
               </div>
 
