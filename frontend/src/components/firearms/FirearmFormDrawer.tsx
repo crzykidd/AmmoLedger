@@ -21,13 +21,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { LookupCombobox, type LookupOption } from '@/components/ui/LookupCombobox'
 import { Switch } from '@/components/ui/switch'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -35,6 +29,15 @@ import ComplianceTagPicker from './ComplianceTagPicker'
 import UserTagPicker from './UserTagPicker'
 import { createFirearm, updateFirearm } from '@/api/firearms'
 import {
+  createCalibersEntry,
+  createDealerEntry,
+  createFirearmActionType,
+  createFirearmFinish,
+  createFirearmFrameSize,
+  createFirearmModel,
+  createFirearmOpticCut,
+  createFirearmRailType,
+  createManufacturerWithTypes,
   getCalibersLookup,
   getDealers,
   getFirearmActionTypes,
@@ -225,6 +228,142 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
     enabled: manuId != null,
     staleTime: 60_000,
   })
+
+  // Read-only users see options + source badges but no "+ Create" affordance.
+  const canCreateLookups = user?.role !== 'read_only'
+
+  // Active-only option lists carrying source for the (user) badge.
+  const manufacturersOptions: LookupOption[] = useMemo(
+    () =>
+      manufacturers
+        .filter((m) => m.is_active)
+        .map((m) => ({ id: m.id, name: m.name, source: m.source })),
+    [manufacturers],
+  )
+  const modelsOptions: LookupOption[] = useMemo(
+    () =>
+      models
+        .filter((m) => m.is_active)
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          source: m.source,
+          hint: m.default_caliber_name ? `(${m.default_caliber_name})` : null,
+        })),
+    [models],
+  )
+  const calibersOptions: LookupOption[] = useMemo(
+    () =>
+      calibers
+        .filter((c) => c.is_active)
+        .map((c) => ({ id: c.id, name: c.name, source: c.source })),
+    [calibers],
+  )
+  const actionTypesOptions: LookupOption[] = useMemo(
+    () =>
+      actionTypes
+        .filter((a) => a.is_active)
+        .map((a) => ({ id: a.id, name: a.name, source: a.source })),
+    [actionTypes],
+  )
+  const frameSizesOptions: LookupOption[] = useMemo(
+    () =>
+      frameSizes
+        .filter((f) => f.is_active)
+        .map((f) => ({ id: f.id, name: f.name, source: f.source })),
+    [frameSizes],
+  )
+  const opticCutsOptions: LookupOption[] = useMemo(
+    () =>
+      opticCuts
+        .filter((o) => o.is_active)
+        .map((o) => ({ id: o.id, name: o.name, source: o.source })),
+    [opticCuts],
+  )
+  const railTypesOptions: LookupOption[] = useMemo(
+    () =>
+      railTypes
+        .filter((r) => r.is_active)
+        .map((r) => ({ id: r.id, name: r.name, source: r.source })),
+    [railTypes],
+  )
+  const finishesOptions: LookupOption[] = useMemo(
+    () =>
+      finishes
+        .filter((f) => f.is_active)
+        .map((f) => ({ id: f.id, name: f.name, source: f.source })),
+    [finishes],
+  )
+  const dealersOptions: LookupOption[] = useMemo(
+    () =>
+      dealers
+        .filter((d) => d.is_active)
+        .map((d) => ({ id: d.id, name: d.name, source: d.source })),
+    [dealers],
+  )
+
+  // ---------------------------------------------------------------------
+  // onCreate helpers — fire backend POST, invalidate the matching query
+  // key so the dropdown refreshes, then return the new row to the combobox.
+  // ---------------------------------------------------------------------
+
+  const createManufacturer = async (name: string) => {
+    const created = await createManufacturerWithTypes(name, ['firearm'])
+    await queryClient.invalidateQueries({ queryKey: ['firearm-manufacturers'] })
+    await queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
+  const createModelInline = async (name: string) => {
+    if (manuId == null) {
+      throw new Error('Pick a manufacturer first')
+    }
+    const created = await createFirearmModel({ manufacturer_id: manuId, name })
+    await queryClient.invalidateQueries({ queryKey: ['firearm-models', manuId] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
+  const createCaliberInline = async (name: string) => {
+    const created = await createCalibersEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['calibers'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
+  const createActionTypeInline = async (name: string) => {
+    const created = await createFirearmActionType(name)
+    await queryClient.invalidateQueries({ queryKey: ['firearm-action-types'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
+  const createFrameSizeInline = async (name: string) => {
+    const created = await createFirearmFrameSize(name)
+    await queryClient.invalidateQueries({ queryKey: ['firearm-frame-sizes'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
+  const createOpticCutInline = async (name: string) => {
+    const created = await createFirearmOpticCut(name)
+    await queryClient.invalidateQueries({ queryKey: ['firearm-optic-cuts'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
+  const createRailTypeInline = async (name: string) => {
+    const created = await createFirearmRailType(name)
+    await queryClient.invalidateQueries({ queryKey: ['firearm-rail-types'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
+  const createFinishInline = async (name: string) => {
+    const created = await createFirearmFinish(name)
+    await queryClient.invalidateQueries({ queryKey: ['firearm-finishes'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
+  const createDealerInline = async (name: string) => {
+    const created = await createDealerEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['dealers'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
 
   // Reset / populate on open or when editFirearm changes
   useEffect(() => {
@@ -519,58 +658,39 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
               </h3>
 
               <Field label="Manufacturer" required>
-                <Select value={vals.manufacturer_id} onValueChange={handleManufacturerChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select manufacturer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {manufacturers
-                      .filter((m) => m.is_active)
-                      .map((m) => (
-                        <SelectItem key={m.id} value={String(m.id)}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <LookupCombobox
+                  value={vals.manufacturer_id ? parseInt(vals.manufacturer_id) : null}
+                  options={manufacturersOptions}
+                  onChange={(id) => handleManufacturerChange(id != null ? String(id) : '')}
+                  onCreate={createManufacturer}
+                  placeholder="Select manufacturer"
+                  label="Manufacturer"
+                  disableCreate={!canCreateLookups}
+                  required
+                />
               </Field>
 
               {!vals.use_custom_name && (
                 <Field label="Model" hint="Pick from catalog or check 'Use custom model name' below.">
-                  <Select
-                    value={vals.firearm_model_id || NONE}
-                    onValueChange={handleModelChange}
+                  <LookupCombobox
+                    value={vals.firearm_model_id ? parseInt(vals.firearm_model_id) : null}
+                    options={modelsOptions}
+                    onChange={(id) => handleModelChange(id != null ? String(id) : '')}
+                    onCreate={createModelInline}
+                    placeholder={
+                      !vals.manufacturer_id
+                        ? 'Select manufacturer first'
+                        : modelsOptions.length === 0
+                          ? 'No models in catalog'
+                          : 'Select model'
+                    }
+                    label="Model"
                     disabled={!vals.manufacturer_id}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          !vals.manufacturer_id
-                            ? 'Select manufacturer first'
-                            : models.length === 0
-                              ? 'No models in catalog'
-                              : 'Select model'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>
-                        <span className="text-gray-400">None</span>
-                      </SelectItem>
-                      {models
-                        .filter((m) => m.is_active)
-                        .map((m) => (
-                          <SelectItem key={m.id} value={String(m.id)}>
-                            {m.name}
-                            {m.default_caliber_name && (
-                              <span className="text-gray-400 ml-2">
-                                ({m.default_caliber_name})
-                              </span>
-                            )}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                    disableCreate={!canCreateLookups || !vals.manufacturer_id}
+                    disableCreateReason={
+                      !vals.manufacturer_id ? 'Pick a manufacturer first' : undefined
+                    }
+                  />
                 </Field>
               )}
 
@@ -628,26 +748,15 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
 
               <Field label="Action Type">
                 <div className="relative">
-                  <Select
-                    value={vals.action_type_id || NONE}
-                    onValueChange={(v) => set('action_type_id', v === NONE ? '' : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select action type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>
-                        <span className="text-gray-400">None</span>
-                      </SelectItem>
-                      {actionTypes
-                        .filter((a) => a.is_active)
-                        .map((a) => (
-                          <SelectItem key={a.id} value={String(a.id)}>
-                            {a.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <LookupCombobox
+                    value={vals.action_type_id ? parseInt(vals.action_type_id) : null}
+                    options={actionTypesOptions}
+                    onChange={(id) => set('action_type_id', id != null ? String(id) : '')}
+                    onCreate={createActionTypeInline}
+                    placeholder="Select action type"
+                    label="Action Type"
+                    disableCreate={!canCreateLookups}
+                  />
                   {autofillFlash.action && (
                     <span className="absolute -top-2 right-0 text-xs text-gold flex items-center gap-1 bg-white dark:bg-gray-900 px-1.5">
                       <Sparkles className="w-3 h-3" /> Auto-filled
@@ -658,23 +767,16 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
 
               <Field label="Caliber" required>
                 <div className="relative">
-                  <Select
-                    value={vals.caliber_id}
-                    onValueChange={(v) => set('caliber_id', v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select caliber" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {calibers
-                        .filter((c) => c.is_active)
-                        .map((c) => (
-                          <SelectItem key={c.id} value={String(c.id)}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <LookupCombobox
+                    value={vals.caliber_id ? parseInt(vals.caliber_id) : null}
+                    options={calibersOptions}
+                    onChange={(id) => set('caliber_id', id != null ? String(id) : '')}
+                    onCreate={createCaliberInline}
+                    placeholder="Select caliber"
+                    label="Caliber"
+                    disableCreate={!canCreateLookups}
+                    required
+                  />
                   {autofillFlash.caliber && (
                     <span className="absolute -top-2 right-0 text-xs text-gold flex items-center gap-1 bg-white dark:bg-gray-900 px-1.5">
                       <Sparkles className="w-3 h-3" /> Auto-filled
@@ -726,94 +828,50 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Frame Size">
-                  <Select
-                    value={vals.frame_size_id || NONE}
-                    onValueChange={(v) => set('frame_size_id', v === NONE ? '' : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select frame size" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>
-                        <span className="text-gray-400">None</span>
-                      </SelectItem>
-                      {frameSizes
-                        .filter((f) => f.is_active)
-                        .map((f) => (
-                          <SelectItem key={f.id} value={String(f.id)}>
-                            {f.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <LookupCombobox
+                    value={vals.frame_size_id ? parseInt(vals.frame_size_id) : null}
+                    options={frameSizesOptions}
+                    onChange={(id) => set('frame_size_id', id != null ? String(id) : '')}
+                    onCreate={createFrameSizeInline}
+                    placeholder="Select frame size"
+                    label="Frame Size"
+                    disableCreate={!canCreateLookups}
+                  />
                 </Field>
                 <Field label="Optic Cut">
-                  <Select
-                    value={vals.optic_cut_id || NONE}
-                    onValueChange={(v) => set('optic_cut_id', v === NONE ? '' : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select optic cut" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>
-                        <span className="text-gray-400">None</span>
-                      </SelectItem>
-                      {opticCuts
-                        .filter((o) => o.is_active)
-                        .map((o) => (
-                          <SelectItem key={o.id} value={String(o.id)}>
-                            {o.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <LookupCombobox
+                    value={vals.optic_cut_id ? parseInt(vals.optic_cut_id) : null}
+                    options={opticCutsOptions}
+                    onChange={(id) => set('optic_cut_id', id != null ? String(id) : '')}
+                    onCreate={createOpticCutInline}
+                    placeholder="Select optic cut"
+                    label="Optic Cut"
+                    disableCreate={!canCreateLookups}
+                  />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Rail Type">
-                  <Select
-                    value={vals.rail_type_id || NONE}
-                    onValueChange={(v) => set('rail_type_id', v === NONE ? '' : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select rail type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>
-                        <span className="text-gray-400">None</span>
-                      </SelectItem>
-                      {railTypes
-                        .filter((r) => r.is_active)
-                        .map((r) => (
-                          <SelectItem key={r.id} value={String(r.id)}>
-                            {r.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <LookupCombobox
+                    value={vals.rail_type_id ? parseInt(vals.rail_type_id) : null}
+                    options={railTypesOptions}
+                    onChange={(id) => set('rail_type_id', id != null ? String(id) : '')}
+                    onCreate={createRailTypeInline}
+                    placeholder="Select rail type"
+                    label="Rail Type"
+                    disableCreate={!canCreateLookups}
+                  />
                 </Field>
                 <Field label="Finish">
-                  <Select
-                    value={vals.finish_id || NONE}
-                    onValueChange={(v) => set('finish_id', v === NONE ? '' : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select finish" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>
-                        <span className="text-gray-400">None</span>
-                      </SelectItem>
-                      {finishes
-                        .filter((f) => f.is_active)
-                        .map((f) => (
-                          <SelectItem key={f.id} value={String(f.id)}>
-                            {f.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <LookupCombobox
+                    value={vals.finish_id ? parseInt(vals.finish_id) : null}
+                    options={finishesOptions}
+                    onChange={(id) => set('finish_id', id != null ? String(id) : '')}
+                    onCreate={createFinishInline}
+                    placeholder="Select finish"
+                    label="Finish"
+                    disableCreate={!canCreateLookups}
+                  />
                 </Field>
               </div>
               <Field
@@ -876,26 +934,15 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
                 </Field>
               </div>
               <Field label="Dealer">
-                <Select
-                  value={vals.dealer_id || NONE}
-                  onValueChange={(v) => set('dealer_id', v === NONE ? '' : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select dealer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>
-                      <span className="text-gray-400">None</span>
-                    </SelectItem>
-                    {dealers
-                      .filter((d) => d.is_active)
-                      .map((d) => (
-                        <SelectItem key={d.id} value={String(d.id)}>
-                          {d.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <LookupCombobox
+                  value={vals.dealer_id ? parseInt(vals.dealer_id) : null}
+                  options={dealersOptions}
+                  onChange={(id) => set('dealer_id', id != null ? String(id) : '')}
+                  onCreate={createDealerInline}
+                  placeholder="Select dealer"
+                  label="Dealer"
+                  disableCreate={!canCreateLookups}
+                />
               </Field>
             </section>
 

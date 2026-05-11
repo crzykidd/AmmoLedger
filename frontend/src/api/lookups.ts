@@ -72,6 +72,21 @@ export const createCalibersEntry = (name: string) =>
 export const createManufacturerEntry = (name: string, url?: string | null) =>
   api.post<ManufacturerItem>('/manufacturers', { name, url })
 
+/**
+ * Inline create from a form drawer: pass the form's domain context so the
+ * new manufacturer is scoped correctly (firearm forms create firearm-typed
+ * manufacturers, ammo forms create ammo-typed). The backend types validator
+ * accepts either a JSON-encoded string or a raw array — we send the array.
+ */
+export const createManufacturerWithTypes = (
+  name: string,
+  types: ManufacturerDomain[],
+) =>
+  api.post<ManufacturerItem>('/manufacturers', {
+    name,
+    types: JSON.stringify(types),
+  })
+
 export const createAmmoTypeEntry = (name: string) =>
   api.post<LookupItem>('/ammo-types', { name })
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -8,6 +8,16 @@ import { CalendarIcon, Package, Search, X } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
 import { createAmmo, updateAmmo } from '@/api/ammo'
 import { createProduct, getProduct, getProductImageUrl, listProducts } from '@/api/products'
+import {
+  createAmmoConditionEntry,
+  createAmmoTypeEntry,
+  createCalibersEntry,
+  createCategoryEntry,
+  createContainerEntry,
+  createDealerEntry,
+  createLocationEntry,
+  createManufacturerWithTypes,
+} from '@/api/lookups'
 import { toast } from '@/hooks/use-toast'
 import {
   Sheet,
@@ -35,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { LookupCombobox, type LookupOption } from '@/components/ui/LookupCombobox'
 import { Switch } from '@/components/ui/switch'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -157,18 +168,23 @@ function Field({
   )
 }
 
-interface SelectFieldProps {
+interface LookupFieldProps {
   label: string
   help?: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
   error?: string
-  items: { id: number; name: string }[]
-  optional?: boolean
+  items: { id: number; name: string; is_active: boolean; source?: string | null }[]
+  required?: boolean
+  /** Hide the "+ Create" affordance (read-only role). */
+  disableCreate?: boolean
+  onCreate?: (
+    name: string,
+  ) => Promise<{ id: number; name: string; source?: string | null }>
 }
 
-function SelectField({
+function LookupField({
   label,
   help,
   value,
@@ -176,29 +192,29 @@ function SelectField({
   placeholder,
   error,
   items,
-  optional,
-}: SelectFieldProps) {
+  required,
+  disableCreate,
+  onCreate,
+}: LookupFieldProps) {
+  const options = useMemo<LookupOption[]>(
+    () =>
+      items
+        .filter((item) => item.id != null && item.id !== 0 && item.is_active)
+        .map((item) => ({ id: item.id, name: item.name, source: item.source ?? null })),
+    [items],
+  )
   return (
     <Field label={label} help={help} error={error}>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue placeholder={placeholder ?? `Select ${label.toLowerCase()}`} />
-        </SelectTrigger>
-        <SelectContent>
-          {optional && (
-            <SelectItem value="__none__">
-              <span className="text-gray-400">None</span>
-            </SelectItem>
-          )}
-          {items
-            .filter((item) => item.id != null && item.id !== 0)
-            .map((item) => (
-              <SelectItem key={item.id} value={String(item.id)}>
-                {item.name}
-              </SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
+      <LookupCombobox
+        value={value && value !== NONE ? parseInt(value) : null}
+        options={options}
+        onChange={(id) => onChange(id != null ? String(id) : '')}
+        onCreate={onCreate}
+        placeholder={placeholder ?? `Select ${label.toLowerCase()}`}
+        label={label}
+        required={required}
+        disableCreate={disableCreate}
+      />
     </Field>
   )
 }
@@ -357,6 +373,47 @@ export default function AmmoFormPanel({
 }: Props) {
   const queryClient = useQueryClient()
   const isEdit = editBox != null
+  const canCreateLookups = user.role !== 'read_only'
+
+  // Inline-create handlers. Each one POSTs the new entry, invalidates the
+  // relevant cache key so the dropdown picks up the row immediately, and
+  // returns it to the combobox for selection. Errors propagate so the
+  // combobox can show them inline.
+  const createCaliberInline = async (name: string) => {
+    const created = await createCalibersEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['calibers'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createManufacturerInline = async (name: string) => {
+    const created = await createManufacturerWithTypes(name, ['ammo'])
+    await queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createAmmoTypeInline = async (name: string) => {
+    const created = await createAmmoTypeEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['ammo-types'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createAmmoConditionInline = async (name: string) => {
+    const created = await createAmmoConditionEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['ammo-conditions'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createCategoryInline = async (name: string) => {
+    const created = await createCategoryEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['categories'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createLocationInline = async (name: string) => {
+    const created = await createLocationEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['locations'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createContainerInline = async (name: string) => {
+    const created = await createContainerEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['containers'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
 
   // Product selector state — only relevant in add mode
   const [productMode, setProductMode] = useState<'selector' | 'manual'>('selector')
@@ -619,13 +676,16 @@ export default function AmmoFormPanel({
               name="caliber_id"
               control={control}
               render={({ field }) => (
-                <SelectField
+                <LookupField
                   label="Caliber *"
                   help="The cartridge size (e.g. 9mm Luger, .223 Remington, 12 Gauge)"
                   value={field.value}
                   onChange={field.onChange}
                   items={calibers}
                   error={errors.caliber_id?.message}
+                  required
+                  disableCreate={!canCreateLookups}
+                  onCreate={createCaliberInline}
                 />
               )}
             />
@@ -634,13 +694,16 @@ export default function AmmoFormPanel({
               name="manufacturer_id"
               control={control}
               render={({ field }) => (
-                <SelectField
+                <LookupField
                   label="Manufacturer *"
                   help="The brand that made the ammunition"
                   value={field.value}
                   onChange={field.onChange}
                   items={manufacturers}
                   error={errors.manufacturer_id?.message}
+                  required
+                  disableCreate={!canCreateLookups}
+                  onCreate={createManufacturerInline}
                 />
               )}
             />
@@ -707,14 +770,15 @@ export default function AmmoFormPanel({
               name="type_id"
               control={control}
               render={({ field }) => (
-                <SelectField
+                <LookupField
                   label="Type"
                   help="Bullet type (e.g. FMJ, JHP, Slug, Shot)"
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   items={ammoTypes}
-                  optional
                   error={errors.type_id?.message}
+                  disableCreate={!canCreateLookups}
+                  onCreate={createAmmoTypeInline}
                 />
               )}
             />
@@ -723,14 +787,15 @@ export default function AmmoFormPanel({
               name="ammo_condition_id"
               control={control}
               render={({ field }) => (
-                <SelectField
+                <LookupField
                   label="Condition"
                   help="Production origin — Factory New, Remanufactured, Military Surplus, etc."
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   items={ammoConditions}
-                  optional
                   error={errors.ammo_condition_id?.message}
+                  disableCreate={!canCreateLookups}
+                  onCreate={createAmmoConditionInline}
                 />
               )}
             />
@@ -739,14 +804,15 @@ export default function AmmoFormPanel({
               name="category_id"
               control={control}
               render={({ field }) => (
-                <SelectField
+                <LookupField
                   label="Category"
                   help="Intended use (e.g. Defense, Target / Range, Hunting)"
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   items={categories}
-                  optional
                   error={errors.category_id?.message}
+                  disableCreate={!canCreateLookups}
+                  onCreate={createCategoryInline}
                 />
               )}
             />
@@ -804,13 +870,14 @@ export default function AmmoFormPanel({
               name="location_id"
               control={control}
               render={({ field }) => (
-                <SelectField
+                <LookupField
                   label="Location"
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   items={locations}
-                  optional
                   error={errors.location_id?.message}
+                  disableCreate={!canCreateLookups}
+                  onCreate={createLocationInline}
                 />
               )}
             />
@@ -819,13 +886,14 @@ export default function AmmoFormPanel({
               name="container_id"
               control={control}
               render={({ field }) => (
-                <SelectField
+                <LookupField
                   label="Container"
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   items={containers}
-                  optional
                   error={errors.container_id?.message}
+                  disableCreate={!canCreateLookups}
+                  onCreate={createContainerInline}
                 />
               )}
             />

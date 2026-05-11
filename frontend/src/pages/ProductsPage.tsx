@@ -57,12 +57,18 @@ import {
   uploadProductImage,
 } from '@/api/products'
 import {
+  createAmmoConditionEntry,
+  createAmmoTypeEntry,
+  createCalibersEntry,
+  createCategoryEntry,
+  createManufacturerWithTypes,
   getAmmoConditions,
   getAmmoTypes,
   getCalibersLookup,
   getCategories,
   getManufacturers,
 } from '@/api/lookups'
+import { LookupCombobox, type LookupOption } from '@/components/ui/LookupCombobox'
 import { useAuth } from '@/hooks/useAuth'
 import type {
   LookupItem,
@@ -115,33 +121,35 @@ function LookupSelect({
   onChange,
   items,
   placeholder,
+  onCreate,
+  disableCreate,
 }: {
   label: string
   required?: boolean
   value: string
   onChange: (v: string) => void
-  items: { id: number; name: string; is_active: boolean }[]
+  items: { id: number; name: string; is_active: boolean; source?: string | null }[]
   placeholder?: string
+  onCreate?: (
+    name: string,
+  ) => Promise<{ id: number; name: string; source?: string | null }>
+  disableCreate?: boolean
 }) {
+  const options: LookupOption[] = items
+    .filter((i) => i.is_active)
+    .map((i) => ({ id: i.id, name: i.name, source: i.source ?? null }))
   return (
     <Field label={label} required={required}>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue placeholder={placeholder ?? `Select ${label.toLowerCase()}`} />
-        </SelectTrigger>
-        <SelectContent>
-          {!required && (
-            <SelectItem value="__none__">
-              <span className="text-gray-400">None</span>
-            </SelectItem>
-          )}
-          {items.filter((i) => i.is_active).map((item) => (
-            <SelectItem key={item.id} value={String(item.id)}>
-              {item.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <LookupCombobox
+        value={value && value !== NONE ? parseInt(value) : null}
+        options={options}
+        onChange={(id) => onChange(id != null ? String(id) : '')}
+        onCreate={onCreate}
+        placeholder={placeholder ?? `Select ${label.toLowerCase()}`}
+        label={label}
+        required={required}
+        disableCreate={disableCreate}
+      />
     </Field>
   )
 }
@@ -359,6 +367,34 @@ function ProductFormSheet({
   ammoConditions,
 }: ProductFormSheetProps) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const canCreateLookups = user?.role !== 'read_only'
+
+  const createCaliberInline = async (name: string) => {
+    const created = await createCalibersEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['calibers'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createManufacturerInline = async (name: string) => {
+    const created = await createManufacturerWithTypes(name, ['ammo'])
+    await queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createAmmoTypeInline = async (name: string) => {
+    const created = await createAmmoTypeEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['ammo-types'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createCategoryInline = async (name: string) => {
+    const created = await createCategoryEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['categories'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+  const createAmmoConditionInline = async (name: string) => {
+    const created = await createAmmoConditionEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['ammo-conditions'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
 
   const [vals, setVals] = useState<ProductFormValues>(FORM_DEFAULTS)
   const [originalVals, setOriginalVals] = useState<ProductFormValues>(FORM_DEFAULTS)
@@ -624,6 +660,8 @@ function ProductFormSheet({
               value={vals.caliber_id}
               onChange={(v) => set('caliber_id', v)}
               items={calibers}
+              onCreate={createCaliberInline}
+              disableCreate={!canCreateLookups}
             />
 
             <LookupSelect
@@ -632,6 +670,8 @@ function ProductFormSheet({
               value={vals.manufacturer_id}
               onChange={(v) => set('manufacturer_id', v)}
               items={manufacturers}
+              onCreate={createManufacturerInline}
+              disableCreate={!canCreateLookups}
             />
 
             <Field label="Product Name (sub-brand)">
@@ -673,6 +713,8 @@ function ProductFormSheet({
               value={vals.type_id}
               onChange={(v) => set('type_id', v)}
               items={ammoTypes}
+              onCreate={createAmmoTypeInline}
+              disableCreate={!canCreateLookups}
             />
 
             <LookupSelect
@@ -680,6 +722,8 @@ function ProductFormSheet({
               value={vals.category_id}
               onChange={(v) => set('category_id', v)}
               items={categories}
+              onCreate={createCategoryInline}
+              disableCreate={!canCreateLookups}
             />
 
             <LookupSelect
@@ -687,6 +731,8 @@ function ProductFormSheet({
               value={vals.ammo_condition_id}
               onChange={(v) => set('ammo_condition_id', v)}
               items={ammoConditions}
+              onCreate={createAmmoConditionInline}
+              disableCreate={!canCreateLookups}
             />
 
             <Field label="Default Cost per Round ($)">

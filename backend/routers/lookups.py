@@ -174,12 +174,14 @@ def list_calibers(
 @router.post("/calibers", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
 def create_caliber(
     payload: LookupCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     if db.exec(select(Caliber).where(Caliber.name == payload.name)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Caliber already exists")
     c = Caliber(name=payload.name)
+    if user.role != "admin":
+        c.source = "user"
     db.add(c)
     db.commit()
     db.refresh(c)
@@ -227,7 +229,7 @@ def list_manufacturers(
 @router.post("/manufacturers", response_model=ManufacturerRead, status_code=status.HTTP_201_CREATED)
 def create_manufacturer(
     payload: ManufacturerCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     if db.exec(select(Manufacturer).where(Manufacturer.name == payload.name)).first():
@@ -237,6 +239,8 @@ def create_manufacturer(
         url=payload.url or None,
         types=payload.types,  # already JSON-encoded by the schema validator
     )
+    if user.role != "admin":
+        m.source = "user"
     db.add(m)
     db.commit()
     db.refresh(m)
@@ -288,12 +292,14 @@ def list_ammo_types(
 @router.post("/ammo-types", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
 def create_ammo_type(
     payload: LookupCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     if db.exec(select(AmmoType).where(AmmoType.name == payload.name)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ammo type already exists")
     t = AmmoType(name=payload.name)
+    if user.role != "admin":
+        t.source = "user"
     db.add(t)
     db.commit()
     db.refresh(t)
@@ -316,12 +322,14 @@ def list_ammo_conditions(
 @router.post("/ammo-conditions", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
 def create_ammo_condition(
     payload: LookupCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     if db.exec(select(AmmoCondition).where(AmmoCondition.name == payload.name)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Condition already exists")
     c = AmmoCondition(name=payload.name)
+    if user.role != "admin":
+        c.source = "user"
     db.add(c)
     db.commit()
     db.refresh(c)
@@ -344,12 +352,14 @@ def list_categories(
 @router.post("/categories", response_model=LookupRead, status_code=status.HTTP_201_CREATED)
 def create_category(
     payload: LookupCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     if db.exec(select(Category).where(Category.name == payload.name)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category already exists")
     c = Category(name=payload.name)
+    if user.role != "admin":
+        c.source = "user"
     db.add(c)
     db.commit()
     db.refresh(c)
@@ -372,12 +382,14 @@ def list_dealers(
 @router.post("/dealers", response_model=DealerRead, status_code=status.HTTP_201_CREATED)
 def create_dealer(
     payload: DealerCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     if db.exec(select(Dealer).where(Dealer.name == payload.name)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Dealer already exists")
     d = Dealer(name=payload.name, url=payload.url)
+    if user.role != "admin":
+        d.source = "user"
     db.add(d)
     db.commit()
     db.refresh(d)
@@ -571,7 +583,7 @@ def list_firearm_action_types(
 )
 def create_firearm_action_type(
     payload: FirearmActionTypeCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     name = payload.name.strip()
@@ -580,6 +592,8 @@ def create_firearm_action_type(
     if db.exec(select(FirearmActionType).where(FirearmActionType.name == name)).first():
         raise HTTPException(status_code=409, detail="Action type already exists")
     e = FirearmActionType(name=name)
+    if user.role != "admin":
+        e.source = "user"
     db.add(e)
     db.commit()
     db.refresh(e)
@@ -685,7 +699,7 @@ def list_firearm_models(
 )
 def create_firearm_model(
     payload: FirearmModelCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     name = payload.name.strip()
@@ -716,6 +730,8 @@ def create_firearm_model(
         default_action_type_id=payload.default_action_type_id,
         default_barrel_length_in=payload.default_barrel_length_in,
     )
+    if user.role != "admin":
+        m.source = "user"
     db.add(m)
     db.commit()
     db.refresh(m)
@@ -828,7 +844,7 @@ def list_firearm_compliance_tags(
 )
 def create_firearm_compliance_tag(
     payload: FirearmComplianceTagCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     name = payload.name.strip()
@@ -841,6 +857,8 @@ def create_firearm_compliance_tag(
         description=payload.description,
         jurisdiction=payload.jurisdiction,
     )
+    if user.role != "admin":
+        t.source = "user"
     db.add(t)
     db.commit()
     db.refresh(t)
@@ -1043,7 +1061,7 @@ def list_firearm_frame_sizes(
 )
 def create_firearm_frame_size(
     payload: FirearmFrameSizeCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     name = payload.name.strip()
@@ -1052,6 +1070,8 @@ def create_firearm_frame_size(
     if db.exec(select(FirearmFrameSize).where(FirearmFrameSize.name == name)).first():
         raise HTTPException(status_code=409, detail="Frame size already exists")
     e = FirearmFrameSize(name=name)
+    if user.role != "admin":
+        e.source = "user"
     db.add(e)
     db.commit()
     db.refresh(e)
@@ -1133,7 +1153,7 @@ def list_firearm_optic_cuts(
 )
 def create_firearm_optic_cut(
     payload: FirearmOpticCutCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     name = payload.name.strip()
@@ -1142,6 +1162,8 @@ def create_firearm_optic_cut(
     if db.exec(select(FirearmOpticCut).where(FirearmOpticCut.name == name)).first():
         raise HTTPException(status_code=409, detail="Optic cut already exists")
     e = FirearmOpticCut(name=name)
+    if user.role != "admin":
+        e.source = "user"
     db.add(e)
     db.commit()
     db.refresh(e)
@@ -1223,7 +1245,7 @@ def list_firearm_rail_types(
 )
 def create_firearm_rail_type(
     payload: FirearmRailTypeCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     name = payload.name.strip()
@@ -1232,6 +1254,8 @@ def create_firearm_rail_type(
     if db.exec(select(FirearmRailType).where(FirearmRailType.name == name)).first():
         raise HTTPException(status_code=409, detail="Rail type already exists")
     e = FirearmRailType(name=name)
+    if user.role != "admin":
+        e.source = "user"
     db.add(e)
     db.commit()
     db.refresh(e)
@@ -1313,7 +1337,7 @@ def list_firearm_finishes(
 )
 def create_firearm_finish(
     payload: FirearmFinishCreate,
-    user=Depends(require_role("admin")),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     name = payload.name.strip()
@@ -1322,6 +1346,8 @@ def create_firearm_finish(
     if db.exec(select(FirearmFinish).where(FirearmFinish.name == name)).first():
         raise HTTPException(status_code=409, detail="Finish already exists")
     e = FirearmFinish(name=name)
+    if user.role != "admin":
+        e.source = "user"
     db.add(e)
     db.commit()
     db.refresh(e)

@@ -61,6 +61,12 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Admin pages.** Manage Firearm Models, Action Types, Compliance Tags, plus the four new Frame Sizes / Optic Cuts / Rail Types / Finishes lookups alongside the existing Manufacturers / Calibers admin pages. Manufacturers admin gets a Type column (Ammo / Firearm checkboxes) for explicit type assignment.
 - **Lookup endpoint extensions.** `GET /lookups/manufacturers?type=ammo|firearm` filter; new `GET /lookups/firearm-models` (with `?manufacturer_id=` for cascading dropdowns), `/firearm-action-types`, `/firearm-compliance-tags`, and per-user `/firearm-user-tags`.
 
+### Added — Form UX
+
+- **LookupCombobox** — every form drawer dropdown (firearm form: manufacturer, model, caliber, action type, frame size, optic cut, rail type, finish, dealer; ammo box form: caliber, manufacturer, type, condition, category, location, container; products form: caliber, manufacturer, type, category, condition) gains type-ahead search and an inline "+ Create" affordance when the typed value doesn't match. New entries are marked `source='user'` and surface alongside community entries with a subtle "user" badge for transparency. Inline-created entries never sync to community — local installation only.
+- **Fuzzy-match guard.** Before creating a new entry, a client-side Levenshtein similarity check surfaces likely typos against existing entries ("Did you mean 'Glock'?" when the user typed "Glok"). Threshold matches the CSV importer — distance 1 for short strings (≤ 6 characters on either side), distance 2 otherwise. Users can pick the existing match or proceed with the new value.
+- **Member-role lookup creation.** Members can now create lookup entries inline from any form. Admin governance over PATCH / DELETE / hide remains unchanged — only POST is relaxed. Read-only users see all existing options + source badges but no create affordance.
+
 ### Added — Exports & Imports
 
 - **Firearms CSV export** at `GET /firearms/export/csv` plus an Export CSV button on the Firearms list toolbar. One row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter (members see own + shared, read-only sees shared only).
@@ -79,6 +85,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Changed
 
+- **Every form drawer's lookup `<Select>` is replaced by the new LookupCombobox.** The dropdown UX gains type-ahead filtering and source-badge transparency on all surfaces — the firearm form drawer, the ammo box form, the products form, and the lookups admin selectors. Existing keyboard behavior preserved; the cascading model picker continues to be scoped to the currently-selected manufacturer and disables inline create with an inline hint when no manufacturer is set.
 - **`expenditure_log` extended** with optional `range_session_line_id` FK to the new `range_session_lines` table, providing a bidirectional audit trail for session-driven ammo expenditures. Pre-existing expenditures (logged via `/ammo/:id/expend` or At Range) leave this column NULL.
 - **`backup.trigger` produces zip by default** for v0.3.0+ installations (controllable via `backup.include_photos`). `/backup/list` now surfaces `.zip` files alongside `.db` and `.json` with a new `zip` type badge.
 - **`firearms` CSV export** gains a `photo_count` column. Photo bytes remain out-of-band — they live in the zip backup or are fetched per-firearm via the new photo endpoints.
