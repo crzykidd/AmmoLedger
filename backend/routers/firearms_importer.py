@@ -23,8 +23,12 @@ from models import (
     FirearmActionType,
     FirearmComplianceTag,
     FirearmComplianceTagLink,
+    FirearmFinish,
+    FirearmFrameSize,
     FirearmLog,
     FirearmModel,
+    FirearmOpticCut,
+    FirearmRailType,
     FirearmUserTag,
     FirearmUserTagLink,
     Manufacturer,
@@ -58,20 +62,21 @@ router = APIRouter(prefix="/import/firearms", tags=["firearms_import"])
 
 # All columns the v0.3.0 export produces. Required-ness is enforced by
 # _validate_row, not by column presence; extra columns are silently ignored.
-# TODO(firearms-import-v2): the export shape gained frame_size / optic_cut /
-# rail_type / finish (now FK) / standard_capacity in the v0.3.0 polish pass.
-# Importer still only consumes the original column set — extending it to
-# resolve the new lookup columns is tracked as a follow-up prompt.
 ALL_COLUMNS = {
     "id", "owner_username", "is_shared", "manufacturer", "model",
     "custom_model_name", "display_model", "firearm_type", "action_type",
     "caliber", "caliber_notes", "serial", "barrel_length_in",
     "frame_size", "optic_cut", "rail_type", "finish", "standard_capacity",
-    "purchase_date", "purchase_price", "dealer", "notes", "rounds_lifetime",
-    "rounds_since_clean", "last_cleaned_at", "service_interval_rounds",
-    "service_interval_days", "cleaning_status", "compliance_tags", "user_tags",
-    "created_at", "updated_at",
+    "purchase_date", "purchase_price", "dealer", "notes", "photo_count",
+    "rounds_lifetime", "rounds_since_clean", "last_cleaned_at",
+    "service_interval_rounds", "service_interval_days", "cleaning_status",
+    "compliance_tags", "user_tags", "created_at", "updated_at",
 }
+
+# Derived/system fields — round-trip compatibility: they appear in exports
+# but don't drive import behavior. Surfaces as a header-level warning when
+# present so the user knows the column was ignored.
+SILENT_IGNORE_COLUMNS = {"display_model", "cleaning_status", "photo_count"}
 
 # Single-value lookup columns and their underlying models.
 SINGLE_LOOKUP_COLUMNS = {
@@ -79,6 +84,10 @@ SINGLE_LOOKUP_COLUMNS = {
     "caliber": Caliber,
     "action_type": FirearmActionType,
     "dealer": Dealer,
+    "frame_size": FirearmFrameSize,
+    "optic_cut": FirearmOpticCut,
+    "rail_type": FirearmRailType,
+    "finish": FirearmFinish,
 }
 
 # Cascading lookup: model is scoped under its row's manufacturer.
@@ -92,8 +101,11 @@ MULTI_VALUE_COLUMNS = {
 
 # Community-curated lookups: similarity matches default to "use_existing".
 # user_tags + dealer are user-scoped so they default to "import_new".
-COMMUNITY_FIELDS = {"manufacturer", "caliber", "action_type", "model",
-                    "compliance_tags"}
+COMMUNITY_FIELDS = {
+    "manufacturer", "caliber", "action_type", "model",
+    "frame_size", "optic_cut", "rail_type", "finish",
+    "compliance_tags",
+}
 
 
 def _table_key_for(Model) -> str:
@@ -102,6 +114,10 @@ def _table_key_for(Model) -> str:
         Caliber: "calibers",
         FirearmActionType: "firearm_action_types",
         Dealer: "dealers",
+        FirearmFrameSize: "firearm_frame_sizes",
+        FirearmOpticCut: "firearm_optic_cuts",
+        FirearmRailType: "firearm_rail_types",
+        FirearmFinish: "firearm_finishes",
         FirearmModel: "firearm_models",
         FirearmComplianceTag: "firearm_compliance_tags",
         FirearmUserTag: "firearm_user_tags",
@@ -167,7 +183,7 @@ def _validate_row(row: dict[str, str], row_num: int) -> tuple[list[dict], list[d
             warnings.append({"row": row_num, "field": field,
                              "message": f"{field} is negative — will be set to null"})
 
-    for field in ("rounds_lifetime", "rounds_since_clean",
+    for field in ("rounds_lifetime", "rounds_since_clean", "standard_capacity",
                   "service_interval_rounds", "service_interval_days"):
         v = row.get(field, "").strip()
         if not v:
@@ -519,12 +535,12 @@ async def validate_firearms_import(
     if "id" in headers_lower:
         all_warnings.append({"row": None, "field": "id",
                              "message": "id column found — ignored (every imported row creates a new firearm)"})
-    if "cleaning_status" in headers_lower:
-        all_warnings.append({"row": None, "field": "cleaning_status",
-                             "message": "cleaning_status is derived — ignored on import"})
-    if "display_model" in headers_lower:
-        all_warnings.append({"row": None, "field": "display_model",
-                             "message": "display_model is derived — ignored on import"})
+    for derived_col in sorted(SILENT_IGNORE_COLUMNS):
+        if derived_col in headers_lower:
+            all_warnings.append({
+                "row": None, "field": derived_col,
+                "message": f"{derived_col} is a derived field — ignored on import",
+            })
 
     for i, row in enumerate(rows, start=2):  # row 1 = header
         errs, warns = _validate_row(row, i)
@@ -650,6 +666,28 @@ async def confirm_firearms_import(
             if dealer_raw:
                 dealer_id = _resolve_or_create(import_db, Dealer, dealer_raw)
 
+            # Physical attribute FK columns (v0.3.0 polish). All four share the
+            # FirearmActionType shape — find-or-create with source='user'.
+            frame_size_id: int | None = None
+            fs_raw = _apply_remap(row.get("frame_size", "").strip(), "frame_size", remaps)
+            if fs_raw:
+                frame_size_id = _resolve_or_create(import_db, FirearmFrameSize, fs_raw)
+
+            optic_cut_id: int | None = None
+            oc_raw = _apply_remap(row.get("optic_cut", "").strip(), "optic_cut", remaps)
+            if oc_raw:
+                optic_cut_id = _resolve_or_create(import_db, FirearmOpticCut, oc_raw)
+
+            rail_type_id: int | None = None
+            rt_raw = _apply_remap(row.get("rail_type", "").strip(), "rail_type", remaps)
+            if rt_raw:
+                rail_type_id = _resolve_or_create(import_db, FirearmRailType, rt_raw)
+
+            finish_id: int | None = None
+            fn_raw = _apply_remap(row.get("finish", "").strip(), "finish", remaps)
+            if fn_raw:
+                finish_id = _resolve_or_create(import_db, FirearmFinish, fn_raw)
+
             # Cascading model: resolve scoped to manufacturer
             firearm_model_id: int | None = None
             model_raw = _apply_remap(row.get("model", "").strip(), "model", remaps)
@@ -701,6 +739,11 @@ async def confirm_firearms_import(
             else:
                 rounds_since_clean = min(rsc_parsed, rounds_lifetime)
 
+            sc_raw = row.get("standard_capacity", "").strip()
+            std_cap = _parse_int(sc_raw) if sc_raw else None
+            if std_cap is not None and std_cap < 0:
+                std_cap = None
+
             sir_raw = row.get("service_interval_rounds", "").strip()
             sir = _parse_int(sir_raw) if sir_raw else None
             if sir is not None and sir < 1:
@@ -735,10 +778,11 @@ async def confirm_firearms_import(
                 caliber_notes=row.get("caliber_notes", "").strip() or None,
                 serial=row.get("serial", "").strip() or None,
                 barrel_length_in=barrel_length,
-                # TODO(firearms-import-v2): map row["frame_size"] / "optic_cut"
-                # / "rail_type" / "finish" / "standard_capacity" to the FK
-                # columns added in v0.3.0. Skipped here so the existing import
-                # flow keeps working until the import-v2 prompt lands.
+                frame_size_id=frame_size_id,
+                optic_cut_id=optic_cut_id,
+                rail_type_id=rail_type_id,
+                finish_id=finish_id,
+                standard_capacity=std_cap,
                 purchase_date=purchase_date,
                 purchase_price=purchase_price,
                 dealer_id=dealer_id,
@@ -819,8 +863,11 @@ async def confirm_firearms_import(
         # number, not a strict delta.
         new_lookups_created = sum(
             len(import_db.exec(select(Model).where(Model.source == "user")).all())
-            for Model in [Manufacturer, Caliber, FirearmActionType, Dealer,
-                          FirearmModel, FirearmComplianceTag]
+            for Model in [
+                Manufacturer, Caliber, FirearmActionType, Dealer,
+                FirearmFrameSize, FirearmOpticCut, FirearmRailType, FirearmFinish,
+                FirearmModel, FirearmComplianceTag,
+            ]
         )
 
     logger.info("Firearm import complete: %d imported, %d skipped", imported, skipped)

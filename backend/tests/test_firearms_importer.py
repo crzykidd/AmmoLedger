@@ -78,7 +78,7 @@ def _csv(rows: list[dict[str, str]], columns: list[str] | None = None) -> bytes:
             "custom_model_name", "display_model", "firearm_type", "action_type",
             "caliber", "caliber_notes", "serial", "barrel_length_in",
             "frame_size", "optic_cut", "rail_type", "finish", "standard_capacity",
-            "purchase_date", "purchase_price", "dealer", "notes",
+            "purchase_date", "purchase_price", "dealer", "notes", "photo_count",
             "rounds_lifetime", "rounds_since_clean", "last_cleaned_at",
             "service_interval_rounds", "service_interval_days",
             "cleaning_status", "compliance_tags", "user_tags",
@@ -719,4 +719,124 @@ def caliber_9mm(db_session: Session) -> Caliber:
 def test_template_download(admin_session: TestClient):
     r = admin_session.get("/import/firearms/template")
     assert r.status_code == 200
-    assert "manufacturer" in r.text.splitlines()[0]
+    header = r.text.splitlines()[0]
+    assert "manufacturer" in header
+    # Template advertises the v0.3.0 physical-attribute columns.
+    for col in ("frame_size", "optic_cut", "rail_type", "finish", "standard_capacity"):
+        assert col in header
+
+
+# ---------------------------------------------------------------------------
+# Physical attribute lookups (v0.3.0)
+# ---------------------------------------------------------------------------
+
+def test_validate_photo_count_is_silently_ignored(admin_session: TestClient):
+    body = _csv([_row(photo_count="3")])
+    data = _validate(admin_session, body)
+    # Row still importable; header-level warning is surfaced.
+    assert data["importable_rows"] == 1
+    assert any(
+        w.get("row") is None and w["field"] == "photo_count"
+        for w in data["warnings"]
+    )
+
+
+def test_validate_new_frame_size_surfaces_in_new_values(admin_session: TestClient):
+    body = _csv([_row(frame_size="Bespoke-Size")])
+    data = _validate(admin_session, body)
+    assert "firearm_frame_sizes" in data["new_values"]
+    assert "Bespoke-Size" in data["new_values"]["firearm_frame_sizes"]
+
+
+def test_validate_finish_similarity_match_uses_existing_default(
+    admin_session: TestClient, db_session: Session
+):
+    """Community-curated lookups (finish included) default similarity to 'use_existing'."""
+    from models import FirearmFinish
+    db_session.add(FirearmFinish(name="Cerakote", source="community"))
+    db_session.commit()
+    body = _csv([_row(finish="cerakot")])
+    data = _validate(admin_session, body)
+    finish_matches = [m for m in data["similarity_matches"] if m["field"] == "finish"]
+    assert finish_matches, "expected a finish similarity match"
+    assert all(m["default_action"] == "use_existing" for m in finish_matches)
+    assert finish_matches[0]["table_key"] == "firearm_finishes"
+
+
+def test_confirm_physical_attribute_fks_resolved(
+    admin_session: TestClient, db_session: Session
+):
+    body = _csv([_row(
+        frame_size="Compact",
+        optic_cut="RMR",
+        rail_type="Picatinny",
+        finish="nDLC",
+        standard_capacity="15",
+    )])
+    token = _validate(admin_session, body)["validation_token"]
+    code, _ = _confirm(admin_session, body, token)
+    assert code == 200
+
+    from models import FirearmFinish, FirearmFrameSize, FirearmOpticCut, FirearmRailType
+    firearm = db_session.exec(select(Firearm)).first()
+    assert firearm.standard_capacity == 15
+
+    fs = db_session.get(FirearmFrameSize, firearm.frame_size_id)
+    oc = db_session.get(FirearmOpticCut, firearm.optic_cut_id)
+    rt = db_session.get(FirearmRailType, firearm.rail_type_id)
+    fn = db_session.get(FirearmFinish, firearm.finish_id)
+    assert fs is not None and fs.name == "Compact"
+    assert oc is not None and oc.name == "RMR"
+    assert rt is not None and rt.name == "Picatinny"
+    assert fn is not None and fn.name == "nDLC"
+
+
+def test_confirm_physical_attributes_optional(
+    admin_session: TestClient, db_session: Session
+):
+    """Blank physical-attribute columns leave the FK columns NULL."""
+    body = _csv([_row()])
+    token = _validate(admin_session, body)["validation_token"]
+    code, _ = _confirm(admin_session, body, token)
+    assert code == 200
+    firearm = db_session.exec(select(Firearm)).first()
+    assert firearm.frame_size_id is None
+    assert firearm.optic_cut_id is None
+    assert firearm.rail_type_id is None
+    assert firearm.finish_id is None
+    assert firearm.standard_capacity is None
+
+
+def test_confirm_finish_remap_consolidates(
+    admin_session: TestClient, db_session: Session
+):
+    """Picking 'use_existing' for a finish similarity match consolidates into
+    the existing community row instead of creating a new user-source row."""
+    from models import FirearmFinish
+    db_session.add(FirearmFinish(name="Cerakote", source="community"))
+    db_session.commit()
+
+    body = _csv([_row(finish="cerakot")])
+    token = _validate(admin_session, body)["validation_token"]
+    code, _ = _confirm(
+        admin_session, body, token,
+        value_remaps={"finish": {"cerakot": "Cerakote"}},
+    )
+    assert code == 200
+    finishes = db_session.exec(select(FirearmFinish)).all()
+    assert {f.name for f in finishes} == {"Cerakote"}
+    firearm = db_session.exec(select(Firearm)).first()
+    assert firearm.finish_id == finishes[0].id
+
+
+def test_confirm_standard_capacity_warning_on_invalid_value(
+    admin_session: TestClient, db_session: Session
+):
+    body = _csv([_row(standard_capacity="not-a-number")])
+    data = _validate(admin_session, body)
+    assert any(w["field"] == "standard_capacity" for w in data["warnings"])
+    token = data["validation_token"]
+    code, _ = _confirm(admin_session, body, token)
+    assert code == 200
+    firearm = db_session.exec(select(Firearm)).first()
+    assert firearm.standard_capacity is None

@@ -198,6 +198,10 @@ const FIELD_LABELS: Record<string, string> = {
   action_type: 'Action Type',
   dealer: 'Dealer',
   model: 'Model',
+  frame_size: 'Frame Size',
+  optic_cut: 'Optic Cut',
+  rail_type: 'Rail Type',
+  finish: 'Finish',
   compliance_tags: 'Compliance Tag',
   user_tags: 'User Tag',
 }
@@ -207,6 +211,10 @@ const TABLE_LABELS: Record<string, string> = {
   calibers: 'Calibers',
   firearm_action_types: 'Action Types',
   dealers: 'Dealers',
+  firearm_frame_sizes: 'Frame Sizes',
+  firearm_optic_cuts: 'Optic Cuts',
+  firearm_rail_types: 'Rail Types',
+  firearm_finishes: 'Finishes',
   firearm_compliance_tags: 'Compliance Tags',
   firearm_user_tags: 'User Tags',
 }
