@@ -48,6 +48,11 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Range Sessions tab on each firearm.** Per-firearm session history and rounds-through-this-firearm totals computed in a single grouped query, no N+1 fetching.
 - **Range session detail page (`/range-sessions/:id`).** Full session view with per-line table, click-through navigation to involved firearms and ammo boxes, and a destructive-action-aware delete confirmation.
 
+### Added — At Range
+
+- **Quick session attribution.** At Range's expend popover gains a three-option session attribution control (None / New / Last). Selecting New creates a single-line range session with today's date; Last appends a line to the most recent session the user created today. Both paths also require picking a firearm, with caliber-matching firearms surfaced first and a non-blocking amber warning on mismatch. Selecting None preserves today's behavior exactly (ammo deduct only, no firearm or session linkage).
+- **Box-by-box session building.** Session and firearm choices persist in sessionStorage so a user can step through multiple boxes during a range day without re-picking. Last-session linkage is day-scoped — it clears automatically when the date rolls over. Firearm preference persists across days so a habitual one-gun shooter doesn't have to re-pick tomorrow.
+
 ### Added — Dashboard
 
 - **Firearms Needing Service widget** — overdue (red) and due-soon (amber) firearms with the specific reason (rounds-based or time-based interval breach) and an inline "Log Cleaning" quick-action. Hidden when no firearms need attention.

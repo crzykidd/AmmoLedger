@@ -66,7 +66,7 @@ No firm timeline on either set — watch the [Releases page](https://github.com/
 - **Range Sessions tab on each firearm** — per-firearm session history and per-firearm rounds totals computed in a single grouped query
 - **Full inventory CRUD with bulk edit** — add, edit, delete, archive boxes; select multiple rows and bulk-edit fields in one operation
 - **Quick-expend Crosshair icon** — tap the Crosshair icon on any inventory row to log rounds fired inline; smart presets (1, 10, 20, 30, 50) plus recently-used session counts; Shot All empties the box
-- **At Range mode** — mobile-optimized /at-range page for fast round logging during range sessions; on-screen number pad, ±1 steppers, large tap targets, session-persistent notes
+- **At Range mode** — mobile-optimized /at-range page for fast round logging during range sessions; on-screen number pad, ±1 steppers, large tap targets, session-persistent notes; the quick-expend popover supports inline session attribution (None / New / Last) plus a firearm picker, so a range day can be logged box-by-box without leaving At Range
 - **Archive workflow with reason capture** — archive confirmation popover captures a reason; empty boxes prefill "Empty Box" and archive in one click; boxes with rounds remaining require an explicit reason; Unarchive action restores boxes without leaving the page
 - **Product catalog** — reusable product templates with images; auto-fill Add Box from a product; Auto-Generate products from existing inventory
 - **Group By with 9 options** — group by Caliber, Manufacturer, Category, Type, Location, Container, Condition, or Split Parent; collapsible group headers with summary stats; Split Parent headers include an info icon to view parent box details

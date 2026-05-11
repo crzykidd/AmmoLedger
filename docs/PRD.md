@@ -74,6 +74,7 @@
 | 3.33 | 2026-05-10 | Firearm photos (v0.3.0). Migration `0003_add_firearm_photos.py` adds the `firearm_photos` table — up to 5 photos per firearm with one designated default. Files live on disk under `${UPLOADS_PATH}/firearm_photos/<firearm_id>/`; Pillow normalizes uploads to JPEG q85 with a 256px thumbnail. Server-side resize (longest side ≤ 2048px), EXIF orientation honored, JPEG/PNG/WebP accepted, HEIC/HEIF rejected with a friendly export-as-JPEG hint. Photo URLs are auth-gated streams (not served from a public static path). Backup/restore extended: new `backup.include_photos` config setting (default true) makes scheduled and manual backups produce a `.zip` containing the WAL-safely-copied SQLite database plus the photos directory, so photo data isn't orphaned from the DB that references it. New `/backup/restore` endpoint accepts both `.zip` and `.db`; the existing `/backup/restore/sqlite` endpoint remains as a deprecated alias for one release. Path-traversal defense on zip extraction. Firearms list-page cards gain a default-photo header with FirearmIcon fallback; detail page replaces the prior text-only hero with a default-photo + thumb-strip layout that opens a lightbox on click. Firearms CSV export gains a `photo_count` column (photo bytes remain out-of-band — they live in the zip backup). §6.7 schema block, §10.1 narrative bullets, §10.8 Deferred (Photos line removed), and §11 Backup Formats all updated. |
 | 3.34 | 2026-05-10 | Firearms CSV import — v0.3.0 final pre-tag work. The firearms importer (originally written against the pre-collapse schema) is now aligned with the final v0.3.0 export shape: `frame_size`, `optic_cut`, `rail_type`, and `finish` join `manufacturer`/`caliber`/`action_type`/`dealer` as recognized single-value lookup columns and resolve to their FK columns on confirm; `standard_capacity` parses to the integer column with the same non-negative-int validation as `rounds_lifetime`. All four physical-attribute lookups default similarity matches to `use_existing` (matching their community-curated source). `photo_count` joins `display_model` and `cleaning_status` in the silently-ignored derived-columns set so an unmodified export round-trips cleanly. The `firearms` CSV template advertises every supported column. §10.1 narrative refreshed; the prior "csv import is import-v2 follow-up" caveat is removed. |
 | 3.35 | 2026-05-10 | LookupCombobox inline-create with fuzzy-match guard — every form drawer's lookup `<Select>` (firearm form: manufacturer / model / caliber / action type / frame size / optic cut / rail type / finish / dealer; ammo box form: caliber / manufacturer / type / condition / category / location / container; products form: caliber / manufacturer / type / category / condition) is replaced by a shared `LookupCombobox` with type-ahead search, an inline "+ Create" affordance, and a client-side Levenshtein-based "Did you mean…" dialog (mirrors `backend/routers/importer.py::_is_similar` thresholds — 1 for ≤6-char strings, 2 otherwise). Inline-created entries carry `source='user'` and surface with a subtle (user) badge; community / admin-created entries are unchanged. Backend: POST permission on 13 lookup endpoints (calibers, manufacturers, ammo-types, ammo-conditions, categories, dealers, firearm-action-types, firearm-models, firearm-compliance-tags, firearm-frame-sizes, firearm-optic-cuts, firearm-rail-types, firearm-finishes) relaxed from admin-only to admin+member. PATCH / DELETE / toggle-active remain admin-only — only creation is opened. Read-only users see options and source badges but no create affordance. Cascading model picker hides create when no manufacturer is selected, with an inline "Pick a manufacturer first" hint. §6.5, §9.2, §10.1 updated. |
+| 3.36 | 2026-05-11 | At Range — quick session attribution. The `QuickExpendPopover` gains a three-option session radio (None / New / Last) and a conditional firearm picker (caliber-matching firearms listed first, non-blocking amber mismatch warning). New posts to `POST /range-sessions` with a single-line payload; Last posts to `POST /range-sessions/{id}/lines`; both route through the existing `_apply_session_line` atomicity so ammo deduction and firearm `rounds_lifetime` / `rounds_since_clean` stay consistent with the Log Range Day dialog and CSV import. None preserves today's `POST /ammo/{id}/expend` path. Session and firearm selections persist in `sessionStorage` (`at_range_attribution`, `at_range_last_firearm_id`, `at_range_last_session_id`, `at_range_last_session_date`); session linkage clears on date rollover, firearm preference persists across days. The Ammo page `ExpendDialog` is intentionally unchanged. Frontend-only; zero backend changes. §10.2 updated. |
 
 ---
 
@@ -2204,6 +2205,23 @@ Shipped in v0.3.0 across phases P3 (backend), P4 (frontend), P5 (cross-cutting i
   across the lines of one session (P6).
 - Attach target photos to a session line (stored in `/data/uploads/`) —
   **deferred**, no schema column yet.
+- **Quick session attribution from At Range.** The At Range expend popover
+  can attach an expenditure to a range session at the moment of capture.
+  Three options: **None** logs the expend as today (no session, no
+  firearm); **New session** creates a session with this expend as line 1;
+  **Last session** appends a line to the most recent session this user
+  created today. Selecting a session also requires picking a firearm,
+  which surfaces with caliber-matching firearms listed first. The firearm
+  and session-attribution choices persist in sessionStorage so box-by-box
+  logging during a range day stays fast — pick the gun once, log multiple
+  boxes through it. Session linkage is day-scoped (cleared on date
+  rollover); firearm preference persists across days. All session-attribution
+  paths route through the existing range-session endpoints
+  (`POST /range-sessions` for New, `POST /range-sessions/{id}/lines` for
+  Last) so firearm `rounds_lifetime` / `rounds_since_clean` and ammo
+  deduction stay consistent with the Log Range Day dialog and CSV import.
+  Zero backend changes — the Ammo page `ExpendDialog` is intentionally
+  unaffected (different semantic: cleanup, not range workflow).
 
 ### 10.3 Firearm Maintenance Log (v0.3.0 — shipped)
 
