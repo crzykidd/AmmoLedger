@@ -94,6 +94,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **JSON export/restore extended.** Backup and restore now cover `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`, the `firearms`, `firearm_log`, and the two firearm tag-link tables, plus `range_sessions` and `range_session_lines`. The export order now places `expenditure_log` after `range_session_lines` to satisfy the new FK on restore. Schema-migration validation continues to require an exact match against the current Alembic head.
 - **PRD §6.7 duplicate-heading bug fixed.** The Range Sessions schema block was previously numbered as a second `### 6.7`; it's now correctly sequenced. PRD §10.3 renamed from "Cleaning Reminders" to reflect the generalized firearm log model.
 - **Sidebar layout** updated to include Firearms (between Products and At Range) and Range (between Firearms and At Range), with a custom firearm SVG icon matching the CartridgeIcon precedent and Lucide's Target icon for Range.
+- **Sidebar**: Settings and Admin sections are now collapsible by clicking their headers. Collapse state persists across sessions (`sidebar_sections_collapsed` in localStorage). Sections auto-expand when the current route is inside them so the active page is always visible.
 
 ### Database migrations
 
