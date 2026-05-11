@@ -5,6 +5,8 @@ import {
   AlertTriangle,
   CalendarIcon,
   Check,
+  Crosshair,
+  Package,
   Plus,
   Search,
   StickyNote,
@@ -72,6 +74,18 @@ const inputCls =
 
 const NONE = '__none__'
 
+// Quick-chip presets mirror QuickExpendPopover (set-not-add semantics).
+const ROUNDS_CHIPS = [50, 30, 20, 10, 1]
+
+type RangeMode = 'by_firearm' | 'by_box'
+const MODE_KEY = 'range_day_dialog_mode'
+
+function loadStoredMode(): RangeMode {
+  if (typeof window === 'undefined') return 'by_firearm'
+  const raw = window.localStorage.getItem(MODE_KEY)
+  return raw === 'by_box' ? 'by_box' : 'by_firearm'
+}
+
 // Stable client-side ID generator for line rows
 let _uidCounter = 0
 const newUid = () => `line_${++_uidCounter}_${Date.now()}`
@@ -79,16 +93,23 @@ const newUid = () => `line_${++_uidCounter}_${Date.now()}`
 interface LineState {
   uid: string
   id: number | null            // server id; null for new lines
+  // Stable visual-group identity in the dialog. Lines sharing the same
+  // group_uid render under one anchor card. Backed only by client state —
+  // not sent to the server.
+  group_uid: string
   firearm_id: number | null
   ammo_box_id: number | null
   rounds_fired: string         // string for input control
   notes: string
 }
 
-function makeEmptyLine(): LineState {
+const newGroupUid = () => `grp_${++_uidCounter}_${Date.now()}`
+
+function makeEmptyLine(group_uid?: string): LineState {
   return {
     uid: newUid(),
     id: null,
+    group_uid: group_uid ?? newGroupUid(),
     firearm_id: null,
     ammo_box_id: null,
     rounds_fired: '',
@@ -97,6 +118,7 @@ function makeEmptyLine(): LineState {
 }
 
 function lineEquals(a: LineState, b: LineState): boolean {
+  // group_uid is dialog-only chrome — never part of dirty-tracking.
   return (
     a.firearm_id === b.firearm_id &&
     a.ammo_box_id === b.ammo_box_id &&
@@ -105,15 +127,40 @@ function lineEquals(a: LineState, b: LineState): boolean {
   )
 }
 
-function buildLineFromSession(session: RangeSessionRead): LineState[] {
-  return session.lines.map((ln) => ({
-    uid: newUid(),
-    id: ln.id,
-    firearm_id: ln.firearm_id,
-    ammo_box_id: ln.ammo_box_id,
-    rounds_fired: String(ln.rounds_fired),
-    notes: ln.notes ?? '',
-  }))
+// Build display groups from an existing session. Lines sharing the same
+// primary anchor (firearm in By Firearm mode, box in By Box mode) collapse
+// into one group; lines with no anchor each get their own group so the
+// edit drawer doesn't silently merge unrelated unassigned lines.
+function buildLineFromSession(
+  session: RangeSessionRead,
+  mode: RangeMode,
+): LineState[] {
+  const groupByAnchor = new Map<string, string>()
+  return session.lines.map((ln) => {
+    const anchor = mode === 'by_firearm' ? ln.firearm_id : ln.ammo_box_id
+    let group_uid: string
+    if (anchor != null) {
+      const key = String(anchor)
+      const existing = groupByAnchor.get(key)
+      if (existing) {
+        group_uid = existing
+      } else {
+        group_uid = newGroupUid()
+        groupByAnchor.set(key, group_uid)
+      }
+    } else {
+      group_uid = newGroupUid()
+    }
+    return {
+      uid: newUid(),
+      id: ln.id,
+      group_uid,
+      firearm_id: ln.firearm_id,
+      ammo_box_id: ln.ammo_box_id,
+      rounds_fired: String(ln.rounds_fired),
+      notes: ln.notes ?? '',
+    }
+  })
 }
 
 interface Props {
@@ -152,6 +199,19 @@ export default function LogRangeDayDialog({
   const [highlightedLineUids, setHighlightedLineUids] = useState<Set<string>>(new Set())
   const [progressMsg, setProgressMsg] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+
+  // Per-session display mode. Persists in localStorage across opens. When the
+  // caller hands us a defaultFirearmId (launched from a firearm page), force
+  // By Firearm on open since that's the obvious match.
+  const [mode, setMode] = useState<RangeMode>(() =>
+    defaultFirearmId != null ? 'by_firearm' : loadStoredMode(),
+  )
+  const [pendingMode, setPendingMode] = useState<RangeMode | null>(null)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(MODE_KEY, mode)
+    }
+  }, [mode])
 
   // Lookups
   const lookups = useInventoryLookups()
@@ -199,12 +259,17 @@ export default function LogRangeDayDialog({
   // Reset / populate on open
   useEffect(() => {
     if (!open) return
+    // Launching from a firearm page strongly implies By Firearm — override
+    // the persisted preference for this session.
+    if (defaultFirearmId != null) {
+      setMode('by_firearm')
+    }
     if (editSession) {
       setDate(editSession.date)
       setLocationName(editSession.location_name ?? '')
       setSessionNotes(editSession.notes ?? '')
       setIsShared(editSession.is_shared)
-      const built = buildLineFromSession(editSession)
+      const built = buildLineFromSession(editSession, mode)
       setLines(built)
       setOriginalHeader({
         date: editSession.date,
@@ -262,6 +327,92 @@ export default function LogRangeDayDialog({
   }
   const addLine = () => {
     setLines((prev) => [...prev, makeEmptyLine()])
+  }
+
+  // ---------------------------------------------------------------------------
+  // Grouping (mode-aware display). Lines remain the atomic save unit; the
+  // groups are a UI-only re-projection of them.
+  // ---------------------------------------------------------------------------
+  type LineGroup = {
+    key: string                   // group_uid
+    primary_id: number | null
+    lines: LineState[]
+  }
+
+  const groups = useMemo<LineGroup[]>(() => {
+    const primaryOf = (l: LineState): number | null =>
+      mode === 'by_firearm' ? l.firearm_id : l.ammo_box_id
+    const seen = new Map<string, LineGroup>()
+    for (const l of lines) {
+      const existing = seen.get(l.group_uid)
+      if (existing) existing.lines.push(l)
+      else seen.set(l.group_uid, { key: l.group_uid, primary_id: primaryOf(l), lines: [l] })
+    }
+    return Array.from(seen.values())
+  }, [lines, mode])
+
+  const updateGroupAnchor = (groupKey: string, newPrimaryId: number | null) => {
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.group_uid !== groupKey) return l
+        return mode === 'by_firearm'
+          ? { ...l, firearm_id: newPrimaryId }
+          : { ...l, ammo_box_id: newPrimaryId }
+      }),
+    )
+  }
+
+  const addAllocationToGroup = (groupKey: string, primaryId: number | null) => {
+    const empty = makeEmptyLine(groupKey)
+    const seeded =
+      mode === 'by_firearm'
+        ? { ...empty, firearm_id: primaryId }
+        : { ...empty, ammo_box_id: primaryId }
+    setLines((prev) => [...prev, seeded])
+  }
+
+  const removeGroup = (groupKey: string) => {
+    setLines((prev) => {
+      const remaining = prev.filter((l) => l.group_uid !== groupKey)
+      return remaining.length === 0 ? [makeEmptyLine()] : remaining
+    })
+  }
+
+  const addEmptyGroup = () => {
+    setLines((prev) => [...prev, makeEmptyLine()])
+  }
+
+  // Mode switch with confirm. "Dirty" here is any line that has at least one
+  // field touched — empty single-line state lets us switch instantly.
+  const anyLineTouched = useMemo(
+    () =>
+      lines.some(
+        (l) =>
+          l.firearm_id != null ||
+          l.ammo_box_id != null ||
+          l.rounds_fired !== '' ||
+          l.notes !== '',
+      ),
+    [lines],
+  )
+
+  const requestModeChange = (next: RangeMode) => {
+    if (next === mode) return
+    if (!anyLineTouched) {
+      setMode(next)
+      setLines([makeEmptyLine()])
+      return
+    }
+    setPendingMode(next)
+  }
+
+  const confirmModeChange = () => {
+    if (!pendingMode) return
+    setMode(pendingMode)
+    setLines([makeEmptyLine()])
+    setHighlightedLineUids(new Set())
+    setError(null)
+    setPendingMode(null)
   }
 
   // ---------------------------------------------------------------------------
@@ -568,6 +719,31 @@ export default function LogRangeDayDialog({
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={pendingMode != null}
+        onOpenChange={(o) => { if (!o) setPendingMode(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch view?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Switching to <b>{pendingMode === 'by_firearm' ? 'By Firearm' : 'By Box'}</b> will
+              clear the lines you&apos;ve entered and start with a fresh empty line.
+              Your session header (date, location, notes) stays put.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmModeChange}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Switch &amp; Clear Lines
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog
         open={open}
         onOpenChange={(o) => {
@@ -662,8 +838,8 @@ export default function LogRangeDayDialog({
             </section>
 
             {/* Lines section */}
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   Lines ({lines.length})
                 </h3>
@@ -674,23 +850,63 @@ export default function LogRangeDayDialog({
                 )}
               </div>
 
+              {/* Mode toggle */}
+              <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden w-fit">
+                <button
+                  type="button"
+                  onClick={() => requestModeChange('by_firearm')}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5',
+                    mode === 'by_firearm'
+                      ? 'bg-gold/20 text-gold'
+                      : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800',
+                  )}
+                  disabled={saving}
+                  title="Group by firearm — one or more box allocations per firearm"
+                >
+                  <Crosshair className="w-3.5 h-3.5" />
+                  By Firearm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => requestModeChange('by_box')}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 border-l border-gray-200 dark:border-gray-700',
+                    mode === 'by_box'
+                      ? 'bg-gold/20 text-gold'
+                      : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800',
+                  )}
+                  disabled={saving}
+                  title="Group by ammo box — one or more firearm allocations per box"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  By Box
+                </button>
+              </div>
+
               <div className="space-y-2">
-                {lines.map((line, idx) => (
-                  <LineRow
-                    key={line.uid}
-                    index={idx}
-                    line={line}
+                {groups.map((group) => (
+                  <GroupCard
+                    key={group.key}
+                    mode={mode}
+                    group={group}
                     firearms={firearms}
                     boxes={allBoxes}
                     boxById={boxById}
                     firearmById={firearmById}
                     caliberMap={caliberMap}
                     manufacturerMap={manufacturerMap}
-                    errors={lineErrorMap.get(line.uid) ?? []}
-                    calMismatch={calMismatchUids.has(line.uid)}
-                    highlighted={highlightedLineUids.has(line.uid)}
-                    onChange={(patch) => updateLine(line.uid, patch)}
-                    onRemove={lines.length > 1 ? () => removeLine(line.uid) : null}
+                    lineErrorMap={lineErrorMap}
+                    calMismatchUids={calMismatchUids}
+                    highlightedLineUids={highlightedLineUids}
+                    canRemoveGroup={groups.length > 1 || group.lines.length > 1}
+                    onAnchorChange={(newId) => updateGroupAnchor(group.key, newId)}
+                    onLineChange={(uid, patch) => updateLine(uid, patch)}
+                    onAddAllocation={() => addAllocationToGroup(group.key, group.primary_id)}
+                    onRemoveAllocation={
+                      group.lines.length > 1 ? (uid) => removeLine(uid) : undefined
+                    }
+                    onRemoveGroup={() => removeGroup(group.key)}
                   />
                 ))}
               </div>
@@ -699,12 +915,12 @@ export default function LogRangeDayDialog({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={addLine}
+                  onClick={addEmptyGroup}
                   disabled={saving}
                   type="button"
                 >
                   <Plus className="w-4 h-4 mr-1.5" />
-                  Add Line
+                  {mode === 'by_firearm' ? 'Add Firearm' : 'Add Box'}
                 </Button>
               </div>
             </section>
@@ -770,10 +986,223 @@ function Field({
 }
 
 // ===========================================================================
-// LineRow — one line of the multi-line form
+// RoundsChipRow — quick-set chips matching QuickExpendPopover semantics.
+// Chips SET (not add). "Use all" appears when a box is selected so the user
+// can drop the chip in and have it snap to the box's remaining count.
 // ===========================================================================
-interface LineRowProps {
-  index: number
+function RoundsChipRow({
+  value,
+  onChange,
+  box,
+}: {
+  value: string
+  onChange: (v: string) => void
+  box: AmmoBoxRead | undefined
+}) {
+  const useAll = box ? box.qty_remaining : null
+  // Hide static chips that exceed the box's remaining count (matches
+  // QuickExpendPopover behavior — '50' is useless on a 30-rd box).
+  const visibleStatic =
+    useAll != null ? ROUNDS_CHIPS.filter((n) => n <= useAll) : ROUNDS_CHIPS
+
+  if (visibleStatic.length === 0 && useAll == null) return null
+
+  const numVal = Number(value)
+
+  const chip = (label: string, n: number) => {
+    const active = !!value && Number.isFinite(numVal) && numVal === n
+    return (
+      <Button
+        key={label}
+        type="button"
+        size="sm"
+        variant={active ? 'default' : 'outline'}
+        className="h-7 text-xs px-2"
+        onClick={() => onChange(String(n))}
+      >
+        {label}
+      </Button>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {useAll != null && useAll > 0 && chip(`Use all (${useAll})`, useAll)}
+      {visibleStatic.map((n) => chip(String(n), n))}
+    </div>
+  )
+}
+
+// ===========================================================================
+// GroupCard — one primary anchor (firearm OR box) plus 1..N allocations.
+// The internal `lines` array still lives in dialog state; this just renders
+// them grouped.
+// ===========================================================================
+interface GroupCardProps {
+  mode: RangeMode
+  group: { key: string; primary_id: number | null; lines: LineState[] }
+  firearms: FirearmRead[]
+  boxes: AmmoBoxRead[]
+  boxById: Map<number, AmmoBoxRead>
+  firearmById: Map<number, FirearmRead>
+  caliberMap: Map<number, string>
+  manufacturerMap: Map<number, string>
+  lineErrorMap: Map<string, string[]>
+  calMismatchUids: Set<string>
+  highlightedLineUids: Set<string>
+  canRemoveGroup: boolean
+  onAnchorChange: (newId: number | null) => void
+  onLineChange: (uid: string, patch: Partial<LineState>) => void
+  onAddAllocation: () => void
+  onRemoveAllocation?: (uid: string) => void
+  onRemoveGroup: () => void
+}
+
+function GroupCard({
+  mode,
+  group,
+  firearms,
+  boxes,
+  boxById,
+  firearmById,
+  caliberMap,
+  manufacturerMap,
+  lineErrorMap,
+  calMismatchUids,
+  highlightedLineUids,
+  canRemoveGroup,
+  onAnchorChange,
+  onLineChange,
+  onAddAllocation,
+  onRemoveAllocation,
+  onRemoveGroup,
+}: GroupCardProps) {
+  const isByFirearm = mode === 'by_firearm'
+  const groupFirearm =
+    isByFirearm && group.primary_id != null ? firearmById.get(group.primary_id) : undefined
+  const groupBox =
+    !isByFirearm && group.primary_id != null ? boxById.get(group.primary_id) : undefined
+  const anchorCaliberId = isByFirearm
+    ? groupFirearm?.caliber_id ?? null
+    : groupBox?.caliber_id ?? null
+
+  const anyHighlighted = group.lines.some((l) => highlightedLineUids.has(l.uid))
+
+  const allocationLabel = isByFirearm ? 'Add box' : 'Add firearm'
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border transition-colors',
+        anyHighlighted
+          ? 'border-red-400 dark:border-red-700 bg-red-50/60 dark:bg-red-950/20'
+          : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900',
+      )}
+    >
+      {/* Group header: primary picker + remove */}
+      <div className="flex items-start gap-2 p-3 border-b border-gray-100 dark:border-gray-800">
+        <div className="shrink-0 mt-2">
+          {isByFirearm ? (
+            <Crosshair className="w-4 h-4 text-gold" />
+          ) : (
+            <Package className="w-4 h-4 text-gold" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          {isByFirearm ? (
+            <Select
+              value={group.primary_id != null ? String(group.primary_id) : NONE}
+              onValueChange={(v) => onAnchorChange(v === NONE ? null : parseInt(v))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select firearm (or leave blank for dry fire)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>
+                  <span className="text-gray-400">None (e.g. dry fire)</span>
+                </SelectItem>
+                {firearms.map((f) => {
+                  const title = `${f.manufacturer_name ?? ''} ${f.display_model}`.trim()
+                  return (
+                    <SelectItem key={f.id} value={String(f.id)}>
+                      {title}
+                      {f.caliber_name && (
+                        <span className="text-gray-400 ml-1.5">({f.caliber_name})</span>
+                      )}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          ) : (
+            <BoxPicker
+              value={group.primary_id}
+              boxes={boxes}
+              caliberMap={caliberMap}
+              manufacturerMap={manufacturerMap}
+              preferCaliberId={null}
+              onChange={(id) => onAnchorChange(id)}
+            />
+          )}
+        </div>
+        {canRemoveGroup && (
+          <button
+            type="button"
+            onClick={onRemoveGroup}
+            className="text-gray-400 hover:text-red-500 transition-colors mt-2"
+            title={isByFirearm ? 'Remove firearm + all its allocations' : 'Remove box + all its allocations'}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Allocation rows */}
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {group.lines.map((line) => (
+          <AllocationRow
+            key={line.uid}
+            mode={mode}
+            line={line}
+            firearms={firearms}
+            boxes={boxes}
+            boxById={boxById}
+            firearmById={firearmById}
+            caliberMap={caliberMap}
+            manufacturerMap={manufacturerMap}
+            anchorCaliberId={anchorCaliberId}
+            errors={lineErrorMap.get(line.uid) ?? []}
+            calMismatch={calMismatchUids.has(line.uid)}
+            highlighted={highlightedLineUids.has(line.uid)}
+            onChange={(patch) => onLineChange(line.uid, patch)}
+            onRemove={onRemoveAllocation ? () => onRemoveAllocation(line.uid) : null}
+          />
+        ))}
+      </div>
+
+      <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={onAddAllocation}
+        >
+          <Plus className="w-3.5 h-3.5 mr-1" />
+          {allocationLabel}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ===========================================================================
+// AllocationRow — one allocation inside a group. Renders the SECONDARY
+// picker (box in By Firearm mode, firearm in By Box mode) + quick chips +
+// rounds input + notes popover. The primary picker is at the group level.
+// ===========================================================================
+interface AllocationRowProps {
+  mode: RangeMode
   line: LineState
   firearms: FirearmRead[]
   boxes: AmmoBoxRead[]
@@ -781,6 +1210,7 @@ interface LineRowProps {
   firearmById: Map<number, FirearmRead>
   caliberMap: Map<number, string>
   manufacturerMap: Map<number, string>
+  anchorCaliberId: number | null
   errors: string[]
   calMismatch: boolean
   highlighted: boolean
@@ -788,8 +1218,8 @@ interface LineRowProps {
   onRemove: (() => void) | null
 }
 
-function LineRow({
-  index,
+function AllocationRow({
+  mode,
   line,
   firearms,
   boxes,
@@ -797,87 +1227,78 @@ function LineRow({
   firearmById,
   caliberMap,
   manufacturerMap,
+  anchorCaliberId,
   errors,
   calMismatch,
   highlighted,
   onChange,
   onRemove,
-}: LineRowProps) {
+}: AllocationRowProps) {
+  const isByFirearm = mode === 'by_firearm'
   const firearm = line.firearm_id != null ? firearmById.get(line.firearm_id) : undefined
   const box = line.ammo_box_id != null ? boxById.get(line.ammo_box_id) : undefined
-  const firearmCaliberId = firearm?.caliber_id ?? null
   const boxCaliberName = box ? caliberMap.get(box.caliber_id) ?? null : null
 
   return (
     <div
       className={cn(
-        'rounded-lg border p-3 transition-colors',
-        highlighted
-          ? 'border-red-400 dark:border-red-700 bg-red-50/60 dark:bg-red-950/20'
-          : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900',
+        'p-3 transition-colors',
+        highlighted && 'bg-red-50/40 dark:bg-red-950/10',
       )}
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-          Line {index + 1}
-        </p>
-        {onRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="text-gray-400 hover:text-red-500 transition-colors"
-            title="Remove line"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-start">
-        {/* Firearm */}
-        <div className="md:col-span-4">
-          <Select
-            value={line.firearm_id != null ? String(line.firearm_id) : NONE}
-            onValueChange={(v) =>
-              onChange({ firearm_id: v === NONE ? null : parseInt(v) })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select firearm" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>
-                <span className="text-gray-400">None (e.g. dry fire)</span>
-              </SelectItem>
-              {firearms.map((f) => {
-                const title = `${f.manufacturer_name ?? ''} ${f.display_model}`.trim()
-                return (
-                  <SelectItem key={f.id} value={String(f.id)}>
-                    {title}
-                    {f.caliber_name && (
-                      <span className="text-gray-400 ml-1.5">({f.caliber_name})</span>
-                    )}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
+        {/* Secondary picker — box (in By Firearm) or firearm (in By Box) */}
+        <div className="md:col-span-5">
+          {isByFirearm ? (
+            <BoxPicker
+              value={line.ammo_box_id}
+              boxes={boxes}
+              caliberMap={caliberMap}
+              manufacturerMap={manufacturerMap}
+              preferCaliberId={anchorCaliberId}
+              onChange={(id) => onChange({ ammo_box_id: id })}
+            />
+          ) : (
+            <Select
+              value={line.firearm_id != null ? String(line.firearm_id) : NONE}
+              onValueChange={(v) =>
+                onChange({ firearm_id: v === NONE ? null : parseInt(v) })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select firearm" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>
+                  <span className="text-gray-400">None</span>
+                </SelectItem>
+                {firearms.map((f) => {
+                  const title = `${f.manufacturer_name ?? ''} ${f.display_model}`.trim()
+                  const isMatch =
+                    anchorCaliberId != null && f.caliber_id === anchorCaliberId
+                  return (
+                    <SelectItem key={f.id} value={String(f.id)}>
+                      <span className="inline-flex items-center gap-1.5">
+                        {title}
+                        {f.caliber_name && (
+                          <span className="text-gray-400">({f.caliber_name})</span>
+                        )}
+                        {isMatch && (
+                          <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                            Match
+                          </span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        {/* Ammo box */}
-        <div className="md:col-span-4">
-          <BoxPicker
-            value={line.ammo_box_id}
-            boxes={boxes}
-            caliberMap={caliberMap}
-            manufacturerMap={manufacturerMap}
-            preferCaliberId={firearmCaliberId}
-            onChange={(id) => onChange({ ammo_box_id: id })}
-          />
-        </div>
-
-        {/* Rounds fired */}
-        <div className="md:col-span-2">
+        {/* Rounds input */}
+        <div className="md:col-span-3">
           <input
             className={inputCls}
             type="number"
@@ -888,8 +1309,8 @@ function LineRow({
           />
         </div>
 
-        {/* Notes popover + remove handled above */}
-        <div className="md:col-span-2 flex items-center justify-end md:justify-start gap-1">
+        {/* Notes + remove */}
+        <div className="md:col-span-4 flex items-center justify-end gap-1">
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -920,7 +1341,26 @@ function LineRow({
               />
             </PopoverContent>
           </Popover>
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-gray-400 hover:text-red-500 transition-colors p-2"
+              title="Remove allocation"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* Quick chips below the row inputs */}
+      <div className="mt-2">
+        <RoundsChipRow
+          value={line.rounds_fired}
+          onChange={(v) => onChange({ rounds_fired: v })}
+          box={box}
+        />
       </div>
 
       {/* Validation messages + caliber-mismatch warning */}

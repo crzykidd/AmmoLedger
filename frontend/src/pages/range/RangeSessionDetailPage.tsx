@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Crosshair,
   MapPin,
+  Package,
   Pencil,
   Trash2,
   Users,
@@ -29,7 +30,16 @@ import { deleteRangeSession, getRangeSession } from '@/api/rangeSessions'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
-import type { RangeSessionRead, User } from '@/types'
+import type { RangeSessionLineRead, RangeSessionRead, User } from '@/types'
+
+type DetailMode = 'flat' | 'by_firearm' | 'by_box'
+const DETAIL_MODE_KEY = 'range_day_detail_mode'
+
+function loadDetailMode(): DetailMode {
+  if (typeof window === 'undefined') return 'flat'
+  const raw = window.localStorage.getItem(DETAIL_MODE_KEY)
+  return raw === 'by_firearm' || raw === 'by_box' ? raw : 'flat'
+}
 
 function canModify(session: RangeSessionRead, user: User | null): boolean {
   if (!user) return false
@@ -47,6 +57,12 @@ export default function RangeSessionDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<DetailMode>(() => loadDetailMode())
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(DETAIL_MODE_KEY, viewMode)
+    }
+  }, [viewMode])
 
   const {
     data: session,
@@ -74,6 +90,46 @@ export default function RangeSessionDetailPage() {
       toast({ title: 'Error', description: msg, variant: 'destructive' })
     },
   })
+
+  // Grouped view of the session lines for By Firearm / By Box modes.
+  const groupedLines = useMemo(() => {
+    if (!session || viewMode === 'flat') return null
+    type Group = {
+      key: string
+      title: string
+      to: string | null
+      total: number
+      lines: RangeSessionLineRead[]
+    }
+    const groups = new Map<string, Group>()
+    for (const ln of session.lines) {
+      const id = viewMode === 'by_firearm' ? ln.firearm_id : ln.ammo_box_id
+      const display = viewMode === 'by_firearm' ? ln.firearm_display : ln.ammo_box_display
+      const fallback = viewMode === 'by_firearm'
+        ? id != null ? `Firearm #${id}` : 'Unassigned (no firearm)'
+        : id != null ? `Box #${id}` : 'Unassigned (no box)'
+      const to = id != null
+        ? viewMode === 'by_firearm'
+          ? `/firearms/${id}`
+          : `/ammo?statusFilter=&emptyFilter=`
+        : null
+      const key = `${viewMode}:${id == null ? 'null' : id}`
+      const existing = groups.get(key)
+      if (existing) {
+        existing.total += ln.rounds_fired
+        existing.lines.push(ln)
+      } else {
+        groups.set(key, {
+          key,
+          title: display ?? fallback,
+          to,
+          total: ln.rounds_fired,
+          lines: [ln],
+        })
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) => b.total - a.total)
+  }, [session, viewMode])
 
   // Reversal preview computed from session lines
   const reversalPreview = useMemo(() => {
@@ -237,7 +293,144 @@ export default function RangeSessionDetailPage() {
             </div>
           )}
 
-          {/* Lines */}
+          {/* Lines header + view toggle */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              Lines ({session.lines.length})
+            </h3>
+            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setViewMode('flat')}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium transition-colors',
+                  viewMode === 'flat'
+                    ? 'bg-gold/20 text-gold'
+                    : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800',
+                )}
+                title="Flat table of every line"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('by_firearm')}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium transition-colors inline-flex items-center gap-1 border-l border-gray-200 dark:border-gray-700',
+                  viewMode === 'by_firearm'
+                    ? 'bg-gold/20 text-gold'
+                    : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800',
+                )}
+                title="Group by firearm"
+              >
+                <Crosshair className="w-3 h-3" />
+                By Firearm
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('by_box')}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium transition-colors inline-flex items-center gap-1 border-l border-gray-200 dark:border-gray-700',
+                  viewMode === 'by_box'
+                    ? 'bg-gold/20 text-gold'
+                    : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800',
+                )}
+                title="Group by ammo box"
+              >
+                <Package className="w-3 h-3" />
+                By Box
+              </button>
+            </div>
+          </div>
+
+          {/* Grouped view */}
+          {groupedLines && (
+            <div className="space-y-3">
+              {groupedLines.map((g) => (
+                <div
+                  key={g.key}
+                  className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden"
+                >
+                  <div className="flex items-start justify-between gap-2 px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {viewMode === 'by_firearm' ? (
+                        <Crosshair className="w-4 h-4 text-gold shrink-0" />
+                      ) : (
+                        <Package className="w-4 h-4 text-gold shrink-0" />
+                      )}
+                      {g.to ? (
+                        <Link to={g.to} className="text-gold hover:underline font-semibold truncate">
+                          {g.title}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-500 dark:text-gray-400 italic truncate">{g.title}</span>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white shrink-0 tabular-nums">
+                      {g.total.toLocaleString()} rds
+                    </p>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
+                        <th className="text-left px-4 py-2 font-medium">
+                          {viewMode === 'by_firearm' ? 'Ammo Box' : 'Firearm'}
+                        </th>
+                        <th className="text-right px-4 py-2 font-medium">Rounds</th>
+                        <th className="text-left px-4 py-2 font-medium">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {g.lines.map((ln, i) => {
+                        const counterpartId = viewMode === 'by_firearm' ? ln.ammo_box_id : ln.firearm_id
+                        const counterpartDisplay = viewMode === 'by_firearm' ? ln.ammo_box_display : ln.firearm_display
+                        const counterpartTo = counterpartId != null
+                          ? viewMode === 'by_firearm'
+                            ? '/ammo?statusFilter=&emptyFilter='
+                            : `/firearms/${counterpartId}`
+                          : null
+                        const fallback = viewMode === 'by_firearm'
+                          ? counterpartId != null ? `Box #${counterpartId}` : '—'
+                          : counterpartId != null ? `Firearm #${counterpartId}` : '—'
+                        return (
+                          <tr
+                            key={ln.id}
+                            className={cn(
+                              'border-b border-gray-100 dark:border-gray-800 last:border-0',
+                              i % 2 === 0 ? '' : 'bg-gray-50/40 dark:bg-gray-800/20',
+                            )}
+                          >
+                            <td className="px-4 py-2">
+                              {counterpartTo ? (
+                                <Link to={counterpartTo} className="text-gold hover:underline">
+                                  {counterpartDisplay ?? fallback}
+                                </Link>
+                              ) : (
+                                <span className="text-gray-400">{fallback}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-white tabular-nums">
+                              {ln.rounds_fired.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-gray-600 dark:text-gray-300 max-w-md">
+                              {ln.notes ? (
+                                <span className="whitespace-pre-wrap">{ln.notes}</span>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Flat view (original layout) */}
+          {!groupedLines && (
           <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
             {/* Desktop table */}
             <table className="hidden md:table w-full text-sm">
@@ -344,6 +537,7 @@ export default function RangeSessionDetailPage() {
               ))}
             </div>
           </div>
+          )}
 
           <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
             These rounds were also recorded as expenditures on each ammo box&apos;s history.
