@@ -231,7 +231,7 @@ def _build_firearm_maps(firearms: list[Firearm], db: Session) -> dict:
             )
         ).all()
     ) if firearm_ids else []
-    comp_tag_ids = {l.tag_id for l in comp_link_rows}
+    comp_tag_ids = {link.tag_id for link in comp_link_rows}
     comp_tag_map = {
         t.id: t
         for t in db.exec(
@@ -249,7 +249,7 @@ def _build_firearm_maps(firearms: list[Firearm], db: Session) -> dict:
             select(FirearmUserTagLink).where(FirearmUserTagLink.firearm_id.in_(firearm_ids))
         ).all()
     ) if firearm_ids else []
-    user_tag_ids = {l.tag_id for l in user_link_rows}
+    user_tag_ids = {link.tag_id for link in user_link_rows}
     user_tag_map = {
         t.id: t
         for t in db.exec(

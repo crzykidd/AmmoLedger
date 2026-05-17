@@ -10,7 +10,6 @@ from sqlmodel import Session, select
 from models import (
     Caliber,
     Firearm,
-    FirearmActionType,
     FirearmComplianceTag,
     FirearmComplianceTagLink,
     FirearmLog,
@@ -406,7 +405,7 @@ def test_confirm_creates_synthetic_cleaning_entry(
     logs = db_session.exec(
         select(FirearmLog).where(FirearmLog.firearm_id == firearm.id)
     ).all()
-    cleanings = [l for l in logs if l.event_type == "cleaning"]
+    cleanings = [log_entry for log_entry in logs if log_entry.event_type == "cleaning"]
     assert len(cleanings) == 1
     # rounds_at_event must equal lifetime - rounds_since_clean so the recalc
     # round-trips (1250 - 180 = 1070).
