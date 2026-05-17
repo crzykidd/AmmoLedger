@@ -141,6 +141,9 @@ def get_photo_bytes(
         raise HTTPException(
             status_code=404, detail="Photo file missing on disk"
         ) from None
+    except ValueError as exc:
+        logger.warning("Photo path validation failed: %s", exc)
+        raise HTTPException(status_code=404, detail="Photo not found") from None
     return StreamingResponse(
         iter([data]),
         media_type=photo.content_type,
@@ -166,6 +169,9 @@ def get_photo_thumb_bytes(
         raise HTTPException(
             status_code=404, detail="Thumbnail file missing on disk"
         ) from None
+    except ValueError as exc:
+        logger.warning("Photo path validation failed: %s", exc)
+        raise HTTPException(status_code=404, detail="Photo not found") from None
     return StreamingResponse(
         iter([data]),
         media_type=photo.content_type,
@@ -253,7 +259,11 @@ def delete_photo(
         raise HTTPException(status_code=404, detail="Photo not found")
 
     was_default = photo.is_default
-    delete_photo_files(firearm_id, photo.filename)
+    try:
+        delete_photo_files(firearm_id, photo.filename)
+    except ValueError as exc:
+        logger.warning("Photo path validation failed on delete: %s", exc)
+        raise HTTPException(status_code=404, detail="Photo not found") from None
     db.delete(photo)
     db.flush()
 

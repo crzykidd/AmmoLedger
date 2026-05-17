@@ -490,3 +490,186 @@ def test_zip_restore_rejects_path_traversal(tmp_path):
         asyncio.run(_restore_zip_impl(bad_zip.read_bytes()))
     assert exc_info.value.status_code == 400
     assert "unsafe" in str(exc_info.value.detail).lower()
+
+
+# ---------------------------------------------------------------------------
+# Path-validation unit tests
+# ---------------------------------------------------------------------------
+
+from utils.firearm_photos import (  # noqa: E402
+    _photo_paths,
+    _safe_resolve_under_root,
+    _validate_filename,
+    _validate_firearm_id,
+    delete_firearm_photo_dir,
+    read_photo_bytes,
+)
+
+
+# _validate_firearm_id
+
+def test_validate_firearm_id_accepts_positive():
+    _validate_firearm_id(1)
+    _validate_firearm_id(99999)
+
+
+def test_validate_firearm_id_accepts_zero():
+    _validate_firearm_id(0)
+
+
+def test_validate_firearm_id_rejects_negative():
+    with pytest.raises(ValueError, match="non-negative"):
+        _validate_firearm_id(-1)
+
+
+def test_validate_firearm_id_rejects_string():
+    with pytest.raises(ValueError, match="must be int"):
+        _validate_firearm_id("42")  # type: ignore[arg-type]
+
+
+def test_validate_firearm_id_rejects_bool():
+    # bool is a subclass of int in Python — make sure we don't accept True/False.
+    with pytest.raises(ValueError, match="must be int"):
+        _validate_firearm_id(True)  # type: ignore[arg-type]
+
+
+# _validate_filename
+
+def test_validate_filename_accepts_valid_uuid_jpg():
+    _validate_filename("a" * 32 + ".jpg")
+    _validate_filename("0123456789abcdef0123456789abcdef.jpg")
+
+
+def test_validate_filename_accepts_thumb_variant():
+    _validate_filename("a" * 32 + "_thumb.jpg")
+
+
+def test_validate_filename_rejects_path_traversal():
+    with pytest.raises(ValueError, match="Invalid photo filename"):
+        _validate_filename("../etc/passwd")
+
+
+def test_validate_filename_rejects_absolute_path():
+    with pytest.raises(ValueError, match="Invalid photo filename"):
+        _validate_filename("/etc/passwd")
+
+
+def test_validate_filename_rejects_wrong_extension():
+    with pytest.raises(ValueError):
+        _validate_filename("a" * 32 + ".png")
+    with pytest.raises(ValueError):
+        _validate_filename("a" * 32 + ".jpg.exe")
+
+
+def test_validate_filename_rejects_short_stem():
+    with pytest.raises(ValueError):
+        _validate_filename("abc.jpg")
+
+
+def test_validate_filename_rejects_uppercase_hex():
+    # The regex is case-sensitive — uuid4().hex returns lowercase
+    with pytest.raises(ValueError):
+        _validate_filename("A" * 32 + ".jpg")
+
+
+def test_validate_filename_rejects_null_byte():
+    with pytest.raises(ValueError):
+        _validate_filename("a" * 32 + ".jpg\x00")
+
+
+# _photo_paths integration
+
+def test_photo_paths_rejects_invalid_filename():
+    with pytest.raises(ValueError):
+        _photo_paths(1, "../../../etc/passwd")
+
+
+def test_photo_paths_rejects_negative_firearm_id():
+    with pytest.raises(ValueError):
+        _photo_paths(-1, "a" * 32 + ".jpg")
+
+
+# _safe_resolve_under_root
+
+def test_safe_resolve_under_root_accepts_valid_path(tmp_path, monkeypatch):
+    """A path inside the configured root resolves cleanly."""
+    monkeypatch.setattr("utils.firearm_photos.UPLOADS_PATH", str(tmp_path))
+    photo_root = tmp_path / "firearm_photos"
+    photo_root.mkdir()
+    candidate = photo_root / "1" / "abc.jpg"
+    candidate.parent.mkdir()
+    candidate.touch()
+
+    resolved = _safe_resolve_under_root(candidate)
+    assert resolved == candidate.resolve()
+
+
+def test_safe_resolve_under_root_rejects_escape(tmp_path, monkeypatch):
+    """A path that resolves outside the root must be rejected."""
+    monkeypatch.setattr("utils.firearm_photos.UPLOADS_PATH", str(tmp_path))
+    photo_root = tmp_path / "firearm_photos"
+    photo_root.mkdir()
+
+    # Construct a path that would escape via ..
+    bad = photo_root / ".." / "evil.jpg"
+    with pytest.raises(ValueError, match="escapes the firearm_photos root"):
+        _safe_resolve_under_root(bad)
+
+
+def test_safe_resolve_under_root_rejects_symlink_escape(tmp_path, monkeypatch):
+    """If the firearm subdir is a symlink pointing outside the root,
+    resolution detects it."""
+    monkeypatch.setattr("utils.firearm_photos.UPLOADS_PATH", str(tmp_path))
+    photo_root = tmp_path / "firearm_photos"
+    photo_root.mkdir()
+
+    # Create a target outside the root
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    # Symlink a firearm dir to the outside target
+    symlinked = photo_root / "1"
+    try:
+        symlinked.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks not supported on this platform")
+
+    with pytest.raises(ValueError, match="escapes the firearm_photos root"):
+        _safe_resolve_under_root(symlinked / "anything.jpg")
+
+
+# read_photo_bytes
+
+def test_read_photo_bytes_rejects_invalid_filename():
+    with pytest.raises(ValueError):
+        read_photo_bytes(1, "../../../etc/passwd")
+
+
+# delete_firearm_photo_dir
+
+def test_delete_firearm_photo_dir_skips_symlinked_escape(tmp_path, monkeypatch):
+    """If a firearm photo dir is a symlink pointing outside the root,
+    delete_firearm_photo_dir refuses and logs."""
+    from unittest.mock import patch  # noqa: PLC0415
+    monkeypatch.setattr("utils.firearm_photos.UPLOADS_PATH", str(tmp_path))
+    photo_root = tmp_path / "firearm_photos"
+    photo_root.mkdir()
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "sentinel.txt").write_text("do not delete me")
+
+    symlinked = photo_root / "1"
+    try:
+        symlinked.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks not supported on this platform")
+
+    with patch("utils.firearm_photos.logger") as mock_logger:
+        delete_firearm_photo_dir(1)
+
+    # Sentinel should still exist; the helper refused to follow the symlink.
+    assert (outside / "sentinel.txt").exists()
+    # Verify the refusal was logged at ERROR level.
+    mock_logger.error.assert_called_once()
+    assert "Refusing to rmtree" in mock_logger.error.call_args[0][0]
