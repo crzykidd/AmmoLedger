@@ -37,6 +37,7 @@ import { getInvites } from '@/api/invites'
 import { getUsers } from '@/api/users'
 import { useThresholdStatus } from '@/hooks/useThresholdStatus'
 import { cn } from '@/lib/utils'
+import { firearmLabel } from '@/lib/firearm-label'
 import iconInventory from '@/assets/brand/icon-inventory-dark.png'
 import type { CaliberStatus, FirearmRead, RangeSessionListItem } from '@/types'
 
@@ -1007,7 +1008,7 @@ function FirearmsNeedingServiceSection({
         </div>
         <div className="divide-y divide-gray-100 dark:divide-gray-800">
           {list.map((f) => {
-            const heroTitle = `${f.manufacturer_name ?? ''} ${f.display_model}`.trim()
+            const heroTitle = firearmLabel(f)
             const canLog = canLogCleaning(f, currentUser)
             return (
               <div
@@ -1020,7 +1021,7 @@ function FirearmsNeedingServiceSection({
                 >
                   <div className="flex items-baseline gap-1.5 flex-wrap">
                     <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {heroTitle || `Firearm #${f.id}`}
+                      {heroTitle}
                     </span>
                     {f.caliber_name && (
                       <span className="text-xs text-gray-500 dark:text-gray-400">

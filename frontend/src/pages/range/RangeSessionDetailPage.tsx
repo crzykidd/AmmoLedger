@@ -27,10 +27,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import LogRangeDayDialog from '@/components/range/LogRangeDayDialog'
 import { deleteRangeSession, getRangeSession } from '@/api/rangeSessions'
+import { listFirearms } from '@/api/firearms'
 import { useAuth } from '@/hooks/useAuth'
+import { firearmLabel } from '@/lib/firearm-label'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
-import type { RangeSessionLineRead, RangeSessionRead, User } from '@/types'
+import type { FirearmRead, RangeSessionLineRead, RangeSessionRead, User } from '@/types'
 
 type DetailMode = 'flat' | 'by_firearm' | 'by_box'
 const DETAIL_MODE_KEY = 'range_day_detail_mode'
@@ -76,6 +78,18 @@ export default function RangeSessionDetailPage() {
     retry: false,
   })
 
+  const { data: firearms = [] } = useQuery({
+    queryKey: ['firearms'],
+    queryFn: () => listFirearms(),
+    staleTime: 60_000,
+    enabled: !isNaN(sessionId),
+  })
+  const firearmById = useMemo(() => {
+    const m = new Map<number, FirearmRead>()
+    firearms.forEach((f) => m.set(f.id, f))
+    return m
+  }, [firearms])
+
   const deleteMutation = useMutation({
     mutationFn: () => deleteRangeSession(sessionId),
     onSuccess: () => {
@@ -114,6 +128,9 @@ export default function RangeSessionDetailPage() {
           : `/ammo?statusFilter=&emptyFilter=`
         : null
       const key = `${viewMode}:${id == null ? 'null' : id}`
+      const title = viewMode === 'by_firearm' && id != null && firearmById.get(id)
+        ? firearmLabel(firearmById.get(id)!)
+        : (display ?? fallback)
       const existing = groups.get(key)
       if (existing) {
         existing.total += ln.rounds_fired
@@ -121,7 +138,7 @@ export default function RangeSessionDetailPage() {
       } else {
         groups.set(key, {
           key,
-          title: display ?? fallback,
+          title,
           to,
           total: ln.rounds_fired,
           lines: [ln],
@@ -392,6 +409,9 @@ export default function RangeSessionDetailPage() {
                         const fallback = viewMode === 'by_firearm'
                           ? counterpartId != null ? `Box #${counterpartId}` : '—'
                           : counterpartId != null ? `Firearm #${counterpartId}` : '—'
+                        const counterpartLabel = viewMode === 'by_box' && counterpartId != null && firearmById.get(counterpartId)
+                          ? firearmLabel(firearmById.get(counterpartId)!)
+                          : (counterpartDisplay ?? fallback)
                         return (
                           <tr
                             key={ln.id}
@@ -403,7 +423,7 @@ export default function RangeSessionDetailPage() {
                             <td className="px-4 py-2">
                               {counterpartTo ? (
                                 <Link to={counterpartTo} className="text-gold hover:underline">
-                                  {counterpartDisplay ?? fallback}
+                                  {counterpartLabel}
                                 </Link>
                               ) : (
                                 <span className="text-gray-400">{fallback}</span>
@@ -465,7 +485,9 @@ export default function RangeSessionDetailPage() {
                           to={`/firearms/${ln.firearm_id}`}
                           className="text-gold hover:underline font-medium"
                         >
-                          {ln.firearm_display ?? `Firearm #${ln.firearm_id}`}
+                          {firearmById.get(ln.firearm_id)
+                            ? firearmLabel(firearmById.get(ln.firearm_id)!)
+                            : (ln.firearm_display ?? `Firearm #${ln.firearm_id}`)}
                         </Link>
                       ) : (
                         <span className="text-gray-400">—</span>
@@ -514,7 +536,9 @@ export default function RangeSessionDetailPage() {
                         to={`/firearms/${ln.firearm_id}`}
                         className="text-gold hover:underline"
                       >
-                        {ln.firearm_display ?? `Firearm #${ln.firearm_id}`}
+                        {firearmById.get(ln.firearm_id)
+                          ? firearmLabel(firearmById.get(ln.firearm_id)!)
+                          : (ln.firearm_display ?? `Firearm #${ln.firearm_id}`)}
                       </Link>
                     </p>
                   )}

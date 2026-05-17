@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO, formatDistanceToNow } from 'date-fns'
@@ -49,6 +49,7 @@ import { listRangeSessions } from '@/api/rangeSessions'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { firearmLabel, firearmLabelParts } from '@/lib/firearm-label'
 import type {
   CleaningStatus,
   FirearmEventType,
@@ -469,9 +470,13 @@ export default function FirearmDetailPage() {
   }
 
   const editable = canEdit(firearm, user ?? null)
-  const manuModel = `${firearm.manufacturer_name ?? ''} ${firearm.display_model}`.trim()
-  const heroTitle = firearm.nickname || manuModel
+  const { primary: heroTitle, contextSuffix: heroSub } = firearmLabelParts(firearm)
   const lastCleaned = firearm.last_cleaned_at ? parseISO(firearm.last_cleaned_at) : null
+
+  useEffect(() => {
+    document.title = `${firearmLabel(firearm)} · AmmoLedger`
+    return () => { document.title = 'AmmoLedger' }
+  }, [firearm])
   const isCleaningHighlighted = firearm.cleaning_status !== 'ok'
   const cleaningHighlight: 'amber' | 'red' | null =
     firearm.cleaning_status === 'overdue'
@@ -510,7 +515,7 @@ export default function FirearmDetailPage() {
   return (
     <AppShell>
       <TopBar
-        title={heroTitle || 'Firearm'}
+        title={heroTitle}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => navigate('/firearms')}>
@@ -550,7 +555,7 @@ export default function FirearmDetailPage() {
             >
               <img
                 src={photoSrc(firearm.default_photo_url)}
-                alt={heroTitle}
+                alt={heroTitle || 'Firearm photo'}
                 className="w-full max-h-[400px] object-contain mx-auto"
               />
             </button>
@@ -605,8 +610,8 @@ export default function FirearmDetailPage() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{heroTitle}</h2>
-              {firearm.nickname && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{manuModel}</p>
+              {heroSub && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{heroSub}</p>
               )}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {firearm.caliber_name && (

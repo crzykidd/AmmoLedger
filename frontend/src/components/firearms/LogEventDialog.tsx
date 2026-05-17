@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createFirearmLog, updateFirearmLog } from '@/api/firearms'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { firearmLabelParts } from '@/lib/firearm-label'
 import type {
   FirearmEventType,
   FirearmLogCreate,
@@ -144,9 +145,13 @@ export default function LogEventDialog({ open, onOpenChange, firearm, editLog }:
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Log Entry' : 'Log Event'}</DialogTitle>
           <DialogDescription>
-            {isEdit
-              ? 'Update this event entry.'
-              : 'Record a cleaning, service, or note for this firearm.'}
+            {(() => {
+              const { primary, contextSuffix } = firearmLabelParts(firearm)
+              const label = contextSuffix ? `${primary} — ${contextSuffix}` : primary
+              return isEdit
+                ? `Update this event entry for ${label}.`
+                : `Record a cleaning, service, or note for ${label}.`
+            })()}
           </DialogDescription>
         </DialogHeader>
 

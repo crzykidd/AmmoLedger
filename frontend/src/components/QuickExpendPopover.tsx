@@ -13,6 +13,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { firearmLabel, firearmLabelForToast } from '@/lib/firearm-label'
 import type { AmmoBoxRead, FirearmRead, RangeSessionListItem } from '@/types'
 
 const STATIC_PRESETS = [50, 30, 20, 10, 1]
@@ -243,7 +244,7 @@ export default function QuickExpendPopover({
           ? firearmsList?.find((f) => f.id === result.firearmId)
           : null
       const firearmDesc = firearm
-        ? ` through ${firearm.manufacturer_name ?? ''} ${firearm.display_model}`.replace(/\s+/g, ' ').trimEnd()
+        ? ` through ${firearmLabelForToast(firearm)}`
         : ''
 
       if (result.kind === 'expend') {
@@ -441,8 +442,7 @@ export default function QuickExpendPopover({
                   <optgroup label="Caliber match">
                     {firearmsByCaliber.match.map((f) => (
                       <option key={f.id} value={f.id}>
-                        {f.manufacturer_name} {f.display_model}
-                        {f.caliber_name && ` (${f.caliber_name})`}
+                        {firearmLabel(f)}
                       </option>
                     ))}
                   </optgroup>
@@ -451,8 +451,7 @@ export default function QuickExpendPopover({
                   <optgroup label="Other calibers">
                     {firearmsByCaliber.other.map((f) => (
                       <option key={f.id} value={f.id}>
-                        {f.manufacturer_name} {f.display_model}
-                        {f.caliber_name && ` (${f.caliber_name})`}
+                        {firearmLabel(f)}
                       </option>
                     ))}
                   </optgroup>

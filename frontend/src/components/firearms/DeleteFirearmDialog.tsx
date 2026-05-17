@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { deleteFirearm } from '@/api/firearms'
 import { toast } from '@/hooks/use-toast'
+import { firearmLabel } from '@/lib/firearm-label'
 import type { FirearmRead } from '@/types'
 
 interface Props {
@@ -37,9 +38,7 @@ export default function DeleteFirearmDialog({ firearm, open, onOpenChange, onDel
     },
   })
 
-  const name = firearm
-    ? `${firearm.manufacturer_name ?? ''} ${firearm.display_model}`.trim()
-    : ''
+  const name = firearm ? firearmLabel(firearm) : ''
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

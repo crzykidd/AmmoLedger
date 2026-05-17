@@ -55,6 +55,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { firearmLabel } from '@/lib/firearm-label'
 import type {
   AmmoBoxRead,
   FirearmRead,
@@ -1121,17 +1122,11 @@ function GroupCard({
                 <SelectItem value={NONE}>
                   <span className="text-gray-400">None (e.g. dry fire)</span>
                 </SelectItem>
-                {firearms.map((f) => {
-                  const title = `${f.manufacturer_name ?? ''} ${f.display_model}`.trim()
-                  return (
-                    <SelectItem key={f.id} value={String(f.id)}>
-                      {title}
-                      {f.caliber_name && (
-                        <span className="text-gray-400 ml-1.5">({f.caliber_name})</span>
-                      )}
-                    </SelectItem>
-                  )
-                })}
+                {firearms.map((f) => (
+                  <SelectItem key={f.id} value={String(f.id)}>
+                    {firearmLabel(f)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           ) : (
@@ -1273,16 +1268,12 @@ function AllocationRow({
                   <span className="text-gray-400">None</span>
                 </SelectItem>
                 {firearms.map((f) => {
-                  const title = `${f.manufacturer_name ?? ''} ${f.display_model}`.trim()
                   const isMatch =
                     anchorCaliberId != null && f.caliber_id === anchorCaliberId
                   return (
                     <SelectItem key={f.id} value={String(f.id)}>
                       <span className="inline-flex items-center gap-1.5">
-                        {title}
-                        {f.caliber_name && (
-                          <span className="text-gray-400">({f.caliber_name})</span>
-                        )}
+                        {firearmLabel(f)}
                         {isMatch && (
                           <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                             Match

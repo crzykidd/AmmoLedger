@@ -31,6 +31,7 @@ import LogRangeDayDialog from '@/components/range/LogRangeDayDialog'
 import { UserTagBadge } from '@/components/firearms/UserTagPicker'
 import FirearmIcon from '@/components/icons/FirearmIcon'
 import { listFirearms, exportFirearmsCsvUrl } from '@/api/firearms'
+import { firearmLabelParts } from '@/lib/firearm-label'
 import { photoSrc } from '@/api/firearmPhotos'
 import { getCalibersLookup, getManufacturersByType } from '@/api/lookups'
 import { useAuth } from '@/hooks/useAuth'
@@ -127,9 +128,7 @@ interface FirearmCardProps {
 }
 
 function FirearmCard({ firearm, onClick }: FirearmCardProps) {
-  const manuModel = `${firearm.manufacturer_name ?? 'Unknown'} ${firearm.display_model}`.trim()
-  const primaryTitle = firearm.nickname || manuModel
-  const secondaryTitle = firearm.nickname ? manuModel : null
+  const { primary: primaryTitle, contextSuffix } = firearmLabelParts(firearm)
   return (
     <button
       type="button"
@@ -153,9 +152,9 @@ function FirearmCard({ firearm, onClick }: FirearmCardProps) {
             <p className="font-semibold text-base text-gray-900 dark:text-white leading-tight line-clamp-2">
               {primaryTitle}
             </p>
-            {secondaryTitle && (
+            {contextSuffix && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
-                {secondaryTitle}
+                {contextSuffix}
               </p>
             )}
           </div>
@@ -329,8 +328,8 @@ export default function FirearmsListPage() {
       let bv: string | number = ''
       switch (sortField) {
         case 'name':
-          av = a.display_model.toLowerCase()
-          bv = b.display_model.toLowerCase()
+          av = firearmLabelParts(a).primary.toLowerCase()
+          bv = firearmLabelParts(b).primary.toLowerCase()
           break
         case 'manufacturer':
           av = (a.manufacturer_name ?? '').toLowerCase()
@@ -693,15 +692,22 @@ export default function FirearmsListPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900 dark:text-white leading-tight">
-                        {f.nickname || f.display_model}
-                      </p>
-                      {f.nickname && (
-                        <p className="text-xs text-gray-400">{f.display_model}</p>
-                      )}
-                      {f.serial && (
-                        <p className="text-xs text-gray-400">SN: {f.serial}</p>
-                      )}
+                      {(() => {
+                        const { primary, contextSuffix: ctx } = firearmLabelParts(f)
+                        return (
+                          <>
+                            <p className="font-medium text-gray-900 dark:text-white leading-tight">
+                              {primary}
+                            </p>
+                            {ctx && (
+                              <p className="text-xs text-gray-400">{ctx}</p>
+                            )}
+                            {f.serial && (
+                              <p className="text-xs text-gray-400">SN: {f.serial}</p>
+                            )}
+                          </>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-gray-300">
                       {f.manufacturer_name ?? '—'}

@@ -26,6 +26,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import LogRangeDayDialog from '@/components/range/LogRangeDayDialog'
 import { listFirearms } from '@/api/firearms'
+import { firearmLabel } from '@/lib/firearm-label'
 import {
   listRangeSessions,
   getRangeSession,
@@ -120,10 +121,7 @@ export default function RangePage() {
   })
   const firearmById = useMemo(() => {
     const m = new Map<number, string>()
-    firearms.forEach((f) => {
-      const title = `${f.manufacturer_name ?? ''} ${f.display_model}`.trim()
-      m.set(f.id, title)
-    })
+    firearms.forEach((f) => m.set(f.id, firearmLabel(f)))
     return m
   }, [firearms])
 
@@ -246,7 +244,7 @@ export default function RangePage() {
                 <SelectItem value={NONE}>All firearms</SelectItem>
                 {firearms.map((f) => (
                   <SelectItem key={f.id} value={String(f.id)}>
-                    {`${f.manufacturer_name ?? ''} ${f.display_model}`.trim()}
+                    {firearmLabel(f)}
                   </SelectItem>
                 ))}
               </SelectContent>
