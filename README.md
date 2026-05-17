@@ -28,13 +28,16 @@ A self-hosted web application to track your ammunition inventory, firearms, and 
 
 Highlights since v0.2.x:
 
-- **Firearms registry (`/firearms`)** — track every firearm with manufacturer, model, caliber, serial, barrel length, finish, purchase details, dealer, multi-select compliance tags, and per-user colored personal tags. Built-in catalog of ~20 manufacturers and ~50 popular models speeds entry.
+- **Firearms registry (`/firearms`)** — track every firearm with manufacturer, model, caliber, serial, barrel length, finish, purchase details, dealer, multi-select compliance tags, and per-user colored personal tags. Built-in catalog of ~25 popular manufacturers and ~100 popular models speeds entry.
 - **Range sessions (`/range`)** — multi-line range day log. Each line ties an optional firearm to an optional ammo box; rounds fired deduct from the box through the existing expenditure log and bump the firearm's lifetime and since-clean counters in the same transaction. Editing or deleting a session reverses every side effect.
 - **Firearm maintenance log** — cleaning, service, and note events per firearm. Round-based and time-based service intervals drive a green/amber/red cleaning status that surfaces on every firearm card and on the dashboard.
 - **Dashboard widgets** — Firearms Needing Service (overdue + due-soon with inline Log Cleaning) and Recent Range Sessions; Quick Actions row for Log Range Day / Add Firearm / Add Ammo Box.
 - **CSV exports** — `GET /firearms/export/csv` and `GET /range-sessions/export/csv` plus Export buttons on the Firearms and Range pages.
 - **Firearms CSV import** — round-trip with the firearms export. Same validate / preview / confirm flow as ammo, plus cascading model resolution under each manufacturer and synthetic firearm-log entries seeded from imported round counts. Surfaced as a new "Firearms" tab on the Import page.
 - **Lookups & admin** — new community-curated lookups for Firearm Models, Action Types, and Compliance Tags, plus a `manufacturers.types` JSON column so a single manufacturer table serves both ammo and firearm domains.
+- **Firearm photos** — up to 5 photos per firearm; photo manager with drag-to-reorder; default photo shown on cards and the detail page with a lightbox; photos bundled into zip backups alongside the database.
+- **LookupCombobox with inline create** — every form drawer's lookup dropdown gains type-ahead search and an inline "+ Create" affordance with a fuzzy-match guard; members can create new lookup entries directly from the form.
+- **At Range session attribution** — the quick-expend popover on At Range gains a three-option control (None / New / Last) plus a firearm picker so a full range day can be logged box-by-box without leaving the At Range page.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
@@ -185,9 +188,9 @@ Database migrations run automatically on startup. Your data in `data/` is never 
 
 v0.3.0 adds three new migrations on top of the v0.1.9 baseline schema:
 
-- `0002_add_firearm_lookups.py` — firearm community lookups (models, action types, compliance tags, user tags) and a `manufacturers.types` JSON column
-- `0003_add_firearms.py` — `firearms`, `firearm_log`, and the firearm tag-link tables
-- `0004_add_range_sessions.py` — `range_sessions`, `range_session_lines`, and the new `expenditure_log.range_session_line_id` FK
+- `0002_firearms_feature.py` — the entire firearms feature in a single migration: firearm and range-session domain tables, `manufacturers.types` JSON column, `expenditure_log.range_session_line_id` FK
+- `0003_add_firearm_photos.py` — `firearm_photos` table for per-firearm photo gallery
+- `0004_firearm_v030_polish.py` — `firearm_conditions` lookup table and six new columns on `firearms` (`nickname`, `firearm_condition_id`, `sight_radius_in`, `weight`, `weight_unit`, `twist_rate`)
 
 The new tables are additive and back-compat with existing ammo data — nothing about how you track ammunition changes. Pull the new images and `alembic upgrade head` runs automatically on startup. As always, take a backup before upgrading if you're cautious.
 

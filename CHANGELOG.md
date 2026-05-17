@@ -19,6 +19,30 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Coming Next
+
+The following items were deliberately scoped out of v0.3.0 and remain
+on the roadmap:
+
+- **Multi-caliber firearms.** v1 firearms have a single caliber FK plus a free-text `caliber_notes` field for the workaround. A `firearm_calibers` join table will be added in a future migration without renaming the existing column.
+- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet; future migration adds it when the feature ships. (Firearm photos shipped in v0.3.0 — this is line-level target photos only.)
+- **Range sessions CSV import.** Export-only this release; import will follow when its remap UX is designed.
+- **Accessories module** (PRD v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
+- **At Range / Range workflow merge.** The mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.
+- **Additional community lookups.** Sight types, finishes, and other taxonomies are currently free-text on firearms. They become candidates for community lookups based on user feedback.
+
+## [0.3.0] — 2026-05-17
+
+**Firearms tracking, range session logging, and firearm maintenance
+log all ship in this release.** AmmoLedger now manages firearms
+alongside ammo: per-firearm registries with photos, multi-line range
+sessions that atomically deduct ammo and bump firearm counters, a
+maintenance log driving green/amber/red cleaning status, and full
+CSV import/export round-trip for firearms data. Both the existing
+ammo flows and the new firearm flows share the same ownership model,
+the same community-curated lookups, and the same backup/restore
+pipeline.
+
 ### Added — Firearms tracking
 
 - **Firearms registry (`/firearms`).** Track each firearm with manufacturer, model, caliber, serial, barrel length, finish, purchase details, and dealer. Card-grid or list view with search and filters by manufacturer, caliber, type, and cleaning status. Same ownership model as ammo boxes — members own private firearms by default; admins can mark firearms as shared so all members see them. View mode, filter selections, and sort order persist across sessions.
@@ -125,17 +149,6 @@ and create a fresh empty `## [Unreleased]` block above it.
   (seeded with 7 entries via `defaults.yaml` v2.1) and six new columns on
   `firearms`: `nickname`, `firearm_condition_id` (FK + index), `sight_radius_in`,
   `weight`, `weight_unit` (CHECK `IN ('OZ', 'LB') OR NULL`), and `twist_rate`.
-
-### Deferred
-
-The following items were deliberately scoped out of this release and remain on the roadmap:
-
-- **Multi-caliber firearms.** v1 firearms have a single caliber FK plus a free-text `caliber_notes` field for the workaround. A `firearm_calibers` join table will be added in a future migration without renaming the existing column.
-- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet; future migration adds it when the feature ships. (Firearm photos shipped in v0.3.0 — this is line-level target photos only.)
-- **Range sessions CSV import.** Export-only this release; import will follow when its remap UX is designed.
-- **Accessories module** (PRD v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
-- **At Range / Range workflow merge.** The mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.
-- **Additional community lookups.** Sight types, finishes, and other taxonomies are currently free-text on firearms. They become candidates for community lookups based on user feedback.
 
 ## [0.2.3] — 2026-05-09
 
