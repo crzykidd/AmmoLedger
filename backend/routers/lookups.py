@@ -14,6 +14,7 @@ from models import (
     Dealer,
     FirearmActionType,
     FirearmComplianceTag,
+    FirearmCondition,
     FirearmFinish,
     FirearmFrameSize,
     FirearmModel,
@@ -35,6 +36,9 @@ from schemas import (
     FirearmComplianceTagCreate,
     FirearmComplianceTagRead,
     FirearmComplianceTagUpdate,
+    FirearmConditionCreate,
+    FirearmConditionRead,
+    FirearmConditionUpdate,
     FirearmFinishCreate,
     FirearmFinishRead,
     FirearmFinishUpdate,
@@ -1397,6 +1401,98 @@ def delete_firearm_finish(
     e = db.get(FirearmFinish, entry_id)
     if not e:
         raise HTTPException(status_code=404, detail="Finish not found")
+    if e.source not in ("user", "local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete community entries — use Hide instead",
+        )
+    db.delete(e)
+    db.commit()
+    return None
+
+
+# Firearm Conditions ----------------------------------------------------------
+
+@router.get("/firearm-conditions", response_model=list[FirearmConditionRead])
+def list_firearm_conditions(
+    active_only: bool = Query(True),
+    user=Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    stmt = select(FirearmCondition)
+    if active_only:
+        stmt = stmt.where(FirearmCondition.is_active == True)  # noqa: E712
+        stmt = stmt.where(FirearmCondition.is_imported == True)  # noqa: E712
+    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+
+
+@router.post(
+    "/firearm-conditions",
+    response_model=FirearmConditionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_firearm_condition(
+    payload: FirearmConditionCreate,
+    user=Depends(require_role("admin", "member")),
+    db: Session = Depends(get_session),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if db.exec(select(FirearmCondition).where(FirearmCondition.name == name)).first():
+        raise HTTPException(status_code=409, detail="Condition already exists")
+    e = FirearmCondition(name=name)
+    if user.role != "admin":
+        e.source = "user"
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.patch("/firearm-conditions/{entry_id}", response_model=FirearmConditionRead)
+def update_firearm_condition(
+    entry_id: int,
+    payload: FirearmConditionUpdate,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmCondition, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Condition not found")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        clash = db.exec(
+            select(FirearmCondition)
+            .where(FirearmCondition.name == name)
+            .where(FirearmCondition.id != entry_id)
+        ).first()
+        if clash:
+            raise HTTPException(status_code=409, detail="Name already exists")
+        if e.source == "community" and name.lower() != e.name.lower():
+            e.source = "local"
+            e.community_key = None
+        e.name = name
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return _attr_lookup_dict(e)
+
+
+@router.delete(
+    "/firearm-conditions/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_firearm_condition(
+    entry_id: int,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_session),
+):
+    e = db.get(FirearmCondition, entry_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Condition not found")
     if e.source not in ("user", "local"):
         raise HTTPException(
             status_code=400,

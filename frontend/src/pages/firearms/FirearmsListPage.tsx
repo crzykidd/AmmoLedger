@@ -127,7 +127,9 @@ interface FirearmCardProps {
 }
 
 function FirearmCard({ firearm, onClick }: FirearmCardProps) {
-  const title = `${firearm.manufacturer_name ?? 'Unknown'} ${firearm.display_model}`.trim()
+  const manuModel = `${firearm.manufacturer_name ?? 'Unknown'} ${firearm.display_model}`.trim()
+  const primaryTitle = firearm.nickname || manuModel
+  const secondaryTitle = firearm.nickname ? manuModel : null
   return (
     <button
       type="button"
@@ -147,9 +149,16 @@ function FirearmCard({ firearm, onClick }: FirearmCardProps) {
       </div>
       <div className="p-4 flex flex-col gap-2 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className="font-semibold text-base text-gray-900 dark:text-white leading-tight line-clamp-2">
-            {title}
-          </p>
+          <div className="min-w-0">
+            <p className="font-semibold text-base text-gray-900 dark:text-white leading-tight line-clamp-2">
+              {primaryTitle}
+            </p>
+            {secondaryTitle && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
+                {secondaryTitle}
+              </p>
+            )}
+          </div>
           <span
             title={statusTooltip(firearm)}
             className="shrink-0 mt-1.5"
@@ -292,12 +301,13 @@ export default function FirearmsListPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // Client-side search across manufacturer, model, serial
+  // Client-side search across manufacturer, model, serial, nickname
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return firearms
     return firearms.filter((f) => {
       const haystack = [
+        f.nickname,
         f.manufacturer_name,
         f.firearm_model_name,
         f.custom_model_name,
@@ -684,8 +694,11 @@ export default function FirearmsListPage() {
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900 dark:text-white leading-tight">
-                        {f.display_model}
+                        {f.nickname || f.display_model}
                       </p>
+                      {f.nickname && (
+                        <p className="text-xs text-gray-400">{f.display_model}</p>
+                      )}
                       {f.serial && (
                         <p className="text-xs text-gray-400">SN: {f.serial}</p>
                       )}

@@ -23,6 +23,7 @@ from models import (
     FirearmActionType,
     FirearmComplianceTag,
     FirearmComplianceTagLink,
+    FirearmCondition,
     FirearmFinish,
     FirearmFrameSize,
     FirearmLog,
@@ -65,7 +66,8 @@ router = APIRouter(prefix="/import/firearms", tags=["firearms_import"])
 ALL_COLUMNS = {
     "id", "owner_username", "is_shared", "manufacturer", "model",
     "custom_model_name", "display_model", "firearm_type", "action_type",
-    "caliber", "caliber_notes", "serial", "barrel_length_in",
+    "caliber", "caliber_notes", "serial", "nickname", "firearm_condition",
+    "sight_radius_in", "weight", "weight_unit", "twist_rate", "barrel_length_in",
     "frame_size", "optic_cut", "rail_type", "finish", "standard_capacity",
     "purchase_date", "purchase_price", "dealer", "notes", "photo_count",
     "rounds_lifetime", "rounds_since_clean", "last_cleaned_at",
@@ -88,6 +90,7 @@ SINGLE_LOOKUP_COLUMNS = {
     "optic_cut": FirearmOpticCut,
     "rail_type": FirearmRailType,
     "finish": FirearmFinish,
+    "firearm_condition": FirearmCondition,
 }
 
 # Cascading lookup: model is scoped under its row's manufacturer.
@@ -104,7 +107,7 @@ MULTI_VALUE_COLUMNS = {
 COMMUNITY_FIELDS = {
     "manufacturer", "caliber", "action_type", "model",
     "frame_size", "optic_cut", "rail_type", "finish",
-    "compliance_tags",
+    "firearm_condition", "compliance_tags",
 }
 
 
@@ -118,6 +121,7 @@ def _table_key_for(Model) -> str:
         FirearmOpticCut: "firearm_optic_cuts",
         FirearmRailType: "firearm_rail_types",
         FirearmFinish: "firearm_finishes",
+        FirearmCondition: "firearm_conditions",
         FirearmModel: "firearm_models",
         FirearmComplianceTag: "firearm_compliance_tags",
         FirearmUserTag: "firearm_user_tags",
@@ -171,7 +175,7 @@ def _validate_row(row: dict[str, str], row_num: int) -> tuple[list[dict], list[d
                        "message": "either model or custom_model_name is required"})
 
     # Numeric warnings — non-blocking; invalid → null
-    for field in ("barrel_length_in", "purchase_price"):
+    for field in ("barrel_length_in", "purchase_price", "sight_radius_in"):
         v = row.get(field, "").strip()
         if not v:
             continue
@@ -182,6 +186,31 @@ def _validate_row(row: dict[str, str], row_num: int) -> tuple[list[dict], list[d
         elif parsed < 0:
             warnings.append({"row": row_num, "field": field,
                              "message": f"{field} is negative — will be set to null"})
+
+    weight_raw = row.get("weight", "").strip()
+    weight_unit_raw = row.get("weight_unit", "").strip().upper()
+    if weight_raw:
+        wt = _parse_float(weight_raw)
+        if wt is None:
+            warnings.append({"row": row_num, "field": "weight",
+                             "message": "weight is not a valid number — will be set to null"})
+        elif wt < 0:
+            warnings.append({"row": row_num, "field": "weight",
+                             "message": "weight is negative — will be set to null"})
+        elif not weight_unit_raw:
+            warnings.append({"row": row_num, "field": "weight_unit",
+                             "message": "weight provided without weight_unit — defaulting to OZ"})
+        elif weight_unit_raw not in ("OZ", "LB"):
+            warnings.append({"row": row_num, "field": "weight_unit",
+                             "message": f"weight_unit '{weight_unit_raw}' is not OZ or LB — defaulting to OZ"})
+
+    twist_raw = row.get("twist_rate", "").strip()
+    if twist_raw:
+        import re as _re
+        if not _re.match(r'^1\s*[:/x\-]\s*\d+(\.\d+)?$', twist_raw) \
+                and not _re.match(r'^\d+(\.\d+)?$', twist_raw):
+            warnings.append({"row": row_num, "field": "twist_rate",
+                             "message": "twist_rate format unusual — value preserved as entered"})
 
     for field in ("rounds_lifetime", "rounds_since_clean", "standard_capacity",
                   "service_interval_rounds", "service_interval_days"):
@@ -688,6 +717,11 @@ async def confirm_firearms_import(
             if fn_raw:
                 finish_id = _resolve_or_create(import_db, FirearmFinish, fn_raw)
 
+            firearm_condition_id: int | None = None
+            cond_raw = _apply_remap(row.get("firearm_condition", "").strip(), "firearm_condition", remaps)
+            if cond_raw:
+                firearm_condition_id = _resolve_or_create(import_db, FirearmCondition, cond_raw)
+
             # Cascading model: resolve scoped to manufacturer
             firearm_model_id: int | None = None
             model_raw = _apply_remap(row.get("model", "").strip(), "model", remaps)
@@ -726,6 +760,29 @@ async def confirm_firearms_import(
             purchase_price = _parse_float(price_raw) if price_raw else None
             if purchase_price is not None and purchase_price < 0:
                 purchase_price = None
+
+            # v0.3.0 polish fields
+            nickname = row.get("nickname", "").strip() or None
+
+            sr_raw = row.get("sight_radius_in", "").strip()
+            sight_radius_in = _parse_float(sr_raw) if sr_raw else None
+            if sight_radius_in is not None and sight_radius_in < 0:
+                sight_radius_in = None
+
+            wt_raw = row.get("weight", "").strip()
+            weight = _parse_float(wt_raw) if wt_raw else None
+            if weight is not None and weight < 0:
+                weight = None
+            wu_raw = row.get("weight_unit", "").strip().upper()
+            if weight is not None:
+                if wu_raw in ("OZ", "LB"):
+                    weight_unit = wu_raw
+                else:
+                    weight_unit = "OZ"  # default per import spec
+            else:
+                weight_unit = wu_raw if wu_raw in ("OZ", "LB") else None
+
+            twist_rate = row.get("twist_rate", "").strip() or None
 
             rl_raw = row.get("rounds_lifetime", "").strip()
             rounds_lifetime = _parse_int(rl_raw) if rl_raw else 0
@@ -777,6 +834,12 @@ async def confirm_firearms_import(
                 caliber_id=cal_id,
                 caliber_notes=row.get("caliber_notes", "").strip() or None,
                 serial=row.get("serial", "").strip() or None,
+                nickname=nickname,
+                firearm_condition_id=firearm_condition_id,
+                sight_radius_in=sight_radius_in,
+                weight=weight,
+                weight_unit=weight_unit,
+                twist_rate=twist_rate,
                 barrel_length_in=barrel_length,
                 frame_size_id=frame_size_id,
                 optic_cut_id=optic_cut_id,
@@ -866,7 +929,7 @@ async def confirm_firearms_import(
             for Model in [
                 Manufacturer, Caliber, FirearmActionType, Dealer,
                 FirearmFrameSize, FirearmOpticCut, FirearmRailType, FirearmFinish,
-                FirearmModel, FirearmComplianceTag,
+                FirearmCondition, FirearmModel, FirearmComplianceTag,
             ]
         )
 
@@ -888,6 +951,8 @@ def get_firearms_template(user=Depends(require_auth)):
     columns = [
         "manufacturer", "model", "custom_model_name", "firearm_type",
         "action_type", "caliber", "caliber_notes", "serial",
+        "nickname", "firearm_condition",
+        "sight_radius_in", "weight", "weight_unit", "twist_rate",
         "barrel_length_in", "frame_size", "optic_cut", "rail_type", "finish",
         "standard_capacity", "purchase_date", "purchase_price",
         "dealer", "notes", "rounds_lifetime", "rounds_since_clean",
@@ -900,7 +965,11 @@ def get_firearms_template(user=Depends(require_auth)):
             "manufacturer": "Glock", "model": "19 Gen 5", "custom_model_name": "",
             "firearm_type": "pistol", "action_type": "Semi-auto pistol",
             "caliber": "9mm Luger", "caliber_notes": "",
-            "serial": "ABC123", "barrel_length_in": "4.02",
+            "serial": "ABC123",
+            "nickname": "EDC Glock", "firearm_condition": "Used",
+            "sight_radius_in": "5.9", "weight": "23.63", "weight_unit": "OZ",
+            "twist_rate": "1:10",
+            "barrel_length_in": "4.02",
             "frame_size": "Compact", "optic_cut": "RMR", "rail_type": "Picatinny",
             "finish": "nDLC", "standard_capacity": "15",
             "purchase_date": "2024-08-12", "purchase_price": "599.00",
@@ -916,7 +985,11 @@ def get_firearms_template(user=Depends(require_auth)):
             "manufacturer": "Custom Builder", "model": "", "custom_model_name": "Custom 1911",
             "firearm_type": "pistol", "action_type": "Semi-auto pistol",
             "caliber": "45 ACP", "caliber_notes": "",
-            "serial": "", "barrel_length_in": "5.0",
+            "serial": "",
+            "nickname": "", "firearm_condition": "New",
+            "sight_radius_in": "6.5", "weight": "38.0", "weight_unit": "OZ",
+            "twist_rate": "1:16",
+            "barrel_length_in": "5.0",
             "frame_size": "", "optic_cut": "None", "rail_type": "None",
             "finish": "Stainless", "standard_capacity": "8",
             "purchase_date": "2023-03-15", "purchase_price": "2200.00",

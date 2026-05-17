@@ -4,6 +4,7 @@ import type {
   DealerItem,
   FirearmActionTypeItem,
   FirearmComplianceTagItem,
+  FirearmConditionItem,
   FirearmFinishItem,
   FirearmFrameSizeItem,
   FirearmModelItem,
@@ -255,3 +256,18 @@ export const updateFirearmFinish = (id: number, payload: { name?: string }) =>
   api.patch<FirearmFinishItem>(`/firearm-finishes/${id}`, payload)
 export const deleteFirearmFinish = (id: number) =>
   api.delete<void>(`/firearm-finishes/${id}`)
+
+// ---------------------------------------------------------------------------
+// Firearm Conditions (v0.3.0 polish)
+// ---------------------------------------------------------------------------
+
+export const getFirearmConditions = () =>
+  api.get<FirearmConditionItem[]>('/firearm-conditions')
+export const getFirearmConditionsAdmin = () =>
+  api.get<FirearmConditionItem[]>('/firearm-conditions?active_only=false')
+export const createFirearmCondition = (name: string) =>
+  api.post<FirearmConditionItem>('/firearm-conditions', { name })
+export const updateFirearmCondition = (id: number, payload: { name?: string }) =>
+  api.patch<FirearmConditionItem>(`/firearm-conditions/${id}`, payload)
+export const deleteFirearmCondition = (id: number) =>
+  api.delete<void>(`/firearm-conditions/${id}`)

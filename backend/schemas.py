@@ -270,6 +270,24 @@ class FirearmFrameSizeUpdate(BaseModel):
     name: Optional[str] = None
 
 
+class FirearmConditionRead(_OrmBase):
+    id: int
+    name: str
+    is_active: bool
+    source: str
+    community_key: Optional[str] = None
+    is_imported: bool = True
+    usage_count: int = 0
+
+
+class FirearmConditionCreate(BaseModel):
+    name: str
+
+
+class FirearmConditionUpdate(BaseModel):
+    name: Optional[str] = None
+
+
 class FirearmOpticCutRead(_OrmBase):
     id: int
     name: str
@@ -395,6 +413,9 @@ _VALID_FIREARM_TYPES = {"pistol", "rifle", "shotgun", "other"}
 _VALID_FIREARM_EVENT_TYPES = {"cleaning", "service", "note"}
 
 
+_VALID_WEIGHT_UNITS = {"OZ", "LB"}
+
+
 class FirearmCreate(BaseModel):
     is_shared: bool = False
     manufacturer_id: int
@@ -405,6 +426,13 @@ class FirearmCreate(BaseModel):
     caliber_id: int
     caliber_notes: Optional[str] = None
     serial: Optional[str] = None
+    # v0.3.0 polish — identity + specifications
+    nickname: Optional[str] = None
+    firearm_condition_id: Optional[int] = None
+    sight_radius_in: Optional[float] = None
+    weight: Optional[float] = None
+    weight_unit: Optional[str] = None
+    twist_rate: Optional[str] = None
     barrel_length_in: Optional[float] = None
     # Physical attribute FKs (v0.3.0 — replaces free-text finish).
     frame_size_id: Optional[int] = None
@@ -428,6 +456,38 @@ class FirearmCreate(BaseModel):
             raise ValueError(
                 f"firearm_type must be one of {sorted(_VALID_FIREARM_TYPES)}; got {v!r}"
             )
+        return v
+
+    @field_validator("weight_unit")
+    @classmethod
+    def _check_weight_unit(cls, v):
+        if v is None:
+            return v
+        v = v.strip().upper()
+        if v not in _VALID_WEIGHT_UNITS:
+            raise ValueError(f"weight_unit must be one of {sorted(_VALID_WEIGHT_UNITS)} or null; got {v!r}")
+        return v
+
+    @field_validator("twist_rate")
+    @classmethod
+    def _check_twist_rate(cls, v):
+        if v is None:
+            return v
+        v = v.strip()
+        return v if v else None
+
+    @field_validator("sight_radius_in")
+    @classmethod
+    def _check_sight_radius(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("sight_radius_in must be >= 0")
+        return v
+
+    @field_validator("weight")
+    @classmethod
+    def _check_weight(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("weight must be >= 0")
         return v
 
     @field_validator("barrel_length_in")
@@ -470,6 +530,8 @@ class FirearmCreate(BaseModel):
             raise ValueError(
                 "either firearm_model_id or custom_model_name must be provided"
             )
+        if self.weight is not None and self.weight_unit is None:
+            raise ValueError("weight_unit must be provided when weight is set (OZ or LB)")
 
 
 class FirearmPhotoRead(BaseModel):
@@ -520,6 +582,14 @@ class FirearmRead(_OrmBase):
     caliber_notes: Optional[str] = None
 
     serial: Optional[str] = None
+    # v0.3.0 polish — identity + specifications
+    nickname: Optional[str] = None
+    firearm_condition_id: Optional[int] = None
+    firearm_condition_name: Optional[str] = None
+    sight_radius_in: Optional[float] = None
+    weight: Optional[float] = None
+    weight_unit: Optional[str] = None
+    twist_rate: Optional[str] = None
     barrel_length_in: Optional[float] = None
     # Physical attribute FKs (v0.3.0 — replaces free-text finish). Resolved
     # name fields populated by the router for read-time convenience.
@@ -567,6 +637,13 @@ class FirearmUpdate(BaseModel):
     caliber_id: Optional[int] = None
     caliber_notes: Optional[str] = None
     serial: Optional[str] = None
+    # v0.3.0 polish — identity + specifications
+    nickname: Optional[str] = None
+    firearm_condition_id: Optional[int] = None
+    sight_radius_in: Optional[float] = None
+    weight: Optional[float] = None
+    weight_unit: Optional[str] = None
+    twist_rate: Optional[str] = None
     barrel_length_in: Optional[float] = None
     # Physical attribute FKs (v0.3.0).
     frame_size_id: Optional[int] = None
@@ -590,6 +667,38 @@ class FirearmUpdate(BaseModel):
             raise ValueError(
                 f"firearm_type must be one of {sorted(_VALID_FIREARM_TYPES)}; got {v!r}"
             )
+        return v
+
+    @field_validator("weight_unit")
+    @classmethod
+    def _check_weight_unit(cls, v):
+        if v is None:
+            return v
+        v = v.strip().upper()
+        if v not in _VALID_WEIGHT_UNITS:
+            raise ValueError(f"weight_unit must be one of {sorted(_VALID_WEIGHT_UNITS)} or null; got {v!r}")
+        return v
+
+    @field_validator("twist_rate")
+    @classmethod
+    def _check_twist_rate(cls, v):
+        if v is None:
+            return v
+        v = v.strip()
+        return v if v else None
+
+    @field_validator("sight_radius_in")
+    @classmethod
+    def _check_sight_radius(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("sight_radius_in must be >= 0")
+        return v
+
+    @field_validator("weight")
+    @classmethod
+    def _check_weight(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("weight must be >= 0")
         return v
 
     @field_validator("barrel_length_in")

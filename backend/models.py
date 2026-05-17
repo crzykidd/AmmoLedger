@@ -136,6 +136,17 @@ class FirearmFinish(SQLModel, table=True):
     is_imported: bool = Field(default=True)
 
 
+class FirearmCondition(SQLModel, table=True):
+    __tablename__ = "firearm_conditions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
 class FirearmModel(SQLModel, table=True):
     __tablename__ = "firearm_models"
     __table_args__ = (
@@ -204,6 +215,13 @@ class Firearm(SQLModel, table=True):
     caliber_notes: Optional[str] = None
 
     serial: Optional[str] = None
+    # v0.3.0 polish — identity + specifications
+    nickname: Optional[str] = None
+    firearm_condition_id: Optional[int] = Field(default=None, foreign_key="firearm_conditions.id")
+    sight_radius_in: Optional[float] = None
+    weight: Optional[float] = None
+    weight_unit: Optional[str] = None  # OZ | LB — CHECK constraint enforced in migration
+    twist_rate: Optional[str] = None
     barrel_length_in: Optional[float] = None
     # Physical attribute FKs (v0.3.0). Replaces the previous free-text `finish`.
     frame_size_id: Optional[int] = Field(default=None, foreign_key="firearm_frame_sizes.id")

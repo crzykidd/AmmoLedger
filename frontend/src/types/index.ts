@@ -176,6 +176,7 @@ export type FirearmFrameSizeItem = FirearmAttributeLookupItem
 export type FirearmOpticCutItem = FirearmAttributeLookupItem
 export type FirearmRailTypeItem = FirearmAttributeLookupItem
 export type FirearmFinishItem = FirearmAttributeLookupItem
+export type FirearmConditionItem = FirearmAttributeLookupItem
 
 export interface FirearmComplianceTagItem {
   id: number
@@ -238,6 +239,14 @@ export interface FirearmRead {
   rail_type_name: string | null
   finish_id: number | null
   finish_name: string | null
+  // v0.3.0 polish fields
+  nickname: string | null
+  firearm_condition_id: number | null
+  firearm_condition_name: string | null
+  sight_radius_in: number | null
+  weight: number | null
+  weight_unit: string | null
+  twist_rate: string | null
   standard_capacity: number | null
   purchase_date: string | null
   purchase_price: number | null
@@ -299,6 +308,12 @@ export interface FirearmCreate {
   caliber_id: number
   caliber_notes?: string | null
   serial?: string | null
+  nickname?: string | null
+  firearm_condition_id?: number | null
+  sight_radius_in?: number | null
+  weight?: number | null
+  weight_unit?: string | null
+  twist_rate?: string | null
   barrel_length_in?: number | null
   frame_size_id?: number | null
   optic_cut_id?: number | null
@@ -325,6 +340,12 @@ export interface FirearmUpdate {
   caliber_id?: number
   caliber_notes?: string | null
   serial?: string | null
+  nickname?: string | null
+  firearm_condition_id?: number | null
+  sight_radius_in?: number | null
+  weight?: number | null
+  weight_unit?: string | null
+  twist_rate?: string | null
   barrel_length_in?: number | null
   frame_size_id?: number | null
   optic_cut_id?: number | null

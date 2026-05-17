@@ -1,7 +1,7 @@
 # AmmoLedger default seed data
 # Dealers, manufacturers, calibers, and ammo_types are managed via community
 # YAML files in community/ — see community/README.md
-version: "2.0"
+version: "2.1"
 
 categories:
   - "Hunting"
@@ -18,6 +18,15 @@ ammo_conditions:
   - "Military Surplus"
   - "Old"
   - "Unknown"
+
+firearm_conditions:
+  - "New"
+  - "Used"
+  - "Like New"
+  - "LNIB"
+  - "Refurbished"
+  - "C&R"
+  - "Surplus"
 
 # Non-commercial acquisition sources seeded into the dealers table.
 # These are not part of the community dealers list.

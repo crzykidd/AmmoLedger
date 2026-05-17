@@ -7,7 +7,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from database import engine
-from models import AmmoCondition, Category, Dealer
+from models import AmmoCondition, Category, Dealer, FirearmCondition
 from utils.config import DEFAULTS_PATH, _BUNDLED_DEFAULTS, get_setting, set_setting
 
 logger = get_logger(__name__)
@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 _SIMPLE_TABLES = [
     ("ammo_conditions", AmmoCondition),
     ("categories", Category),
+    ("firearm_conditions", FirearmCondition),
 ]
 
 

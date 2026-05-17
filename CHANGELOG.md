@@ -34,6 +34,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Photos on cards and detail page.** The firearms list-page card grid shows the default photo at the top of each card with a FirearmIcon fallback for firearms without photos; the firearm detail page replaces the prior text-only hero with a default-photo + thumb-strip layout that opens a lightbox on click. List view gains a small thumbnail in a leading column.
 - **Service intervals.** Per-firearm round-based and time-based intervals (either, both, or neither). Cleaning status — green (`ok`) / amber (`due_soon`, ≥80% of either threshold) / red (`overdue`) — reflects whichever threshold is most pressing and surfaces on every firearm card and on the dashboard.
 - **Firearm detail page (`/firearms/:id`).** Three tabs — Overview (full specs + cleaning state + tags + notes), Log (per-entry edit and delete), and Sessions (per-firearm range history). Header Edit and Delete actions are gated by RBAC.
+- **Firearm polish fields.** Six new optional fields per firearm: `nickname` (personal display name shown as primary identifier in list and detail views when set), `condition` (community-curated lookup seeded with New / Used / Like New / LNIB / Refurbished / C&R / Surplus), `sight_radius_in`, `weight` + `weight_unit` (OZ or LB), and `twist_rate` (free-text). Condition is selectable from a new collapsible **Specifications** section in the firearm form. All six fields round-trip through the firearms CSV export and import.
 
 ### Added — Range sessions
 
@@ -119,6 +120,10 @@ and create a fresh empty `## [Unreleased]` block above it.
   (`WHERE is_default = 1`) enforces "at-most-one default photo per firearm"
   at the DB layer. The 5-photo cap is left as an API-layer rule for easy
   future tuning. New runtime dependency: Pillow (image processing).
+- `0004_firearm_v030_polish.py` — adds the `firearm_conditions` lookup table
+  (seeded with 7 entries via `defaults.yaml` v2.1) and six new columns on
+  `firearms`: `nickname`, `firearm_condition_id` (FK + index), `sight_radius_in`,
+  `weight`, `weight_unit` (CHECK `IN ('OZ', 'LB') OR NULL`), and `twist_rate`.
 
 ### Deferred
 

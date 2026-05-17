@@ -469,7 +469,8 @@ export default function FirearmDetailPage() {
   }
 
   const editable = canEdit(firearm, user ?? null)
-  const heroTitle = `${firearm.manufacturer_name ?? ''} ${firearm.display_model}`.trim()
+  const manuModel = `${firearm.manufacturer_name ?? ''} ${firearm.display_model}`.trim()
+  const heroTitle = firearm.nickname || manuModel
   const lastCleaned = firearm.last_cleaned_at ? parseISO(firearm.last_cleaned_at) : null
   const isCleaningHighlighted = firearm.cleaning_status !== 'ok'
   const cleaningHighlight: 'amber' | 'red' | null =
@@ -604,6 +605,9 @@ export default function FirearmDetailPage() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{heroTitle}</h2>
+              {firearm.nickname && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{manuModel}</p>
+              )}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {firearm.caliber_name && (
                   <span className="inline-flex items-center rounded-full bg-gold/20 text-gold px-3 py-1 text-sm font-semibold">
@@ -689,6 +693,21 @@ export default function FirearmDetailPage() {
                 <DetailRow label="Optic cut" value={firearm.optic_cut_name} />
                 <DetailRow label="Rail type" value={firearm.rail_type_name} />
                 <DetailRow label="Finish" value={firearm.finish_name} />
+                {firearm.firearm_condition_name && (
+                  <DetailRow label="Condition" value={firearm.firearm_condition_name} />
+                )}
+                {firearm.sight_radius_in != null && (
+                  <DetailRow label="Sight radius" value={`${firearm.sight_radius_in}"`} />
+                )}
+                {firearm.weight != null && (
+                  <DetailRow
+                    label="Weight"
+                    value={`${firearm.weight} ${(firearm.weight_unit ?? 'OZ').toLowerCase()}`}
+                  />
+                )}
+                {firearm.twist_rate && (
+                  <DetailRow label="Twist rate" value={firearm.twist_rate} />
+                )}
                 <DetailRow
                   label="Capacity"
                   value={

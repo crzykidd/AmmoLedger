@@ -32,6 +32,7 @@ import {
   createCalibersEntry,
   createDealerEntry,
   createFirearmActionType,
+  createFirearmCondition,
   createFirearmFinish,
   createFirearmFrameSize,
   createFirearmModel,
@@ -41,6 +42,7 @@ import {
   getCalibersLookup,
   getDealers,
   getFirearmActionTypes,
+  getFirearmConditions,
   getFirearmFinishes,
   getFirearmFrameSizes,
   getFirearmModels,
@@ -96,6 +98,7 @@ function Field({
 
 interface FormState {
   is_shared: boolean
+  nickname: string
   manufacturer_id: string
   firearm_model_id: string
   custom_model_name: string
@@ -111,6 +114,12 @@ interface FormState {
   optic_cut_id: string
   rail_type_id: string
   finish_id: string
+  // Specifications (v0.3.0 polish)
+  firearm_condition_id: string
+  sight_radius_in: string
+  weight: string
+  weight_unit: string
+  twist_rate: string
   standard_capacity: string
   purchase_date: string
   purchase_price: string
@@ -124,6 +133,7 @@ interface FormState {
 
 const DEFAULTS: FormState = {
   is_shared: false,
+  nickname: '',
   manufacturer_id: '',
   firearm_model_id: '',
   custom_model_name: '',
@@ -138,6 +148,11 @@ const DEFAULTS: FormState = {
   optic_cut_id: '',
   rail_type_id: '',
   finish_id: '',
+  firearm_condition_id: '',
+  sight_radius_in: '',
+  weight: '',
+  weight_unit: '',
+  twist_rate: '',
   standard_capacity: '',
   purchase_date: '',
   purchase_price: '',
@@ -163,6 +178,7 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
   const [vals, setVals] = useState<FormState>(DEFAULTS)
   const [originalVals, setOriginalVals] = useState<FormState>(DEFAULTS)
   const [error, setError] = useState<string | null>(null)
+  const [specsOpen, setSpecsOpen] = useState(false)
   const [autofillFlash, setAutofillFlash] = useState<{
     caliber: boolean
     action: boolean
@@ -217,6 +233,11 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
   const { data: finishes = [] } = useQuery({
     queryKey: ['firearm-finishes'],
     queryFn: getFirearmFinishes,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: conditions = [] } = useQuery({
+    queryKey: ['firearm-conditions'],
+    queryFn: getFirearmConditions,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -294,6 +315,13 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
         .map((f) => ({ id: f.id, name: f.name, source: f.source })),
     [finishes],
   )
+  const conditionsOptions: LookupOption[] = useMemo(
+    () =>
+      conditions
+        .filter((c) => c.is_active)
+        .map((c) => ({ id: c.id, name: c.name, source: c.source })),
+    [conditions],
+  )
   const dealersOptions: LookupOption[] = useMemo(
     () =>
       dealers
@@ -359,6 +387,12 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
     return { id: created.id, name: created.name, source: created.source }
   }
 
+  const createConditionInline = async (name: string) => {
+    const created = await createFirearmCondition(name)
+    await queryClient.invalidateQueries({ queryKey: ['firearm-conditions'] })
+    return { id: created.id, name: created.name, source: created.source }
+  }
+
   const createDealerInline = async (name: string) => {
     const created = await createDealerEntry(name)
     await queryClient.invalidateQueries({ queryKey: ['dealers'] })
@@ -371,6 +405,7 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
     if (editFirearm) {
       const next: FormState = {
         is_shared: editFirearm.is_shared,
+        nickname: editFirearm.nickname ?? '',
         manufacturer_id: toIdStr(editFirearm.manufacturer_id),
         firearm_model_id: toIdStr(editFirearm.firearm_model_id),
         custom_model_name: editFirearm.custom_model_name ?? '',
@@ -386,6 +421,12 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
         optic_cut_id: toIdStr(editFirearm.optic_cut_id),
         rail_type_id: toIdStr(editFirearm.rail_type_id),
         finish_id: toIdStr(editFirearm.finish_id),
+        firearm_condition_id: toIdStr(editFirearm.firearm_condition_id),
+        sight_radius_in:
+          editFirearm.sight_radius_in != null ? String(editFirearm.sight_radius_in) : '',
+        weight: editFirearm.weight != null ? String(editFirearm.weight) : '',
+        weight_unit: editFirearm.weight_unit ?? '',
+        twist_rate: editFirearm.twist_rate ?? '',
         standard_capacity:
           editFirearm.standard_capacity != null ? String(editFirearm.standard_capacity) : '',
         purchase_date: editFirearm.purchase_date ?? '',
@@ -503,11 +544,24 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
   ) {
     validationErrors.push('Standard capacity must be ≥ 0')
   }
+  if (
+    vals.sight_radius_in &&
+    (isNaN(parseFloat(vals.sight_radius_in)) || parseFloat(vals.sight_radius_in) < 0)
+  ) {
+    validationErrors.push('Sight radius must be ≥ 0')
+  }
+  if (
+    vals.weight &&
+    (isNaN(parseFloat(vals.weight)) || parseFloat(vals.weight) < 0)
+  ) {
+    validationErrors.push('Weight must be ≥ 0')
+  }
   const isValid = validationErrors.length === 0
 
   const buildPayload = (): FirearmCreate | FirearmUpdate => {
     const payload: FirearmCreate = {
       is_shared: vals.is_shared,
+      nickname: vals.nickname.trim() || null,
       manufacturer_id: parseInt(vals.manufacturer_id),
       firearm_model_id: vals.use_custom_name
         ? null
@@ -523,6 +577,14 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
       caliber_id: parseInt(vals.caliber_id),
       caliber_notes: vals.caliber_notes.trim() || null,
       serial: vals.serial.trim() || null,
+      firearm_condition_id:
+        vals.firearm_condition_id && vals.firearm_condition_id !== NONE
+          ? parseInt(vals.firearm_condition_id)
+          : null,
+      sight_radius_in: vals.sight_radius_in ? parseFloat(vals.sight_radius_in) : null,
+      weight: vals.weight ? parseFloat(vals.weight) : null,
+      weight_unit: vals.weight_unit || null,
+      twist_rate: vals.twist_rate.trim() || null,
       barrel_length_in: vals.barrel_length_in ? parseFloat(vals.barrel_length_in) : null,
       frame_size_id:
         vals.frame_size_id && vals.frame_size_id !== NONE
@@ -656,6 +718,15 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
               <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 Identity
               </h3>
+
+              <Field label="Nickname" hint="Optional personal name shown as primary identifier in lists.">
+                <input
+                  className={inputCls}
+                  placeholder='e.g. "Duty Gun", "Range Toy"'
+                  value={vals.nickname}
+                  onChange={(e) => set('nickname', e.target.value)}
+                />
+              </Field>
 
               <Field label="Manufacturer" required>
                 <LookupCombobox
@@ -887,6 +958,83 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
                   onChange={(e) => set('standard_capacity', e.target.value)}
                 />
               </Field>
+            </section>
+
+            {/* Specifications */}
+            <section className="space-y-3">
+              <button
+                type="button"
+                className="flex items-center justify-between w-full text-left"
+                onClick={() => setSpecsOpen((v) => !v)}
+              >
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Specifications
+                </h3>
+                <span className="text-xs text-gray-400 select-none">{specsOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {specsOpen && (
+                <>
+                  <Field label="Condition">
+                    <LookupCombobox
+                      value={
+                        vals.firearm_condition_id ? parseInt(vals.firearm_condition_id) : null
+                      }
+                      options={conditionsOptions}
+                      onChange={(id) =>
+                        set('firearm_condition_id', id != null ? String(id) : '')
+                      }
+                      onCreate={createConditionInline}
+                      placeholder="Select condition"
+                      label="Condition"
+                      disableCreate={!canCreateLookups}
+                    />
+                  </Field>
+                  <Field label="Sight Radius (in.)">
+                    <input
+                      className={inputCls}
+                      type="number"
+                      step="0.1"
+                      min={0}
+                      placeholder="e.g. 6.5"
+                      value={vals.sight_radius_in}
+                      onChange={(e) => set('sight_radius_in', e.target.value)}
+                    />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Weight">
+                      <input
+                        className={inputCls}
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        placeholder="e.g. 26.5"
+                        value={vals.weight}
+                        onChange={(e) => set('weight', e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Unit">
+                      <select
+                        className={inputCls}
+                        value={vals.weight_unit}
+                        onChange={(e) => set('weight_unit', e.target.value)}
+                      >
+                        <option value="">—</option>
+                        <option value="OZ">oz</option>
+                        <option value="LB">lb</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Twist Rate" hint='e.g. 1:10"'>
+                    <input
+                      className={inputCls}
+                      placeholder='e.g. 1:10"'
+                      value={vals.twist_rate}
+                      onChange={(e) => set('twist_rate', e.target.value)}
+                    />
+                  </Field>
+                </>
+              )}
             </section>
 
             {/* Acquisition */}
