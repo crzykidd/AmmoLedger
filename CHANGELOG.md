@@ -21,6 +21,17 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Fixed
 
+- **Range session delete no longer returns 500 Internal Server Error.** A SQLite foreign-key
+  ordering issue between `expenditure_log` and `range_session_lines` caused an `IntegrityError`
+  when the session was committed — the FK is declared at the column level via SQLModel's
+  `foreign_key=` but not as an ORM Relationship, so the unit-of-work dependency sort could not
+  order the DELETEs. Reversal now flushes pending DELETEs before subsequent DELETEs so the FK
+  is honored. Same fix applied to line delete and line update.
+- **Reversing a range session line no longer leaves the firearm's `rounds_since_clean` out of
+  sync with the cleaning log.** When `rounds_lifetime` was decremented across a prior cleaning
+  event, the independent `max(0, ...)` clamp on `rounds_since_clean` could leave the denormalized
+  snapshot inconsistent. `_reverse_session_line` now calls `_recalculate_firearm_clean_state`
+  after decrementing to re-derive `rounds_since_clean` and `last_cleaned_at` from the log.
 - **Range session and firearm dates no longer shift by one day in non-UTC timezones.** Plain date fields (range session date, firearm log event date, purchase date, last cleaned date, and date filter pickers) were parsed as midnight UTC by `parseISO`, causing the displayed day to be off by one for users east of UTC. A new `parseLocalDate()` helper parses `YYYY-MM-DD` strings as midnight in the browser's local timezone. Full ISO timestamp fields (`created_at`, `updated_at`, `expires_at`, etc.) are unaffected and continue to display in local time as intended.
 - **Backend validation errors now display as readable text instead of `[object Object]`.** When the backend returns a Pydantic validation error, `detail` is an array of error objects rather than a plain string. The range session save flow was coercing that array to `[object Object]`, hiding the real error message. A new `formatBackendError()` helper handles Pydantic v2 arrays, plain string `detail`, and network `Error` instances, always producing a single readable string.
 - **Range session edit no longer fails with "Input should be none" when saving a past date.** The `RangeSessionUpdate` Pydantic schema had a Python PEP 563 annotation-shadow bug: with `from __future__ import annotations`, the `date = None` field default shadowed the `datetime.date` type name during Pydantic's deferred annotation evaluation, causing the field to be treated as `NoneType` and rejecting any non-null value with a 422. Fixed by introducing a private module-level alias `_Date = date` in `schemas.py` that is never used as a field name, ensuring Pydantic always resolves the type from module globals. The frontend PATCH payload also now defensively omits the `date` key when it is empty.

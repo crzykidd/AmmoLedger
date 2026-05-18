@@ -8,11 +8,13 @@ Covers:
 - Validation: empty session, empty line, overdraw transaction rollback
 - /ammo/:id/expend semantic preserved (members can fire from shared boxes)
 - List filter by firearm + per-session aggregates
+- FK-ordering regression: ExpenditureLog deleted before RangeSessionLine
 """
 from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text as sql_text
 from sqlmodel import Session, select
 
 from models import (
@@ -770,3 +772,64 @@ def test_session_list_aggregates(
     assert item["distinct_firearms"] == 2
     assert item["distinct_boxes"] == 2
     assert item["line_count"] == 3
+
+
+# ---------------------------------------------------------------------------
+# FK-ordering regression — delete must emit ExpenditureLog DELETEs before
+# RangeSessionLine DELETEs (expenditure_log.range_session_line_id FK).
+# SQLite does not enforce FKs by default; enable here to catch the regression.
+# ---------------------------------------------------------------------------
+
+def test_delete_session_fk_ordering(
+    client: TestClient, db_session: Session, admin_user: User,
+    firearm_mfr, ammo_mfr, caliber,
+):
+    """DELETE /range-sessions/{id} must not raise FK IntegrityError.
+
+    The FK expenditure_log.range_session_line_id → range_session_lines.id is
+    enforced at the SQLite schema level but is not an ORM Relationship, so the
+    unit-of-work sort cannot order the DELETEs automatically. SQLite FK
+    enforcement is enabled for this test so the constraint is actually checked.
+    """
+    # StaticPool shares one connection for db_session and client requests.
+    # Enable FK enforcement now; disable in the finally block.
+    db_session.exec(sql_text("PRAGMA foreign_keys = ON"))
+    db_session.commit()
+
+    try:
+        f = _make_firearm(db_session, firearm_mfr.id, caliber.id, admin_user.id)
+        b = _make_box(db_session, ammo_mfr.id, caliber.id, admin_user.id, qty=100)
+
+        _login(client, "admin@test.com", "AdminPass1!")
+        r = client.post(
+            "/range-sessions",
+            json={
+                "date": date.today().isoformat(),
+                "lines": [{"firearm_id": f.id, "ammo_box_id": b.id, "rounds_fired": 20}],
+            },
+        )
+        assert r.status_code == 201, r.text
+        sid = r.json()["id"]
+        line_id = r.json()["lines"][0]["id"]
+
+        rd = client.delete(f"/range-sessions/{sid}")
+        assert rd.status_code == 204
+
+        db_session.expire_all()
+        db_session.refresh(b)
+        db_session.refresh(f)
+        assert b.qty_remaining == 100
+        assert f.rounds_lifetime == 0
+        assert f.rounds_since_clean == 0
+        assert db_session.exec(
+            select(ExpenditureLog).where(ExpenditureLog.range_session_line_id == line_id)
+        ).all() == []
+        assert db_session.exec(
+            select(RangeSession).where(RangeSession.id == sid)
+        ).first() is None
+        assert db_session.exec(
+            select(RangeSessionLine).where(RangeSessionLine.id == line_id)
+        ).first() is None
+    finally:
+        db_session.exec(sql_text("PRAGMA foreign_keys = OFF"))
+        db_session.commit()
