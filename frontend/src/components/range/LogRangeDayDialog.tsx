@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate, formatBackendError } from '@/lib/date'
 import {
   AlertTriangle,
   CalendarIcon,
@@ -315,7 +316,7 @@ export default function LogRangeDayDialog({
     return Array.from(set).sort()
   }, [queryClient])
 
-  const dateObj = date ? parseISO(date) : undefined
+  const dateObj = date ? parseLocalDate(date) : undefined
 
   // ---------------------------------------------------------------------------
   // Line manipulation
@@ -540,7 +541,7 @@ export default function LogRangeDayDialog({
       onOpenChange(false)
     },
     onError: (e: unknown) => {
-      const detail = (e as { detail?: string })?.detail ?? 'Failed to create range session'
+      const detail = formatBackendError(e, 'Failed to create range session')
       setError(detail)
       // Try to highlight an offending line by box reference
       const m = detail.match(/box #(\d+)/i)
@@ -668,7 +669,7 @@ export default function LogRangeDayDialog({
       toast({ title: 'Range session updated' })
       onOpenChange(false)
     } catch (e: unknown) {
-      const detail = (e as { detail?: string })?.detail ?? 'Save failed partway'
+      const detail = formatBackendError(e, 'Save failed partway')
       setError(`${progressMsg ?? 'Save'} failed: ${detail}`)
       // Refresh server-side data so the dialog can be reopened against fresh state
       void queryClient.invalidateQueries({ queryKey: ['range-sessions'] })

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate } from '@/lib/date'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon, Package, Search, X } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
@@ -824,7 +825,7 @@ export default function AmmoFormPanel({
                   control={control}
                   render={({ field }) => {
                     const date =
-                      field.value && field.value !== '' ? parseISO(field.value) : undefined
+                      field.value && field.value !== '' ? parseLocalDate(field.value) : undefined
                     return (
                       <Popover>
                         <PopoverTrigger asChild>

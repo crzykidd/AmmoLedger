@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate } from '@/lib/date'
 import { CalendarIcon, Sparkles } from 'lucide-react'
 import {
   Sheet,
@@ -667,7 +668,7 @@ export default function FirearmFormDrawer({ open, onOpenChange, editFirearm }: P
     }
   }
 
-  const purchaseDate = vals.purchase_date ? parseISO(vals.purchase_date) : undefined
+  const purchaseDate = vals.purchase_date ? parseLocalDate(vals.purchase_date) : undefined
 
   return (
     <>
