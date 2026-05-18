@@ -56,7 +56,7 @@ from schemas import (
     FirearmUpdate,
     FirearmUserTagRead,
 )
-from utils.logging import get_logger
+from utils.logging import get_logger, log_safe
 from utils.rbac import require_auth, require_role
 
 logger = get_logger(__name__)
@@ -650,7 +650,7 @@ def create_firearm(
 
     db.commit()
     db.refresh(firearm)
-    logger.info("Firearm created: id=%d owner=%d", firearm.id, firearm.owner_id)
+    logger.info("Firearm created: id=%s owner=%s", log_safe(firearm.id), log_safe(firearm.owner_id))
     return _enrich_firearm(firearm, db)
 
 
@@ -747,7 +747,7 @@ def export_firearms_csv(
     csv_bytes = _build_firearm_csv(firearms, maps, db, today)
     date_str = datetime.now().strftime("%Y%m%d")
     filename = f"firearms_{date_str}.csv"
-    logger.info("Firearms CSV export: %d rows for %s", len(firearms), user.email or user.username)
+    logger.info("Firearms CSV export: %s rows for %s", log_safe(len(firearms)), log_safe(user.email or user.username))
     return StreamingResponse(
         io.BytesIO(csv_bytes),
         media_type="text/csv",
@@ -878,7 +878,7 @@ def delete_firearm(
     from utils.firearm_photos import delete_firearm_photo_dir  # noqa: PLC0415
     delete_firearm_photo_dir(firearm_id)
 
-    logger.info("Firearm deleted: id=%d by %s", firearm_id, user.email or user.username)
+    logger.info("Firearm deleted: id=%s by %s", log_safe(firearm_id), log_safe(user.email or user.username))
 
 
 # ===========================================================================

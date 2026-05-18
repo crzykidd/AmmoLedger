@@ -15,7 +15,7 @@ from utils.firearm_photos import (
     process_and_save_upload,
     read_photo_bytes,
 )
-from utils.logging import get_logger
+from utils.logging import get_logger, log_safe
 from utils.rbac import require_auth
 
 # Visibility helpers live next door — share the firearm-side check.
@@ -118,7 +118,8 @@ async def upload_photo(
     db.refresh(photo)
 
     logger.info(
-        "Uploaded firearm photo: firearm_id=%d photo_id=%d", firearm_id, photo.id
+        "Uploaded firearm photo: firearm_id=%s photo_id=%s",
+        log_safe(firearm_id), log_safe(photo.id),
     )
     return _photo_to_read(photo)
 

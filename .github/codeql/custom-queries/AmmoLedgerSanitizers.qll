@@ -95,3 +95,159 @@ private class UploadsPathSanitizer extends PathInjection::Sanitizer {
           .getACall()
   }
 }
+
+// ===========================================================================
+// Section 2 — backup.py path-injection sanitizers
+// ===========================================================================
+
+/**
+ * `routers.backup._sanitize_backup_filename` enforces a strict regex
+ * matching the filename shapes AmmoLedger generates:
+ *   ammoledger(_<word>)?_<YYYY-MM-DD>(_<HH-MM>)?.(db|zip|json)
+ * Returns the validated filename. Raises HTTPException(400) otherwise.
+ */
+private class BackupFilenameSanitizer extends PathInjection::Sanitizer {
+  BackupFilenameSanitizer() {
+    this =
+      API::moduleImport("routers")
+          .getMember("backup")
+          .getMember("_sanitize_backup_filename")
+          .getACall()
+  }
+}
+
+/**
+ * `routers.backup._sanitize_zip_entry_name` validates a zip archive
+ * entry name before extraction. Rejects absolute paths, null bytes,
+ * Windows drive prefixes, and any '..' component.
+ */
+private class ZipEntryNameSanitizer extends PathInjection::Sanitizer {
+  ZipEntryNameSanitizer() {
+    this =
+      API::moduleImport("routers")
+          .getMember("backup")
+          .getMember("_sanitize_zip_entry_name")
+          .getACall()
+  }
+}
+
+/**
+ * `routers.backup._safe_resolve_under` resolves a candidate Path and
+ * confirms it lives under an explicit root. Raises HTTPException(400)
+ * on escape.
+ */
+private class BackupRootContainmentSanitizer extends PathInjection::Sanitizer {
+  BackupRootContainmentSanitizer() {
+    this =
+      API::moduleImport("routers")
+          .getMember("backup")
+          .getMember("_safe_resolve_under")
+          .getACall()
+  }
+}
+
+/**
+ * `routers.backup._safe_resolve_under_backup_root` — convenience wrapper
+ * for `_safe_resolve_under(_, _backup_dir())`.
+ */
+private class BackupDirContainmentSanitizer extends PathInjection::Sanitizer {
+  BackupDirContainmentSanitizer() {
+    this =
+      API::moduleImport("routers")
+          .getMember("backup")
+          .getMember("_safe_resolve_under_backup_root")
+          .getACall()
+  }
+}
+
+/**
+ * `routers.backup._backup_file_path` combines `_sanitize_backup_filename`
+ * + existence check + containment. The public-API helper used by the
+ * download and delete endpoints.
+ */
+private class BackupFilePathSanitizer extends PathInjection::Sanitizer {
+  BackupFilePathSanitizer() {
+    this =
+      API::moduleImport("routers")
+          .getMember("backup")
+          .getMember("_backup_file_path")
+          .getACall()
+  }
+}
+
+// ===========================================================================
+// Section 3 — Log injection sanitizers
+// ===========================================================================
+
+import semmle.python.security.dataflow.LogInjectionCustomizations
+
+/**
+ * `utils.logging.log_safe` strips control characters (LF, CR, TAB,
+ * C0 range, DEL) from any value before it's interpolated into a log
+ * entry. The returned string is safe for logger.{info,warning,...} calls.
+ */
+private class LogSafeSanitizer extends LogInjection::Sanitizer {
+  LogSafeSanitizer() {
+    this =
+      API::moduleImport("utils")
+          .getMember("logging")
+          .getMember("log_safe")
+          .getACall()
+  }
+}
+
+/**
+ * `utils.firearm_photos._sanitize_filename` returns a regex-locked
+ * UUID hex string with no control characters — safe for log use.
+ */
+private class FilenameLogSanitizer extends LogInjection::Sanitizer {
+  FilenameLogSanitizer() {
+    this =
+      API::moduleImport("utils")
+          .getMember("firearm_photos")
+          .getMember("_sanitize_filename")
+          .getACall()
+  }
+}
+
+/**
+ * `utils.firearm_photos._sanitize_firearm_id` returns an int which
+ * %s-formats to digits only — no control characters possible.
+ */
+private class FirearmIdLogSanitizer extends LogInjection::Sanitizer {
+  FirearmIdLogSanitizer() {
+    this =
+      API::moduleImport("utils")
+          .getMember("firearm_photos")
+          .getMember("_sanitize_firearm_id")
+          .getACall()
+  }
+}
+
+/**
+ * `utils.firearm_photos._safe_resolve_under_root` returns a Path whose
+ * string form is constrained to UPLOADS_PATH descendants — no newlines.
+ */
+private class RootContainmentLogSanitizer extends LogInjection::Sanitizer {
+  RootContainmentLogSanitizer() {
+    this =
+      API::moduleImport("utils")
+          .getMember("firearm_photos")
+          .getMember("_safe_resolve_under_root")
+          .getACall()
+  }
+}
+
+/**
+ * `utils.firearm_photos._sanitize_uploads_path` validates UPLOADS_PATH
+ * and returns an absolute path string constrained to safe characters.
+ */
+private class UploadsPathLogSanitizer extends LogInjection::Sanitizer {
+  UploadsPathLogSanitizer() {
+    this =
+      API::moduleImport("utils")
+          .getMember("firearm_photos")
+          .getMember("_sanitize_uploads_path")
+          .getACall()
+  }
+}

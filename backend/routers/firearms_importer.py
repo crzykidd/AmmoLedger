@@ -48,7 +48,7 @@ from routers.importer import (
     _parse_int,
     _validate_token,
 )
-from utils.logging import get_logger
+from utils.logging import get_logger, log_safe
 from utils.pre_import_backup import trigger_pre_import_backup
 from utils.rbac import require_auth, require_role
 
@@ -550,7 +550,7 @@ async def validate_firearms_import(
 ):
     content = await file.read()
     logger.info("Firearm import validate started: %s, %d bytes",
-                file.filename or "unknown", len(content))
+                log_safe(file.filename or "unknown"), len(content))
 
     rows, headers = _parse_csv(content)
     if not rows:
@@ -633,7 +633,7 @@ async def confirm_firearms_import(
 ):
     content = await file.read()
     logger.info("Firearm import confirm started: %s, is_shared=%s",
-                file.filename or "unknown", is_shared)
+                log_safe(file.filename or "unknown"), is_shared)
 
     if is_shared and user.role != "admin":
         raise HTTPException(status_code=403,

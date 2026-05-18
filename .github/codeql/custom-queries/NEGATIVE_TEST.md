@@ -57,3 +57,28 @@ This verification is documented but not automated — making it
 automated would require a CodeQL pre-merge job that injects and
 removes the canary, which is operational overhead for a one-time
 check.
+
+## Added in second round
+
+Additional sanitizer classes added in the v0.3.0 final cleanup:
+
+**PathInjection::Sanitizer:**
+
+- `routers.backup._sanitize_backup_filename`
+- `routers.backup._sanitize_zip_entry_name`
+- `routers.backup._safe_resolve_under`
+- `routers.backup._safe_resolve_under_backup_root`
+- `routers.backup._backup_file_path`
+
+**LogInjection::Sanitizer:**
+
+- `utils.logging.log_safe`
+- `utils.firearm_photos._sanitize_filename`
+- `utils.firearm_photos._sanitize_firearm_id`
+- `utils.firearm_photos._safe_resolve_under_root`
+- `utils.firearm_photos._sanitize_uploads_path`
+
+All declarations are fully-qualified to module + function name. The
+canary verification procedure described above applies equally to the
+new classes — copies of these functions in other modules will NOT be
+recognized as sanitizers.

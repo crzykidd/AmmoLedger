@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import sqlite3
 import tempfile
@@ -114,14 +115,80 @@ def _backup_dir() -> Path:
     return Path(BACKUP_PATH)
 
 
-def _validate_filename(filename: str) -> Path:
-    """Reject path traversal; return resolved path or 404."""
-    if "/" in filename or "\\" in filename or ".." in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    path = _backup_dir() / filename
-    if not path.exists():
+# Backup filenames we generate:
+#   ammoledger_YYYY-MM-DD_HH-MM.db / .zip
+#   ammoledger_export_YYYY-MM-DD_HH-MM.json
+#   ammoledger_pre-import_YYYY-MM-DD.db   (pre_import_backup uses date-only)
+_BACKUP_FILENAME_PATTERN = re.compile(
+    r"^ammoledger(_[a-z\-]+)?_\d{4}-\d{2}-\d{2}(_\d{2}-\d{2})?\.(db|zip|json)$"
+)
+
+
+def _sanitize_backup_filename(filename: str) -> str:
+    """Strict whitelist for backup filenames passed to download/delete endpoints.
+
+    Returns the validated filename when it matches the shape AmmoLedger generates.
+    Raises HTTPException(400) otherwise. Return-style so CodeQL recognizes sanitization.
+    """
+    if not isinstance(filename, str) or not _BACKUP_FILENAME_PATTERN.match(filename):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename — does not match expected backup naming",
+        )
+    return filename
+
+
+def _sanitize_zip_entry_name(name: str) -> str:
+    """Validate a zip archive entry name before extraction.
+
+    Returns the entry name when safe; raises HTTPException(400) on any traversal
+    attempt. Return-style sanitizer recognized by CodeQL.
+    """
+    if not isinstance(name, str) or not name:
+        raise HTTPException(status_code=400, detail="Empty zip entry name")
+    if "\x00" in name:
+        raise HTTPException(status_code=400, detail=f"Null byte in zip entry: {name!r}")
+    if name.startswith("/") or name.startswith("\\"):
+        raise HTTPException(status_code=400, detail=f"Absolute path in zip: {name}")
+    if len(name) >= 2 and name[1] == ":":
+        raise HTTPException(status_code=400, detail=f"Windows drive-letter path in zip: {name}")
+    parts = Path(name).parts
+    if ".." in parts:
+        raise HTTPException(status_code=400, detail=f"Parent-directory escape in zip: {name}")
+    return name
+
+
+def _safe_resolve_under(candidate: Path, root: Path) -> Path:
+    """Resolve `candidate` and confirm it lives under `root`.
+
+    Raises HTTPException(400) on escape. Return-style sanitizer.
+    """
+    root_resolved = root.resolve()
+    try:
+        resolved = candidate.resolve()
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Could not resolve path: {exc}") from exc
+    if not resolved.is_relative_to(root_resolved):
+        raise HTTPException(status_code=400, detail="Path escapes expected root")
+    return resolved
+
+
+def _safe_resolve_under_backup_root(candidate: Path) -> Path:
+    """Containment check scoped to the backup directory."""
+    return _safe_resolve_under(candidate, _backup_dir())
+
+
+def _backup_file_path(filename: str) -> Path:
+    """Look up an existing backup file by validated name.
+
+    Sanitizes the filename, confirms containment, and returns the resolved path.
+    Raises 400 on bad name, 404 if missing.
+    """
+    safe_name = _sanitize_backup_filename(filename)
+    candidate = _backup_dir() / safe_name
+    if not candidate.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    return path
+    return _safe_resolve_under_backup_root(candidate)
 
 
 _TYPE_MAP = {".db": "sqlite", ".json": "json", ".zip": "zip"}
@@ -362,13 +429,13 @@ def list_backups(_: Any = Depends(require_role("admin"))):
 
 @router.get("/download/{filename}")
 def download_backup(filename: str, _: Any = Depends(require_role("admin"))):
-    path = _validate_filename(filename)
+    path = _backup_file_path(filename)
     return FileResponse(path=str(path), filename=filename, media_type="application/octet-stream")
 
 
 @router.get("/export/download/{filename}")
 def download_export(filename: str, _: Any = Depends(require_role("admin"))):
-    path = _validate_filename(filename)
+    path = _backup_file_path(filename)
     media = "application/json" if path.suffix == ".json" else "application/octet-stream"
     return FileResponse(path=str(path), filename=filename, media_type=media)
 
@@ -379,7 +446,7 @@ def download_export(filename: str, _: Any = Depends(require_role("admin"))):
 
 @router.delete("/{filename}", status_code=204)
 def delete_backup(filename: str, _: Any = Depends(require_role("admin"))):
-    path = _validate_filename(filename)
+    path = _backup_file_path(filename)
     try:
         path.unlink()
         logger.warning("Backup file deleted: %s", filename)
@@ -575,16 +642,28 @@ async def _restore_zip_impl(contents: bytes) -> dict:
                         status_code=400,
                         detail="Zip does not contain ammoledger.db at the root",
                     )
-                # Path-traversal defense — reject absolute paths and `..`
-                # components before extraction.
+                staging_resolved = staging.resolve()
                 for n in names:
-                    parts = Path(n).parts
-                    if n.startswith("/") or n.startswith("\\") or ".." in parts:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Zip contains unsafe path: {n}",
+                    safe_n = _sanitize_zip_entry_name(n)
+                    target = staging / safe_n
+                    # Defense in depth: confirm each target stays inside staging.
+                    if target.parent != staging_resolved:
+                        parent_resolved = (
+                            target.parent.resolve()
+                            if target.parent.exists()
+                            else staging_resolved
                         )
-                zf.extractall(staging)
+                        if not parent_resolved.is_relative_to(staging_resolved):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Zip entry escapes staging: {n}",
+                            )
+                    if safe_n.endswith("/"):
+                        target.mkdir(parents=True, exist_ok=True)
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(n) as src, open(target, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
         except zipfile.BadZipFile as exc:
             raise HTTPException(
                 status_code=400, detail=f"Not a valid zip file: {exc}"
@@ -595,6 +674,8 @@ async def _restore_zip_impl(contents: bytes) -> dict:
             raise HTTPException(
                 status_code=400, detail="ammoledger.db missing after extraction"
             )
+        # Final containment check before destructive moves.
+        _safe_resolve_under(extracted_db, staging)
         _validate_sqlite_file(extracted_db)
 
         try:
@@ -609,9 +690,10 @@ async def _restore_zip_impl(contents: bytes) -> dict:
 
         photos_root = Path(UPLOADS_PATH) / "firearm_photos"
         extracted_photos = staging / "firearm_photos"
-        if photos_root.exists():
-            shutil.rmtree(photos_root, ignore_errors=True)
         if extracted_photos.exists():
+            _safe_resolve_under(extracted_photos, staging)
+            if photos_root.exists():
+                shutil.rmtree(photos_root, ignore_errors=True)
             photos_root.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(extracted_photos), str(photos_root))
         # If the zip had no photos directory, leave the photos root empty —

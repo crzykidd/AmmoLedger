@@ -58,7 +58,7 @@ from schemas import (
     RangeSessionRead,
     RangeSessionUpdate,
 )
-from utils.logging import get_logger
+from utils.logging import get_logger, log_safe
 from utils.rbac import require_auth, require_role
 
 logger = get_logger(__name__)
@@ -509,8 +509,8 @@ def create_session(
     db.commit()
     db.refresh(session)
     logger.info(
-        "Range session created: id=%d owner=%d lines=%d",
-        session.id, session.owner_id, len(payload.lines),
+        "Range session created: id=%s owner=%s lines=%s",
+        log_safe(session.id), log_safe(session.owner_id), log_safe(len(payload.lines)),
     )
     return _enrich_session(session, db)
 
@@ -683,7 +683,7 @@ def delete_session(
         db.delete(line)
     db.delete(s)
     db.commit()
-    logger.info("Range session deleted: id=%d by %s", session_id, user.email or user.username)
+    logger.info("Range session deleted: id=%s by %s", log_safe(session_id), log_safe(user.email or user.username))
 
 
 # ---------------------------------------------------------------------------
