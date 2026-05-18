@@ -560,6 +560,10 @@ export default function LogRangeDayDialog({
       setError('Fix the line errors before saving.')
       return
     }
+    if (!date) {
+      setError('Please pick a date for the session.')
+      return
+    }
     const payload: RangeSessionCreate = {
       is_shared: isShared,
       date,
@@ -572,6 +576,9 @@ export default function LogRangeDayDialog({
         notes: l.notes.trim() || null,
       })),
     }
+    // Temporary diagnostic — see comment in handleEdit.
+    // eslint-disable-next-line no-console
+    console.log('[range-session create] POST payload:', JSON.stringify(payload))
     createMutation.mutate(payload)
   }
 
@@ -595,7 +602,12 @@ export default function LogRangeDayDialog({
       // 1. PATCH header if changed
       if (headerDirty) {
         const headerPayload: RangeSessionUpdate = {}
-        if (date !== originalHeader.date) headerPayload.date = date
+        if (date && date !== originalHeader.date) {
+          // Only include date if it's a non-empty YYYY-MM-DD string. Sending
+          // an empty string would make Pydantic emit "input should be none"
+          // because Optional[date] can't parse "" as a date.
+          headerPayload.date = date
+        }
         if (locationName !== originalHeader.locationName) {
           headerPayload.location_name = locationName.trim() || null
         }
@@ -603,6 +615,11 @@ export default function LogRangeDayDialog({
           headerPayload.notes = sessionNotes.trim() || null
         }
         if (isShared !== originalHeader.isShared) headerPayload.is_shared = isShared
+        // Temporary diagnostic logging — surfaces the actual outgoing payload
+        // so date-related bugs are visible in DevTools instead of requiring
+        // a network-tab inspection. Safe to remove after a release of stability.
+        // eslint-disable-next-line no-console
+        console.log('[range-session edit] PATCH payload:', JSON.stringify(headerPayload))
         setProgressMsg('Saving session details…')
         await updateRangeSession(editSession.id, headerPayload)
       }
