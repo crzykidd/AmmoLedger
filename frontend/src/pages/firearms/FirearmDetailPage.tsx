@@ -425,6 +425,15 @@ export default function FirearmDetailPage() {
     },
   })
 
+  // Set document.title to the firearm label when loaded; restore on unmount.
+  // MUST live at top-level with other hooks — placement after early returns
+  // is a Rules of Hooks violation that crashes the page on first data arrival.
+  useEffect(() => {
+    if (!firearm) return
+    document.title = `${firearmLabel(firearm)} · AmmoLedger`
+    return () => { document.title = 'AmmoLedger' }
+  }, [firearm])
+
   if (isNaN(firearmId)) {
     return (
       <AppShell>
@@ -473,10 +482,6 @@ export default function FirearmDetailPage() {
   const { primary: heroTitle, contextSuffix: heroSub } = firearmLabelParts(firearm)
   const lastCleaned = firearm.last_cleaned_at ? parseISO(firearm.last_cleaned_at) : null
 
-  useEffect(() => {
-    document.title = `${firearmLabel(firearm)} · AmmoLedger`
-    return () => { document.title = 'AmmoLedger' }
-  }, [firearm])
   const isCleaningHighlighted = firearm.cleaning_status !== 'ok'
   const cleaningHighlight: 'amber' | 'red' | null =
     firearm.cleaning_status === 'overdue'
