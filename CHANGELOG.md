@@ -19,6 +19,12 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Fixed
+
+- **Range session and firearm dates no longer shift by one day in non-UTC timezones.** Plain date fields (range session date, firearm log event date, purchase date, last cleaned date, and date filter pickers) were parsed as midnight UTC by `parseISO`, causing the displayed day to be off by one for users east of UTC. A new `parseLocalDate()` helper parses `YYYY-MM-DD` strings as midnight in the browser's local timezone. Full ISO timestamp fields (`created_at`, `updated_at`, `expires_at`, etc.) are unaffected and continue to display in local time as intended.
+- **Backend validation errors now display as readable text instead of `[object Object]`.** When the backend returns a Pydantic validation error, `detail` is an array of error objects rather than a plain string. The range session save flow was coercing that array to `[object Object]`, hiding the real error message. A new `formatBackendError()` helper handles Pydantic v2 arrays, plain string `detail`, and network `Error` instances, always producing a single readable string.
+- **Range session edit no longer fails with "Input should be none" when saving a past date.** Changing the date to a past date in the edit dialog could cause Pydantic to reject the payload with a misleading error because the frontend was sending an empty string for `date` rather than a valid `YYYY-MM-DD` value. The date field is now omitted from the PATCH payload when it is empty, and a symmetric guard in the create flow prevents the same issue at session creation time.
+
 ## [0.3.2] — 2026-05-17
 
 ### Fixed
