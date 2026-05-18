@@ -20,6 +20,12 @@ services:
       - APP_ENV=development
       - LOG_LEVEL=DEBUG
       - PYTHONUNBUFFERED=1
+      # Dev installs pull community YAMLs from the dev branch on GitHub instead
+      # of main, so newly-added lookups / manufacturers / firearm_models become
+      # visible to a `:dev` install before they ship to main. Override with
+      # `AL_COMMUNITY_BRANCH=somebranch` to test against a feature branch.
+      - GIT_BRANCH=dev
+      
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -42,3 +48,8 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    labels:
+      - dockernotifier.notifiers=service-tracker-dashboard
+      - dockernotifier.std.internalurl=http://host.docker.internal:5173
+      - dockernotifier.std.internal.health=true
+      - dockernotifier.std.group=Testing

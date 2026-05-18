@@ -1,0 +1,24 @@
+version: 1
+firearm_action_types:
+  - name: "Semi-auto pistol"
+    community_key: action-semi-auto-pistol
+  - name: "Revolver"
+    community_key: action-revolver
+  - name: "Single-action revolver"
+    community_key: action-single-action-revolver
+  - name: "Bolt-action rifle"
+    community_key: action-bolt-action-rifle
+  - name: "Lever-action rifle"
+    community_key: action-lever-action-rifle
+  - name: "Semi-auto rifle"
+    community_key: action-semi-auto-rifle
+  - name: "Pump-action rifle"
+    community_key: action-pump-rifle
+  - name: "Pump-action shotgun"
+    community_key: action-pump-shotgun
+  - name: "Semi-auto shotgun"
+    community_key: action-semi-auto-shotgun
+  - name: "Break-action"
+    community_key: action-break-action
+  - name: "Single-shot"
+    community_key: action-single-shot

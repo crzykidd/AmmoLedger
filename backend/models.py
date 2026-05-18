@@ -29,6 +29,7 @@ class Manufacturer(SQLModel, table=True):
     source: str = Field(default="user")  # yaml | community | user
     community_key: Optional[str] = None
     is_imported: bool = Field(default=True)
+    types: Optional[str] = None  # JSON array: '["ammo"]' | '["firearm"]' | '["ammo","firearm"]'
 
 
 class AmmoType(SQLModel, table=True):
@@ -74,6 +75,217 @@ class Dealer(SQLModel, table=True):
     country: Optional[str] = Field(default="US")
     state: Optional[str] = None
     is_standard_geo: bool = Field(default=True)
+
+
+# ---------------------------------------------------------------------------
+# Firearm lookup tables (P1a foundation; firearms table itself lands in P1b)
+# ---------------------------------------------------------------------------
+
+class FirearmActionType(SQLModel, table=True):
+    __tablename__ = "firearm_action_types"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmFrameSize(SQLModel, table=True):
+    __tablename__ = "firearm_frame_sizes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmOpticCut(SQLModel, table=True):
+    __tablename__ = "firearm_optic_cuts"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmRailType(SQLModel, table=True):
+    __tablename__ = "firearm_rail_types"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmFinish(SQLModel, table=True):
+    __tablename__ = "firearm_finishes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmCondition(SQLModel, table=True):
+    __tablename__ = "firearm_conditions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")  # yaml | community | user
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmModel(SQLModel, table=True):
+    __tablename__ = "firearm_models"
+    __table_args__ = (
+        UniqueConstraint("manufacturer_id", "name", name="uq_firearm_models_mfr_name"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    manufacturer_id: int = Field(foreign_key="manufacturers.id")
+    name: str
+    default_caliber_id: Optional[int] = Field(default=None, foreign_key="calibers.id")
+    default_action_type_id: Optional[int] = Field(
+        default=None, foreign_key="firearm_action_types.id"
+    )
+    default_barrel_length_in: Optional[float] = None
+    is_active: bool = Field(default=True)
+    source: str = Field(default="user")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmComplianceTag(SQLModel, table=True):
+    __tablename__ = "firearm_compliance_tags"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column_kwargs={"unique": True})
+    description: Optional[str] = None
+    jurisdiction: Optional[str] = None  # "CA" | "NY" | "NFA" | "Federal" — UI grouping
+    is_active: bool = Field(default=True)
+    source: str = Field(default="community")
+    community_key: Optional[str] = None
+    is_imported: bool = Field(default=True)
+
+
+class FirearmUserTag(SQLModel, table=True):
+    __tablename__ = "firearm_user_tags"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "name", name="uq_firearm_user_tags_owner_name"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="users.id")
+    name: str
+    color: Optional[str] = None  # validated as ^#[0-9A-Fa-f]{6}$ on the API layer
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Firearms (P1b)
+# ---------------------------------------------------------------------------
+
+class Firearm(SQLModel, table=True):
+    __tablename__ = "firearms"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="users.id")
+    is_shared: bool = Field(default=False)
+
+    manufacturer_id: int = Field(foreign_key="manufacturers.id")
+    firearm_model_id: Optional[int] = Field(default=None, foreign_key="firearm_models.id")
+    custom_model_name: Optional[str] = None
+
+    firearm_type: str  # pistol | rifle | shotgun | other
+    action_type_id: Optional[int] = Field(default=None, foreign_key="firearm_action_types.id")
+
+    caliber_id: int = Field(foreign_key="calibers.id")
+    caliber_notes: Optional[str] = None
+
+    serial: Optional[str] = None
+    # v0.3.0 polish — identity + specifications
+    nickname: Optional[str] = None
+    firearm_condition_id: Optional[int] = Field(default=None, foreign_key="firearm_conditions.id")
+    sight_radius_in: Optional[float] = None
+    weight: Optional[float] = None
+    weight_unit: Optional[str] = None  # OZ | LB — CHECK constraint enforced in migration
+    twist_rate: Optional[str] = None
+    barrel_length_in: Optional[float] = None
+    # Physical attribute FKs (v0.3.0). Replaces the previous free-text `finish`.
+    frame_size_id: Optional[int] = Field(default=None, foreign_key="firearm_frame_sizes.id")
+    optic_cut_id: Optional[int] = Field(default=None, foreign_key="firearm_optic_cuts.id")
+    rail_type_id: Optional[int] = Field(default=None, foreign_key="firearm_rail_types.id")
+    finish_id: Optional[int] = Field(default=None, foreign_key="firearm_finishes.id")
+    standard_capacity: Optional[int] = None
+    purchase_date: Optional[date] = None
+    purchase_price: Optional[float] = None
+    dealer_id: Optional[int] = Field(default=None, foreign_key="dealers.id")
+    notes: Optional[str] = None
+
+    rounds_lifetime: int = Field(default=0)
+    rounds_since_clean: int = Field(default=0)
+    last_cleaned_at: Optional[date] = None
+    service_interval_rounds: Optional[int] = None
+    service_interval_days: Optional[int] = None
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class FirearmLog(SQLModel, table=True):
+    __tablename__ = "firearm_log"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    firearm_id: int = Field(foreign_key="firearms.id")
+    event_type: str  # cleaning | service | note
+    event_date: date
+    rounds_at_event: int
+    notes: Optional[str] = None
+    logged_by: int = Field(foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class FirearmComplianceTagLink(SQLModel, table=True):
+    __tablename__ = "firearm_compliance_tag_links"
+
+    firearm_id: int = Field(foreign_key="firearms.id", primary_key=True)
+    tag_id: int = Field(foreign_key="firearm_compliance_tags.id", primary_key=True)
+
+
+class FirearmUserTagLink(SQLModel, table=True):
+    __tablename__ = "firearm_user_tag_links"
+
+    firearm_id: int = Field(foreign_key="firearms.id", primary_key=True)
+    tag_id: int = Field(foreign_key="firearm_user_tags.id", primary_key=True)
+
+
+class FirearmPhoto(SQLModel, table=True):
+    __tablename__ = "firearm_photos"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    firearm_id: int = Field(foreign_key="firearms.id")
+    filename: str
+    original_name: Optional[str] = None
+    content_type: str
+    size_bytes: int
+    width: int
+    height: int
+    is_default: bool = Field(default=False)
+    sort_order: int = Field(default=0)
+    uploaded_by: int = Field(foreign_key="users.id")
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +410,40 @@ class ExpenditureLog(SQLModel, table=True):
     date: date
     log_type: str = Field(default="expend")  # expend | split | adjust
     related_ids: Optional[str] = None  # JSON array of related box IDs
+    notes: Optional[str] = None
+    # NULL for ad-hoc /ammo/:id/expend rows; set when an entry was created by a
+    # range session line (P3) so deletion of the line can reverse the deduction.
+    range_session_line_id: Optional[int] = Field(
+        default=None, foreign_key="range_session_lines.id"
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Range Sessions (P3)
+# ---------------------------------------------------------------------------
+
+class RangeSession(SQLModel, table=True):
+    __tablename__ = "range_sessions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="users.id")
+    is_shared: bool = Field(default=False)
+    date: date
+    location_name: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RangeSessionLine(SQLModel, table=True):
+    __tablename__ = "range_session_lines"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: int = Field(foreign_key="range_sessions.id")
+    firearm_id: Optional[int] = Field(default=None, foreign_key="firearms.id")
+    ammo_box_id: Optional[int] = Field(default=None, foreign_key="ammo_box.id")
+    rounds_fired: int = Field(default=0)
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

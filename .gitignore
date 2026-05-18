@@ -62,9 +62,7 @@ docker-compose.override.yml
 logs/
 # Claude Code
 .claude/settings.local.json
-
-# Claude Code
-.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # Vexp runtime files
 .vexp/daemon.pid

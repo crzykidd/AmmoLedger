@@ -62,6 +62,21 @@
 | 3.21 | May 2026 | Split Box — §9.2.4 reconciled with implementation: dated note auto-appended to parent on split, strict-mode odd-size warning on preview/success panes, post-split labeling view, Group By "Split Parent" added, lifetime totals (dashboard "All" scope) filter on split_from_id IS NULL to prevent double-counting. §6.13 Reporting Integrity Rules updated to use split_from_id IS NULL instead of is_leaf. |
 | 3.22 | May 2026 | Split Box QA fixes and UX additions: GET /ammo/split-parents endpoint added (parent metadata lookup with joined caliber/manufacturer names, notes scoped by RBAC); SplitParentDetailsDialog accessible from Group By "Split Parent" group header info icon; Sort By toolbar dropdown with six options including Purchase Date and Updated Date; Purchase Date and Updated Date now shown in expanded inventory rows; child boxes created by a split now have notes pre-populated with "[Split YYYY-MM-DD] Split from #N"; list_ammo includes any box with children regardless of show_archived/show_empty filters; SplitBoxDialog success and review panes are modal-locked; Preview pane row labels switched from "Box 1/Box 2" (mistaken for IDs) to plain "1./2." with disclaimer; Total Boxes (lifetime) now counts all records, not just root boxes — Total Rounds and Total Value still filter on split_from_id IS NULL. §6.13 reporting table updated; §9.2.4 expanded with QA-discovered behavior and new UI surfaces. |
 | 3.23 | May 2026 | Renamed Inventory page to Ammo (preparing for Firearms in v0.3.0). Frontend route changed from /inventory to /ammo with no redirect. localStorage keys migrated from inventory_* to ammo_*. Backend /ammo/* API unchanged. §9.2 updated. |
+| 3.24 | 2026-05-09 | Firearms P1a — community-curated lookup foundation. New tables `firearm_action_types`, `firearm_models`, `firearm_compliance_tags`, `firearm_user_tags`. New `manufacturers.types` JSON column (backfilled to `["ammo"]`); `GET /lookups/manufacturers` accepts `?type=ammo\|firearm`. New endpoints under `/firearm-models`, `/firearm-action-types`, `/firearm-compliance-tags`, `/firearm-user-tags`. Migration `0002_add_firearm_lookups.py` is the first incremental migration on top of the v0.1.9 squashed schema. PRD §6.7 duplicate-heading bug fixed (Range Sessions renumbered to §6.15); firearms schema block updated with `caliber_notes`, `barrel_length_in`, `finish`, `service_interval_*`, `manufacturer_id` / `firearm_model_id` / `action_type_id` foreign keys. §6.7.1 added documenting the four new lookup tables. §6.7.2 added explicitly deferring multi-caliber firearms, target photo uploads, and CSV import from the v2.0 firearms feature. Backup/restore extended to cover the new tables. |
+| 3.25 | 2026-05-09 | Firearms P1b — `firearms` table, `firearm_log` event table, and the two tag-link join tables. Migration `0003_add_firearms.py` adds all four tables with FK indexes and a CHECK constraint enforcing "model_id OR custom_model_name". New `/firearms` API: full CRUD with `_visibility_filter` / `_check_write` matching ammo boxes; nested `/firearms/{id}/log` for the maintenance event log (cleaning / service / note); `cleaning_status` (`ok` / `due_soon` / `overdue`) computed at read time. Editing or deleting a firearm log entry recalculates `last_cleaned_at` and `rounds_since_clean` from the full log history. PRD §6.7 schema block updated to match the implemented columns (`custom_model_name`, `firearm_type`, `purchase_price`, `dealer_id`, CHECK); §6.7.0 firearm_log and §6.7.0a tag-link sections added. §10.1 expanded; §10.3 renamed "Firearm Maintenance Log" and rewritten for the three event types. Backup/restore extended to cover `firearms`, `firearm_log`, `firearm_compliance_tag_links`, `firearm_user_tag_links`. |
+| 3.26 | 2026-05-09 | Firearms P2 — frontend UI on top of the P1b backend. New `/firearms` list page (card-grid + list-view toggle, search across manufacturer / model / serial, filters for manufacturer / caliber / firearm type / cleaning status, persistent view + filter + sort selections in localStorage, per-card cleaning status indicator dot). New `/firearms/:id` detail page with three tabs (Overview, Log, Sessions placeholder for P5). Add / Edit Firearm drawer with cascading Manufacturer → Model dropdowns that auto-fill caliber and action type from the catalog without overriding user-set values. Compliance Tag Picker with jurisdiction grouping and inline custom-tag creation; one-time disclaimer (community-maintained, not legal advice) on first open. Personal Tag Picker with 8-color preset palette, inline tag create/delete. Log Event dialog for cleaning / service / note entries with backdated date and overridable `rounds_at_event`. Sidebar Firearms entry between Products and At Range with a custom firearm SVG icon. §10.1 and §10.3 are the implementation reference. |
+| 3.27 | 2026-05-09 | Range Sessions P3 — backend API for multi-line range sessions. Migration `0004_add_range_sessions.py` adds `range_sessions` and `range_session_lines` plus a new `expenditure_log.range_session_line_id` FK that bidirectionally links session-driven deductions to the line that created them. New `/range-sessions` router exposes full CRUD with atomic multi-line POST, line-level POST/PATCH/DELETE, and full reversal of side effects on session/line deletion or PATCH (ammo restored via the existing `expenditure_log` table — no parallel deduction path; firearm `rounds_lifetime` and `rounds_since_clean` decremented, clamped at 0). RBAC mirrors firearms/ammo: admins can create shared sessions; members can fire from shared boxes (matches `/ammo/{id}/expend` semantics). Backup/restore extended to cover the two new tables; export order updated so `expenditure_log` inserts after `range_session_lines` to satisfy the new FK. PRD §6.15 schema block synced; §10.2 rewritten to match the implementation (target photos remain deferred). Frontend lands in P4. |
+| 3.28 | 2026-05-09 | Range Sessions P4 — frontend UI on top of the P3 backend. New `/range` list page (date / firearm / sort filters, "Load more" pagination, stats bar showing sessions logged, 90-day round total, most-used firearm and caliber). New `/range-sessions/:id` detail page with line table (click-through to firearm detail and ammo page) and a destructive delete confirmation that previews the exact reversal — which boxes will be credited rounds back and which firearms will be decremented. New shared `LogRangeDayDialog` modal (used from /range, /firearms, and /range-sessions/:id) handles both create and edit. Create issues a single atomic POST. Edit diffs the line state and emits the minimal PATCH / POST / DELETE set with progress feedback for sessions with many lines; ordering is "POST new → PATCH modified → DELETE removed" so the session never temporarily drops below one line. Per-line validation enforces "at least one of firearm/box" and "rounds_fired ≤ qty_remaining"; box picker prioritizes caliber matches with a Match badge; mismatches surface a non-blocking warning so sub-caliber adapters and edge cases aren't blocked. Sidebar gets a Range entry (Lucide Target icon) between Firearms and At Range; the At Range page is unchanged in this phase. Frontend `rangeSessions.ts` API client and matching types added (these were not shipped in P3). The dashboard "Quick Action" entry point and the Sessions tab content on the firearm detail page are deferred to P5. |
+| 3.29 | 2026-05-09 | Firearms P5 — cross-cutting integration. Sessions tab on `/firearms/:id` is now real — lists every range session involving the firearm with per-session rounds total scoped to THIS firearm specifically, computed via a single grouped query on the backend (new `rounds_for_filter_firearm` field on `RangeSessionListItem`, populated only when `GET /range-sessions?firearm_id=N` is set; avoids any frontend N+1). Dashboard gets two new widgets: Recent Range Sessions (last 5, with View All link to /range) and Firearms Needing Service (overdue + due-soon grouped, with the rounds-based or time-based reason text and a Log Cleaning quick-action that opens the firearm log dialog pre-set to Cleaning; hidden when no firearms need attention). New Quick Actions row on the dashboard exposes Log Range Day, Add Firearm, Add Ammo Box (hidden for read-only users). `GET /firearms?cleaning_status=` now accepts comma-separated values (e.g. `?cleaning_status=due_soon,overdue`) so the cleaning widget fetches both buckets in one request; single-value filtering still works. §10.1, §10.2, §10.3 implementation reference. |
+| 3.30 | 2026-05-09 | Firearms P6 — closing-the-loop polish for v0.3.0. Added firearms CSV export at `GET /firearms/export/csv` (one row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter) plus an Export CSV button on the Firearms list page. Added range sessions CSV export at `GET /range-sessions/export/csv` (denormalized, one row per line) plus an Export CSV button on the Range page. §10.1, §10.2, §10.3 version annotations updated from "(v2.0)" to "(v0.3.0 — shipped)". §6.7 heading similarly updated. New §10.8 Deferred subsection consolidates roadmap items deliberately scoped out of v0.3.0 (multi-caliber firearms, target photo uploads, firearms CSV import, accessories module, At Range / Range workflow merge, additional community lookups). |
+| 3.31 | 2026-05-10 | Firearms CSV import — final v0.3.0 firearms feature work before tagging. New `backend/routers/firearms_importer.py` mounts `POST /import/firearms/validate` → `POST /import/firearms/confirm` → `GET /import/firearms/template`, mirroring the ammo importer (token TTL 15 min, hard-blocking pre-import backup, single-transaction commit). Round-trip compatible with the v0.3.0 firearms export. Cascading model resolution scopes models under their manufacturer; new manufacturers are created with `types=["firearm"]`, existing manufacturers have `firearm` unioned in. Round counts and `last_cleaned_at` seed synthetic firearm-log entries (`note` at purchase + `cleaning` on the recorded date) so subsequent recalc rebuilds the cleaning state from the log being source-of-truth. Frontend Import page gets an Ammo / Firearms tab; the firearms preview UI handles a cascading `firearm_models_by_manufacturer` group plus per-value remap. `is_shared` on confirm is admin-only; member submissions return 403. §10.1 updated. |
+| 3.32 | 2026-05-10 | Firearms v0.3.0 polish — pre-tag schema baseline. Migrations `0002` / `0003` / `0004` collapsed into a single `0002_firearms_feature.py` (same final schema, one diff to review; matches v0.1.9 squash precedent; safe because v0.3.0 has not been released yet so no migration history needs preserving — old files deleted, not archived). Free-text `firearms.finish` column replaced by FK `finish_id` → new `firearm_finishes` community lookup; no compatibility shim. New per-firearm columns: `frame_size_id` → `firearm_frame_sizes`, `optic_cut_id` → `firearm_optic_cuts`, `rail_type_id` → `firearm_rail_types`, plus `standard_capacity` (integer). New `firearm_models.default_barrel_length_in` column drives the form drawer auto-fill cascade alongside caliber + action type. Catalog expanded from 48 to ~100 popular models with seeded barrel lengths from manufacturer spec sheets; five new firearm manufacturers seeded (Taurus, Bergara, IWI, Kel-Tec, Stoeger). Firearms CSV export shape updated — `finish` becomes a name-resolved value from the FK, new `frame_size` / `optic_cut` / `rail_type` / `standard_capacity` columns inserted in the Physical section (no round-trip concern with prior exports — none have shipped). Lookups admin page gains four new sections; firearm form drawer's Physical section replaces the free-text Finish input with a dropdown and adds Frame Size / Optic Cut / Rail Type / Capacity controls; auto-fill flash extended from caliber+action to caliber+action+barrel. §6.7 schema block, §10.1 narrative bullets, §10.8 Deferred all updated. Note: the firearms CSV importer is left consuming the original column set and gains a TODO to map the new physical-attribute columns in a follow-up prompt. |
+| 3.33 | 2026-05-10 | Firearm photos (v0.3.0). Migration `0003_add_firearm_photos.py` adds the `firearm_photos` table — up to 5 photos per firearm with one designated default. Files live on disk under `${UPLOADS_PATH}/firearm_photos/<firearm_id>/`; Pillow normalizes uploads to JPEG q85 with a 256px thumbnail. Server-side resize (longest side ≤ 2048px), EXIF orientation honored, JPEG/PNG/WebP accepted, HEIC/HEIF rejected with a friendly export-as-JPEG hint. Photo URLs are auth-gated streams (not served from a public static path). Backup/restore extended: new `backup.include_photos` config setting (default true) makes scheduled and manual backups produce a `.zip` containing the WAL-safely-copied SQLite database plus the photos directory, so photo data isn't orphaned from the DB that references it. New `/backup/restore` endpoint accepts both `.zip` and `.db`; the existing `/backup/restore/sqlite` endpoint remains as a deprecated alias for one release. Path-traversal defense on zip extraction. Firearms list-page cards gain a default-photo header with FirearmIcon fallback; detail page replaces the prior text-only hero with a default-photo + thumb-strip layout that opens a lightbox on click. Firearms CSV export gains a `photo_count` column (photo bytes remain out-of-band — they live in the zip backup). §6.7 schema block, §10.1 narrative bullets, §10.8 Deferred (Photos line removed), and §11 Backup Formats all updated. |
+| 3.34 | 2026-05-10 | Firearms CSV import — v0.3.0 final pre-tag work. The firearms importer (originally written against the pre-collapse schema) is now aligned with the final v0.3.0 export shape: `frame_size`, `optic_cut`, `rail_type`, and `finish` join `manufacturer`/`caliber`/`action_type`/`dealer` as recognized single-value lookup columns and resolve to their FK columns on confirm; `standard_capacity` parses to the integer column with the same non-negative-int validation as `rounds_lifetime`. All four physical-attribute lookups default similarity matches to `use_existing` (matching their community-curated source). `photo_count` joins `display_model` and `cleaning_status` in the silently-ignored derived-columns set so an unmodified export round-trips cleanly. The `firearms` CSV template advertises every supported column. §10.1 narrative refreshed; the prior "csv import is import-v2 follow-up" caveat is removed. |
+| 3.35 | 2026-05-10 | LookupCombobox inline-create with fuzzy-match guard — every form drawer's lookup `<Select>` (firearm form: manufacturer / model / caliber / action type / frame size / optic cut / rail type / finish / dealer; ammo box form: caliber / manufacturer / type / condition / category / location / container; products form: caliber / manufacturer / type / category / condition) is replaced by a shared `LookupCombobox` with type-ahead search, an inline "+ Create" affordance, and a client-side Levenshtein-based "Did you mean…" dialog (mirrors `backend/routers/importer.py::_is_similar` thresholds — 1 for ≤6-char strings, 2 otherwise). Inline-created entries carry `source='user'` and surface with a subtle (user) badge; community / admin-created entries are unchanged. Backend: POST permission on 13 lookup endpoints (calibers, manufacturers, ammo-types, ammo-conditions, categories, dealers, firearm-action-types, firearm-models, firearm-compliance-tags, firearm-frame-sizes, firearm-optic-cuts, firearm-rail-types, firearm-finishes) relaxed from admin-only to admin+member. PATCH / DELETE / toggle-active remain admin-only — only creation is opened. Read-only users see options and source badges but no create affordance. Cascading model picker hides create when no manufacturer is selected, with an inline "Pick a manufacturer first" hint. §6.5, §9.2, §10.1 updated. |
+| 3.36 | 2026-05-11 | At Range — quick session attribution. The `QuickExpendPopover` gains a three-option session radio (None / New / Last) and a conditional firearm picker (caliber-matching firearms listed first, non-blocking amber mismatch warning). New posts to `POST /range-sessions` with a single-line payload; Last posts to `POST /range-sessions/{id}/lines`; both route through the existing `_apply_session_line` atomicity so ammo deduction and firearm `rounds_lifetime` / `rounds_since_clean` stay consistent with the Log Range Day dialog and CSV import. None preserves today's `POST /ammo/{id}/expend` path. Session and firearm selections persist in `sessionStorage` (`at_range_attribution`, `at_range_last_firearm_id`, `at_range_last_session_id`, `at_range_last_session_date`); session linkage clears on date rollover, firearm preference persists across days. The Ammo page `ExpendDialog` is intentionally unchanged. Frontend-only; zero backend changes. §10.2 updated. |
+| 3.37 | 2026-05-17 | Firearm nickname as primary label. Frontend-only change: a new `firearmLabel` / `firearmLabelParts` / `firearmLabelForToast` utility at `frontend/src/lib/firearm-label.ts` provides a single canonical label builder. When a firearm has a `nickname` set, it is used as the headline (e.g. "Bedside Carry — SIG Sauer P365"); without a nickname the label falls back to "Manufacturer Model" — existing behavior. Applied to all picker dropdowns (LogRangeDayDialog, QuickExpendPopover), list and card views (FirearmsListPage — name sort updated to sort by nickname primary), session grouping and cell labels (RangeSessionDetailPage, RangePage), the dashboard Firearms Needing Service widget, delete and log-event confirmation dialogs, and `document.title` on FirearmDetailPage. §10.1 display subsection updated to reflect nickname-first rendering. |
+| 3.38 | 2026-05-17 | v0.3.0 release: firearms registry, range sessions, firearm maintenance log, photos, CSV import/export, LookupCombobox inline create, backup zip integration, At Range session attribution. CHANGELOG `[Unreleased]` stamped as `[0.3.0]`. |
 
 ---
 
@@ -454,14 +469,24 @@ All shared across users. `source` distinguishes YAML-seeded defaults from user-c
 
 ```
 calibers        — id, name, is_active, source (yaml | user)
-manufacturers   — id, name, url, is_active, source
+manufacturers   — id, name, url, is_active, source, types (JSON: ["ammo"|"firearm"])
 ammo_types      — id, name, is_active, source
 ammo_conditions — id, name, is_active, source
 categories      — id, name, is_active, source
 dealers         — id, name, url, is_active, source
+
+# Firearms domain — see §6.7.1 for full schemas
+firearm_action_types     — id, name, is_active, source, community_key
+firearm_models           — id, manufacturer_id, name, default_caliber_id, ...
+firearm_compliance_tags  — id, name, jurisdiction, description, is_active, source
+firearm_user_tags        — id, owner_id, name, color (per-user, NOT community)
 ```
 
 `url` on manufacturers is optional. Pre-populated for known brands via `defaults.yaml`; blank for private-label or unknown brands. Admins can update the URL via the Lookups settings page without affecting the `source` field.
+
+`manufacturers.types` distinguishes ammo vs. firearm domains so a single manufacturer record (e.g. "Sig Sauer") can serve both sides of the app. Existing rows are backfilled to `["ammo"]`. `GET /lookups/manufacturers?type=ammo|firearm` filters by domain for cascading dropdowns.
+
+**Inline create + admin governance.** As of v0.3.0, members can create new lookup entries inline from any form drawer (POST endpoints relaxed to admin+member). Those entries land with `source='user'` to distinguish them from `community` (YAML-synced) and `local` (admin-edited community) rows. PATCH and DELETE on lookup entries remain admin-only — admins govern existing names, URLs, types, and the active/hidden state from the Lookups admin page. User-created entries are visible there alongside community entries; admins can edit any entry, hide entries they don't want surfaced, and delete user-created entries that aren't in use.
 
 ### 6.6 App Settings
 
@@ -481,27 +506,197 @@ Current keys written by the application:
 | --- | ---------- | ------- |
 | defaults_version | startup sync | Last successfully synced defaults.yaml version |
 
-### 6.7 Firearms (v2.0)
+### 6.7 Firearms (v0.3.0)
+
+The firearms feature is built up across a small number of phases:
+
+- **Phase P1a (v0.3.0 dev)** — community lookup foundation only: `firearm_models`, `firearm_action_types`, `firearm_compliance_tags`, plus the per-user `firearm_user_tags` table and a `manufacturers.types` JSON column so a single manufacturer record serves both ammo and firearm domains. **No `firearms` table is created in this phase.**
+- **Phase P1b (v0.3.0 dev)** — adds the `firearms` table itself, the `firearm_log` event table, and the two join tables that link firearms to compliance / user tags. Full CRUD endpoints under `/firearms`. Frontend pages and dashboard widgets ship in P2 and P5.
+
+The implemented `firearms` table:
 
 ```
 firearms
-├── id               INTEGER    Primary key
-├── owner_id         INTEGER    FK → users.id
-├── is_shared        BOOLEAN    True = Members can log sessions against it
-├── make             TEXT       e.g. Glock, Ruger, Smith & Wesson
-├── model            TEXT       e.g. 19 Gen 5, 10/22, Model 686
-├── caliber_id       INTEGER    FK → calibers
-├── serial           TEXT       Optional
-├── purchase_date    DATE       Optional
-├── notes            TEXT       Optional
-├── rounds_lifetime  INTEGER    Total rounds fired through this firearm; auto-incremented
-├── rounds_since_clean INTEGER  Rounds since last cleaning; reset on cleaning log entry
-├── last_cleaned_at  DATE       Date of last cleaning/service; nullable
-├── created_at       DATETIME
-└── updated_at       DATETIME
+├── id                       INTEGER    Primary key
+├── owner_id                 INTEGER    FK → users.id
+├── is_shared                BOOLEAN    True = Members can log sessions against it
+├── manufacturer_id          INTEGER    FK → manufacturers (with types containing "firearm")
+├── firearm_model_id         INTEGER    FK → firearm_models; nullable for "freeform" entries
+├── custom_model_name        TEXT       Free-text model name when firearm_model_id is null
+│                                       (e.g. one-off custom builds, missing community models)
+├── firearm_type             TEXT       pistol | rifle | shotgun | other
+├── action_type_id           INTEGER    FK → firearm_action_types; nullable
+├── caliber_id               INTEGER    FK → calibers
+├── caliber_notes            TEXT       Free-text caliber qualification (e.g. "+P only",
+│                                       ".357 Mag chamber, also fires .38 Special")
+├── serial                   TEXT       Optional
+├── barrel_length_in         FLOAT      Barrel length in inches; nullable
+├── frame_size_id            INTEGER    FK → firearm_frame_sizes; nullable (v0.3.0 polish)
+├── optic_cut_id             INTEGER    FK → firearm_optic_cuts; nullable
+├── rail_type_id             INTEGER    FK → firearm_rail_types; nullable
+├── finish_id                INTEGER    FK → firearm_finishes; nullable (replaces v0.3.0
+│                                       early-dev free-text `finish`)
+├── standard_capacity        INTEGER    Magazine capacity the firearm was designed for;
+│                                       nullable (v0.3.0 polish)
+├── purchase_date            DATE       Optional
+├── purchase_price           FLOAT      Optional
+├── dealer_id                INTEGER    FK → dealers; nullable
+├── notes                    TEXT       Optional
+├── rounds_lifetime          INTEGER    Total rounds fired through this firearm; updated by
+│                                       range sessions in P3
+├── rounds_since_clean       INTEGER    Rounds since last cleaning; recomputed from firearm_log
+├── last_cleaned_at          DATE       Date of last cleaning event; recomputed from firearm_log
+├── service_interval_rounds  INTEGER    Recommended rounds between cleanings; nullable
+├── service_interval_days    INTEGER    Recommended days between cleanings; nullable
+├── created_at               DATETIME
+└── updated_at               DATETIME
+   CHECK (firearm_model_id IS NOT NULL OR custom_model_name IS NOT NULL)
 ```
 
-### 6.7 Range Sessions (v2.0)
+The CHECK constraint enforces "at least one of catalog model or custom name" — mirrors the AmmoBox `product_id` / `product_name` pattern.
+
+#### 6.7.0 firearm_log (P1b)
+
+Per-firearm event log. Replaces the originally-spec'd "cleaning event" with three event types so service trips and milestone notes share one timeline:
+
+```
+firearm_log
+├── id                INTEGER    Primary key
+├── firearm_id        INTEGER    FK → firearms
+├── event_type        TEXT       cleaning | service | note
+├── event_date        DATE       User-supplied; backdating supported
+├── rounds_at_event   INTEGER    Snapshot of firearms.rounds_lifetime; user-overridable
+├── notes             TEXT       Optional
+├── logged_by         INTEGER    FK → users.id
+└── created_at        DATETIME
+```
+
+`firearms.last_cleaned_at` and `firearms.rounds_since_clean` are denormalized snapshots of the most-recent `cleaning` event. They are recomputed from the full `firearm_log` history on every insert / update / delete of a log row, so the snapshots never drift from the source of truth — even when entries are backdated, edited, or deleted.
+
+#### 6.7.0b Firearm photos (v0.3.0)
+
+Up to 5 photos per firearm with one designated default. Photo files live on
+the filesystem under `${UPLOADS_PATH}/firearm_photos/<firearm_id>/`; this
+table holds metadata only.
+
+```
+firearm_photos
+├── id              INTEGER    Primary key
+├── firearm_id      INTEGER    FK → firearms
+├── filename        TEXT       Server-generated UUID + .jpg (always normalized)
+├── original_name   TEXT       Original upload filename (display only); nullable
+├── content_type    TEXT       Always "image/jpeg" after server-side normalization
+├── size_bytes      INTEGER    Size of the resized full-size file
+├── width           INTEGER    Resized full-size width
+├── height          INTEGER    Resized full-size height
+├── is_default      BOOLEAN    Partial unique index — at most one true per firearm
+├── sort_order      INTEGER    Display order (0-based)
+├── uploaded_by     INTEGER    FK → users.id
+└── uploaded_at     DATETIME
+```
+
+Server-side processing on upload:
+
+- JPEG / PNG / WebP accepted; HEIC/HEIF rejected with an "export as JPEG"
+  hint
+- Max upload 10 MB; longest dimension resized to ≤ 2048 px
+- EXIF orientation honored so portrait phone photos land upright
+- 256 px thumbnail generated alongside the full-size image (filename
+  suffix `_thumb`)
+- All output normalized to JPEG q85 — sidesteps PNG transparency / WebP
+  compatibility questions and keeps a single serve path
+- The 5-photo cap is enforced at the API layer, not the DB, so it can be
+  changed later without a migration
+
+Photo URLs (`/firearms/{firearm_id}/photos/{photo_id}` and
+`.../thumb`) are auth-gated streaming endpoints — the browser ships the
+session cookie automatically. Files are not served from a public static
+path.
+
+Cascade behavior: deleting a firearm removes the photo rows and the
+per-firearm directory. Deleting a photo removes both file variants and,
+if it was the default, promotes the next photo by `sort_order` to
+default.
+
+#### 6.7.0a Firearm tag links (P1b)
+
+Two join tables bind firearms to multi-select tag sets:
+
+```
+firearm_compliance_tag_links     firearm_user_tag_links
+(firearm_id, tag_id) PK          (firearm_id, tag_id) PK
+```
+
+PATCH replaces the full set when `compliance_tag_ids` / `user_tag_ids` is supplied — no delta semantics. `user_tag_ids` are validated against the requesting user's ownership (admins can use any tag).
+
+#### 6.7.1 Firearm lookup tables (shipped in P1a)
+
+```
+firearm_action_types
+├── id              INTEGER    Primary key
+├── name            TEXT       UNIQUE, e.g. "Bolt-action rifle", "Semi-auto pistol"
+├── is_active       BOOLEAN
+├── source          TEXT       yaml | community | user | local
+├── community_key   TEXT       e.g. "action-bolt-action-rifle"
+└── is_imported     BOOLEAN
+
+firearm_models
+├── id                       INTEGER    Primary key
+├── manufacturer_id          INTEGER    FK → manufacturers (NOT NULL)
+├── name                     TEXT       e.g. "10/22", "P320"
+├── default_caliber_id       INTEGER    FK → calibers; nullable
+├── default_action_type_id   INTEGER    FK → firearm_action_types; nullable
+├── default_barrel_length_in FLOAT      Standard production barrel length in inches;
+│                                       nullable (v0.3.0 polish — drives the form
+│                                       drawer auto-fill alongside caliber + action)
+├── is_active                BOOLEAN
+├── source                   TEXT
+├── community_key            TEXT       e.g. "model-glock-19-gen5"
+└── is_imported              BOOLEAN
+   UNIQUE (manufacturer_id, name)
+
+firearm_frame_sizes / firearm_optic_cuts / firearm_rail_types / firearm_finishes
+                              (v0.3.0 polish — four community-curated lookups
+                              that replace the original free-text `finish`
+                              column on firearms with structured FK references.
+                              All four share the FirearmActionType shape:)
+├── id              INTEGER    Primary key
+├── name            TEXT       UNIQUE
+├── is_active       BOOLEAN
+├── source          TEXT       yaml | community | user | local
+├── community_key   TEXT       e.g. "frame-size-compact", "finish-cerakote"
+└── is_imported     BOOLEAN
+
+firearm_compliance_tags
+├── id              INTEGER    Primary key
+├── name            TEXT       UNIQUE, e.g. "CA Featureless", "NFA Registered — SBR"
+├── description     TEXT       nullable
+├── jurisdiction    TEXT       "CA" | "NY" | "NFA" | "Federal" — for UI grouping; nullable
+├── is_active       BOOLEAN
+├── source          TEXT       defaults to "community"
+├── community_key   TEXT
+└── is_imported     BOOLEAN
+
+firearm_user_tags
+├── id              INTEGER    Primary key
+├── owner_id        INTEGER    FK → users.id (NOT NULL)
+├── name            TEXT       Free-form, e.g. "Carry", "Heirloom"
+├── color           TEXT       Hex code "#RRGGBB"; nullable
+└── created_at      DATETIME
+   UNIQUE (owner_id, name)
+```
+
+`manufacturers.types` is a JSON-encoded array distinguishing the manufacturer's domain. Existing rows are backfilled to `["ammo"]` by migration 0002. New firearm-only manufacturers get `["firearm"]`. Manufacturers that make both (e.g. Sig Sauer, Browning, Federal, Winchester, Remington) get `["ammo","firearm"]`. The `GET /lookups/manufacturers` endpoint accepts `?type=ammo|firearm` to filter by domain for cascading dropdowns.
+
+#### 6.7.2 Deferred from v2.0 firearms
+
+The following are explicitly out of scope for the initial firearms feature and tracked as future work:
+
+- **Multi-caliber firearms.** A revolver chambered for .357 Magnum that also fires .38 Special is recorded with a single `caliber_id` plus free-text `caliber_notes`. Modeling secondary calibers as structured rows (e.g. a `firearm_alternate_calibers` join) is deferred.
+- **Target photo uploads.** `range_session_lines.target_photo` exists as an optional path field, but the upload UI, image storage, and image management screens are deferred.
+- **CSV import for firearms.** Firearms are entered via the UI in v0.3.0. Bulk CSV import (analogous to ammo CSV import) is deferred.
+
+### 6.15 Range Sessions (v0.3.0 — P3)
 
 ```
 range_sessions
@@ -511,17 +706,32 @@ range_sessions
 ├── date             DATE
 ├── location_name    TEXT       Free text location name (range, field, etc.)
 ├── notes            TEXT       Optional: conditions, goals, etc.
-└── created_at       DATETIME
+├── created_at       DATETIME
+└── updated_at       DATETIME
 
 range_session_lines
 ├── id               INTEGER    Primary key
 ├── session_id       INTEGER    FK → range_sessions
 ├── firearm_id       INTEGER    FK → firearms; nullable (dry fire, etc.)
 ├── ammo_box_id      INTEGER    FK → ammo_box; nullable
-├── rounds_fired     INTEGER
-├── target_photo     TEXT       File path to uploaded photo; nullable (v2.0)
-└── notes            TEXT       Optional
+├── rounds_fired     INTEGER    >= 0 (CHECK)
+├── notes            TEXT       Optional
+└── created_at       DATETIME
+   CHECK (firearm_id IS NOT NULL OR ammo_box_id IS NOT NULL)
 ```
+
+`expenditure_log` carries an additional FK column `range_session_line_id`
+(nullable) that points back at the line whose creation produced the row.
+Ad-hoc `/ammo/{id}/expend` rows leave it NULL; rows written by a session
+line set it. Editing or deleting a session/line uses this link to undo
+the deduction (restore `ammo_box.qty_remaining`, drop the log row) and
+to decrement firearm `rounds_lifetime` / `rounds_since_clean` (clamped
+at 0). The link is the source of truth for reversal — we do not
+reconstruct it from `notes` text.
+
+Target photo uploads on session lines remain deferred (see §6.7.2). The
+column is **not** present in this implementation; it lands in a future
+migration when the upload UI ships.
 
 ### 6.8 Accessories (v3.0)
 
@@ -547,6 +757,12 @@ Indexes required for search and filter performance targets (sub-200ms at 10,000 
 **ammo_box:** `caliber_id`, `manufacturer_id`, `type_id`, `category_id`, `owner_id`, `is_shared`, `qty_remaining`, `is_archived`, `created_at`, `legacy_id`, `split_from_id`
 
 **expenditure_log:** `ammo_box_id`, `logged_by`, `date`, `log_type`
+
+**firearms:** `owner_id`, `is_shared`, `manufacturer_id`, `firearm_model_id`, `caliber_id`, `firearm_type`, `action_type_id`, `dealer_id`
+
+**firearm_log:** `firearm_id`, `event_date`, `event_type`, `logged_by`
+
+**firearm_compliance_tag_links / firearm_user_tag_links:** `tag_id` (forward queries already covered by composite PK on `firearm_id, tag_id`)
 
 **users:** `username`, `email`
 
@@ -987,7 +1203,7 @@ Checklist:
 
 - Form with all fields from Section 6.2
 - `is_shared` toggle — defaults to `false` (private)
-- Caliber, manufacturer, type, condition, category, dealer dropdowns all support inline **Add New**
+- Caliber, manufacturer, type, condition, category, dealer, location, and container dropdowns all support inline **Add New** via the shared `LookupCombobox` — type-ahead search, an inline "+ Create" affordance at the bottom of the dropdown, and a client-side Levenshtein fuzzy-match guard ("Did you mean…") that catches likely typos before commit. Inline-created entries carry `source='user'` and surface alongside community entries with a subtle (user) badge. Members and admins can both create; read-only users see options + source badges but no create affordance. Manufacturer inline-create from the ammo form is scoped to `types=["ammo"]`.
 - **Product Name** — free-text field positioned directly below Manufacturer; not a dropdown (product lines too varied to maintain a list); carries through to the Add X Copies and Restock features
 - **Condition** — optional dropdown between Type and Category; values from `ammo_conditions` lookup (Factory New, Remanufactured, Reloaded / Handload, Military Surplus, Old / Unknown); defaults to blank (no selection required)
 - Cost entered per round; calculated box total shown alongside for reference
@@ -1899,28 +2115,128 @@ Returns `history_id` (int). The caller fetches the record from DB in its own ses
 
 ## 10. Future Feature Specifications
 
-### 10.1 Firearms Registry (v2.0)
+### 10.1 Firearms Registry (v0.3.0 — shipped)
 
-- Track owned firearms with the same `owner_id` + `is_shared` model as ammo boxes
-- Fields: make, model, caliber, serial (optional), purchase date, notes
-- Lifetime round count auto-incremented by range sessions
-- Round count at last cleaning; configurable service interval
-- Admin sees all; Members see shared + their own
+Shipped in v0.3.0 across phases P1a (lookups), P1b (registry + log), P2 (frontend), and P5 (cross-cutting integration).
 
-### 10.2 Range Sessions (v2.0)
+- **Nickname-first display.** When a `nickname` is set on a firearm (e.g. "Bedside Carry"), it is the headline label everywhere the firearm appears — pickers, cards, lists, session groupings, and `document.title`. The make/model follows as muted secondary context ("Bedside Carry — SIG Sauer P365"). Without a nickname the label falls back to "Manufacturer Model", matching previous behavior. The canonical builder lives in `frontend/src/lib/firearm-label.ts` (`firearmLabel`, `firearmLabelParts`, `firearmLabelForToast`); every render site uses this utility rather than building labels inline.
+- Track owned firearms with the same `owner_id` + `is_shared` model as ammo boxes (Admin sees all; Members see shared + their own; Read-Only sees shared only)
+- Either a community-curated `firearm_model_id` OR a free-form `custom_model_name` is required (CHECK constraint)
+- Compliance tags (multi-select; community-curated, user-extensible — e.g. "CA Featureless", "NFA Registered — SBR") and personal user tags (per-user free-form, color-coded) are both attached via many-to-many link tables
+- Per-firearm service intervals — rounds-based (`service_interval_rounds`) and time-based (`service_interval_days`); either, both, or neither
+- `cleaning_status` (`ok` | `due_soon` | `overdue`) is computed at read time from those intervals plus `rounds_since_clean` and `last_cleaned_at`. `due_soon` triggers at ≥80% of either threshold; missing `last_cleaned_at` with a `service_interval_days` set is treated as overdue (never cleaned)
+- Firearm log generalizes the original "cleaning event" into three event types — `cleaning` (resets the cleaning snapshot), `service` (gunsmith / parts), and `note` (free-form milestones)
+- Editing or deleting a firearm log entry recalculates `last_cleaned_at` and `rounds_since_clean` from the full log history — denormalized snapshots never drift from the source of truth
+- Lifetime round count is updated by range sessions (P3) — atomic with the ammo deduction
+- CSV export at `GET /firearms/export/csv` — one row per firearm; tag multi-values collapsed to pipe-separated lists; respects the visibility filter (P6)
+- **CSV import.** Firearms can be imported in bulk via the same validate / preview / confirm pattern used for ammo (`POST /import/firearms/validate` → `POST /import/firearms/confirm`). The CSV format matches the export, so an unmodified round-trip is supported — including the physical-attribute FK columns (`frame_size`, `optic_cut`, `rail_type`, `finish`) and `standard_capacity` from the v0.3.0 polish pass. Derived export-only columns (`photo_count`, `display_model`, `cleaning_status`) are silently ignored on import. Unmatched lookup values surface in the preview step with fuzzy-match suggestions; the user decides per value whether to map to an existing entry or create new. New manufacturers, models, action types, dealers, frame sizes, optic cuts, rail types, finishes, and tags are created with `source="user"` so they're locally editable but never overwrite community rows. Round counts on import seed a synthetic firearm-log `note` entry; a non-null `last_cleaned_at` adds a synthetic `cleaning` entry so the denormalized cleaning state recalculates correctly. A pre-import backup is hard-blocking — the import aborts with no rows written if the backup fails.
+- **Physical attribute community lookups (v0.3.0 polish).** Frame size,
+  optic cut, rail type, and finish are community-curated lookup tables
+  matching the existing firearm taxonomy pattern (same shape as
+  `firearm_action_types`, syncable from `community/*.yaml`,
+  user-extensible with `source="user"` entries when the community list
+  is incomplete). The previous free-text `finish` column was replaced
+  outright — no compatibility layer; this happened pre-release while
+  v0.3.0 was still on the `dev` branch.
+- **Standard capacity (v0.3.0 polish).** Per-firearm integer for the
+  magazine capacity the firearm was designed for. Tracks the spec, not
+  the magazine the user has loaded — accessory-level capacity tracking
+  belongs to a future Accessories module.
+- **Catalog default barrel length (v0.3.0 polish).** Catalog
+  `firearm_models` rows seed `default_barrel_length_in` where the
+  standard production length is reliably known. Picking a catalog model
+  in the form drawer auto-fills the firearm's `barrel_length_in` when
+  blank, consistent with the existing caliber / action auto-fill
+  cascade. Threaded barrels and custom shop variants are handled by the
+  user overriding the auto-filled value per firearm.
+- **Inline create with fuzzy-match guard (v0.3.0 polish).** Every form
+  dropdown in the firearm form drawer (manufacturer, model, caliber,
+  action type, frame size, optic cut, rail type, finish, dealer)
+  supports inline creation when the typed value doesn't match an
+  existing entry. Before creating, a client-side Levenshtein check
+  surfaces likely typos against existing entries with a "Did you mean…"
+  confirmation; the threshold mirrors the CSV importer
+  (`backend/routers/importer.py::_is_similar`). Users can either pick
+  the existing match or proceed with the new entry. Inline-created
+  entries are marked `source='user'` and visible alongside community
+  entries in the admin Lookups page with a subtle (user) badge; they
+  don't sync to community. Members and admins can both create —
+  read-only users see options + source badges but no create
+  affordance. The cascading model picker hides the create affordance
+  while no manufacturer is selected, with an inline hint.
+- **Photos (v0.3.0).** Each firearm supports up to 5 photos with one
+  designated as default; the cap is API-enforced (not DB-enforced) so
+  it's adjustable later without a migration. Photos auto-resize on
+  upload (longest side ≤ 2048 px) and a 256 px thumbnail is generated;
+  EXIF orientation is honored so portrait phone photos land upright.
+  JPEG / PNG / WebP accepted; HEIC/HEIF rejected with a friendly
+  export-as-JPEG hint. Storage is filesystem-backed under
+  `${UPLOADS_PATH}/firearm_photos/<firearm_id>/`; URLs are auth-gated
+  streams (no public static path). The firearms list-page card grid
+  shows the default photo at the top of each card with a FirearmIcon
+  fallback; the firearm detail page replaces the prior text-only hero
+  with a default-photo + thumb-strip layout that opens a lightbox on
+  click. Photos are bundled into zip backups when
+  `backup.include_photos` is true (default) so the database and the
+  files it references are never separated.
 
-- Log a session: date, location name (free text), notes, `is_shared` flag
-- Multiple line items per session: firearm + ammo box + rounds fired
-- Auto-deducts from `ammo_box.qty_remaining`
-- Auto-increments `firearms.rounds_lifetime` and `rounds_since_clean`
-- Attach target photos to a session line (stored in `/data/uploads/`)
-- Shared sessions visible to all Members on the instance
+### 10.2 Range Sessions (v0.3.0 — shipped)
 
-### 10.3 Cleaning Reminders (v2.0)
+Shipped in v0.3.0 across phases P3 (backend), P4 (frontend), P5 (cross-cutting integration), and P6 (CSV export).
 
-- Set service interval per firearm: round count threshold or calendar interval
-- Dashboard widget shows firearms approaching or past their service interval
-- Log a cleaning event: resets `rounds_since_clean`, records `last_cleaned_at` and round count at service
+- Log a session: date, location name (free text), notes, `is_shared` flag.
+- Multi-line per session — at least one line required. Each line has an
+  optional `firearm_id` and optional `ammo_box_id` plus `rounds_fired`
+  (>= 0). At least one of firearm or box must be set per line.
+- Auto-deducts from `ammo_box.qty_remaining` via the existing
+  `expenditure_log` table (no parallel deduction path). Each session-driven
+  expend row carries `range_session_line_id` for the audit/reversal link.
+- Auto-increments `firearms.rounds_lifetime` and `rounds_since_clean`.
+- Editing or deleting a line / session reverses every side effect
+  atomically: ammo restored, firearm counters decremented, log rows
+  removed. PATCH on a line is implemented as reverse-then-apply.
+- Multi-line POST is a single transaction — a partial overdraw on the
+  second line rolls back the first line's effects with no session row
+  persisted.
+- Shared sessions visible to all Members. Only admins can create a
+  shared session. Members can fire from a shared ammo box even if they
+  don't own it (matches existing `/ammo/{id}/expend` semantics).
+- The at-range page (mobile quick-expend, §8.18) and Range Sessions
+  remain separate workflows; they are not unified in v0.3.0.
+- CSV export at `GET /range-sessions/export/csv` — denormalized one row
+  per line; session-level fields (date, location, notes, owner) repeat
+  across the lines of one session (P6).
+- Attach target photos to a session line (stored in `/data/uploads/`) —
+  **deferred**, no schema column yet.
+- **Quick session attribution from At Range.** The At Range expend popover
+  can attach an expenditure to a range session at the moment of capture.
+  Three options: **None** logs the expend as today (no session, no
+  firearm); **New session** creates a session with this expend as line 1;
+  **Last session** appends a line to the most recent session this user
+  created today. Selecting a session also requires picking a firearm,
+  which surfaces with caliber-matching firearms listed first. The firearm
+  and session-attribution choices persist in sessionStorage so box-by-box
+  logging during a range day stays fast — pick the gun once, log multiple
+  boxes through it. Session linkage is day-scoped (cleared on date
+  rollover); firearm preference persists across days. All session-attribution
+  paths route through the existing range-session endpoints
+  (`POST /range-sessions` for New, `POST /range-sessions/{id}/lines` for
+  Last) so firearm `rounds_lifetime` / `rounds_since_clean` and ammo
+  deduction stay consistent with the Log Range Day dialog and CSV import.
+  Zero backend changes — the Ammo page `ExpendDialog` is intentionally
+  unaffected (different semantic: cleanup, not range workflow).
+
+### 10.3 Firearm Maintenance Log (v0.3.0 — shipped)
+
+Generalizes "cleaning reminders" from the original spec — the underlying table is `firearm_log`, the dashboard widget reads it. Shipped in v0.3.0 alongside the firearms registry; previous versions of this PRD called this section "Cleaning Reminders" and tagged it for v2.0.
+
+- Set service interval per firearm: round count threshold and/or calendar interval (either, both, or neither)
+- Dashboard widget (P5) lists firearms whose `cleaning_status` is `due_soon` or `overdue`
+- Log a `cleaning` event: resets `rounds_since_clean` and updates `last_cleaned_at` to the event date
+- Log a `service` event: records gunsmith trips, part replacements, etc.
+- Log a `note` event: free-form milestone (zero confirmed, optic mounted, etc.)
+- Backdating is supported; `rounds_at_event` defaults to a snapshot of the firearm's current `rounds_lifetime` but is user-overridable for backdated entries
+- Editing or deleting a log entry triggers full recalculation of the firearm's denormalized cleaning state
 
 ### 10.4 Reporting (v2.0)
 
@@ -2006,6 +2322,33 @@ Quick preset buttons support range use with gloves or in poor lighting condition
 4. Preview labels before printing
 5. Download as PDF or send directly to the browser print dialog
 
+### 10.8 Deferred from v0.3.0 firearms / range release
+
+The following items were deliberately scoped out of the v0.3.0 firearms + range work and remain on the roadmap:
+
+- **Multi-caliber firearms.** v0.3.0 firearms have a single `caliber_id` FK plus a free-text `caliber_notes` field. A `firearm_calibers` join table will be added in a future migration without renaming the existing column. (See also §6.7.2.)
+- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet. The upload UI, image storage, and image management screens land in a future migration when the feature ships. (See also §6.7.2.)
+- **Firearms CSV import.** Export-only in v0.3.0. Import will follow the existing CSV import validate/preview/confirm pattern used for ammo, but is not in this release.
+- **Accessories module** (§10.6 / v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
+- **At Range / Range workflow merge.** The mobile quick-expend page (§8.18 At Range) and the multi-line Range Sessions page (§10.2) remain separate. Future UX research will determine whether to unify them.
+- **Additional community lookups for firearms taxonomies.** Sight types
+  and other descriptors not in the v0.3.0 polish set (frame size, optic
+  cut, rail type, finish — those four shipped) remain candidates for
+  community lookups based on user feedback. The free-text `finish`
+  column was upgraded to an FK lookup in the v0.3.0 polish pass; future
+  taxonomy upgrades follow the same pattern.
+- **"Community Connection" panel.** Reliability ratings, holster
+  fitment lists, trending upgrades — requires user-base scale and the
+  Accessories module before becoming meaningful. Tracked for v1.0+.
+- **Per-model alternative-caliber catalog.** Explicitly rejected for
+  v0.3.0+. Users record alternative-caliber compatibility (e.g. ".357
+  Magnum chamber, also fires .38 Special") in the existing free-text
+  `caliber_notes` field on each firearm.
+- **Target photo uploads on range session lines.** Firearm photos
+  shipped in v0.3.0 (see §6.7.0b and §10.1). Per-line target photos
+  remain deferred until a range-session-line `target_photo` column is
+  added in a future migration.
+
 ---
 
 ## 11. Database Backup
@@ -2014,12 +2357,29 @@ Quick preset buttons support range use with gloves or in poor lighting condition
 
 #### Format A — SQLite File Backup (scheduled/quick)
 
-- Direct copy of `ammoledger.db` file
+- Direct copy of `ammoledger.db` file via `sqlite3.Connection.backup()` (WAL-safe)
 - Filename: `ammoledger_YYYY-MM-DD_HH-MM.db`
 - Stored in `/data/backups/`
 - Used for: daily safety net, quick restore to same version
 - Restore: stop app, replace `ammoledger.db`, restart — Alembic detects version and migrates automatically if needed
 - Cannot be used to restore across major breaking schema changes
+- Does **not** include firearm photos — use Format C (zip) when photos exist
+
+#### Format C — Zip Archive (default for v0.3.0+)
+
+- Single `.zip` containing `ammoledger.db` (WAL-safely copied) plus the
+  `firearm_photos/` directory under its native layout
+- Filename: `ammoledger_YYYY-MM-DD_HH-MM.zip`
+- Used for: complete restore set when firearm photos are in play; the
+  database and the files it references travel together
+- Controlled by the `backup.include_photos` config setting (default `true`).
+  Set to `false` to fall back to bare `.db` files (Format A)
+- `/backup/restore` accepts either `.db` or `.zip` and dispatches by
+  extension. Zip restore validates each archive entry against
+  path-traversal before extraction (rejects absolute paths and `..`
+  components)
+- The deprecated `/backup/restore/sqlite` alias accepts both formats and
+  remains for one release
 
 #### Format B — JSON Export (on-demand/migration)
 

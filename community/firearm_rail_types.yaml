@@ -1,0 +1,14 @@
+version: 1
+firearm_rail_types:
+  - name: "None"
+    community_key: rail-type-none
+  - name: "Picatinny"
+    community_key: rail-type-picatinny
+  - name: "M-LOK"
+    community_key: rail-type-m-lok
+  - name: "KeyMod"
+    community_key: rail-type-keymod
+  - name: "Proprietary"
+    community_key: rail-type-proprietary
+  - name: "Other"
+    community_key: rail-type-other

@@ -4,7 +4,7 @@ export interface BackupFile {
   filename: string
   size_bytes: number
   created_at: string
-  type: 'sqlite' | 'json'
+  type: 'sqlite' | 'json' | 'zip'
   security_notice?: string
 }
 
@@ -60,6 +60,7 @@ export interface BackupConfig {
     enabled: boolean
     schedule: string
     retention_days: number
+    include_photos: boolean
   }
 }
 
@@ -96,7 +97,7 @@ async function postFormData<T>(path: string, formData: FormData): Promise<T> {
 export const restoreSqlite = (file: File) => {
   const fd = new FormData()
   fd.append('file', file)
-  return postFormData<RestoreResult>('/backup/restore/sqlite', fd)
+  return postFormData<RestoreResult>('/backup/restore', fd)
 }
 
 export const previewImport = (file: File) => {

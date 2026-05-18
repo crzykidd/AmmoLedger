@@ -92,7 +92,23 @@ export interface ManufacturerItem {
   source: string
   community_key?: string | null
   is_imported: boolean
+  /** JSON-encoded array, e.g. '["ammo"]' or '["ammo","firearm"]'. Parse via parseManufacturerTypes(). */
+  types: string | null
   usage_count: number
+}
+
+export type ManufacturerDomain = 'ammo' | 'firearm'
+
+/** Parse manufacturers.types JSON column. NULL → ["ammo"] (matches the migration backfill). */
+export function parseManufacturerTypes(raw: string | null | undefined): ManufacturerDomain[] {
+  if (raw === null || raw === undefined || raw === '') return ['ammo']
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((v): v is ManufacturerDomain => v === 'ammo' || v === 'firearm')
+  } catch {
+    return []
+  }
 }
 
 export interface DealerItem {
@@ -110,6 +126,281 @@ export interface DealerItem {
   usage_count: number
 }
 
+// ---------------------------------------------------------------------------
+// Firearm lookup types (P1a — firearm itself ships in P1b)
+// ---------------------------------------------------------------------------
+
+export interface FirearmActionTypeItem {
+  id: number
+  name: string
+  is_active: boolean
+  source: string
+  community_key?: string | null
+  is_imported: boolean
+  usage_count: number
+}
+
+export interface FirearmModelItem {
+  id: number
+  manufacturer_id: number
+  name: string
+  default_caliber_id: number | null
+  default_action_type_id: number | null
+  /** Standard production barrel length (inches). Drives the firearm form
+   *  drawer's auto-fill cascade alongside caliber + action type. */
+  default_barrel_length_in: number | null
+  is_active: boolean
+  source: string
+  community_key?: string | null
+  is_imported: boolean
+  manufacturer_name: string | null
+  default_caliber_name: string | null
+  default_action_type_name: string | null
+  usage_count: number
+}
+
+/** Common shape for the four physical-attribute community lookups
+ *  (frame size, optic cut, rail type, finish). All share the
+ *  FirearmActionType pattern. */
+export interface FirearmAttributeLookupItem {
+  id: number
+  name: string
+  is_active: boolean
+  source: string
+  community_key?: string | null
+  is_imported: boolean
+  usage_count: number
+}
+
+export type FirearmFrameSizeItem = FirearmAttributeLookupItem
+export type FirearmOpticCutItem = FirearmAttributeLookupItem
+export type FirearmRailTypeItem = FirearmAttributeLookupItem
+export type FirearmFinishItem = FirearmAttributeLookupItem
+export type FirearmConditionItem = FirearmAttributeLookupItem
+
+export interface FirearmComplianceTagItem {
+  id: number
+  name: string
+  description: string | null
+  jurisdiction: string | null
+  is_active: boolean
+  source: string
+  community_key?: string | null
+  is_imported: boolean
+  usage_count: number
+}
+
+export interface FirearmUserTagItem {
+  id: number
+  owner_id: number
+  name: string
+  color: string | null
+  created_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Firearm registry types (P1b)
+// ---------------------------------------------------------------------------
+
+export type FirearmType = 'pistol' | 'rifle' | 'shotgun' | 'other'
+export type FirearmEventType = 'cleaning' | 'service' | 'note'
+export type CleaningStatus = 'ok' | 'due_soon' | 'overdue'
+
+export interface FirearmRead {
+  id: number
+  owner_id: number
+  is_shared: boolean
+
+  manufacturer_id: number
+  manufacturer_name: string | null
+  firearm_model_id: number | null
+  firearm_model_name: string | null
+  custom_model_name: string | null
+  /** firearm_model_name OR custom_model_name — frontend display convenience. */
+  display_model: string
+
+  firearm_type: FirearmType
+  action_type_id: number | null
+  action_type_name: string | null
+
+  caliber_id: number
+  caliber_name: string | null
+  caliber_notes: string | null
+
+  serial: string | null
+  barrel_length_in: number | null
+  // Physical attribute FKs (v0.3.0 — replaces free-text finish). Resolved
+  // name fields populated by the router.
+  frame_size_id: number | null
+  frame_size_name: string | null
+  optic_cut_id: number | null
+  optic_cut_name: string | null
+  rail_type_id: number | null
+  rail_type_name: string | null
+  finish_id: number | null
+  finish_name: string | null
+  // v0.3.0 polish fields
+  nickname: string | null
+  firearm_condition_id: number | null
+  firearm_condition_name: string | null
+  sight_radius_in: number | null
+  weight: number | null
+  weight_unit: string | null
+  twist_rate: string | null
+  standard_capacity: number | null
+  purchase_date: string | null
+  purchase_price: number | null
+  dealer_id: number | null
+  dealer_name: string | null
+  notes: string | null
+
+  rounds_lifetime: number
+  rounds_since_clean: number
+  last_cleaned_at: string | null
+  service_interval_rounds: number | null
+  service_interval_days: number | null
+  cleaning_status: CleaningStatus
+
+  compliance_tags: FirearmComplianceTagItem[]
+  user_tags: FirearmUserTagItem[]
+
+  /** Number of photos attached to this firearm (0–5). */
+  photo_count: number
+  /** Server-rendered URL for the default photo (full-size); null when no photos. */
+  default_photo_url: string | null
+  /** Server-rendered URL for the default photo thumbnail; null when no photos. */
+  default_photo_thumb_url: string | null
+
+  created_at: string
+  updated_at: string
+}
+
+export interface FirearmPhoto {
+  id: number
+  firearm_id: number
+  original_name: string | null
+  content_type: string
+  size_bytes: number
+  width: number
+  height: number
+  is_default: boolean
+  sort_order: number
+  uploaded_by: number
+  uploaded_at: string
+  /** Auth-gated full-size URL (relative to /api). */
+  url: string
+  /** Auth-gated thumbnail URL (relative to /api). */
+  thumb_url: string
+}
+
+export interface FirearmPhotoReorderItem {
+  photo_id: number
+  sort_order: number
+}
+
+export interface FirearmCreate {
+  is_shared?: boolean
+  manufacturer_id: number
+  firearm_model_id?: number | null
+  custom_model_name?: string | null
+  firearm_type: FirearmType
+  action_type_id?: number | null
+  caliber_id: number
+  caliber_notes?: string | null
+  serial?: string | null
+  nickname?: string | null
+  firearm_condition_id?: number | null
+  sight_radius_in?: number | null
+  weight?: number | null
+  weight_unit?: string | null
+  twist_rate?: string | null
+  barrel_length_in?: number | null
+  frame_size_id?: number | null
+  optic_cut_id?: number | null
+  rail_type_id?: number | null
+  finish_id?: number | null
+  standard_capacity?: number | null
+  purchase_date?: string | null
+  purchase_price?: number | null
+  dealer_id?: number | null
+  notes?: string | null
+  service_interval_rounds?: number | null
+  service_interval_days?: number | null
+  compliance_tag_ids?: number[]
+  user_tag_ids?: number[]
+}
+
+export interface FirearmUpdate {
+  is_shared?: boolean
+  manufacturer_id?: number
+  firearm_model_id?: number | null
+  custom_model_name?: string | null
+  firearm_type?: FirearmType
+  action_type_id?: number | null
+  caliber_id?: number
+  caliber_notes?: string | null
+  serial?: string | null
+  nickname?: string | null
+  firearm_condition_id?: number | null
+  sight_radius_in?: number | null
+  weight?: number | null
+  weight_unit?: string | null
+  twist_rate?: string | null
+  barrel_length_in?: number | null
+  frame_size_id?: number | null
+  optic_cut_id?: number | null
+  rail_type_id?: number | null
+  finish_id?: number | null
+  standard_capacity?: number | null
+  purchase_date?: string | null
+  purchase_price?: number | null
+  dealer_id?: number | null
+  notes?: string | null
+  service_interval_rounds?: number | null
+  service_interval_days?: number | null
+  /** If provided, replaces the full set of compliance tag links (no delta). */
+  compliance_tag_ids?: number[]
+  /** If provided, replaces the full set of user tag links (no delta). */
+  user_tag_ids?: number[]
+}
+
+export interface FirearmListFilters {
+  firearm_type?: FirearmType
+  manufacturer_id?: number
+  caliber_id?: number
+  /** Single status, OR comma-separated list of statuses (e.g. 'due_soon,overdue'). */
+  cleaning_status?: CleaningStatus | string
+  compliance_tag_id?: number
+  user_tag_id?: number
+}
+
+export interface FirearmLogRead {
+  id: number
+  firearm_id: number
+  event_type: FirearmEventType
+  event_date: string
+  rounds_at_event: number
+  notes: string | null
+  logged_by: number
+  logged_by_name: string
+  created_at: string
+}
+
+export interface FirearmLogCreate {
+  event_type: FirearmEventType
+  event_date: string
+  /** Defaults server-side to firearm.rounds_lifetime when omitted. */
+  rounds_at_event?: number | null
+  notes?: string | null
+}
+
+export interface FirearmLogUpdate {
+  event_type?: FirearmEventType
+  event_date?: string
+  rounds_at_event?: number | null
+  notes?: string | null
+}
+
 export interface CommunityTableStatus {
   total: number
   imported: number
@@ -123,6 +414,9 @@ export interface CommunityStatus {
   manufacturers: CommunityTableStatus
   calibers: CommunityTableStatus
   ammo_types: CommunityTableStatus
+  firearm_action_types?: CommunityTableStatus
+  firearm_models?: CommunityTableStatus
+  firearm_compliance_tags?: CommunityTableStatus
 }
 
 export interface CommunityContribute {
@@ -478,6 +772,50 @@ export interface ImportConfirmResult {
 }
 
 // ---------------------------------------------------------------------------
+// Firearms import types — parallel to the ammo import shape, with two
+// firearms-specific extras: similarity matches may include a
+// `manufacturer_context` (cascading model lookups), and `new_values` may
+// carry a `firearm_models_by_manufacturer: {mfr: [models]}` group instead
+// of a flat list.
+// ---------------------------------------------------------------------------
+
+export interface FirearmsImportSimilarityMatch {
+  field: string
+  csv_value: string
+  existing_value: string
+  table_key: string
+  /** Set only for cascading model matches — names the manufacturer the model is scoped under. */
+  manufacturer_context?: string
+  default_action: 'use_existing' | 'import_new'
+}
+
+export interface FirearmsImportValidationResult {
+  valid: boolean
+  total_rows: number
+  importable_rows: number
+  error_rows: number
+  warning_count: number
+  /** Flat lookup table → unmatched values, plus the special key
+   *  "firearm_models_by_manufacturer" which maps manufacturer name → unmatched models. */
+  new_values: Record<string, string[] | Record<string, string[]>>
+  similarity_matches: FirearmsImportSimilarityMatch[]
+  errors: { row: number; field: string; message: string }[]
+  warnings: { row: number | null; field: string; message: string }[]
+  validation_token: string
+  token_expires_at: string
+}
+
+export interface FirearmsImportConfirmResult {
+  success: boolean
+  imported: number
+  skipped: number
+  new_lookup_values_created: number
+  synthetic_log_entries_created: number
+  pre_import_backup: string
+  warnings: { row: number | null; field: string; message: string }[]
+}
+
+// ---------------------------------------------------------------------------
 // Task types
 // ---------------------------------------------------------------------------
 
@@ -554,4 +892,89 @@ export interface SplitResponse {
   parent: AmmoBoxRead
   children: AmmoBoxRead[]
   log_entry: ExpenditureRead
+}
+
+// ---------------------------------------------------------------------------
+// Range session types — mirrors backend schemas.py
+// ---------------------------------------------------------------------------
+
+export interface RangeSessionLineRead {
+  id: number
+  session_id: number
+  firearm_id: number | null
+  firearm_display: string | null
+  ammo_box_id: number | null
+  ammo_box_display: string | null
+  rounds_fired: number
+  notes: string | null
+  created_at: string
+}
+
+export interface RangeSessionLineCreate {
+  firearm_id?: number | null
+  ammo_box_id?: number | null
+  rounds_fired: number
+  notes?: string | null
+}
+
+export interface RangeSessionLineUpdate {
+  firearm_id?: number | null
+  ammo_box_id?: number | null
+  rounds_fired?: number
+  notes?: string | null
+}
+
+export interface RangeSessionRead {
+  id: number
+  owner_id: number
+  owner_name: string
+  is_shared: boolean
+  date: string            // YYYY-MM-DD
+  location_name: string | null
+  notes: string | null
+  lines: RangeSessionLineRead[]
+  total_rounds: number
+  distinct_firearms: number
+  distinct_boxes: number
+  created_at: string
+  updated_at: string
+}
+
+export interface RangeSessionCreate {
+  is_shared?: boolean
+  date: string            // YYYY-MM-DD
+  location_name?: string | null
+  notes?: string | null
+  lines: RangeSessionLineCreate[]
+}
+
+export interface RangeSessionUpdate {
+  is_shared?: boolean
+  date?: string           // YYYY-MM-DD
+  location_name?: string | null
+  notes?: string | null
+}
+
+export interface RangeSessionListItem {
+  id: number
+  date: string            // YYYY-MM-DD
+  location_name: string | null
+  owner_id: number
+  owner_name: string
+  is_shared: boolean
+  total_rounds: number
+  distinct_firearms: number
+  distinct_boxes: number
+  line_count: number
+  /** Populated only when the list is filtered by firearm_id — sum of
+   *  rounds_fired across this session's lines that reference the filter
+   *  firearm. Powers per-firearm totals on the firearm detail Sessions tab. */
+  rounds_for_filter_firearm: number | null
+}
+
+export interface RangeSessionListFilters {
+  firearm_id?: number
+  after?: string          // YYYY-MM-DD
+  before?: string         // YYYY-MM-DD
+  limit?: number
 }

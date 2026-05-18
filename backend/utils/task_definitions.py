@@ -30,19 +30,30 @@ def _backup_fn() -> dict:
     if not db_path.is_file():
         raise RuntimeError(f"Database not found at {db_path}")
 
-    ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    filename = f"ammoledger_{ts}.db"
-    dest = backup_dir / filename
+    # Decide format from current config (matches manual /backup/trigger).
+    include_photos = True
     try:
-        src = sqlite3.connect(str(db_path))
-        try:
-            dst = sqlite3.connect(str(dest))
-            try:
-                src.backup(dst)
-            finally:
-                dst.close()
-        finally:
-            src.close()
+        from utils.config import load_and_validate_config  # noqa: PLC0415
+        cfg = load_and_validate_config()
+        include_photos = bool((cfg.get("backup") or {}).get("include_photos", True))
+    except Exception:
+        pass
+
+    from routers.backup import _backup_to_db, _backup_to_zip  # noqa: PLC0415
+
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    if include_photos:
+        filename = f"ammoledger_{ts}.zip"
+        dest = backup_dir / filename
+    else:
+        filename = f"ammoledger_{ts}.db"
+        dest = backup_dir / filename
+
+    try:
+        if include_photos:
+            _backup_to_zip(db_path, dest)
+        else:
+            _backup_to_db(db_path, dest)
     except (OSError, sqlite3.Error) as exc:
         logger.error("Scheduled backup failed: %s", exc)
         raise
@@ -71,7 +82,12 @@ def _cleanup_fn() -> dict:
     pruned = 0
     try:
         cutoff = datetime.now().timestamp() - retention_days * 86400
-        for f in sorted(backup_dir.glob("ammoledger_*.db"), key=lambda x: x.stat().st_mtime):
+        candidates = sorted(
+            list(backup_dir.glob("ammoledger_*.db"))
+            + list(backup_dir.glob("ammoledger_*.zip")),
+            key=lambda x: x.stat().st_mtime,
+        )
+        for f in candidates:
             if "pre-import" in f.name:
                 continue
             if f.stat().st_mtime < cutoff:

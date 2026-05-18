@@ -1,4 +1,10 @@
-version: 1
+version: 2
+# `types` marks the manufacturer's domain for cascading dropdowns:
+#   ["ammo"]            — ammunition only
+#   ["firearm"]         — firearms only (added in v0.3.0 firearms feature)
+#   ["ammo","firearm"]  — both
+# Manufacturers without an explicit `types` keep whatever the migration
+# backfilled (["ammo"]) — safe default for the legacy ammo-only list.
 manufacturers:
   - name: "American Eagle"
     url: "https://www.federalpremium.com/american-eagle"
@@ -18,6 +24,7 @@ manufacturers:
     url: "https://www.blazerammo.com"
   - name: "Browning"
     url: "https://www.browning.com"
+    types: ["ammo", "firearm"]
   - name: "CCI"
     url: "https://www.cci-ammunition.com"
   - name: "Copper Only Projectiles"
@@ -28,8 +35,10 @@ manufacturers:
     url: "https://www.estatecartridge.com/"
   - name: "FNH"
     url: "https://www.fnamerica.com"
+    types: ["ammo", "firearm"]
   - name: "Federal"
     url: "https://www.federalpremium.com"
+    types: ["ammo", "firearm"]
   - name: "Fiocchi"
     url: "https://www.fiocchiusa.com"
   - name: "Freedom Munitions"
@@ -62,8 +71,10 @@ manufacturers:
     url: "https://www.prvipartizan.com"
   - name: "Remington"
     url: "https://www.remington.com"
+    types: ["ammo", "firearm"]
   - name: "SIG Sauer"
     url: "https://www.sigsauer.com"
+    types: ["ammo", "firearm"]
   - name: "Sellier & Bellot"
     url: "https://www.sellier-bellot.com"
   - name: "Sierra"
@@ -78,9 +89,85 @@ manufacturers:
     url: "https://www.underwoodammo.com"
   - name: "Winchester"
     url: "https://www.winchester.com"
+    types: ["ammo", "firearm"]
   - name: "Wolf"
     url: "https://www.wolfammo.com"
   - name: "Yugoslavian Military Surplus"
     url: ""
   - name: "ZSR"
     url: "https://www.zsr.com.tr/"
+
+  # ---------------------------------------------------------------------------
+  # Firearm-only manufacturers (added in v0.3.0). Smith & Wesson is on the
+  # firearms side; their Smith & Wesson Ammo brand is rare and a separate
+  # product line, so we keep this entry firearm-only for now.
+  # ---------------------------------------------------------------------------
+  - name: "Glock"
+    url: "https://us.glock.com"
+    types: ["firearm"]
+  - name: "Ruger"
+    url: "https://www.ruger.com"
+    types: ["firearm"]
+  - name: "Smith & Wesson"
+    url: "https://www.smith-wesson.com"
+    types: ["firearm"]
+  - name: "Beretta"
+    url: "https://www.beretta.com"
+    types: ["firearm"]
+  - name: "CZ-USA"
+    url: "https://cz-usa.com"
+    types: ["firearm"]
+  - name: "Springfield Armory"
+    url: "https://www.springfield-armory.com"
+    types: ["firearm"]
+  - name: "Walther"
+    url: "https://www.waltherarms.com"
+    types: ["firearm"]
+  - name: "Heckler & Koch"
+    url: "https://hk-usa.com"
+    types: ["firearm"]
+  - name: "Colt"
+    url: "https://www.colt.com"
+    types: ["firearm"]
+  - name: "Kimber"
+    url: "https://www.kimberamerica.com"
+    types: ["firearm"]
+  - name: "Henry Repeating Arms"
+    url: "https://www.henryusa.com"
+    types: ["firearm"]
+  - name: "Marlin"
+    url: "https://www.marlinfirearms.com"
+    types: ["firearm"]
+  - name: "Mossberg"
+    url: "https://www.mossberg.com"
+    types: ["firearm"]
+  - name: "Benelli"
+    url: "https://www.benelliusa.com"
+    types: ["firearm"]
+  - name: "Savage Arms"
+    url: "https://www.savagearms.com"
+    types: ["firearm"]
+  - name: "Tikka"
+    url: "https://www.tikka.fi"
+    types: ["firearm"]
+  - name: "Daniel Defense"
+    url: "https://danieldefense.com"
+    types: ["firearm"]
+  - name: "Aero Precision"
+    url: "https://aeroprecisionusa.com"
+    types: ["firearm"]
+  - name: "Taurus"
+    url: "https://www.taurususa.com"
+    types: ["firearm"]
+  - name: "Bergara"
+    url: "https://www.bergara.online"
+    types: ["firearm"]
+  - name: "IWI"
+    url: "https://iwi.us"
+    types: ["firearm"]
+  - name: "Kel-Tec"
+    url: "https://www.keltecweapons.com"
+    types: ["firearm"]
+  - name: "Stoeger"
+    url: "https://www.stoegerindustries.com"
+    types: ["firearm"]

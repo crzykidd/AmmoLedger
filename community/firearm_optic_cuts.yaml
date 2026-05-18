@@ -1,0 +1,22 @@
+version: 1
+firearm_optic_cuts:
+  - name: "None"
+    community_key: optic-cut-none
+  - name: "RMR"
+    community_key: optic-cut-rmr
+  - name: "RMSc"
+    community_key: optic-cut-rmsc
+  - name: "DeltaPoint Pro"
+    community_key: optic-cut-deltapoint-pro
+  - name: "507K"
+    community_key: optic-cut-507k
+  - name: "Aimpoint Acro"
+    community_key: optic-cut-aimpoint-acro
+  - name: "Trijicon SRO"
+    community_key: optic-cut-trijicon-sro
+  - name: "Holosun K-series"
+    community_key: optic-cut-holosun-k-series
+  - name: "Proprietary"
+    community_key: optic-cut-proprietary
+  - name: "Other"
+    community_key: optic-cut-other

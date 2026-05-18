@@ -6,7 +6,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.2.0-gold)
+![Version](https://img.shields.io/badge/version-0.3.0-gold)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![PRD](https://img.shields.io/badge/docs-PRD-navy)
 
@@ -14,39 +14,44 @@
 
 # AmmoLedger
 
-> ### 🆕 New in v0.2.2 — Split Box
+> ### 🆕 New in v0.3.0 — Firearms & Range Sessions
 >
-> Break a single ammo box into multiple smaller tracking records — for example, opening a 1000-round case and tracking each individual box. Supports full or partial splits, equal or custom child sizes, with a labeling view to help you mark physical boxes accurately. Every split is recorded in the parent's notes and audit history.
+> Track your firearms and range trips alongside your ammo. The new **Firearms** page registers each gun with manufacturer, model, caliber, serial, compliance tags, and personal tags. The new **Range** page logs multi-line range days that deduct rounds from ammo boxes and bump per-firearm round counters atomically — and reverse cleanly if you edit or delete a session. **Firearm maintenance log** with cleaning, service, and note events drives a green/amber/red cleaning-status indicator on every firearm and a dedicated dashboard widget for firearms needing service.
 >
-> **Tip:** if you do a lot of splits in one session, run a backup beforehand. Splits write multiple records in one transaction and a backup gives you a clean rollback point.
+> **Tip:** firearms and range sessions follow the same ownership model as ammo boxes — members own private records by default; admins can mark items shared so everyone on the install can see them. Read-only users see shared items only.
 
-A self-hosted web application to track your ammunition inventory. Keep your ammo counts accurate on and off the range.
+A self-hosted web application to track your ammunition inventory, firearms, and range sessions. Keep your counts accurate on and off the range.
 
-> 🎯 **AmmoLedger v0.2.0 — First public release.** Self-hosted ammunition inventory tracking. Stable, ready for daily use. **Firearms tracking, range session logging, and accessories management** are on the roadmap — see [What's Coming Next](#whats-coming-next).
+> 🎯 **AmmoLedger v0.3.0 — Firearms tracking, range session logging, and firearm maintenance log all ship in this release.** Self-hosted, stable, ready for daily use. **Accessories management** is next on the roadmap — see [What's Coming Next](#whats-coming-next).
 
-## What's New in v0.2.0
+## What's New in v0.3.0
 
-Highlights since v0.1.9:
+Highlights since v0.2.x:
 
-- **At Range mode** — mobile-optimized page for fast round logging during range sessions. Search by box ID, on-screen number pad, ±1 steppers, large tap targets, tap to log rounds.
-- **Quick-expend everywhere** — Crosshair icon on every inventory row (desktop and mobile) opens a fast popover with smart presets (1, 10, 20, 30, 50 + recently-used counts from your session). Notes persist across the session so you only type "USPSA practice" once.
-- **Better archive workflow** — clicking Archive opens a small popover that captures a reason. Empty boxes prefill "Empty Box" and archive in one click; boxes with rounds remaining show a warning and require an explicit reason. Archived boxes can be restored without leaving the page.
-- **Ammo filter dropdowns** — "Show Empty" and "Archived" checkboxes replaced with three-state dropdowns (Has rounds / Empty only / All boxes; Active only / Archived only / All boxes). Filter selections persist across reloads.
-- **Dashboard scope toggle** — flip between "Current" inventory totals and "All" lifetime totals (including archived and expended rounds). New Total Boxes stat card.
-- **Smarter import** — post-import success page shows a breakdown of active vs archived rows and a deep-link button to view archived imports directly.
-- **Dev-build version awareness** — running a dev build now correctly detects when newer commits are on `dev` (in addition to the existing release-tag check on stable builds).
+- **Firearms registry (`/firearms`)** — track every firearm with manufacturer, model, caliber, serial, barrel length, finish, purchase details, dealer, multi-select compliance tags, and per-user colored personal tags. Built-in catalog of ~25 popular manufacturers and ~100 popular models speeds entry.
+- **Range sessions (`/range`)** — multi-line range day log. Each line ties an optional firearm to an optional ammo box; rounds fired deduct from the box through the existing expenditure log and bump the firearm's lifetime and since-clean counters in the same transaction. Editing or deleting a session reverses every side effect.
+- **Firearm maintenance log** — cleaning, service, and note events per firearm. Round-based and time-based service intervals drive a green/amber/red cleaning status that surfaces on every firearm card and on the dashboard.
+- **Dashboard widgets** — Firearms Needing Service (overdue + due-soon with inline Log Cleaning) and Recent Range Sessions; Quick Actions row for Log Range Day / Add Firearm / Add Ammo Box.
+- **CSV exports** — `GET /firearms/export/csv` and `GET /range-sessions/export/csv` plus Export buttons on the Firearms and Range pages.
+- **Firearms CSV import** — round-trip with the firearms export. Same validate / preview / confirm flow as ammo, plus cascading model resolution under each manufacturer and synthetic firearm-log entries seeded from imported round counts. Surfaced as a new "Firearms" tab on the Import page.
+- **Lookups & admin** — new community-curated lookups for Firearm Models, Action Types, and Compliance Tags, plus a `manufacturers.types` JSON column so a single manufacturer table serves both ammo and firearm domains.
+- **Firearm photos** — up to 5 photos per firearm; photo manager with drag-to-reorder; default photo shown on cards and the detail page with a lightbox; photos bundled into zip backups alongside the database.
+- **LookupCombobox with inline create** — every form drawer's lookup dropdown gains type-ahead search and an inline "+ Create" affordance with a fuzzy-match guard; members can create new lookup entries directly from the form.
+- **At Range session attribution** — the quick-expend popover on At Range gains a three-option control (None / New / Last) plus a firearm picker so a full range day can be logged box-by-box without leaving the At Range page.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 ## What's Coming Next
 
-AmmoLedger started with ammunition, but the goal is to track your whole collection. Here's what's on the roadmap:
+AmmoLedger covers ammo, firearms, and range sessions. Here's what's on the roadmap next:
 
-### Firearms & Range Tracking (targeted for v0.3.0)
+### Near-term (v0.3.x)
 
-- **Firearms registry** — track your collection by serial number, manufacturer, model, caliber, and acquisition details.
-- **Range sessions** — log range trips with date, location, firearms used, and rounds expended per firearm. Ties directly into your existing inventory.
-- **Cleaning reminders** — round-count thresholds per firearm so you know when each one is due for maintenance.
+- **Multi-caliber firearms** — v1 firearms have a single caliber FK plus a free-text `caliber_notes` field. A `firearm_calibers` join table will follow in a future migration.
+- **Target photo uploads on range session lines** — schema groundwork is done; the upload UI, image storage, and image management screens land in a follow-on release.
+- **Range sessions CSV import** — sessions export-only this release; import will follow when its remap UX is designed.
+- **At Range / Range workflow merge** — the mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.
+- **Additional community lookups** — sight types, finishes, and other taxonomies are currently free-text on firearms. They become candidates for community lookups based on user feedback.
 
 ### Accessories (further out)
 
@@ -58,9 +63,13 @@ No firm timeline on either set — watch the [Releases page](https://github.com/
 
 - **First-run setup wizard** — guides new users through adding inventory, setting thresholds, and inviting others
 - **Session auth with RBAC** — Admin, Member, and Read-Only roles; bcrypt password hashing; session cookies
+- **Firearms registry (`/firearms`)** — register each firearm with manufacturer, model, caliber, serial, barrel length, finish, purchase details, dealer, multi-select compliance tags (CA / NY / MA / NJ / NFA classifications), and per-user colored personal tags. Card-grid or list view with filters by manufacturer, caliber, type, and cleaning status
+- **Firearm maintenance log** — per-firearm Cleaning / Service / Note events with backdated entries; round-based and time-based service intervals drive a green/amber/red cleaning status surfaced on every card and on the dashboard
+- **Range sessions (`/range`)** — multi-line range day log; each line ties an optional firearm to an optional ammo box; rounds deduct from the box through the existing expenditure log and bump the firearm's counters atomically. Editing or deleting a session reverses every side effect (ammo restored, counters decremented, expenditure rows removed)
+- **Range Sessions tab on each firearm** — per-firearm session history and per-firearm rounds totals computed in a single grouped query
 - **Full inventory CRUD with bulk edit** — add, edit, delete, archive boxes; select multiple rows and bulk-edit fields in one operation
 - **Quick-expend Crosshair icon** — tap the Crosshair icon on any inventory row to log rounds fired inline; smart presets (1, 10, 20, 30, 50) plus recently-used session counts; Shot All empties the box
-- **At Range mode** — mobile-optimized /at-range page for fast round logging during range sessions; on-screen number pad, ±1 steppers, large tap targets, session-persistent notes
+- **At Range mode** — mobile-optimized /at-range page for fast round logging during range sessions; on-screen number pad, ±1 steppers, large tap targets, session-persistent notes; the quick-expend popover supports inline session attribution (None / New / Last) plus a firearm picker, so a range day can be logged box-by-box without leaving At Range
 - **Archive workflow with reason capture** — archive confirmation popover captures a reason; empty boxes prefill "Empty Box" and archive in one click; boxes with rounds remaining require an explicit reason; Unarchive action restores boxes without leaving the page
 - **Product catalog** — reusable product templates with images; auto-fill Add Box from a product; Auto-Generate products from existing inventory
 - **Group By with 9 options** — group by Caliber, Manufacturer, Category, Type, Location, Container, Condition, or Split Parent; collapsible group headers with summary stats; Split Parent headers include an info icon to view parent box details
@@ -72,7 +81,8 @@ No firm timeline on either set — watch the [Releases page](https://github.com/
 - **Dashboard By Caliber toggle** — switch between Mix (% of total inventory) and Stock (proximity to threshold) views with color-coded bars; persists across sessions
 - **Dashboard Current / All scope toggle** — flip between active inventory totals and lifetime totals including archived and expended rounds; Total Boxes stat card
 - **CSV import with legacy ID mode** — two-step validation, fuzzy matching with interactive resolution, optional preservation of existing box IDs; post-import breakdown of active vs archived rows
-- **CSV export** — export filtered inventory from the toolbar or full archive from the Backup page
+- **Firearms CSV import** — round-trip compatible with the firearms CSV export. Same validate / preview / confirm pattern as ammo, with cascading model resolution under each manufacturer, per-value remap UI for unmatched lookups, and synthetic firearm-log entries seeded from imported round counts. Surfaced as a tab on the Import page.
+- **CSV export** — export filtered ammo inventory from the Ammo toolbar or full archive from the Backup page; export firearms and range sessions from their respective page toolbars
 - **Backup and restore** — manual SQLite backup (WAL-safe via `Connection.backup()`), JSON export, scheduled nightly backup, restore from `.db`, import from JSON
 - **User management with inline invitations** — list users, change roles, deactivate accounts; generate and revoke invite links from the same page
 - **Password reset** — admin-generated single-use reset links; emergency self-recovery via `config.yaml` token
@@ -173,6 +183,16 @@ docker compose up -d
 ```
 
 Database migrations run automatically on startup. Your data in `data/` is never touched during upgrades.
+
+#### Upgrading from v0.2.x to v0.3.0
+
+v0.3.0 adds three new migrations on top of the v0.1.9 baseline schema:
+
+- `0002_firearms_feature.py` — the entire firearms feature in a single migration: firearm and range-session domain tables, `manufacturers.types` JSON column, `expenditure_log.range_session_line_id` FK
+- `0003_add_firearm_photos.py` — `firearm_photos` table for per-firearm photo gallery
+- `0004_firearm_v030_polish.py` — `firearm_conditions` lookup table and six new columns on `firearms` (`nickname`, `firearm_condition_id`, `sight_radius_in`, `weight`, `weight_unit`, `twist_rate`)
+
+The new tables are additive and back-compat with existing ammo data — nothing about how you track ammunition changes. Pull the new images and `alembic upgrade head` runs automatically on startup. As always, take a backup before upgrading if you're cautious.
 
 ### Backup
 

@@ -62,17 +62,25 @@ function fmtDate(iso: string): string {
   }
 }
 
-function TypeBadge({ type }: { type: 'sqlite' | 'json' }) {
+function TypeBadge({ type }: { type: 'sqlite' | 'json' | 'zip' }) {
+  const map: Record<typeof type, { label: string; cls: string }> = {
+    sqlite: {
+      label: 'SQLite',
+      cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    },
+    json: {
+      label: 'JSON',
+      cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    },
+    zip: {
+      label: 'ZIP',
+      cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    },
+  }
+  const { label, cls } = map[type]
   return (
-    <span
-      className={cn(
-        'text-xs px-2 py-0.5 rounded-full font-medium',
-        type === 'sqlite'
-          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-          : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-      )}
-    >
-      {type === 'sqlite' ? 'SQLite' : 'JSON'}
+    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', cls)}>
+      {label}
     </span>
   )
 }
@@ -146,6 +154,7 @@ export default function BackupPage() {
   const [schedEnabled, setSchedEnabled] = useState(true)
   const [schedTime, setSchedTime] = useState('03:00')
   const [schedRetention, setSchedRetention] = useState(30)
+  const [schedIncludePhotos, setSchedIncludePhotos] = useState(true)
   const [schedLoaded, setSchedLoaded] = useState(false)
 
   // ---------------------------------------------------------------------------
@@ -167,6 +176,7 @@ export default function BackupPage() {
       setSchedEnabled(systemConfig.backup.enabled)
       setSchedTime(systemConfig.backup.schedule)
       setSchedRetention(systemConfig.backup.retention_days)
+      setSchedIncludePhotos(systemConfig.backup.include_photos ?? true)
       setSchedLoaded(true)
     }
   }, [systemConfig, schedLoaded])
@@ -259,6 +269,7 @@ export default function BackupPage() {
           enabled: schedEnabled,
           schedule: schedTime,
           retention_days: schedRetention,
+          include_photos: schedIncludePhotos,
         },
       }),
     onSuccess: () => toast({ title: 'Schedule saved' }),
@@ -385,6 +396,23 @@ export default function BackupPage() {
                   />
                 </div>
               </div>
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Include firearm photos in backups
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    When enabled, scheduled and manual backups produce a single .zip
+                    containing the database and all firearm photos. When disabled, backups
+                    are smaller .db files but photos are not included. Existing zip backups
+                    remain restorable either way.
+                  </p>
+                </div>
+                <Switch
+                  checked={schedIncludePhotos}
+                  onCheckedChange={setSchedIncludePhotos}
+                />
+              </div>
               <div>
                 <Button
                   onClick={() => saveScheduleMutation.mutate()}
@@ -477,19 +505,20 @@ export default function BackupPage() {
               </p>
             </div>
 
-            {/* Restore from SQLite */}
+            {/* Restore from SQLite or zip */}
             <div className="mb-6 pb-6 border-b border-gray-100 dark:border-gray-800">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                Restore from SQLite backup
+                Restore from backup file
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                Restore from a .db backup file. Best for rolling back to a recent backup on the same version.
+                Accepts a `.db` SQLite backup or a `.zip` archive (database + firearm photos).
+                Best for rolling back to a recent backup on the same version.
               </p>
               <div className="flex items-center gap-3">
                 <input
                   ref={restoreInputRef}
                   type="file"
-                  accept=".db"
+                  accept=".db,.zip"
                   className="text-sm text-gray-500 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-700 file:text-sm file:bg-white dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-50 dark:hover:file:bg-gray-700 cursor-pointer"
                   onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
                 />
@@ -499,7 +528,7 @@ export default function BackupPage() {
                   disabled={!restoreFile || restoreMutation.isPending}
                   onClick={() => setRestoreConfirmOpen(true)}
                 >
-                  {restoreMutation.isPending ? 'Restoring…' : 'Restore Database'}
+                  {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
                 </Button>
               </div>
             </div>

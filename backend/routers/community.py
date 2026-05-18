@@ -7,7 +7,15 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from database import get_session
-from models import AmmoType, Caliber, Dealer, Manufacturer
+from models import (
+    AmmoType,
+    Caliber,
+    Dealer,
+    FirearmActionType,
+    FirearmComplianceTag,
+    FirearmModel,
+    Manufacturer,
+)
 from utils.community_sync import COMMUNITY_TABLES
 from utils.rbac import require_auth, require_role
 
@@ -18,6 +26,9 @@ _COMMUNITY_MODELS = {
     "manufacturers": Manufacturer,
     "calibers": Caliber,
     "ammo_types": AmmoType,
+    "firearm_action_types": FirearmActionType,
+    "firearm_models": FirearmModel,
+    "firearm_compliance_tags": FirearmComplianceTag,
 }
 
 GITHUB_EDIT_BASE = "https://github.com/crzykidd/AmmoLedger/edit/main/community"
@@ -184,6 +195,33 @@ def get_contribute_yaml(
             d["country"] = entry.country or "US"
             if entry.state:
                 d["state"] = entry.state
+        elif table == "manufacturers":
+            raw_types = getattr(entry, "types", None)
+            if raw_types:
+                try:
+                    d["types"] = json.loads(raw_types)
+                except Exception:
+                    d["types"] = []
+        elif table == "firearm_compliance_tags":
+            d["description"] = entry.description or ""
+            d["jurisdiction"] = entry.jurisdiction or ""
+        elif table == "firearm_models":
+            # Emit FK references by community_key so community curators get a
+            # portable record. Falls back to empty string when the linked row
+            # has no community_key (user-created caliber, etc.).
+            from models import (  # noqa: PLC0415
+                Caliber,
+                FirearmActionType,
+                Manufacturer,
+            )
+            mfr = db.get(Manufacturer, entry.manufacturer_id)
+            d["manufacturer_key"] = mfr.community_key if mfr and mfr.community_key else ""
+            if entry.default_caliber_id:
+                cal = db.get(Caliber, entry.default_caliber_id)
+                d["default_caliber_key"] = cal.community_key if cal and cal.community_key else ""
+            if entry.default_action_type_id:
+                act = db.get(FirearmActionType, entry.default_action_type_id)
+                d["default_action_type_key"] = act.community_key if act and act.community_key else ""
         docs.append(d)
 
     yaml_text = yaml.dump(docs, default_flow_style=False, allow_unicode=True) if docs else ""

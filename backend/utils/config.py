@@ -35,6 +35,7 @@ _ENV_MAP: tuple[tuple[str, list[str], type], ...] = (
     ("AL_BACKUP_SCHEDULE",       ["backup",   "schedule"],          str),
     ("AL_BACKUP_RETENTION_DAYS", ["backup",   "retention_days"],    int),
     ("AL_BACKUP_PATH",           ["backup",   "path"],              str),
+    ("AL_BACKUP_INCLUDE_PHOTOS", ["backup",   "include_photos"],    bool),
 )
 
 
@@ -199,6 +200,7 @@ def validate_config(config: dict) -> dict:
     _check_type(("backup", "retention_days"), _is_int, "integer")
     _check_type(("app", "session_timeout_hours"), _is_int, "integer")
     _check_type(("backup", "enabled"), lambda v: isinstance(v, bool), "boolean")
+    _check_type(("backup", "include_photos"), lambda v: isinstance(v, bool), "boolean")
     _check_type(("import", "require_backup"), lambda v: isinstance(v, bool), "boolean")
     _check_type(("import", "backup_warning_hours"), _is_int, "integer")
     _check_type(("import", "backup_block_hours"), _is_int, "integer")

@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import sys
 
 _initialized = False
@@ -35,3 +36,21 @@ def setup_logging() -> None:
 
 def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
+
+
+_LOG_INJECTION_PATTERN = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def log_safe(value) -> str:
+    """Sanitize an arbitrary value for safe inclusion in a log entry.
+
+    Strips control characters (LF, CR, TAB, C0 range, DEL) so the value
+    cannot forge fake log lines when interpolated via a logger format string.
+    None inputs return the literal string "None". Use %s in the format string.
+    """
+    if value is None:
+        return "None"
+    s = str(value)
+    if not _LOG_INJECTION_PATTERN.search(s):
+        return s
+    return s.encode("unicode_escape").decode("ascii")

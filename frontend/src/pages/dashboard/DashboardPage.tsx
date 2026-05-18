@@ -1,7 +1,22 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Check, ChevronRight, Crosshair, DollarSign, Layers, Package, Upload } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Crosshair,
+  DollarSign,
+  Layers,
+  MapPin,
+  Package,
+  Plus,
+  Sparkles,
+  Target,
+  Upload,
+  Wrench,
+} from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -10,15 +25,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CaliberThresholdDrawer } from '@/components/CaliberThresholdDrawer'
+import LogRangeDayDialog from '@/components/range/LogRangeDayDialog'
+import FirearmFormDrawer from '@/components/firearms/FirearmFormDrawer'
+import LogEventDialog from '@/components/firearms/LogEventDialog'
 import { useInventoryLookups } from '@/hooks/useInventoryLookups'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo, getRecentExpenditure } from '@/api/ammo'
+import { listFirearms } from '@/api/firearms'
+import { listRangeSessions } from '@/api/rangeSessions'
 import { getInvites } from '@/api/invites'
 import { getUsers } from '@/api/users'
 import { useThresholdStatus } from '@/hooks/useThresholdStatus'
 import { cn } from '@/lib/utils'
+import { firearmLabel } from '@/lib/firearm-label'
 import iconInventory from '@/assets/brand/icon-inventory-dark.png'
-import type { CaliberStatus } from '@/types'
+import type { CaliberStatus, FirearmRead, RangeSessionListItem } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -244,11 +265,15 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const canWrite = user != null && user.role !== 'read_only'
 
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem('getting_started_dismissed') === 'true',
   )
   const [drawerCaliber, setDrawerCaliber] = useState<CaliberStatus | null>(null)
+  const [logRangeOpen, setLogRangeOpen] = useState(false)
+  const [firearmFormOpen, setFirearmFormOpen] = useState(false)
+  const [cleaningTarget, setCleaningTarget] = useState<FirearmRead | null>(null)
   const [caliberView, setCaliberView] = useState<'mix' | 'threshold'>(
     () => (localStorage.getItem('dashboard_caliber_view') as 'mix' | 'threshold') || 'mix',
   )
@@ -360,6 +385,17 @@ export default function DashboardPage() {
     queryFn: getRecentExpenditure,
   })
 
+  const { data: recentSessions = [] } = useQuery({
+    queryKey: ['range-sessions', 'recent'],
+    queryFn: () => listRangeSessions({ limit: 5 }),
+  })
+
+  // Cleaning-due widget — single request, comma-separated cleaning_status.
+  const { data: cleaningFirearms = [] } = useQuery({
+    queryKey: ['firearms', 'cleaning-due'],
+    queryFn: () => listFirearms({ cleaning_status: 'due_soon,overdue' }),
+  })
+
   const thresholdsCustomized =
     thresholdStatus.default_rounds !== 200 ||
     thresholdStatus.calibers.length > 0 ||
@@ -449,6 +485,24 @@ export default function DashboardPage() {
             onDismiss={dismiss}
             onNavigate={navigate}
           />
+        )}
+
+        {/* Quick Actions */}
+        {canWrite && (
+          <section className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => setLogRangeOpen(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Log Range Day
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setFirearmFormOpen(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add Firearm
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => navigate('/ammo')}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add Ammo Box
+            </Button>
+          </section>
         )}
 
         {/* Stats row */}
@@ -592,6 +646,16 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </section>
+        )}
+
+        {/* Firearms Needing Service */}
+        {cleaningFirearms.length > 0 && (
+          <FirearmsNeedingServiceSection
+            firearms={cleaningFirearms}
+            currentUser={user}
+            onSelectFirearm={(id) => navigate(`/firearms/${id}`)}
+            onLogCleaning={(f) => setCleaningTarget(f)}
+          />
         )}
 
         {/* By Caliber */}
@@ -763,7 +827,34 @@ export default function DashboardPage() {
           </Card>
         </section>
 
+        {/* Recent Range Sessions */}
+        <RecentRangeSessionsSection
+          sessions={recentSessions}
+          onSelect={(id) => navigate(`/range-sessions/${id}`)}
+          onViewAll={() => navigate('/range')}
+        />
+
       </div>
+
+      <LogRangeDayDialog
+        open={logRangeOpen}
+        onOpenChange={setLogRangeOpen}
+      />
+
+      <FirearmFormDrawer
+        open={firearmFormOpen}
+        onOpenChange={setFirearmFormOpen}
+        editFirearm={null}
+      />
+
+      {cleaningTarget && (
+        <LogEventDialog
+          open={cleaningTarget !== null}
+          onOpenChange={(o) => { if (!o) setCleaningTarget(null) }}
+          firearm={cleaningTarget}
+          editLog={null}
+        />
+      )}
 
       <CaliberThresholdDrawer
         open={drawerCaliber !== null}
@@ -773,5 +864,218 @@ export default function DashboardPage() {
         defaultRounds={thresholdStatus.default_rounds}
       />
     </AppShell>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Recent Range Sessions widget
+// ---------------------------------------------------------------------------
+
+function RecentRangeSessionsSection({
+  sessions,
+  onSelect,
+  onViewAll,
+}: {
+  sessions: RangeSessionListItem[]
+  onSelect: (id: number) => void
+  onViewAll: () => void
+}) {
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+          Recent Range Sessions
+        </h2>
+        {sessions.length > 0 && (
+          <button
+            onClick={onViewAll}
+            className="text-xs font-medium text-gold hover:underline flex items-center gap-1"
+          >
+            View All
+            <ArrowRight className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      <Card>
+        {sessions.length === 0 ? (
+          <CardContent className="py-8 text-center text-sm text-gray-400">
+            No range sessions logged yet. Log Range Day to start tracking.
+          </CardContent>
+        ) : (
+          <CardContent className="p-0">
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {sessions.map((s) => (
+                <button
+                  key={s.id}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors"
+                  onClick={() => onSelect(s.id)}
+                >
+                  <Target className="h-4 w-4 text-gold shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {format(parseISO(s.date), 'MMM d, yyyy')}
+                      </span>
+                      {s.location_name && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex items-center gap-0.5">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          {s.location_name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                      {s.distinct_firearms} {s.distinct_firearms === 1 ? 'firearm' : 'firearms'}
+                      {' · '}
+                      {s.distinct_boxes} {s.distinct_boxes === 1 ? 'box' : 'boxes'}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+                      {s.total_rounds.toLocaleString()} rds
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Firearms Needing Service widget
+// ---------------------------------------------------------------------------
+
+function cleaningReason(f: FirearmRead): string {
+  const reasons: string[] = []
+  if (f.service_interval_rounds != null) {
+    reasons.push(
+      `${f.rounds_since_clean.toLocaleString()} rounds since clean / interval ${f.service_interval_rounds.toLocaleString()}`,
+    )
+  }
+  if (f.service_interval_days != null) {
+    if (f.last_cleaned_at) {
+      const days = Math.floor(
+        (Date.now() - parseISO(f.last_cleaned_at).getTime()) / 86400000,
+      )
+      reasons.push(`${days} days since clean / interval ${f.service_interval_days} days`)
+    } else {
+      reasons.push(`Never cleaned / interval ${f.service_interval_days} days`)
+    }
+  }
+  return reasons.join(' · ') || 'Service interval breached'
+}
+
+function canLogCleaning(f: FirearmRead, user: { id: number; role: string } | null): boolean {
+  if (!user) return false
+  if (user.role === 'admin') return true
+  if (user.role === 'member') return !f.is_shared && f.owner_id === user.id
+  return false
+}
+
+function FirearmsNeedingServiceSection({
+  firearms,
+  currentUser,
+  onSelectFirearm,
+  onLogCleaning,
+}: {
+  firearms: FirearmRead[]
+  currentUser: { id: number; role: string } | null
+  onSelectFirearm: (id: number) => void
+  onLogCleaning: (f: FirearmRead) => void
+}) {
+  const overdue = firearms.filter((f) => f.cleaning_status === 'overdue')
+  const dueSoon = firearms.filter((f) => f.cleaning_status === 'due_soon')
+
+  const renderGroup = (
+    label: string,
+    list: FirearmRead[],
+    Icon: React.ElementType,
+    iconCls: string,
+    headerCls: string,
+  ) => {
+    if (list.length === 0) return null
+    return (
+      <div>
+        <div className={cn('px-4 py-2 flex items-center gap-2', headerCls)}>
+          <Icon className={cn('h-4 w-4', iconCls)} />
+          <span className="text-xs font-semibold uppercase tracking-wide">
+            {label} ({list.length})
+          </span>
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+          {list.map((f) => {
+            const heroTitle = firearmLabel(f)
+            const canLog = canLogCleaning(f, currentUser)
+            return (
+              <div
+                key={f.id}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+              >
+                <button
+                  className="flex-1 min-w-0 text-left"
+                  onClick={() => onSelectFirearm(f.id)}
+                >
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {heroTitle}
+                    </span>
+                    {f.caliber_name && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {f.caliber_name}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {cleaningReason(f)}
+                  </div>
+                </button>
+                {canLog && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="shrink-0 h-7 text-xs"
+                    onClick={() => onLogCleaning(f)}
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Log Cleaning
+                  </Button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <section>
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-1.5">
+        <Wrench className="h-3.5 w-3.5" />
+        Firearms Needing Service
+      </h2>
+      <Card>
+        <CardContent className="p-0">
+          {renderGroup(
+            'Overdue',
+            overdue,
+            AlertTriangle,
+            'text-red-500',
+            'bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300',
+          )}
+          {renderGroup(
+            'Due Soon',
+            dueSoon,
+            AlertTriangle,
+            'text-amber-500',
+            'bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300',
+          )}
+        </CardContent>
+      </Card>
+    </section>
   )
 }

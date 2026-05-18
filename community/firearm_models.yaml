@@ -1,0 +1,672 @@
+version: 2
+# manufacturer_key, default_caliber_key, default_action_type_key reference
+# community_key values from community/manufacturers.yaml (slugify-derived) and
+# community/firearm_action_types.yaml (explicit). default_caliber_key may be
+# omitted for models that don't have an obvious default caliber.
+#
+# `default_barrel_length_in` (added v0.3.0) is the standard production barrel
+# length per manufacturer spec sheets. Threaded variants are not seeded as
+# separate entries — users override `barrel_length_in` on their firearm. Where
+# a model has multiple variants and no clear "standard" the field is omitted.
+firearm_models:
+  # Glock
+  - name: "17 Gen 5"
+    manufacturer_key: glock
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.49
+    community_key: model-glock-17-gen5
+  - name: "19 Gen 5"
+    manufacturer_key: glock
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.02
+    community_key: model-glock-19-gen5
+  - name: "26 Gen 5"
+    manufacturer_key: glock
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.43
+    community_key: model-glock-26-gen5
+  - name: "43X"
+    manufacturer_key: glock
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.41
+    community_key: model-glock-43x
+  - name: "48"
+    manufacturer_key: glock
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.17
+    community_key: model-glock-48
+  - name: "20 Gen 4"
+    manufacturer_key: glock
+    default_caliber_key: 10mm-auto
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.61
+    community_key: model-glock-20-gen4
+  - name: "21 Gen 4"
+    manufacturer_key: glock
+    default_caliber_key: 45-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.61
+    community_key: model-glock-21-gen4
+  # Glock 22/23 use .40 S&W, slugify(".40 S&W") → "40-sandw" so we use that key.
+  - name: "22 Gen 5"
+    manufacturer_key: glock
+    default_caliber_key: 40-sandw
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.49
+    community_key: model-glock-22-gen5
+  - name: "23 Gen 5"
+    manufacturer_key: glock
+    default_caliber_key: 40-sandw
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.02
+    community_key: model-glock-23-gen5
+  - name: "34 Gen 5 MOS"
+    manufacturer_key: glock
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 5.31
+    community_key: model-glock-34-gen5-mos
+  - name: "42"
+    manufacturer_key: glock
+    default_caliber_key: 380-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.25
+    community_key: model-glock-42
+  - name: "44"
+    manufacturer_key: glock
+    default_caliber_key: 22-lr
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.02
+    community_key: model-glock-44
+
+  # Ruger
+  - name: "10/22"
+    manufacturer_key: ruger
+    default_caliber_key: 22-lr
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 18.5
+    community_key: model-ruger-10-22
+  - name: "LCP"
+    manufacturer_key: ruger
+    default_caliber_key: 380-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 2.75
+    community_key: model-ruger-lcp
+  - name: "GP100"
+    manufacturer_key: ruger
+    default_caliber_key: 357-magnum
+    default_action_type_key: action-revolver
+    default_barrel_length_in: 4.2
+    community_key: model-ruger-gp100
+  - name: "Mark IV"
+    manufacturer_key: ruger
+    default_caliber_key: 22-lr
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 5.5
+    community_key: model-ruger-mark-iv
+  - name: "LCP II"
+    manufacturer_key: ruger
+    default_caliber_key: 380-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 2.75
+    community_key: model-ruger-lcp-ii
+  - name: "Max-9"
+    manufacturer_key: ruger
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.2
+    community_key: model-ruger-max-9
+  - name: "SR1911"
+    manufacturer_key: ruger
+    default_caliber_key: 45-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 5.0
+    community_key: model-ruger-sr1911
+  - name: "Wrangler"
+    manufacturer_key: ruger
+    default_caliber_key: 22-lr
+    default_action_type_key: action-single-action-revolver
+    default_barrel_length_in: 4.62
+    community_key: model-ruger-wrangler
+  - name: "Single-Six"
+    manufacturer_key: ruger
+    default_caliber_key: 22-lr
+    default_action_type_key: action-single-action-revolver
+    default_barrel_length_in: 5.5
+    community_key: model-ruger-single-six
+  - name: "AR-556"
+    manufacturer_key: ruger
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.1
+    community_key: model-ruger-ar-556
+  - name: "Mini-14 Ranch"
+    manufacturer_key: ruger
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 18.5
+    community_key: model-ruger-mini-14-ranch
+  - name: "American Rifle"
+    manufacturer_key: ruger
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 22.0
+    community_key: model-ruger-american-rifle
+  - name: "Precision Rifle"
+    manufacturer_key: ruger
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 20.0
+    community_key: model-ruger-precision-rifle
+
+  # Smith & Wesson
+  - name: "M&P 9 M2.0"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.25
+    community_key: model-sw-mp9-m20
+  - name: "M&P Shield Plus"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.1
+    community_key: model-sw-shield-plus
+  - name: "Model 686"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 357-magnum
+    default_action_type_key: action-revolver
+    default_barrel_length_in: 4.0
+    community_key: model-sw-686
+  - name: "Model 642"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 38-special
+    default_action_type_key: action-revolver
+    default_barrel_length_in: 1.875
+    community_key: model-sw-642
+  - name: "M&P 9 Shield"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.1
+    community_key: model-sw-mp9-shield
+  - name: "M&P 15-22"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 22-lr
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.5
+    community_key: model-sw-mp15-22
+  - name: "Model 19 Classic"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 357-magnum
+    default_action_type_key: action-revolver
+    default_barrel_length_in: 4.25
+    community_key: model-sw-19-classic
+  - name: "Model 29"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 44-magnum
+    default_action_type_key: action-revolver
+    default_barrel_length_in: 6.5
+    community_key: model-sw-29
+  - name: "Model 60"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 357-magnum
+    default_action_type_key: action-revolver
+    default_barrel_length_in: 2.125
+    community_key: model-sw-60
+  - name: "M&P 15 Sport III"
+    manufacturer_key: smith-and-wesson
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.0
+    community_key: model-sw-mp15-sport-iii
+
+  # Sig Sauer (existing manufacturer "SIG Sauer" — slugify → sig-sauer)
+  - name: "P320"
+    manufacturer_key: sig-sauer
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.9
+    community_key: model-sig-p320
+  - name: "P365"
+    manufacturer_key: sig-sauer
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.1
+    community_key: model-sig-p365
+  - name: "P226"
+    manufacturer_key: sig-sauer
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.4
+    community_key: model-sig-p226
+  - name: "P229"
+    manufacturer_key: sig-sauer
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.9
+    community_key: model-sig-p229
+  - name: "P238"
+    manufacturer_key: sig-sauer
+    default_caliber_key: 380-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 2.7
+    community_key: model-sig-p238
+  - name: "P210"
+    manufacturer_key: sig-sauer
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 5.0
+    community_key: model-sig-p210
+
+  # Springfield Armory
+  - name: "Hellcat"
+    manufacturer_key: springfield-armory
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.0
+    community_key: model-springfield-hellcat
+  - name: "XD-S"
+    manufacturer_key: springfield-armory
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.3
+    community_key: model-springfield-xds
+  - name: "1911 TRP"
+    manufacturer_key: springfield-armory
+    default_caliber_key: 45-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 5.0
+    community_key: model-springfield-1911-trp
+  - name: "XD Mod.2 Service"
+    manufacturer_key: springfield-armory
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.0
+    community_key: model-springfield-xd-mod2-service
+  - name: "Echelon"
+    manufacturer_key: springfield-armory
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.5
+    community_key: model-springfield-echelon
+  - name: "Saint Victor 5.56"
+    manufacturer_key: springfield-armory
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.0
+    community_key: model-springfield-saint-victor-556
+
+  # Beretta
+  - name: "92FS"
+    manufacturer_key: beretta
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.9
+    community_key: model-beretta-92fs
+  - name: "APX A1"
+    manufacturer_key: beretta
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.25
+    community_key: model-beretta-apx-a1
+  - name: "A300 Ultima"
+    manufacturer_key: beretta
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-semi-auto-shotgun
+    default_barrel_length_in: 28.0
+    community_key: model-beretta-a300-ultima
+  - name: "1301 Tactical"
+    manufacturer_key: beretta
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-semi-auto-shotgun
+    default_barrel_length_in: 18.5
+    community_key: model-beretta-1301-tactical
+
+  # CZ-USA
+  - name: "P-10 C"
+    manufacturer_key: cz-usa
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.02
+    community_key: model-cz-p10c
+  - name: "75 SP-01"
+    manufacturer_key: cz-usa
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.6
+    community_key: model-cz-75-sp01
+  - name: "Shadow 2"
+    manufacturer_key: cz-usa
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.89
+    community_key: model-cz-shadow-2
+  - name: "457 American"
+    manufacturer_key: cz-usa
+    default_caliber_key: 22-lr
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 24.8
+    community_key: model-cz-457-american
+  - name: "Bren 2 Ms"
+    manufacturer_key: cz-usa
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 14.0
+    community_key: model-cz-bren-2-ms
+
+  # Walther
+  - name: "PDP"
+    manufacturer_key: walther
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.0
+    community_key: model-walther-pdp
+  - name: "PPK"
+    manufacturer_key: walther
+    default_caliber_key: 380-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.3
+    community_key: model-walther-ppk
+
+  # Heckler & Koch
+  - name: "VP9"
+    manufacturer_key: heckler-and-koch
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.09
+    community_key: model-hk-vp9
+  - name: "USP"
+    manufacturer_key: heckler-and-koch
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.25
+    community_key: model-hk-usp
+
+  # Colt
+  - name: "1911 Government"
+    manufacturer_key: colt
+    default_caliber_key: 45-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 5.0
+    community_key: model-colt-1911-government
+  - name: "Python"
+    manufacturer_key: colt
+    default_caliber_key: 357-magnum
+    default_action_type_key: action-revolver
+    default_barrel_length_in: 4.25
+    community_key: model-colt-python
+
+  # Kimber
+  - name: "Custom II"
+    manufacturer_key: kimber
+    default_caliber_key: 45-acp
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 5.0
+    community_key: model-kimber-custom-ii
+  - name: "Micro 9"
+    manufacturer_key: kimber
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.15
+    community_key: model-kimber-micro-9
+
+  # Henry Repeating Arms
+  - name: "Golden Boy"
+    manufacturer_key: henry-repeating-arms
+    default_caliber_key: 22-lr
+    default_action_type_key: action-lever-action-rifle
+    default_barrel_length_in: 20.0
+    community_key: model-henry-golden-boy
+  - name: "Big Boy .357"
+    manufacturer_key: henry-repeating-arms
+    default_caliber_key: 357-magnum
+    default_action_type_key: action-lever-action-rifle
+    default_barrel_length_in: 20.0
+    community_key: model-henry-big-boy-357
+  - name: "AR-7"
+    manufacturer_key: henry-repeating-arms
+    default_caliber_key: 22-lr
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.0
+    community_key: model-henry-ar-7
+  - name: "X Model"
+    manufacturer_key: henry-repeating-arms
+    default_caliber_key: 357-magnum
+    default_action_type_key: action-lever-action-rifle
+    default_barrel_length_in: 17.4
+    community_key: model-henry-x-model
+
+  # Marlin
+  - name: "1895"
+    manufacturer_key: marlin
+    default_caliber_key: 45-70-government
+    default_action_type_key: action-lever-action-rifle
+    default_barrel_length_in: 22.0
+    community_key: model-marlin-1895
+  - name: "336"
+    manufacturer_key: marlin
+    default_caliber_key: 30-30-winchester
+    default_action_type_key: action-lever-action-rifle
+    default_barrel_length_in: 20.25
+    community_key: model-marlin-336
+
+  # Mossberg
+  - name: "500"
+    manufacturer_key: mossberg
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-pump-shotgun
+    default_barrel_length_in: 28.0
+    community_key: model-mossberg-500
+  - name: "590"
+    manufacturer_key: mossberg
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-pump-shotgun
+    default_barrel_length_in: 20.0
+    community_key: model-mossberg-590
+  - name: "590A1 Tactical"
+    manufacturer_key: mossberg
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-pump-shotgun
+    default_barrel_length_in: 18.5
+    community_key: model-mossberg-590a1-tactical
+  - name: "940 Pro Tactical"
+    manufacturer_key: mossberg
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-semi-auto-shotgun
+    default_barrel_length_in: 18.5
+    community_key: model-mossberg-940-pro-tactical
+
+  # Benelli
+  - name: "M4"
+    manufacturer_key: benelli
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-semi-auto-shotgun
+    default_barrel_length_in: 18.5
+    community_key: model-benelli-m4
+  - name: "Super Black Eagle 3"
+    manufacturer_key: benelli
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-semi-auto-shotgun
+    default_barrel_length_in: 28.0
+    community_key: model-benelli-sbe3
+  - name: "M2 Field"
+    manufacturer_key: benelli
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-semi-auto-shotgun
+    default_barrel_length_in: 26.0
+    community_key: model-benelli-m2-field
+  - name: "Nova"
+    manufacturer_key: benelli
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-pump-shotgun
+    default_barrel_length_in: 28.0
+    community_key: model-benelli-nova
+
+  # Browning
+  - name: "X-Bolt"
+    manufacturer_key: browning
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 22.0
+    community_key: model-browning-x-bolt
+  - name: "BAR"
+    manufacturer_key: browning
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 22.0
+    community_key: model-browning-bar
+  - name: "A5"
+    manufacturer_key: browning
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-semi-auto-shotgun
+    default_barrel_length_in: 28.0
+    community_key: model-browning-a5
+
+  # Savage Arms
+  - name: "Axis II"
+    manufacturer_key: savage-arms
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 22.0
+    community_key: model-savage-axis-ii
+  - name: "110"
+    manufacturer_key: savage-arms
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 22.0
+    community_key: model-savage-110
+
+  # Tikka
+  - name: "T3x Lite"
+    manufacturer_key: tikka
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 22.4
+    community_key: model-tikka-t3x-lite
+
+  # Daniel Defense
+  - name: "DDM4 V7"
+    manufacturer_key: daniel-defense
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.0
+    community_key: model-dd-ddm4-v7
+
+  # Aero Precision
+  - name: "M4E1 Complete Rifle"
+    manufacturer_key: aero-precision
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.0
+    community_key: model-aero-m4e1-complete
+  - name: "M5 Complete Rifle"
+    manufacturer_key: aero-precision
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 18.0
+    community_key: model-aero-m5-complete
+
+  # Taurus (NEW manufacturer)
+  - name: "G3"
+    manufacturer_key: taurus
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.0
+    community_key: model-taurus-g3
+  - name: "G3c"
+    manufacturer_key: taurus
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 3.2
+    community_key: model-taurus-g3c
+  - name: "Judge"
+    manufacturer_key: taurus
+    default_caliber_key: 410-bore
+    default_action_type_key: action-revolver
+    default_barrel_length_in: 3.0
+    community_key: model-taurus-judge
+
+  # FN (existing manufacturer FNH — manufacturer_key: fnh)
+  - name: "509"
+    manufacturer_key: fnh
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.0
+    community_key: model-fn-509
+  # FN Five-seveN uses 5.7x28mm; slugify("5.7x28mm") → "57x28mm".
+  - name: "Five-seveN"
+    manufacturer_key: fnh
+    default_caliber_key: 57x28mm
+    default_action_type_key: action-semi-auto-pistol
+    default_barrel_length_in: 4.8
+    community_key: model-fn-five-seven
+
+  # Bergara (NEW manufacturer)
+  - name: "B-14 Hunter"
+    manufacturer_key: bergara
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 22.0
+    community_key: model-bergara-b14-hunter
+  - name: "B-14 HMR"
+    manufacturer_key: bergara
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 24.0
+    community_key: model-bergara-b14-hmr
+
+  # Remington (existing — types includes firearm)
+  - name: "Model 700 SPS"
+    manufacturer_key: remington
+    default_caliber_key: 308-winchester
+    default_action_type_key: action-bolt-action-rifle
+    default_barrel_length_in: 24.0
+    community_key: model-remington-700-sps
+  - name: "Model 870 Express"
+    manufacturer_key: remington
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-pump-shotgun
+    default_barrel_length_in: 28.0
+    community_key: model-remington-870-express
+
+  # IWI (NEW manufacturer)
+  - name: "Tavor X95"
+    manufacturer_key: iwi
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.5
+    community_key: model-iwi-tavor-x95
+  - name: "Galil ACE"
+    manufacturer_key: iwi
+    default_caliber_key: 556-nato
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.0
+    community_key: model-iwi-galil-ace
+
+  # Kel-Tec (NEW manufacturer)
+  - name: "Sub2000 Gen3"
+    manufacturer_key: kel-tec
+    default_caliber_key: 9mm-luger
+    default_action_type_key: action-semi-auto-rifle
+    default_barrel_length_in: 16.25
+    community_key: model-kel-tec-sub2000-gen3
+
+  # Stoeger (NEW manufacturer)
+  - name: "M3000"
+    manufacturer_key: stoeger
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-semi-auto-shotgun
+    default_barrel_length_in: 28.0
+    community_key: model-stoeger-m3000
+  - name: "P3000"
+    manufacturer_key: stoeger
+    default_caliber_key: 12-gauge
+    default_action_type_key: action-pump-shotgun
+    default_barrel_length_in: 28.0
+    community_key: model-stoeger-p3000

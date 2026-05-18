@@ -15,10 +15,13 @@ import {
   HelpCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogOut,
   Crosshair,
+  Target,
 } from 'lucide-react'
 import CartridgeIcon from '@/components/icons/CartridgeIcon'
+import FirearmIcon from '@/components/icons/FirearmIcon'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { getCommunityStatus } from '@/api/community'
@@ -28,6 +31,22 @@ import logoFull from '@/assets/brand/logo-full-dark.png'
 import logoCircle from '@/assets/brand/logo-circle-dark.png'
 
 const STORAGE_KEY = 'sidebar_collapsed'
+const SECTION_STORAGE_KEY = 'sidebar_sections_collapsed'
+
+const COLLAPSIBLE_SECTION_LABELS = new Set(['Settings', 'Admin'])
+const isCollapsibleSection = (label?: string) => !!label && COLLAPSIBLE_SECTION_LABELS.has(label)
+
+function loadCollapsedSections(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SECTION_STORAGE_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return new Set(parsed.filter((x): x is string => typeof x === 'string'))
+    return new Set()
+  } catch {
+    return new Set()
+  }
+}
 
 interface NavItem {
   label: string
@@ -48,6 +67,8 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Ammo', icon: CartridgeIcon, href: '/ammo' },
       { label: 'Products', icon: BookOpen, href: '/products' },
+      { label: 'Firearms', icon: FirearmIcon, href: '/firearms' },
+      { label: 'Range', icon: Target, href: '/range' },
       { label: 'At Range', icon: Crosshair, href: '/at-range', readOnlyHidden: true },
     ],
   },
@@ -81,6 +102,8 @@ function isActive(href: string, pathname: string): boolean {
   if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
   if (href === '/settings/profile') return pathname === '/settings/profile'
   if (href === '/settings/thresholds') return pathname === '/settings/thresholds'
+  if (href === '/firearms') return pathname === '/firearms' || pathname.startsWith('/firearms/')
+  if (href === '/range') return pathname === '/range' || pathname.startsWith('/range-sessions/')
   return pathname === href
 }
 
@@ -88,6 +111,7 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem(STORAGE_KEY) === 'true',
   )
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(loadCollapsedSections)
   const [profileOpen, setProfileOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -114,6 +138,20 @@ export default function Sidebar() {
     setCollapsed((prev) => {
       const next = !prev
       localStorage.setItem(STORAGE_KEY, String(next))
+      return next
+    })
+  }
+
+  const toggleSection = (label: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      try {
+        localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify(Array.from(next)))
+      } catch {
+        // localStorage write failures are not fatal — state still works in-session
+      }
       return next
     })
   }
@@ -175,41 +213,67 @@ export default function Sidebar() {
         <nav className="flex-1 py-4 overflow-y-auto">
           {NAV_SECTIONS.map((section, si) => {
             if (section.adminOnly && user?.role !== 'admin') return null
+            const sectionHasActive = section.items.some((item) => isActive(item.href, location.pathname))
+            const sectionCollapsible = isCollapsibleSection(section.label)
+            const sectionCollapsed =
+              !collapsed
+              && sectionCollapsible
+              && !sectionHasActive
+              && collapsedSections.has(section.label!)
             return (
               <div key={si} className={si > 0 ? 'mt-4' : ''}>
                 {section.label && !collapsed && (
-                  <p className="px-4 mb-1 text-xs font-semibold uppercase tracking-widest text-white/30">
-                    {section.label}
-                  </p>
+                  sectionCollapsible ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(section.label!)}
+                      className="w-full flex items-center justify-between px-4 mb-1 text-xs font-semibold uppercase tracking-widest text-white/30 hover:text-white/50 transition-colors"
+                      aria-expanded={!sectionCollapsed}
+                      aria-controls={`sidebar-section-${section.label}`}
+                    >
+                      <span>{section.label}</span>
+                      {sectionCollapsed ? (
+                        <ChevronRight className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </button>
+                  ) : (
+                    <p className="px-4 mb-1 text-xs font-semibold uppercase tracking-widest text-white/30">
+                      {section.label}
+                    </p>
+                  )
                 )}
-                <div className="px-2 space-y-1">
-                  {section.items.filter((item) => !(item.readOnlyHidden && user?.role === 'read_only')).map((item) => {
-                    const active = isActive(item.href, location.pathname)
-                    const Icon = item.icon
-                    return (
-                      <Link
-                        key={item.href}
-                        to={item.href}
-                        className={cn(
-                          'relative flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium transition-colors',
-                          active
-                            ? 'bg-gold/20 text-gold'
-                            : 'text-white/60 hover:text-white hover:bg-white/10',
-                          collapsed && 'justify-center',
-                        )}
-                        title={collapsed ? item.label : undefined}
-                      >
-                        <Icon className="w-5 h-5 shrink-0" />
-                        {!collapsed && <span>{item.label}</span>}
-                        {item.href === '/admin/datasets' && pendingTotal > 0 && (
-                          collapsed
-                            ? <span className="absolute top-0.5 right-0.5 bg-amber-500 w-2 h-2 rounded-full" />
-                            : <span className="bg-amber-500 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full leading-none">{pendingTotal}</span>
-                        )}
-                      </Link>
-                    )
-                  })}
-                </div>
+                {!sectionCollapsed && (
+                  <div id={`sidebar-section-${section.label ?? si}`} className="px-2 space-y-1">
+                    {section.items.filter((item) => !(item.readOnlyHidden && user?.role === 'read_only')).map((item) => {
+                      const active = isActive(item.href, location.pathname)
+                      const Icon = item.icon
+                      return (
+                        <Link
+                          key={item.href}
+                          to={item.href}
+                          className={cn(
+                            'relative flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium transition-colors',
+                            active
+                              ? 'bg-gold/20 text-gold'
+                              : 'text-white/60 hover:text-white hover:bg-white/10',
+                            collapsed && 'justify-center',
+                          )}
+                          title={collapsed ? item.label : undefined}
+                        >
+                          <Icon className="w-5 h-5 shrink-0" />
+                          {!collapsed && <span>{item.label}</span>}
+                          {item.href === '/admin/datasets' && pendingTotal > 0 && (
+                            collapsed
+                              ? <span className="absolute top-0.5 right-0.5 bg-amber-500 w-2 h-2 rounded-full" />
+                              : <span className="bg-amber-500 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full leading-none">{pendingTotal}</span>
+                          )}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}

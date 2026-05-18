@@ -10,3 +10,4 @@ pytest==9.0.3
 httpx==0.27.0
 apscheduler==3.10.4
 pycountry==24.6.1
+Pillow==11.0.0

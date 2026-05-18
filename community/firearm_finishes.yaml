@@ -1,0 +1,28 @@
+version: 1
+firearm_finishes:
+  - name: "Black"
+    community_key: finish-black
+  - name: "Blued"
+    community_key: finish-blued
+  - name: "Stainless"
+    community_key: finish-stainless
+  - name: "Nickel"
+    community_key: finish-nickel
+  - name: "Cerakote"
+    community_key: finish-cerakote
+  - name: "Nitron"
+    community_key: finish-nitron
+  - name: "nDLC"
+    community_key: finish-ndlc
+  - name: "Tenifer"
+    community_key: finish-tenifer
+  - name: "Melonite"
+    community_key: finish-melonite
+  - name: "Parkerized"
+    community_key: finish-parkerized
+  - name: "PVD"
+    community_key: finish-pvd
+  - name: "Anodized"
+    community_key: finish-anodized
+  - name: "Two-tone"
+    community_key: finish-two-tone

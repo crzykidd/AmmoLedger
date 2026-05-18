@@ -4,6 +4,7 @@ import { FileUp, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight,
 import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
+import FirearmsFlow from '@/pages/import/FirearmsFlow'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -800,7 +801,7 @@ function Stat({ label, value, muted }: { label: string; value: number; muted?: b
 
 type PageState = 'upload' | 'validation' | 'result'
 
-export default function ImportPage() {
+function AmmoFlow() {
   const [state, setState] = useState<PageState>('upload')
   const [validationResult, setValidationResult] = useState<ImportValidationResult | null>(null)
   const [confirmResult, setConfirmResult] = useState<ImportConfirmResult | null>(null)
@@ -825,21 +826,65 @@ export default function ImportPage() {
   }
 
   return (
+    <>
+      {state === 'upload' && <UploadState onValidated={handleValidated} />}
+      {state === 'validation' && validationResult && pendingFile && (
+        <ValidationState
+          result={validationResult}
+          file={pendingFile}
+          onBack={handleReset}
+          onImported={handleImported}
+        />
+      )}
+      {state === 'result' && confirmResult && (
+        <ResultState result={confirmResult} onReset={handleReset} />
+      )}
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Top-level page — domain tabs (Ammo | Firearms) wrap the per-domain flows.
+// Each flow keeps its own internal state machine; switching tabs resets the
+// inactive flow (cheap — validation tokens live for 15 minutes anyway).
+// ---------------------------------------------------------------------------
+
+type ImportDomain = 'ammo' | 'firearms'
+
+const DOMAIN_TITLES: Record<ImportDomain, string> = {
+  ammo: 'Import Ammo Data',
+  firearms: 'Import Firearms Data',
+}
+
+export default function ImportPage() {
+  const [domain, setDomain] = useState<ImportDomain>('ammo')
+
+  return (
     <AppShell>
-      <TopBar title="Import Ammo Data" />
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
-        {state === 'upload' && <UploadState onValidated={handleValidated} />}
-        {state === 'validation' && validationResult && pendingFile && (
-          <ValidationState
-            result={validationResult}
-            file={pendingFile}
-            onBack={handleReset}
-            onImported={handleImported}
-          />
-        )}
-        {state === 'result' && confirmResult && (
-          <ResultState result={confirmResult} onReset={handleReset} />
-        )}
+      <TopBar title={DOMAIN_TITLES[domain]} />
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-5">
+        <div className="max-w-2xl mx-auto">
+          <div role="tablist" className="inline-flex rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-0.5">
+            {(['ammo', 'firearms'] as const).map((d) => (
+              <button
+                key={d}
+                type="button"
+                role="tab"
+                aria-selected={domain === d}
+                onClick={() => setDomain(d)}
+                className={cn(
+                  'px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
+                  domain === d
+                    ? 'bg-gold/10 text-gold'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gold',
+                )}
+              >
+                {d === 'ammo' ? 'Ammo' : 'Firearms'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {domain === 'ammo' ? <AmmoFlow /> : <FirearmsFlow />}
       </div>
     </AppShell>
   )

@@ -46,7 +46,8 @@
 
 ## Build Status
 
-Current release: v0.2.0 (2026-05-06)
+Current release target: v0.3.0 (firearms + range sessions; tag from main once dev → main lands)
+Last shipped public release: v0.2.3 (2026-05-09)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 
@@ -91,6 +92,8 @@ Current release: v0.2.0 (2026-05-06)
 - Phase 8.22 — Dev-build version check: About page compares GIT_SHA against dev branch tip via GitHub compare API; stable builds keep /releases/latest comparison; both paths cached 24h and refreshed by scheduled task and Check Now button; version-check logic consolidated in backend/utils/version_check.py: COMPLETE
 - Split Box (v0.3.0): POST /ammo/{id}/split endpoint; SplitBoxDialog three-pane UI (form/preview/labeling); Group By "Split Parent"; split-aware lifetime totals (split_from_id IS NULL to prevent double-counting); labeling re-open from parent expanded-row history: COMPLETE
 - Split Box P5/P6 QA fixes and UX additions: GET /ammo/split-parents endpoint; SplitParentDetailsDialog (info icon on Group By "Split Parent" headers); Sort By toolbar dropdown (6 options + asc/desc toggle, localStorage-persisted); Purchase Date + Updated Date in expanded inventory rows; child notes pre-populated "[Split YYYY-MM-DD] Split from #N"; list_ammo includes any box with children regardless of filters; SplitBoxDialog success/review panes modal-locked; preview row labels changed from "Box 1/2" to "1./2." with disclaimer; Total Boxes (lifetime) counts all records (Total Rounds/Value still root-only): COMPLETE
+- Firearms P5 (v0.3.0) — cross-cutting integration: real Sessions tab on /firearms/:id with per-firearm rounds totals (powered by new `rounds_for_filter_firearm` field on `RangeSessionListItem` when `GET /range-sessions?firearm_id=` is set); Recent Range Sessions dashboard widget; Firearms Needing Service dashboard widget (overdue + due-soon, with Log Cleaning quick-action); Dashboard Quick Actions row (Log Range Day, Add Firearm, Add Ammo Box; hidden for read-only); `GET /firearms?cleaning_status=` accepts comma-separated values: COMPLETE
+- Firearms P6 (v0.3.0) — closing-the-loop polish: firearms CSV export at `GET /firearms/export/csv` with Export button on Firearms list page; range sessions CSV export at `GET /range-sessions/export/csv` (denormalized, one row per line) with Export button on Range page; CHANGELOG consolidated into themed v0.3.0 release block (Added — Firearms tracking / Range sessions / Dashboard / Lookups & admin / Exports; Changed; Database migrations; Deferred); README "What's New" + Features + Roadmap + Upgrading sections updated; PRD §10.1/10.2/10.3 version annotations updated to "(v0.3.0 — shipped)" and §10.8 Deferred subsection added: COMPLETE
 - Phase 9 — Notifications: NOT STARTED
 - Phase 10 — Polish + mobile optimization: NOT STARTED
 - v0.1.9 — Migration squash (COMPLETE): 22 migrations collapsed into single initial schema; CHANGELOG split; HISTORY.md created
@@ -153,6 +156,12 @@ Current release: v0.2.0 (2026-05-06)
 - **JSON export coverage.** `_EXPORT_TABLES` in `routers/backup.py` is the source of truth for which tables are included in JSON export and import. When adding a new table, decide explicitly whether it belongs in the export (user data → yes; operational telemetry, short-lived tokens, or seed-managed config → no) and add a comment in the list. Forgetting is a silent data-loss bug on restore.
 - **Additive JSON import has been removed (v0.2.1).** Full replace is the only restore mode. The additive path was broken-by-design for cross-installation merge: colliding user rows were skipped while their child rows still inserted, pointing at whoever held the ID on the target. Closes issue #10. A proper row-level merge (Tier C from #10) is not planned for v0.3.0 — do not re-introduce additive mode or any guidance that implies users can manually rewrite IDs to work around it.
 - **JSON import schema validation** — both `/backup/import/preview` and `/backup/import/commit` reject exports whose `schema_migration` does not exactly match the current Alembic head. A TODO comment at the validation site marks where future relaxation should land once migration `0002+` ships.
+
+## Firearms Domain Conventions (v0.3.0+)
+
+- **Visibility helpers are per-router by design.** `_visibility_filter`, `_get_visible_*`, and `_check_write` exist as private helpers in `routers/ammo.py`, `routers/firearms.py`, and `routers/range_sessions.py`. They share a shape (admin sees all; member sees own + shared; read-only sees shared only) but operate on different models with different ownership rules — copy and adapt the pattern per new router rather than refactoring into a shared base. Cross-router imports are limited to the visibility *check* helpers (`_get_visible_box`, `_get_visible_firearm`) when one domain needs to enforce another's access rules (range sessions check both ammo box and firearm visibility per line).
+- **Range sessions deduct ammo through `expenditure_log` exclusively.** When a range session line is created or PATCH'd, ammo is deducted by writing an `ExpenditureLog` row tagged with `range_session_line_id`, NOT by directly mutating `ammo_box.qty_remaining` outside the log. Reversal queries on the link to undo the deduction. Don't add a parallel deduction path for new range/firearm features — extend the existing one.
+- **Firearm log mutations always recompute denormalized state.** Any insert / update / delete on `firearm_log` MUST be followed by `_recalculate_firearm_clean_state(firearm, db)` and a `db.add(firearm)` before commit. The denormalized `last_cleaned_at` and `rounds_since_clean` fields on `firearms` are derived from the full `firearm_log` history; if you skip the recalc the snapshot drifts silently. Backdated edits and deletions are the common case for drift.
 
 ## Git Rules
 
