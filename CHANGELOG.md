@@ -19,6 +19,12 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.1] — 2026-05-17
+
+### Fixed
+
+- **Firearm detail page crash on first load.** The page rendered a blank shell on every visit due to a React Rules of Hooks violation: the `document.title`-setting `useEffect` was placed after three conditional early returns (invalid ID, error, loading). React detected a hook count mismatch between the loading render and the data-arrival render and unmounted the entire tree. The effect is now declared unconditionally at the top of the component with an `if (!firearm) return` guard inside its body.
+
 ### Coming Next
 
 The following items were deliberately scoped out of v0.3.0 and remain
