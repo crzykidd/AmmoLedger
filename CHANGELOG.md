@@ -127,6 +127,10 @@ pipeline.
 - **Sidebar layout** updated to include Firearms (between Products and At Range) and Range (between Firearms and At Range), with a custom firearm SVG icon matching the CartridgeIcon precedent and Lucide's Target icon for Range.
 - **Sidebar**: Settings and Admin sections are now collapsible by clicking their headers. Collapse state persists across sessions (`sidebar_sections_collapsed` in localStorage). Sections auto-expand when the current route is inside them so the active page is always visible.
 
+### Security
+
+- **Firearm photo path validation** (`backend/utils/firearm_photos.py`). Three CodeQL `py/path-injection` findings closed. Filename inputs are now validated against a strict whitelist (`^[0-9a-f]{32}(_thumb)?\.jpg$` — the exact shape the server generates); `firearm_id` is checked as a non-negative integer before use in any path; every computed path is resolved and asserted to live under `${UPLOADS_PATH}/firearm_photos/` before any filesystem operation (`mkdir`, `rmtree`, `unlink`, `read_bytes`). Symlink-escape attempts (where a firearm subdirectory is a symlink pointing outside the photos root) are detected and refused at `rmtree` time. The byte-streaming endpoints return 404 on validation failure — no internal path details are exposed to clients.
+
 ### Database migrations
 
 - `0002_firearms_feature.py` — single migration covering the entire firearms
