@@ -590,7 +590,7 @@ export default function FirearmsListPage() {
                   {Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
                       <td className="px-2 py-2">
-                        <div className="w-9 h-9 animate-pulse bg-gray-200 dark:bg-gray-800 rounded" />
+                        <div className="w-9 h-9 animate-pulse bg-gray-300 dark:bg-gray-700 rounded" />
                       </td>
                       <td className="px-4 py-3">
                         <div className="h-4 animate-pulse bg-gray-200 dark:bg-gray-800 rounded w-48" />
@@ -679,12 +679,12 @@ export default function FirearmsListPage() {
                     onClick={() => navigate(`/firearms/${f.id}`)}
                   >
                     <td className="px-2 py-2">
-                      <div className="w-9 h-9 rounded bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
+                      <div className="w-9 h-9 rounded bg-black overflow-hidden flex items-center justify-center">
                         {f.default_photo_thumb_url ? (
                           <img
                             src={photoSrc(f.default_photo_thumb_url)}
                             alt=""
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain"
                           />
                         ) : (
                           <FirearmIcon className="w-4 h-4 text-gray-400" />

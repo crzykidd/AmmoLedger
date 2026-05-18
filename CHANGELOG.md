@@ -19,6 +19,12 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.2] — 2026-05-17
+
+### Fixed
+
+- **Firearms list view photo cell now shows the full image.** The 36×36 thumbnail was cropping landscape firearm photos via `object-cover`, showing only a slice of the rail or handguard instead of the firearm itself. The cell now uses `object-contain` so the entire photo fits inside the cell with black letterbox/pillarbox bars as needed. Cell background changed to black so the bars look intentional. Loading skeleton shade bumped one step for visibility against zebra-striped rows.
+
 ## [0.3.1] — 2026-05-17
 
 ### Fixed

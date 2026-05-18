@@ -46,8 +46,8 @@
 
 ## Build Status
 
-Current release target: v0.3.1 (bugfix — firearm detail page crash)
-Last shipped public release: v0.2.3 (2026-05-09)
+Current release target: v0.3.2 (bugfix — firearms list view photo cell)
+Last shipped public release: v0.3.1 (2026-05-17)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 
