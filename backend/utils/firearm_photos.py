@@ -37,27 +37,52 @@ HEIC_HINT_TYPES = {"image/heic", "image/heif"}
 _FILENAME_PATTERN = re.compile(r"^[0-9a-f]{32}(_thumb)?\.jpg$")
 
 
-def _validate_firearm_id(firearm_id: int) -> None:
-    """Sanity-check the firearm id. FastAPI's int typing handles type
-    enforcement at the route boundary, but the helpers should be safe
-    to call from anywhere — including future code paths that don't go
-    through FastAPI."""
+def _sanitize_uploads_path() -> str:
+    """Validate UPLOADS_PATH at import time. Returns the resolved
+    absolute path string so CodeQL sees it as sanitized."""
+    raw = UPLOADS_PATH
+    if not isinstance(raw, str) or not raw:
+        raise RuntimeError(f"UPLOADS_PATH must be a non-empty string, got {raw!r}")
+    p = Path(raw).resolve()
+    if not p.is_absolute():
+        raise RuntimeError(f"UPLOADS_PATH must resolve to an absolute path, got {p}")
+    return str(p)
+
+
+# Cache once at module load — UPLOADS_PATH doesn't change at runtime.
+_SAFE_UPLOADS_PATH = _sanitize_uploads_path()
+
+
+def _sanitize_firearm_id(firearm_id: int) -> int:
+    """Validate and return the firearm_id.
+
+    Functionally identical to a `_validate_*` raise-on-bad-input
+    helper, but returns the validated value so CodeQL's taint
+    tracker recognizes it as a sanitizer. Callers should assign
+    the return value to a new variable (e.g. `safe_id`) and use
+    that variable for all downstream path construction.
+    """
     if not isinstance(firearm_id, int) or isinstance(firearm_id, bool):
-        raise ValueError(f"firearm_id must be int, got {type(firearm_id).__name__}")
+        raise ValueError(
+            f"firearm_id must be int, got {type(firearm_id).__name__}"
+        )
     if firearm_id < 0:
         raise ValueError(f"firearm_id must be non-negative, got {firearm_id}")
+    return firearm_id
 
 
-def _validate_filename(filename: str) -> None:
-    """Reject anything that isn't a UUID-hex JPEG we ourselves generated.
-    Closes path-traversal attempts via the filename field."""
+def _sanitize_filename(filename: str) -> str:
+    """Validate and return the filename. Returns the same str when
+    valid; raises ValueError otherwise. Return-style for CodeQL
+    sanitizer recognition — see _sanitize_firearm_id."""
     if not isinstance(filename, str) or not _FILENAME_PATTERN.match(filename):
         raise ValueError(f"Invalid photo filename: {filename!r}")
+    return filename
 
 
 def _photo_root() -> Path:
     """The base directory all firearm-photo paths must live inside."""
-    return (Path(UPLOADS_PATH) / "firearm_photos").resolve()
+    return (Path(_SAFE_UPLOADS_PATH) / "firearm_photos").resolve()
 
 
 def _safe_resolve_under_root(candidate: Path) -> Path:
@@ -83,15 +108,16 @@ def _safe_resolve_under_root(candidate: Path) -> Path:
 
 
 def _firearm_dir(firearm_id: int) -> Path:
-    _validate_firearm_id(firearm_id)
-    return Path(UPLOADS_PATH) / "firearm_photos" / str(firearm_id)
+    safe_id = _sanitize_firearm_id(firearm_id)
+    return _photo_root() / str(safe_id)
 
 
 def _photo_paths(firearm_id: int, filename: str) -> tuple[Path, Path]:
-    """Returns (full_path, thumb_path). Validates both inputs."""
-    _validate_firearm_id(firearm_id)
-    _validate_filename(filename)
-    base = _firearm_dir(firearm_id) / filename
+    """Returns (full_path, thumb_path). Validates and uses the
+    sanitized values for path construction."""
+    safe_id = _sanitize_firearm_id(firearm_id)
+    safe_filename = _sanitize_filename(filename)
+    base = _firearm_dir(safe_id) / safe_filename
     stem = base.stem
     thumb = base.parent / f"{stem}_thumb{base.suffix}"
     return base, thumb
@@ -107,6 +133,8 @@ def process_and_save_upload(
     Returns: {filename, content_type, size_bytes, width, height}
     Raises: ValueError on validation failure.
     """
+    safe_id = _sanitize_firearm_id(firearm_id)
+
     if content_type in HEIC_HINT_TYPES:
         raise ValueError(
             "HEIC/HEIF images are not supported. Export as JPEG from your "
@@ -139,7 +167,8 @@ def process_and_save_upload(
     # Resize if needed (longest side ≤ MAX_DIMENSION).
     img.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.LANCZOS)
 
-    out_dir = _firearm_dir(firearm_id)
+    # Use safe_id from here down — never the original firearm_id parameter.
+    out_dir = _firearm_dir(safe_id)
     # Defense-in-depth: even though _firearm_dir builds the path from a
     # validated int firearm_id, run the containment check so a future
     # regression can't escape the photos root.
@@ -161,7 +190,10 @@ def process_and_save_upload(
 
     photo_id = uuid.uuid4().hex
     filename = f"{photo_id}.jpg"
-    full_path, thumb_path = _photo_paths(firearm_id, filename)
+    # Sanitize the freshly-generated filename so CodeQL sees the
+    # sanitization point even though we know we generated it.
+    safe_filename = _sanitize_filename(filename)
+    full_path, thumb_path = _photo_paths(safe_id, safe_filename)
 
     # Final containment check on the actual write targets.
     _safe_resolve_under_root(full_path.parent)
@@ -177,11 +209,11 @@ def process_and_save_upload(
     size_bytes = full_path.stat().st_size
     logger.info(
         "Saved firearm photo: firearm_id=%d filename=%s %dx%d %d bytes",
-        firearm_id, filename, width, height, size_bytes,
+        safe_id, safe_filename, width, height, size_bytes,
     )
 
     return {
-        "filename": filename,
+        "filename": safe_filename,
         "content_type": "image/jpeg",
         "size_bytes": size_bytes,
         "width": width,
@@ -191,7 +223,9 @@ def process_and_save_upload(
 
 def delete_photo_files(firearm_id: int, filename: str) -> None:
     """Remove full + thumb. Idempotent."""
-    full_path, thumb_path = _photo_paths(firearm_id, filename)
+    safe_id = _sanitize_firearm_id(firearm_id)
+    safe_filename = _sanitize_filename(filename)
+    full_path, thumb_path = _photo_paths(safe_id, safe_filename)
     for p in (full_path, thumb_path):
         try:
             # Containment check: file might not exist yet (idempotent path),
@@ -211,7 +245,8 @@ def delete_photo_files(firearm_id: int, filename: str) -> None:
 
 def delete_firearm_photo_dir(firearm_id: int) -> None:
     """Remove the entire per-firearm directory. Used on firearm deletion."""
-    d = _firearm_dir(firearm_id)
+    safe_id = _sanitize_firearm_id(firearm_id)
+    d = _firearm_dir(safe_id)
     if d.exists():
         # Containment check before rmtree. If this fails it's a bug or
         # an attack; either way, refuse and log.
@@ -229,7 +264,9 @@ def delete_firearm_photo_dir(firearm_id: int) -> None:
 def read_photo_bytes(firearm_id: int, filename: str, thumb: bool = False) -> bytes:
     """Read full or thumb. Raises FileNotFoundError if missing,
     ValueError if path validation fails."""
-    full_path, thumb_path = _photo_paths(firearm_id, filename)
+    safe_id = _sanitize_firearm_id(firearm_id)
+    safe_filename = _sanitize_filename(filename)
+    full_path, thumb_path = _photo_paths(safe_id, safe_filename)
     path = thumb_path if thumb else full_path
     # Containment check before read. _photo_paths already validated the
     # filename regex; this is the second line of defense.

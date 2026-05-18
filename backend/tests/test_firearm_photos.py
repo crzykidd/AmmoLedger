@@ -37,7 +37,7 @@ def temp_uploads_path(tmp_path, monkeypatch):
     import utils.firearm_photos as photo_mod  # noqa: PLC0415
     import routers.backup as backup_mod  # noqa: PLC0415
     monkeypatch.setattr(config_mod, "UPLOADS_PATH", str(uploads))
-    monkeypatch.setattr(photo_mod, "UPLOADS_PATH", str(uploads))
+    monkeypatch.setattr(photo_mod, "_SAFE_UPLOADS_PATH", str(uploads))
     monkeypatch.setattr(backup_mod, "UPLOADS_PATH", str(uploads))
     yield uploads
 
@@ -499,82 +499,82 @@ def test_zip_restore_rejects_path_traversal(tmp_path):
 from utils.firearm_photos import (  # noqa: E402
     _photo_paths,
     _safe_resolve_under_root,
-    _validate_filename,
-    _validate_firearm_id,
+    _sanitize_filename,
+    _sanitize_firearm_id,
     delete_firearm_photo_dir,
     read_photo_bytes,
 )
 
 
-# _validate_firearm_id
+# _sanitize_firearm_id
 
-def test_validate_firearm_id_accepts_positive():
-    _validate_firearm_id(1)
-    _validate_firearm_id(99999)
-
-
-def test_validate_firearm_id_accepts_zero():
-    _validate_firearm_id(0)
+def test_sanitize_firearm_id_accepts_positive():
+    _sanitize_firearm_id(1)
+    _sanitize_firearm_id(99999)
 
 
-def test_validate_firearm_id_rejects_negative():
+def test_sanitize_firearm_id_accepts_zero():
+    _sanitize_firearm_id(0)
+
+
+def test_sanitize_firearm_id_rejects_negative():
     with pytest.raises(ValueError, match="non-negative"):
-        _validate_firearm_id(-1)
+        _sanitize_firearm_id(-1)
 
 
-def test_validate_firearm_id_rejects_string():
+def test_sanitize_firearm_id_rejects_string():
     with pytest.raises(ValueError, match="must be int"):
-        _validate_firearm_id("42")  # type: ignore[arg-type]
+        _sanitize_firearm_id("42")  # type: ignore[arg-type]
 
 
-def test_validate_firearm_id_rejects_bool():
+def test_sanitize_firearm_id_rejects_bool():
     # bool is a subclass of int in Python — make sure we don't accept True/False.
     with pytest.raises(ValueError, match="must be int"):
-        _validate_firearm_id(True)  # type: ignore[arg-type]
+        _sanitize_firearm_id(True)  # type: ignore[arg-type]
 
 
-# _validate_filename
+# _sanitize_filename
 
-def test_validate_filename_accepts_valid_uuid_jpg():
-    _validate_filename("a" * 32 + ".jpg")
-    _validate_filename("0123456789abcdef0123456789abcdef.jpg")
-
-
-def test_validate_filename_accepts_thumb_variant():
-    _validate_filename("a" * 32 + "_thumb.jpg")
+def test_sanitize_filename_accepts_valid_uuid_jpg():
+    _sanitize_filename("a" * 32 + ".jpg")
+    _sanitize_filename("0123456789abcdef0123456789abcdef.jpg")
 
 
-def test_validate_filename_rejects_path_traversal():
+def test_sanitize_filename_accepts_thumb_variant():
+    _sanitize_filename("a" * 32 + "_thumb.jpg")
+
+
+def test_sanitize_filename_rejects_path_traversal():
     with pytest.raises(ValueError, match="Invalid photo filename"):
-        _validate_filename("../etc/passwd")
+        _sanitize_filename("../etc/passwd")
 
 
-def test_validate_filename_rejects_absolute_path():
+def test_sanitize_filename_rejects_absolute_path():
     with pytest.raises(ValueError, match="Invalid photo filename"):
-        _validate_filename("/etc/passwd")
+        _sanitize_filename("/etc/passwd")
 
 
-def test_validate_filename_rejects_wrong_extension():
+def test_sanitize_filename_rejects_wrong_extension():
     with pytest.raises(ValueError):
-        _validate_filename("a" * 32 + ".png")
+        _sanitize_filename("a" * 32 + ".png")
     with pytest.raises(ValueError):
-        _validate_filename("a" * 32 + ".jpg.exe")
+        _sanitize_filename("a" * 32 + ".jpg.exe")
 
 
-def test_validate_filename_rejects_short_stem():
+def test_sanitize_filename_rejects_short_stem():
     with pytest.raises(ValueError):
-        _validate_filename("abc.jpg")
+        _sanitize_filename("abc.jpg")
 
 
-def test_validate_filename_rejects_uppercase_hex():
+def test_sanitize_filename_rejects_uppercase_hex():
     # The regex is case-sensitive — uuid4().hex returns lowercase
     with pytest.raises(ValueError):
-        _validate_filename("A" * 32 + ".jpg")
+        _sanitize_filename("A" * 32 + ".jpg")
 
 
-def test_validate_filename_rejects_null_byte():
+def test_sanitize_filename_rejects_null_byte():
     with pytest.raises(ValueError):
-        _validate_filename("a" * 32 + ".jpg\x00")
+        _sanitize_filename("a" * 32 + ".jpg\x00")
 
 
 # _photo_paths integration
@@ -593,7 +593,7 @@ def test_photo_paths_rejects_negative_firearm_id():
 
 def test_safe_resolve_under_root_accepts_valid_path(tmp_path, monkeypatch):
     """A path inside the configured root resolves cleanly."""
-    monkeypatch.setattr("utils.firearm_photos.UPLOADS_PATH", str(tmp_path))
+    monkeypatch.setattr("utils.firearm_photos._SAFE_UPLOADS_PATH", str(tmp_path))
     photo_root = tmp_path / "firearm_photos"
     photo_root.mkdir()
     candidate = photo_root / "1" / "abc.jpg"
@@ -606,7 +606,7 @@ def test_safe_resolve_under_root_accepts_valid_path(tmp_path, monkeypatch):
 
 def test_safe_resolve_under_root_rejects_escape(tmp_path, monkeypatch):
     """A path that resolves outside the root must be rejected."""
-    monkeypatch.setattr("utils.firearm_photos.UPLOADS_PATH", str(tmp_path))
+    monkeypatch.setattr("utils.firearm_photos._SAFE_UPLOADS_PATH", str(tmp_path))
     photo_root = tmp_path / "firearm_photos"
     photo_root.mkdir()
 
@@ -619,7 +619,7 @@ def test_safe_resolve_under_root_rejects_escape(tmp_path, monkeypatch):
 def test_safe_resolve_under_root_rejects_symlink_escape(tmp_path, monkeypatch):
     """If the firearm subdir is a symlink pointing outside the root,
     resolution detects it."""
-    monkeypatch.setattr("utils.firearm_photos.UPLOADS_PATH", str(tmp_path))
+    monkeypatch.setattr("utils.firearm_photos._SAFE_UPLOADS_PATH", str(tmp_path))
     photo_root = tmp_path / "firearm_photos"
     photo_root.mkdir()
 
@@ -651,7 +651,7 @@ def test_delete_firearm_photo_dir_skips_symlinked_escape(tmp_path, monkeypatch):
     """If a firearm photo dir is a symlink pointing outside the root,
     delete_firearm_photo_dir refuses and logs."""
     from unittest.mock import patch  # noqa: PLC0415
-    monkeypatch.setattr("utils.firearm_photos.UPLOADS_PATH", str(tmp_path))
+    monkeypatch.setattr("utils.firearm_photos._SAFE_UPLOADS_PATH", str(tmp_path))
     photo_root = tmp_path / "firearm_photos"
     photo_root.mkdir()
 
