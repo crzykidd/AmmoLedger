@@ -10,6 +10,13 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_serializer
 # Matches naive ISO datetime strings: YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SS.ffffff
 _NAIVE_ISO_RE = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$')
 
+# PEP 563 (`from __future__ import annotations`) defers annotation evaluation.
+# When Pydantic resolves `Optional[date]` on a field also named `date`, the
+# class attribute `date = None` shadows the imported `datetime.date` in the
+# local namespace, yielding `NoneType` instead of the intended type. Using a
+# private alias breaks the shadow without changing any public interface.
+_Date = date
+
 
 class _OrmBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -1096,7 +1103,7 @@ class RangeSessionRead(_OrmBase):
 class RangeSessionUpdate(BaseModel):
     """Header-only update. Lines are managed via the line endpoints."""
     is_shared: Optional[bool] = None
-    date: Optional[date] = None
+    date: Optional[_Date] = None
     location_name: Optional[str] = None
     notes: Optional[str] = None
 
