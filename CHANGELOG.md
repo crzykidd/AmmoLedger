@@ -28,6 +28,10 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Production docker-compose: network hardening.** Backend now runs on a private `ammoledger_net` bridge with no published ports. Frontend bound to `127.0.0.1:5173` only (was `:5173` on all interfaces) so a reverse proxy must be in front of it for any external access. Optional commented-out `proxy_net` attachment for users who run their reverse proxy in a separate compose stack with an externally-managed network. No behavior change for users running standalone with a localhost-bound proxy.
 - **Documented backend outbound hosts.** PRD §12.6 lists every external host the backend may reach (GitHub for version check and community sync, `api.search.brave.com` for Find Image, Discord and SMTP for notifications). All are tied to optional features and degrade gracefully when unreachable.
 
+### Documentation
+
+- **PRD restructure: Licenses and Legal Owners feature areas committed as DRAFT sub-documents.** Two new feature areas designed and documented under `docs/prd/`: Legal Owners (trusts, LLCs, recurring filings) and Licenses (carry permits, NFA tax stamps, reciprocity, coverage view). Implementation is not yet scheduled to any release; this commit is design only. `docs/PRD.md` revision history advanced to 3.40, §3.3 Ownership Model and §5.2 Permission Matrix updated, and §17 Index of Feature Documents extended.
+
 ## [0.3.3] — 2026-05-18
 
 ### Fixed
