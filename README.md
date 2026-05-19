@@ -6,7 +6,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.3.2-gold)
+![Version](https://img.shields.io/badge/version-0.3.3-gold)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![PRD](https://img.shields.io/badge/docs-PRD-navy)
 
@@ -14,13 +14,13 @@
 
 # AmmoLedger
 
-> ### 🆕 New in v0.3.0–v0.3.2 — Firearms & Range Sessions
+> ### 🆕 New in v0.3.0–v0.3.3 — Firearms & Range Sessions
 >
 > Track your firearms and range trips alongside your ammo. The new **Firearms** page registers each gun with manufacturer, model, caliber, serial, compliance tags, and personal tags. The new **Range** page logs multi-line range days that deduct rounds from ammo boxes and bump per-firearm round counters atomically — and reverse cleanly if you edit or delete a session. **Firearm maintenance log** with cleaning, service, and note events drives a green/amber/red cleaning-status indicator on every firearm and a dedicated dashboard widget for firearms needing service.
 >
 > **Tip:** firearms and range sessions follow the same ownership model as ammo boxes — members own private records by default; admins can mark items shared so everyone on the install can see them. Read-only users see shared items only.
 >
-> **v0.3.1:** fixed a firearm detail page crash on first load (React hook order violation). **v0.3.2:** fixed landscape photo cropping in the firearms list view thumbnail cell.
+> **v0.3.1:** fixed a firearm detail page crash on first load (React hook order violation). **v0.3.2:** fixed landscape photo cropping in the firearms list view thumbnail cell. **v0.3.3:** fixed range session delete 500 error, firearm clean-state drift on session reversal, date timezone shift in non-UTC installs, and backend validation errors displaying as `[object Object]`.
 
 A self-hosted web application to track your ammunition inventory, firearms, and range sessions. Keep your counts accurate on and off the range.
 

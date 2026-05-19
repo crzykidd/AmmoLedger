@@ -17,7 +17,8 @@ import {
   Upload,
   Wrench,
 } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate } from '@/lib/date'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
 import { HelpTip } from '@/components/HelpTip'
@@ -816,7 +817,7 @@ export default function DashboardPage() {
                           -{entry.rounds_used.toLocaleString()} rds
                         </div>
                         <div className="text-xs text-gray-400 mt-0.5">
-                          {format(parseISO(entry.date), 'MMM d')}
+                          {format(parseLocalDate(entry.date) ?? new Date(), 'MMM d')}
                         </div>
                       </div>
                     </button>
@@ -914,7 +915,7 @@ function RecentRangeSessionsSection({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-1.5 flex-wrap">
                       <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {format(parseISO(s.date), 'MMM d, yyyy')}
+                        {format(parseLocalDate(s.date) ?? new Date(), 'MMM d, yyyy')}
                       </span>
                       {s.location_name && (
                         <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex items-center gap-0.5">
@@ -959,7 +960,7 @@ function cleaningReason(f: FirearmRead): string {
   if (f.service_interval_days != null) {
     if (f.last_cleaned_at) {
       const days = Math.floor(
-        (Date.now() - parseISO(f.last_cleaned_at).getTime()) / 86400000,
+        (Date.now() - (parseLocalDate(f.last_cleaned_at) ?? new Date()).getTime()) / 86400000,
       )
       reasons.push(`${days} days since clean / interval ${f.service_interval_days} days`)
     } else {

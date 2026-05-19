@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate, formatBackendError } from '@/lib/date'
 import {
   AlertTriangle,
   CalendarIcon,
@@ -315,7 +316,7 @@ export default function LogRangeDayDialog({
     return Array.from(set).sort()
   }, [queryClient])
 
-  const dateObj = date ? parseISO(date) : undefined
+  const dateObj = date ? parseLocalDate(date) : undefined
 
   // ---------------------------------------------------------------------------
   // Line manipulation
@@ -540,7 +541,7 @@ export default function LogRangeDayDialog({
       onOpenChange(false)
     },
     onError: (e: unknown) => {
-      const detail = (e as { detail?: string })?.detail ?? 'Failed to create range session'
+      const detail = formatBackendError(e, 'Failed to create range session')
       setError(detail)
       // Try to highlight an offending line by box reference
       const m = detail.match(/box #(\d+)/i)
@@ -559,6 +560,10 @@ export default function LogRangeDayDialog({
       setError('Fix the line errors before saving.')
       return
     }
+    if (!date) {
+      setError('Please pick a date for the session.')
+      return
+    }
     const payload: RangeSessionCreate = {
       is_shared: isShared,
       date,
@@ -571,6 +576,9 @@ export default function LogRangeDayDialog({
         notes: l.notes.trim() || null,
       })),
     }
+    // Temporary diagnostic — see comment in handleEdit.
+    // eslint-disable-next-line no-console
+    console.log('[range-session create] POST payload:', JSON.stringify(payload))
     createMutation.mutate(payload)
   }
 
@@ -594,7 +602,12 @@ export default function LogRangeDayDialog({
       // 1. PATCH header if changed
       if (headerDirty) {
         const headerPayload: RangeSessionUpdate = {}
-        if (date !== originalHeader.date) headerPayload.date = date
+        if (date && date !== originalHeader.date) {
+          // Only include date if it's a non-empty YYYY-MM-DD string. Sending
+          // an empty string would make Pydantic emit "input should be none"
+          // because Optional[date] can't parse "" as a date.
+          headerPayload.date = date
+        }
         if (locationName !== originalHeader.locationName) {
           headerPayload.location_name = locationName.trim() || null
         }
@@ -602,6 +615,11 @@ export default function LogRangeDayDialog({
           headerPayload.notes = sessionNotes.trim() || null
         }
         if (isShared !== originalHeader.isShared) headerPayload.is_shared = isShared
+        // Temporary diagnostic logging — surfaces the actual outgoing payload
+        // so date-related bugs are visible in DevTools instead of requiring
+        // a network-tab inspection. Safe to remove after a release of stability.
+        // eslint-disable-next-line no-console
+        console.log('[range-session edit] PATCH payload:', JSON.stringify(headerPayload))
         setProgressMsg('Saving session details…')
         await updateRangeSession(editSession.id, headerPayload)
       }
@@ -668,7 +686,7 @@ export default function LogRangeDayDialog({
       toast({ title: 'Range session updated' })
       onOpenChange(false)
     } catch (e: unknown) {
-      const detail = (e as { detail?: string })?.detail ?? 'Save failed partway'
+      const detail = formatBackendError(e, 'Save failed partway')
       setError(`${progressMsg ?? 'Save'} failed: ${detail}`)
       // Refresh server-side data so the dialog can be reopened against fresh state
       void queryClient.invalidateQueries({ queryKey: ['range-sessions'] })

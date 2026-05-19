@@ -48,7 +48,7 @@ from models import (
     User,
 )
 from routers.ammo import _get_visible_box
-from routers.firearms import _get_visible_firearm
+from routers.firearms import _get_visible_firearm, _recalculate_firearm_clean_state
 from schemas import (
     RangeSessionCreate,
     RangeSessionLineCreate,
@@ -191,6 +191,7 @@ def _reverse_session_line(line: RangeSessionLine, db: Session) -> None:
             )
             firearm.updated_at = datetime.utcnow()
             db.add(firearm)
+            _recalculate_firearm_clean_state(firearm, db)
 
 
 # ---------------------------------------------------------------------------
@@ -679,11 +680,20 @@ def delete_session(
     )
     for line in lines:
         _reverse_session_line(line, db)
+    # Flush so ExpenditureLog DELETEs hit the DB before we delete the lines
+    # they reference. The FK expenditure_log.range_session_line_id →
+    # range_session_lines.id is enforced by SQLite but not modeled as an ORM
+    # Relationship, so the unit-of-work dependency sort can't order these.
+    db.flush()
     for line in lines:
         db.delete(line)
+    db.flush()
     db.delete(s)
     db.commit()
-    logger.info("Range session deleted: id=%s by %s", log_safe(session_id), log_safe(user.email or user.username))
+    logger.info(
+        "Range session deleted: id=%s by %s",
+        log_safe(session_id), log_safe(user.email or user.username),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -755,6 +765,7 @@ def update_session_line(
         raise HTTPException(status_code=404, detail="Session line not found")
 
     _reverse_session_line(line, db)
+    db.flush()
 
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -817,6 +828,7 @@ def delete_session_line(
         )
 
     _reverse_session_line(line, db)
+    db.flush()
     db.delete(line)
     s.updated_at = datetime.utcnow()
     db.add(s)

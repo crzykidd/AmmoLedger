@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { format, parseISO, subDays } from 'date-fns'
+import { format, subDays } from 'date-fns'
+import { parseLocalDate } from '@/lib/date'
 import {
   CalendarIcon,
   Crosshair,
@@ -200,8 +201,8 @@ export default function RangePage() {
     setSortDir('newest')
   }
 
-  const afterObj = afterDate ? parseISO(afterDate) : undefined
-  const beforeObj = beforeDate ? parseISO(beforeDate) : undefined
+  const afterObj = afterDate ? parseLocalDate(afterDate) : undefined
+  const beforeObj = beforeDate ? parseLocalDate(beforeDate) : undefined
 
   return (
     <AppShell>
@@ -431,7 +432,7 @@ interface SessionCardProps {
 }
 
 function SessionCard({ session, isOwn, onClick }: SessionCardProps) {
-  const dateObj = parseISO(session.date)
+  const dateObj = parseLocalDate(session.date) ?? new Date()
   return (
     <Link
       to={`/range-sessions/${session.id}`}

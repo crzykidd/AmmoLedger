@@ -2,7 +2,8 @@ import { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate } from '@/lib/date'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon } from 'lucide-react'
 import { expendAmmo } from '@/api/ammo'
@@ -203,7 +204,7 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
               name="date"
               control={control}
               render={({ field }) => {
-                const date = field.value ? parseISO(field.value) : undefined
+                const date = field.value ? parseLocalDate(field.value) : undefined
                 return (
                   <Popover>
                     <PopoverTrigger asChild>

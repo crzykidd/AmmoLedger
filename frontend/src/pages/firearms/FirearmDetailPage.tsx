@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO, formatDistanceToNow } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
+import { parseLocalDate } from '@/lib/date'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -154,7 +155,7 @@ interface LogRowProps {
 
 function LogRow({ log, canModify, onEdit, onDelete }: LogRowProps) {
   const Icon = eventIcon(log.event_type)
-  const eventDate = parseISO(log.event_date)
+  const eventDate = parseLocalDate(log.event_date) ?? new Date()
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 flex items-start gap-3">
       <div
@@ -264,17 +265,17 @@ function SessionsTab({ sessions, loading, stats, onSelect }: SessionsTabProps) {
         />
         <StatBlock
           label="First Session"
-          value={stats.firstDate ? format(parseISO(stats.firstDate), 'MMM d, yyyy') : '—'}
+          value={stats.firstDate ? format(parseLocalDate(stats.firstDate) ?? new Date(), 'MMM d, yyyy') : '—'}
         />
         <StatBlock
           label="Most Recent Session"
-          value={stats.lastDate ? format(parseISO(stats.lastDate), 'MMM d, yyyy') : '—'}
+          value={stats.lastDate ? format(parseLocalDate(stats.lastDate) ?? new Date(), 'MMM d, yyyy') : '—'}
         />
       </div>
 
       <div className="space-y-2">
         {sessions.map((s) => {
-          const dateObj = parseISO(s.date)
+          const dateObj = parseLocalDate(s.date) ?? new Date()
           const otherFirearms = Math.max(0, s.distinct_firearms - 1)
           return (
             <button
@@ -480,7 +481,7 @@ export default function FirearmDetailPage() {
 
   const editable = canEdit(firearm, user ?? null)
   const { primary: heroTitle, contextSuffix: heroSub } = firearmLabelParts(firearm)
-  const lastCleaned = firearm.last_cleaned_at ? parseISO(firearm.last_cleaned_at) : null
+  const lastCleaned = firearm.last_cleaned_at ? parseLocalDate(firearm.last_cleaned_at) ?? null : null
 
   const isCleaningHighlighted = firearm.cleaning_status !== 'ok'
   const cleaningHighlight: 'amber' | 'red' | null =
@@ -731,7 +732,7 @@ export default function FirearmDetailPage() {
                   label="Purchase date"
                   value={
                     firearm.purchase_date
-                      ? format(parseISO(firearm.purchase_date), 'MMM d, yyyy')
+                      ? format(parseLocalDate(firearm.purchase_date) ?? new Date(), 'MMM d, yyyy')
                       : null
                   }
                 />

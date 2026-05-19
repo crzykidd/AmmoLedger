@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate } from '@/lib/date'
 import { CalendarIcon } from 'lucide-react'
 import {
   Dialog,
@@ -137,7 +138,7 @@ export default function LogEventDialog({ open, onOpenChange, firearm, editLog }:
     }
   }
 
-  const dateObj = eventDate ? parseISO(eventDate) : undefined
+  const dateObj = eventDate ? parseLocalDate(eventDate) : undefined
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
