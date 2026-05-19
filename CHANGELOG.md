@@ -19,6 +19,8 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.3] — 2026-05-18
+
 ### Fixed
 
 - **Range session delete no longer returns 500 Internal Server Error.** A SQLite foreign-key
