@@ -177,6 +177,14 @@ docker pull ghcr.io/crzykidd/ammoledger-frontend:dev
 
 > For stable releases use the `:latest` tag. For development builds use the `:dev` tag. `:latest` advances on every merge to `main` and on every published release. `:dev` tracks the `dev` branch and may include work-in-progress changes.
 
+### Network topology
+
+By default the production compose file puts both services on a private bridge network and binds the frontend to `127.0.0.1:5173` only — nothing reachable from the LAN or internet without a reverse proxy in front of it. The backend has no published ports at all.
+
+If you run a separate reverse-proxy stack (Nginx Proxy Manager, Traefik, Caddy, Cloudflare Tunnel), uncomment the `proxy_net` lines in `docker-compose.yml` so your proxy can reach the AmmoLedger frontend by container name. See PRD §12.5 for the full pattern.
+
+The backend needs outbound internet access for optional features (Find Image, GitHub version check, community lookup sync, Discord / SMTP notifications). See PRD §12.6 for the host allowlist. None of these are required for core ammo / firearm / range tracking — the app runs entirely offline if you want it to.
+
 ### Upgrading
 
 ```bash

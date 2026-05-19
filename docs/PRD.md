@@ -79,6 +79,7 @@
 | 3.38 | 2026-05-17 | v0.3.0 release: firearms registry, range sessions, firearm maintenance log, photos, CSV import/export, LookupCombobox inline create, backup zip integration, At Range session attribution. CHANGELOG `[Unreleased]` stamped as `[0.3.0]`. |
 | 3.39 | 2026-05-18 | Established sub-document structure under `docs/prd/`. Added `prd/tagging.md` covering physical tokens, label templates, NFC binding, scan modes, and the networked-scanner architecture. Added `hardware/` folder for build references and ESPHome configurations. Added rows to §3 Ownership Model and §5.2 Permission Matrix for the new entities. Added §17 Index of Feature Documents. |
 | 3.40 | 2026-05-18 | Products "Find Image" feature — search-based product photo selection via Brave Image Search API; preview-then-commit flow with optional square crop; new `image_search` config block with ENV overrides (`AL_IMAGE_SEARCH_ENABLED`, `AL_IMAGE_SEARCH_PROVIDER`, `AL_IMAGE_SEARCH_API_KEY`); new endpoints `GET /products/{id}/image/search`, `POST /products/{id}/image/preview`, `GET /products/{id}/image/preview/{token}`, `POST /products/{id}/image/from-search`. §6.14, §9.13, §15.1 updated. |
+| 3.41 | 2026-05-18 | Network segmentation and outbound hosts — §12.5 added (private ammoledger_net bridge, optional external proxy_net attachment for reverse-proxy stacks, locking-down outbound caveat); §12.6 added (full table of outbound hosts the backend may reach per optional feature). Production docker-compose.yml refactored to match: backend has no published ports and lives on ammoledger_net only; frontend bound to 127.0.0.1:5173 (matching §12.4); commented opt-in proxy_net attachment. |
 
 ---
 
@@ -2587,6 +2588,61 @@ services:
     ports:
       - "127.0.0.1:5173:5173"
 ```
+
+### 12.5 Network Segmentation
+
+The shipped `docker-compose.yml` puts both services on a private bridge network (`ammoledger_net`) and binds the frontend's host port to `127.0.0.1`. The backend has no published ports at all, so nothing on the host or LAN can connect to it directly — frontend container traffic to `http://backend:8000` resolves through Docker DNS on the private network.
+
+This gives you an **asymmetric** traffic pattern by default:
+
+| Direction | Backend | Frontend |
+|-----------|---------|----------|
+| Inbound from internet | ✗ (no published ports) | Via reverse proxy only |
+| Inbound from host / LAN | ✗ | `127.0.0.1:5173` only |
+| Inbound from sibling containers on `ammoledger_net` | ✓ frontend can reach `backend:8000` | — |
+| Outbound to internet | ✓ (NAT through Docker bridge) | ✓ |
+
+The backend keeps outbound access because optional features (Find Image, GitHub version check, community lookup sync, Discord notifications, SMTP email) need to reach external hosts — see §12.6.
+
+#### Attaching to an externally-managed reverse-proxy network
+
+The standard homelab pattern runs a reverse proxy (Nginx Proxy Manager, Traefik, Caddy) in its own compose stack that owns a Docker network like `proxy_net`. To let that proxy reach AmmoLedger's frontend by container name:
+
+1. Create the shared network from the proxy's compose stack (or out-of-band: `docker network create proxy_net`). AmmoLedger does not create it.
+2. In `docker-compose.yml`, uncomment the `proxy_net` block under `networks:` at the bottom. Replace the `name:` value with the actual name your proxy stack uses if different.
+3. In the `frontend` service, uncomment the `- proxy_net` line under `networks:`.
+4. Restart AmmoLedger: `docker compose up -d`.
+5. In the reverse proxy, add a route pointing at `http://frontend:5173` (Docker DNS resolves `frontend` to the AmmoLedger frontend container, since both are now on `proxy_net`).
+
+The backend is **never** attached to `proxy_net`. The reverse proxy must always go through the frontend, never directly to `:8000`. This keeps the API surface behind a single entry point.
+
+#### Locking down outbound (advanced, not recommended)
+
+If a deployment policy forbids outbound traffic from the backend, you can change `ammoledger_net` to `internal: true`. This will:
+
+- Break Find Image (image search button hidden when the feature can't reach the provider)
+- Skip the GitHub version check (in-app About page shows last cached value, "Check Now" button errors)
+- Skip community lookup sync (falls back to the bundled YAMLs shipped with the image)
+- Break Discord notifications and SMTP email if those are enabled
+
+Core ammo / firearm / range tracking continues to work entirely locally. This is a supported configuration, not a recommended one.
+
+### 12.6 Outbound Hosts
+
+The backend may reach the following external hosts depending on which optional features are enabled. **None are required for core operation** — all are tied to features that degrade gracefully when the network is unavailable.
+
+| Feature | Host | Configured by | Required for core? |
+|---------|------|---------------|--------------------|
+| Version check (stable builds) | `api.github.com` | Built-in | No — degrades to cached value |
+| Version check (dev builds) | `api.github.com` | Built-in | No |
+| Community lookup sync | `raw.githubusercontent.com` | Built-in | No — falls back to bundled YAMLs |
+| Find Image (Products) | `api.search.brave.com` | `image_search.enabled` + `api_key` | No — button hidden when disabled |
+| Discord notifications | `discord.com` (webhook URL) | `notifications.discord.enabled` | No |
+| Email notifications | User's SMTP server | `smtp.enabled` + `smtp.host` | No |
+
+If your firewall enforces an outbound allowlist, allow the hosts for the features you actually use. Features whose hosts are not allowlisted fail closed: log a warning, leave related UI hidden or disabled, never block core operation.
+
+A future release may surface "blocked outbound" as an explicit error in the UI rather than a generic toast. For now, when an optional feature fails to reach its host, the backend logs the underlying httpx error at WARNING level.
 
 ---
 

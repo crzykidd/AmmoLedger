@@ -1,3 +1,18 @@
+# AmmoLedger — production compose
+#
+# By default this stack runs both services on a private bridge network
+# (`ammoledger_net`) with the frontend bound to 127.0.0.1:5173 on the host.
+# Put a reverse proxy (Nginx Proxy Manager, Traefik, Caddy, Cloudflare
+# Tunnel, etc.) in front of it for external access — see PRD §12.
+#
+# To attach the frontend to an externally-managed reverse-proxy network so
+# your proxy stack can reach it by container name, see the commented
+# `proxy_net` lines below and PRD §12.5.
+#
+# Outbound hosts the backend may need to reach (all optional features —
+# see PRD §12.6): api.github.com, raw.githubusercontent.com,
+# api.search.brave.com, discord.com, your SMTP server.
+
 services:
   backend:
     image: ghcr.io/crzykidd/ammoledger-backend:latest
@@ -10,6 +25,8 @@ services:
       - BACKUP_PATH=/data/backups
       - UPLOADS_PATH=/data/uploads
       - PYTHONUNBUFFERED=1
+    networks:
+      - ammoledger_net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -21,9 +38,14 @@ services:
   frontend:
     image: ghcr.io/crzykidd/ammoledger-frontend:latest
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     environment:
       - AL_BACKEND_URL=http://backend:8000
+    networks:
+      - ammoledger_net
+      # Uncomment the next line to attach the frontend to an externally-
+      # managed reverse-proxy network (see PRD §12.5):
+      # - proxy_net
     depends_on:
       backend:
         condition: service_healthy
@@ -32,3 +54,18 @@ services:
 volumes:
   ammoledger_data:
     driver: local
+
+networks:
+  ammoledger_net:
+    driver: bridge
+    # Intentionally NOT internal — the backend needs outbound for optional
+    # features (Find Image, version check, community sync, notifications).
+    # See PRD §12.6 for the full outbound host list.
+
+  # Uncomment the block below if your reverse-proxy stack publishes a
+  # shared network you want the frontend to attach to. Replace the `name:`
+  # with whatever your proxy stack actually named the network.
+  #
+  # proxy_net:
+  #   external: true
+  #   name: proxy_net
