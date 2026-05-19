@@ -19,6 +19,8 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.4] — 2026-05-18
+
 ### Added
 
 - **Products: Find Image Online.** Edit a product and click "Find Image Online" in the image area to search the web for a product photo using the product's name. Pick from a 5×2 grid of results, crop to square (or skip), and save. Requires admin to configure a Brave Search API key in `config.yaml` (`image_search.api_key`) or via `AL_IMAGE_SEARCH_API_KEY`; the button is hidden when not configured.
@@ -30,7 +32,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Documentation
 
-- **PRD restructure: Licenses and Legal Owners feature areas committed as DRAFT sub-documents.** Two new feature areas designed and documented under `docs/prd/`: Legal Owners (trusts, LLCs, recurring filings) and Licenses (carry permits, NFA tax stamps, reciprocity, coverage view). Implementation is not yet scheduled to any release; this commit is design only. `docs/PRD.md` revision history advanced to 3.40, §3.3 Ownership Model and §5.2 Permission Matrix updated, and §17 Index of Feature Documents extended.
+- **Design-only PRD additions: Licenses and Legal Owners.** Two new feature areas were designed and documented under `docs/prd/` (carry permits / NFA tax stamps / reciprocity / coverage view, and trusts / LLCs / recurring filings). **Not yet implemented** — no UI, no API, no database schema. Implementation is not scheduled to any release; this is design groundwork only. See `docs/prd/licenses.md` and `docs/prd/legal-owners.md` for the full specs.
 
 ## [0.3.3] — 2026-05-18
 
