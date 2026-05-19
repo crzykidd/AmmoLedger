@@ -38,6 +38,10 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **Design-only PRD additions: Licenses and Legal Owners.** Two new feature areas were designed and documented under `docs/prd/` (carry permits / NFA tax stamps / reciprocity / coverage view, and trusts / LLCs / recurring filings). **Not yet implemented** — no UI, no API, no database schema. Implementation is not scheduled to any release; this is design groundwork only. See `docs/prd/licenses.md` and `docs/prd/legal-owners.md` for the full specs.
 
+### Security
+
+- **Resolved CodeQL path-traversal alerts in product image preview endpoints.** Preview tokens no longer flow into `Path()` construction. Instead, the matching on-disk file is discovered via `Path.iterdir()` — the Path objects we operate on originate from the OS's directory listing, not from user-supplied input. A regex pre-check (`^[A-Za-z0-9_-]{32}$`) still rejects obviously malformed tokens before touching the filesystem; the `.is_relative_to()` defense-in-depth check is retained. Behavior unchanged — malformed tokens still return 400, missing previews still return 404. Resolves 5 GitHub Advanced Security "Uncontrolled data used in path expression" alerts in `backend/routers/products.py`.
+
 ## [0.3.3] — 2026-05-18
 
 ### Fixed
