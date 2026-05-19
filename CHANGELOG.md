@@ -19,6 +19,10 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Security
+
+- **Tightened CodeQL path-traversal sanitizer in product image preview endpoints.** The preview token is now validated against a strict `^[A-Za-z0-9_-]{32}$` regex at the function boundary before being used in any `Path()` construction. The existing `.is_relative_to()` runtime check remains as defense-in-depth. Behavior unchanged — malformed tokens still return 400, missing previews still return 404. Resolves 5 GitHub Advanced Security "Uncontrolled data used in path expression" alerts in `backend/routers/products.py`.
+
 ## [0.3.4] — 2026-05-18
 
 ### Added

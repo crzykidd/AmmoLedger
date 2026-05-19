@@ -1,3 +1,4 @@
+import re
 import secrets
 from collections import Counter
 from datetime import datetime
@@ -569,6 +570,34 @@ def _cleanup_stale_previews(preview_dir: Path) -> None:
         logger.debug("preview cleanup: %s", exc)
 
 
+# Preview tokens are produced by secrets.token_urlsafe(24), which yields a
+# 32-character string from the alphabet [A-Za-z0-9_-]. Validating against
+# this exact pattern at the function boundary lets CodeQL see the value is
+# sanitized before it flows into Path() construction. The is_relative_to()
+# check downstream remains as defense-in-depth.
+_PREVIEW_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{32}$")
+
+
+def _safe_preview_paths(token: str) -> tuple[Path, Path]:
+    """
+    Validate a preview token and return its (.bin, .meta) paths under
+    _PREVIEW_DIR. Raises HTTPException(400) if the token is malformed.
+
+    The regex match guarantees the returned filenames are composed only of
+    URL-safe characters with a fixed length — no path separators, no
+    parent-directory traversal, no shell metacharacters. CodeQL recognizes
+    the regex match as a sanitizer for the tainted input.
+    """
+    match = _PREVIEW_TOKEN_RE.fullmatch(token)
+    if match is None:
+        raise HTTPException(status_code=400, detail="Invalid token")
+    safe_token = match.group(0)
+    return (
+        _PREVIEW_DIR / f"{safe_token}.bin",
+        _PREVIEW_DIR / f"{safe_token}.meta",
+    )
+
+
 @router.get("/{product_id}/image/search")
 async def search_product_images(
     product_id: int,
@@ -684,17 +713,16 @@ def get_preview_image(
         raise HTTPException(status_code=404, detail="Product not found")
     _check_write(product, user)
 
-    if not all(c.isalnum() or c in "-_" for c in token):
-        raise HTTPException(status_code=400, detail="Invalid token")
+    # Validate token via regex (sanitizes before path construction); fall
+    # back to defense-in-depth is_relative_to check after resolve().
+    path, meta_path = _safe_preview_paths(token)
 
-    path = _PREVIEW_DIR / f"{token}.bin"
     try:
         if not path.exists() or not path.resolve().is_relative_to(_PREVIEW_DIR.resolve()):
             raise HTTPException(status_code=404, detail="Preview not found or expired")
     except ValueError:
         raise HTTPException(status_code=404, detail="Preview not found or expired")
 
-    meta_path = _PREVIEW_DIR / f"{token}.meta"
     fmt = "JPEG"
     if meta_path.exists():
         try:
@@ -717,10 +745,16 @@ def commit_searched_image(
         raise HTTPException(status_code=404, detail="Product not found")
     _check_write(product, user)
 
-    if not all(c.isalnum() or c in "-_" for c in body.preview_token):
-        raise HTTPException(status_code=400, detail="Invalid preview token")
+    # Validate token via regex (sanitizes before path construction); fall
+    # back to defense-in-depth is_relative_to check after resolve(). The
+    # 400 message wording matches the original ("preview token" specific).
+    try:
+        temp_path, meta_path = _safe_preview_paths(body.preview_token)
+    except HTTPException as exc:
+        if exc.status_code == 400:
+            raise HTTPException(status_code=400, detail="Invalid preview token")
+        raise
 
-    temp_path = _PREVIEW_DIR / f"{body.preview_token}.bin"
     try:
         if not temp_path.exists() or not temp_path.resolve().is_relative_to(_PREVIEW_DIR.resolve()):
             raise HTTPException(status_code=404, detail="Preview not found or expired")
@@ -775,7 +809,7 @@ def commit_searched_image(
 
     try:
         temp_path.unlink(missing_ok=True)
-        (_PREVIEW_DIR / f"{body.preview_token}.meta").unlink(missing_ok=True)
+        meta_path.unlink(missing_ok=True)
     except OSError:
         pass
 
