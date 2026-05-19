@@ -77,6 +77,7 @@
 | 3.36 | 2026-05-11 | At Range — quick session attribution. The `QuickExpendPopover` gains a three-option session radio (None / New / Last) and a conditional firearm picker (caliber-matching firearms listed first, non-blocking amber mismatch warning). New posts to `POST /range-sessions` with a single-line payload; Last posts to `POST /range-sessions/{id}/lines`; both route through the existing `_apply_session_line` atomicity so ammo deduction and firearm `rounds_lifetime` / `rounds_since_clean` stay consistent with the Log Range Day dialog and CSV import. None preserves today's `POST /ammo/{id}/expend` path. Session and firearm selections persist in `sessionStorage` (`at_range_attribution`, `at_range_last_firearm_id`, `at_range_last_session_id`, `at_range_last_session_date`); session linkage clears on date rollover, firearm preference persists across days. The Ammo page `ExpendDialog` is intentionally unchanged. Frontend-only; zero backend changes. §10.2 updated. |
 | 3.37 | 2026-05-17 | Firearm nickname as primary label. Frontend-only change: a new `firearmLabel` / `firearmLabelParts` / `firearmLabelForToast` utility at `frontend/src/lib/firearm-label.ts` provides a single canonical label builder. When a firearm has a `nickname` set, it is used as the headline (e.g. "Bedside Carry — SIG Sauer P365"); without a nickname the label falls back to "Manufacturer Model" — existing behavior. Applied to all picker dropdowns (LogRangeDayDialog, QuickExpendPopover), list and card views (FirearmsListPage — name sort updated to sort by nickname primary), session grouping and cell labels (RangeSessionDetailPage, RangePage), the dashboard Firearms Needing Service widget, delete and log-event confirmation dialogs, and `document.title` on FirearmDetailPage. §10.1 display subsection updated to reflect nickname-first rendering. |
 | 3.38 | 2026-05-17 | v0.3.0 release: firearms registry, range sessions, firearm maintenance log, photos, CSV import/export, LookupCombobox inline create, backup zip integration, At Range session attribution. CHANGELOG `[Unreleased]` stamped as `[0.3.0]`. |
+| 3.39 | 2026-05-18 | Established sub-document structure under `docs/prd/`. Added `prd/tagging.md` covering physical tokens, label templates, NFC binding, scan modes, and the networked-scanner architecture. Added `hardware/` folder for build references and ESPHome configurations. Added rows to §3 Ownership Model and §5.2 Permission Matrix for the new entities. Added §17 Index of Feature Documents. |
 
 ---
 
@@ -98,6 +99,7 @@
 14. [Release Process](#14-release-process)
 15. [Non-Functional Requirements](#15-non-functional-requirements)
 16. [Open Questions](#16-open-questions)
+17. [Index of Feature Documents](#17-index-of-feature-documents)
 
 ---
 
@@ -199,6 +201,7 @@ This produces four meaningful states:
 | Accessory (v3.0) | creator | true/false | Inherits visibility from attached firearm |
 | Expenditure log | logged_by user | always visible to Admin | Full audit trail regardless of box ownership |
 | Range session (v2.0) | creator | configurable | Who shot, what gun, what ammo, how many rounds |
+| `physical_tokens` | Inherited from target entity at mint time | N/A (visibility computed from target) | Retired when target is hard-deleted |
 
 ### 3.4 Audit Trail
 
@@ -363,6 +366,19 @@ security:
 | CSV export | ✓ | ✓ | ✓ | Exports currently visible inventory |
 | Write threshold overrides | ✓ | ✗ | ✗ | Admin only; global default, per-caliber, per-location |
 | Manage products | ✓ | ✓ | ✗ | Create / edit own products; admins see all |
+
+**Physical Tokens & Tagging** (see [`prd/tagging.md`](./prd/tagging.md) for full feature spec)
+
+| Permission | Admin | Member | Read-Only | Notes |
+|------------|:-----:|:------:|:---------:|-------|
+| Mint token (own or shared target) | ✓ | ✓ | ✗ | |
+| Mint token (others' private target) | ✗ | ✗ | ✗ | |
+| Bind NFC tag | ✓ | ✓ | ✗ | Same permissions as mint |
+| Retire / re-bind own or shared token | ✓ | ✓ | ✗ | |
+| Retire / re-bind any token | ✓ | ✗ | ✗ | Admin only |
+| Scan a token (resolve via `/t/{token}`) | ✓ | ✓ | ✓ | Results respect target visibility; Read-Only sees read-only landing |
+| Design label templates | ✓ | ✓ | ✗ | |
+| Manage own scan mode | ✓ | ✓ | ✓ | Read-Only limited to read-only modes |
 
 ### 5.3 Enforcement
 
@@ -2843,6 +2859,24 @@ docker logs ammologger-backend-1 --follow
 | 2 | Should backup JSON files be optionally encrypted with a passphrase before download? | Yes, add as an optional config flag — useful if backups are stored on a shared NAS or cloud drive |
 | 3 | SMTP for scheduled reports (v2.0) — optional or required? | Optional; app works fully without it; configure in `config.yaml` |
 | 4 | Should the CSV import template be versioned so future releases can detect and handle older import files? | Yes — add a `ammoledger_version` header row to the template |
+
+---
+
+## 17. Index of Feature Documents
+
+As AmmoLedger's feature surface has grown, individual feature areas are being progressively split into focused sub-documents under `docs/prd/`. This master PRD retains cross-cutting concerns (ownership model, RBAC, permission matrix, error format, technical stack) and provides an index to feature-specific documents.
+
+### Active sub-documents
+
+- [`prd/tagging.md`](./prd/tagging.md) — Physical tokens (QR codes and NFC tags), label template designer, tag programming workflows, scan modes (Range Day, Intake, Cleanup, Audit), and forward-compatible architecture for networked scanners.
+
+### Hardware reference
+
+Hardware build instructions, ESPHome configurations, and operator notes for physical devices (USB NFC readers, NFC tags, ESP32-based networked scanners) live in [`hardware/`](./hardware/). This is operator documentation, not product spec.
+
+### Sections still in this master document
+
+All feature areas not yet split into sub-documents continue to live in this master PRD. Future restructuring may migrate sections such as Ammo / Firearms / Range Sessions / Reports into sub-documents under `prd/`. That work is deliberately deferred and tracked separately.
 
 ---
 
