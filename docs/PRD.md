@@ -78,6 +78,7 @@
 | 3.37 | 2026-05-17 | Firearm nickname as primary label. Frontend-only change: a new `firearmLabel` / `firearmLabelParts` / `firearmLabelForToast` utility at `frontend/src/lib/firearm-label.ts` provides a single canonical label builder. When a firearm has a `nickname` set, it is used as the headline (e.g. "Bedside Carry — SIG Sauer P365"); without a nickname the label falls back to "Manufacturer Model" — existing behavior. Applied to all picker dropdowns (LogRangeDayDialog, QuickExpendPopover), list and card views (FirearmsListPage — name sort updated to sort by nickname primary), session grouping and cell labels (RangeSessionDetailPage, RangePage), the dashboard Firearms Needing Service widget, delete and log-event confirmation dialogs, and `document.title` on FirearmDetailPage. §10.1 display subsection updated to reflect nickname-first rendering. |
 | 3.38 | 2026-05-17 | v0.3.0 release: firearms registry, range sessions, firearm maintenance log, photos, CSV import/export, LookupCombobox inline create, backup zip integration, At Range session attribution. CHANGELOG `[Unreleased]` stamped as `[0.3.0]`. |
 | 3.39 | 2026-05-18 | Established sub-document structure under `docs/prd/`. Added `prd/tagging.md` covering physical tokens, label templates, NFC binding, scan modes, and the networked-scanner architecture. Added `hardware/` folder for build references and ESPHome configurations. Added rows to §3 Ownership Model and §5.2 Permission Matrix for the new entities. Added §17 Index of Feature Documents. |
+| 3.40 | 2026-05-18 | Products "Find Image" feature — search-based product photo selection via Brave Image Search API; preview-then-commit flow with optional square crop; new `image_search` config block with ENV overrides (`AL_IMAGE_SEARCH_ENABLED`, `AL_IMAGE_SEARCH_PROVIDER`, `AL_IMAGE_SEARCH_API_KEY`); new endpoints `GET /products/{id}/image/search`, `POST /products/{id}/image/preview`, `GET /products/{id}/image/preview/{token}`, `POST /products/{id}/image/from-search`. §6.14, §9.13, §15.1 updated. |
 
 ---
 
@@ -923,6 +924,12 @@ ON products(caliber_id, manufacturer_id, COALESCE(product_name, ''), COALESCE(gr
 #### Image storage
 
 Product images are stored at `/data/uploads/products/{id}.{ext}`. The extension is determined at upload time from the file's content type. Served by `GET /products/{id}/image`. Maximum size: 5 MB. Accepted types: jpg, jpeg, png, webp.
+
+#### Image search (v0.3.x)
+
+Product images can also be sourced from the web via Brave Image Search. The Edit Product drawer surfaces a **Find Image Online** button alongside the existing upload affordance. Pre-fills the search query from the product's auto-generated name (e.g. "American Eagle .45 ACP 230gr FMJ"), shows 10 results per page with previous/next pagination, and supports an optional square-aspect crop step before commit. Crop is applied server-side via Pillow, then the image is normalized to JPEG q85 with longest side ≤ 2048 px (same pipeline as manual upload). Requires an admin to configure `image_search.api_key` in `config.yaml` (or the `AL_IMAGE_SEARCH_API_KEY` env override) and set `image_search.enabled: true`. The Find Image button is hidden in the UI when the feature is not configured.
+
+Preview-then-commit flow: `GET /products/{id}/image/search` returns up to 10 thumbnail URLs; `POST /products/{id}/image/preview` fetches and caches the chosen full-size image to `/tmp/ammoledger_image_previews/{token}.bin` (TTL 15 min, 10 MB cap); `POST /products/{id}/image/from-search` opens the cached file, applies optional crop, normalizes via Pillow, saves to `/data/uploads/products/{id}.jpg`, updates `image_path`, and deletes the temp file. Token format: `secrets.token_urlsafe(24)` (URL-safe alphanumeric characters plus `-` and `_`).
 
 #### API
 
@@ -2034,7 +2041,7 @@ Single source of truth for the entire app. Docker image built with this version 
 
 Fields: Name (auto-built, read-only), Caliber (required), Manufacturer (required), Product Name (free text), Gr/Oz + Unit toggle (GR/OZ), Type, Category, Condition, Default Cost per Round, UPC, Shared toggle, Notes, Image upload area
 
-Image upload area: click to browse or drag-and-drop; shows preview with remove button; accepts jpg/jpeg/png/webp ≤ 5 MB; uploaded after save via `POST /products/{id}/image`
+Image upload area: click to browse or drag-and-drop; shows preview with remove button; accepts jpg/jpeg/png/webp ≤ 5 MB; uploaded after save via `POST /products/{id}/image`. In addition, when the image search feature is configured (admin sets `image_search.enabled` and `image_search.api_key`), the image area shows a **Find Image Online** button. Clicking it opens the `FindImageDialog` modal pre-filled with the product's auto-generated name as the search query. Results render as a 5×2 thumbnail grid with Previous/Next pagination. Selecting a thumbnail fetches a full-size preview and opens a square-aspect crop pane (skip with "Use full image"). The cropped or full image runs through the same Pillow normalize pipeline as manual upload before saving. Find Image requires an existing product ID — for newly-added products, the user saves first, then re-opens the product to search. For new products when image search would otherwise be available, the upload area shows a hint: "Save the product first to search for an image online."
 
 #### Add Box Integration
 
@@ -2681,6 +2688,9 @@ If `AL_SESSION_SECRET` is set, `config.yaml` is **not required**. The app loads 
 | `AL_BACKUP_SCHEDULE` | `backup.schedule` | string | Backup time in HH:MM format |
 | `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | integer | Days to keep old backup files |
 | `AL_BACKUP_PATH` | `backup.path` | string | Backup storage directory path |
+| `AL_IMAGE_SEARCH_ENABLED` | `image_search.enabled` | boolean | Enable the Products "Find Image" feature |
+| `AL_IMAGE_SEARCH_PROVIDER` | `image_search.provider` | string | Image search provider — currently only `"brave"` |
+| `AL_IMAGE_SEARCH_API_KEY` | `image_search.api_key` | string | Brave Search API subscription token |
 
 Boolean ENV values accept `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off` (case-insensitive).
 

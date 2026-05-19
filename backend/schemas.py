@@ -877,6 +877,22 @@ class AutoGenerateResponse(BaseModel):
     boxes_unlinked: int
 
 
+class ImagePreviewRequest(BaseModel):
+    source_url: str
+
+
+class ImageCropBox(BaseModel):
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+class ImageFromSearchRequest(BaseModel):
+    preview_token: str
+    crop: Optional[ImageCropBox] = None
+
+
 # ---------------------------------------------------------------------------
 # Ammo box schemas
 # ---------------------------------------------------------------------------

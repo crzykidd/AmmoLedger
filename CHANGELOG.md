@@ -19,6 +19,10 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Added
+
+- **Products: Find Image Online.** Edit a product and click "Find Image Online" in the image area to search the web for a product photo using the product's name. Pick from a 5×2 grid of results, crop to square (or skip), and save. Requires admin to configure a Brave Search API key in `config.yaml` (`image_search.api_key`) or via `AL_IMAGE_SEARCH_API_KEY`; the button is hidden when not configured.
+
 ## [0.3.3] — 2026-05-18
 
 ### Fixed

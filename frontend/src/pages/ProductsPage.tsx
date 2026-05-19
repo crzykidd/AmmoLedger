@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Box,
+  Globe,
   Grid,
   ImageOff,
   List,
@@ -56,6 +57,8 @@ import {
   updateProduct,
   uploadProductImage,
 } from '@/api/products'
+import { getSystemVersion } from '@/api/system'
+import { FindImageDialog } from '@/components/products/FindImageDialog'
 import {
   createAmmoConditionEntry,
   createAmmoTypeEntry,
@@ -208,6 +211,9 @@ interface ImageUploadAreaProps {
   onFileSelected: (file: File) => void
   onRemove: () => void
   pending: boolean
+  onFindImage?: () => void
+  findImageEnabled?: boolean
+  isNewProduct?: boolean
 }
 
 function ImageUploadArea({
@@ -216,6 +222,9 @@ function ImageUploadArea({
   onFileSelected,
   onRemove,
   pending,
+  onFindImage,
+  findImageEnabled = false,
+  isNewProduct = false,
 }: ImageUploadAreaProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -239,36 +248,72 @@ function ImageUploadArea({
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Image</label>
       {displayUrl ? (
-        <div className="relative w-full aspect-square max-h-48 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-          <SafeImage src={displayUrl} alt="Product" className="w-full h-full object-contain bg-gray-50 dark:bg-gray-800" />
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={pending}
-            className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      ) : (
-        <div
-          className={cn(
-            'flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed py-8 cursor-pointer transition-colors',
-            dragging
-              ? 'border-gold bg-gold/5'
-              : 'border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500',
+        <>
+          <div className="relative w-full aspect-square max-h-48 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            <SafeImage src={displayUrl} alt="Product" className="w-full h-full object-contain bg-gray-50 dark:bg-gray-800" />
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={pending}
+              className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          {findImageEnabled && onFindImage && (
+            <button
+              type="button"
+              onClick={onFindImage}
+              className="flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-gold transition-colors py-1"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              Find different image online
+            </button>
           )}
-          onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={handleDrop}
-        >
-          <Upload className="w-6 h-6 text-gray-400" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Drag & drop or <span className="text-gold font-medium">click to upload</span>
-          </p>
-          <p className="text-xs text-gray-400">JPG, PNG, or WebP — max 5 MB</p>
-        </div>
+        </>
+      ) : (
+        <>
+          <div
+            className={cn(
+              'flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed py-8 cursor-pointer transition-colors',
+              dragging
+                ? 'border-gold bg-gold/5'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500',
+            )}
+            onClick={() => fileRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+          >
+            <Upload className="w-6 h-6 text-gray-400" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Drag & drop or <span className="text-gold font-medium">click to upload</span>
+            </p>
+            <p className="text-xs text-gray-400">JPG, PNG, or WebP — max 5 MB</p>
+          </div>
+          {findImageEnabled && onFindImage && (
+            <>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                or
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+              </div>
+              <button
+                type="button"
+                onClick={onFindImage}
+                className="flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:border-gold hover:text-gold transition-colors"
+              >
+                <Globe className="w-4 h-4" />
+                Find Image Online
+              </button>
+            </>
+          )}
+          {!findImageEnabled && isNewProduct && (
+            <p className="text-xs text-gray-400 text-center">
+              Save the product first to search for an image online.
+            </p>
+          )}
+        </>
       )}
       <input
         ref={fileRef}
@@ -369,6 +414,15 @@ function ProductFormSheet({
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const canCreateLookups = user?.role !== 'read_only'
+
+  const { data: systemVersion } = useQuery({
+    queryKey: ['system-version'],
+    queryFn: getSystemVersion,
+    staleTime: 5 * 60 * 1000,
+  })
+  const imageSearchEnabled = systemVersion?.image_search_enabled ?? false
+
+  const [findImageOpen, setFindImageOpen] = useState(false)
 
   const createCaliberInline = async (name: string) => {
     const created = await createCalibersEntry(name)
@@ -600,6 +654,17 @@ function ProductFormSheet({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+    {editProduct && (
+      <FindImageDialog
+        open={findImageOpen}
+        onOpenChange={setFindImageOpen}
+        productId={editProduct.id}
+        defaultQuery={editProduct.name}
+        onImageSaved={() => {
+          void queryClient.invalidateQueries({ queryKey: ['products'] })
+        }}
+      />
+    )}
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent title={editProduct ? 'Edit Product' : 'Add Product'} description="">
         <SheetHeader>
@@ -613,6 +678,9 @@ function ProductFormSheet({
             onFileSelected={handleFileSelected}
             onRemove={handleRemoveImage}
             pending={saving}
+            findImageEnabled={imageSearchEnabled && !!editProduct}
+            onFindImage={() => setFindImageOpen(true)}
+            isNewProduct={imageSearchEnabled && !editProduct}
           />
 
           {previewName && (

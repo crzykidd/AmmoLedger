@@ -120,6 +120,14 @@ smtp:
   password: ""
   from_address: ""
 
+# Image search — for the Products "Find Image" feature
+image_search:
+  enabled: false            # Must be true AND api_key set for the feature to surface
+  provider: brave           # Currently only "brave" is implemented
+  api_key: ""               # Get one at https://api.search.brave.com (free tier: 2k queries/month)
+  results_per_page: 10      # Number of thumbnails per page (max 100; default 10 — fits nicely in a 5×2 grid)
+  safe_search: strict       # strict | moderate | off — passed through to Brave
+
 notifications:
   discord:
     # Set enabled to true and supply a webhook URL to post alerts to Discord.
