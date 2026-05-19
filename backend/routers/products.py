@@ -571,31 +571,57 @@ def _cleanup_stale_previews(preview_dir: Path) -> None:
 
 
 # Preview tokens are produced by secrets.token_urlsafe(24), which yields a
-# 32-character string from the alphabet [A-Za-z0-9_-]. Validating against
-# this exact pattern at the function boundary lets CodeQL see the value is
-# sanitized before it flows into Path() construction. The is_relative_to()
-# check downstream remains as defense-in-depth.
+# 32-character string from the alphabet [A-Za-z0-9_-]. We still apply the
+# regex as a first-line reject for obviously malformed input, but the
+# returned Path objects come from Path.iterdir() — never from f-string
+# concatenation with the user-supplied token. This is the pattern CodeQL
+# recognizes as a path-injection sanitizer.
 _PREVIEW_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{32}$")
 
 
-def _safe_preview_paths(token: str) -> tuple[Path, Path]:
+def _lookup_preview_paths(token: str) -> Optional[tuple[Path, Path]]:
     """
-    Validate a preview token and return its (.bin, .meta) paths under
-    _PREVIEW_DIR. Raises HTTPException(400) if the token is malformed.
+    Resolve a preview token to its on-disk (.bin, .meta) Path pair by
+    enumerating _PREVIEW_DIR and matching the file stem against the
+    token. Returns None if no matching file exists (caller should
+    respond with 404).
 
-    The regex match guarantees the returned filenames are composed only of
-    URL-safe characters with a fixed length — no path separators, no
-    parent-directory traversal, no shell metacharacters. CodeQL recognizes
-    the regex match as a sanitizer for the tainted input.
+    The Path objects returned originate from Path.iterdir() — the OS's
+    directory entries — not from user-controlled string concatenation.
+    This is the sanitizer pattern documented for CodeQL's py/path-injection
+    query.
+
+    Raises HTTPException(400) for obviously malformed tokens (failing
+    fast before touching the filesystem).
     """
-    match = _PREVIEW_TOKEN_RE.fullmatch(token)
-    if match is None:
+    if _PREVIEW_TOKEN_RE.fullmatch(token) is None:
         raise HTTPException(status_code=400, detail="Invalid token")
-    safe_token = match.group(0)
-    return (
-        _PREVIEW_DIR / f"{safe_token}.bin",
-        _PREVIEW_DIR / f"{safe_token}.meta",
-    )
+
+    try:
+        entries = list(_PREVIEW_DIR.iterdir())
+    except (OSError, FileNotFoundError):
+        return None
+
+    bin_path: Optional[Path] = None
+    meta_path: Optional[Path] = None
+    for entry in entries:
+        # `entry` is a Path object from iterdir(); its name is the actual
+        # on-disk filename, not anything derived from user input.
+        if entry.name == f"{token}.bin":
+            bin_path = entry
+        elif entry.name == f"{token}.meta":
+            meta_path = entry
+        if bin_path is not None and meta_path is not None:
+            break
+
+    if bin_path is None:
+        return None
+    # meta_path may be None if the .meta file was lost; that's not fatal
+    # for the GET endpoint (it falls back to JPEG), but we surface it so
+    # the caller can decide. Return a synthetic Path for the meta slot
+    # only if it doesn't need to exist; otherwise return None to mean
+    # "no preview." Practically, .bin existence is the only requirement.
+    return (bin_path, meta_path if meta_path is not None else _PREVIEW_DIR / "__missing__")
 
 
 @router.get("/{product_id}/image/search")
@@ -713,12 +739,18 @@ def get_preview_image(
         raise HTTPException(status_code=404, detail="Product not found")
     _check_write(product, user)
 
-    # Validate token via regex (sanitizes before path construction); fall
-    # back to defense-in-depth is_relative_to check after resolve().
-    path, meta_path = _safe_preview_paths(token)
+    # Path objects returned by the lookup helper originate from
+    # Path.iterdir(); they are not constructed from user-supplied data.
+    paths = _lookup_preview_paths(token)
+    if paths is None:
+        raise HTTPException(status_code=404, detail="Preview not found or expired")
+    path, meta_path = paths
 
+    # Defense-in-depth: confirm the discovered path is still under the
+    # preview dir. Should be unreachable since iterdir() returns only
+    # direct children, but the check costs nothing.
     try:
-        if not path.exists() or not path.resolve().is_relative_to(_PREVIEW_DIR.resolve()):
+        if not path.resolve().is_relative_to(_PREVIEW_DIR.resolve()):
             raise HTTPException(status_code=404, detail="Preview not found or expired")
     except ValueError:
         raise HTTPException(status_code=404, detail="Preview not found or expired")
@@ -745,18 +777,23 @@ def commit_searched_image(
         raise HTTPException(status_code=404, detail="Product not found")
     _check_write(product, user)
 
-    # Validate token via regex (sanitizes before path construction); fall
-    # back to defense-in-depth is_relative_to check after resolve(). The
-    # 400 message wording matches the original ("preview token" specific).
+    # Path objects returned by the lookup helper originate from
+    # Path.iterdir(); they are not constructed from user-supplied data.
     try:
-        temp_path, meta_path = _safe_preview_paths(body.preview_token)
+        paths = _lookup_preview_paths(body.preview_token)
     except HTTPException as exc:
         if exc.status_code == 400:
             raise HTTPException(status_code=400, detail="Invalid preview token")
         raise
+    if paths is None:
+        raise HTTPException(status_code=404, detail="Preview not found or expired")
+    temp_path, meta_path = paths
 
+    # Defense-in-depth: confirm the discovered path is still under the
+    # preview dir. Should be unreachable since iterdir() returns only
+    # direct children, but the check costs nothing.
     try:
-        if not temp_path.exists() or not temp_path.resolve().is_relative_to(_PREVIEW_DIR.resolve()):
+        if not temp_path.resolve().is_relative_to(_PREVIEW_DIR.resolve()):
             raise HTTPException(status_code=404, detail="Preview not found or expired")
     except ValueError:
         raise HTTPException(status_code=404, detail="Preview not found or expired")

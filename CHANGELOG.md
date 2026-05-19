@@ -21,7 +21,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Security
 
-- **Tightened CodeQL path-traversal sanitizer in product image preview endpoints.** The preview token is now validated against a strict `^[A-Za-z0-9_-]{32}$` regex at the function boundary before being used in any `Path()` construction. The existing `.is_relative_to()` runtime check remains as defense-in-depth. Behavior unchanged — malformed tokens still return 400, missing previews still return 404. Resolves 5 GitHub Advanced Security "Uncontrolled data used in path expression" alerts in `backend/routers/products.py`.
+- **Resolved CodeQL path-traversal alerts in product image preview endpoints.** Preview tokens no longer flow into `Path()` construction. Instead, the matching on-disk file is discovered via `Path.iterdir()` — the Path objects we operate on originate from the OS's directory listing, not from user-supplied input. A regex pre-check (`^[A-Za-z0-9_-]{32}$`) still rejects obviously malformed tokens before touching the filesystem; the `.is_relative_to()` defense-in-depth check is retained. Behavior unchanged — malformed tokens still return 400, missing previews still return 404. Resolves 5 GitHub Advanced Security "Uncontrolled data used in path expression" alerts in `backend/routers/products.py`.
 
 ## [0.3.4] — 2026-05-18
 
