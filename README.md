@@ -6,7 +6,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.3.3-gold)
+![Version](https://img.shields.io/badge/version-0.3.4-gold)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![PRD](https://img.shields.io/badge/docs-PRD-navy)
 
@@ -14,19 +14,26 @@
 
 # AmmoLedger
 
-> ### 🆕 New in v0.3.0–v0.3.3 — Firearms & Range Sessions
+> ### 🆕 New in v0.3.0–v0.3.4 — Firearms, Range Sessions & Find Image
 >
-> Track your firearms and range trips alongside your ammo. The new **Firearms** page registers each gun with manufacturer, model, caliber, serial, compliance tags, and personal tags. The new **Range** page logs multi-line range days that deduct rounds from ammo boxes and bump per-firearm round counters atomically — and reverse cleanly if you edit or delete a session. **Firearm maintenance log** with cleaning, service, and note events drives a green/amber/red cleaning-status indicator on every firearm and a dedicated dashboard widget for firearms needing service.
+> Track your firearms and range trips alongside your ammo. The **Firearms** page registers each gun with manufacturer, model, caliber, serial, compliance tags, and personal tags. The **Range** page logs multi-line range days that deduct rounds from ammo boxes and bump per-firearm round counters atomically — and reverse cleanly if you edit or delete a session. The **firearm maintenance log** with cleaning, service, and note events drives a green/amber/red cleaning-status indicator on every firearm and a dedicated dashboard widget for firearms needing service.
 >
 > **Tip:** firearms and range sessions follow the same ownership model as ammo boxes — members own private records by default; admins can mark items shared so everyone on the install can see them. Read-only users see shared items only.
 >
-> **v0.3.1:** fixed a firearm detail page crash on first load (React hook order violation). **v0.3.2:** fixed landscape photo cropping in the firearms list view thumbnail cell. **v0.3.3:** fixed range session delete 500 error, firearm clean-state drift on session reversal, date timezone shift in non-UTC installs, and backend validation errors displaying as `[object Object]`.
+> **v0.3.1:** fixed a firearm detail page crash on first load (React hook order violation). **v0.3.2:** fixed landscape photo cropping in the firearms list view thumbnail cell. **v0.3.3:** fixed range session delete 500 error, firearm clean-state drift on session reversal, date timezone shift in non-UTC installs, and backend validation errors displaying as `[object Object]`. **v0.3.4:** Products page gains **Find Image Online** — search the web for a product photo using the product's name, pick from a 5×2 grid, optionally crop square, save. Plus production compose hardening: backend now runs on a private bridge network with no published ports, frontend bound to localhost-only so a reverse proxy is the only entry point.
 
 A self-hosted web application to track your ammunition inventory, firearms, and range sessions. Keep your counts accurate on and off the range.
 
-> 🎯 **AmmoLedger v0.3.0 — Firearms tracking, range session logging, and firearm maintenance log all ship in this release.** Self-hosted, stable, ready for daily use. **Accessories management** is next on the roadmap — see [What's Coming Next](#whats-coming-next).
+> 🎯 **AmmoLedger v0.3.4 — Find product photos online, network-hardened production compose.** Self-hosted, stable, ready for daily use. **Accessories management** is next on the roadmap — see [What's Coming Next](#whats-coming-next).
 
-## What's New in v0.3.0
+## What's New
+
+### v0.3.4 (2026-05-18)
+
+- **Find Image Online for Products.** Edit a product, click **Find Image Online** in the image area, and search the web for a product photo using the product's name. Pick from a 5×2 grid of results, optionally crop to square (or skip), and save. Requires an admin to add a Brave Search API key to `config.yaml` (free tier covers 2k queries/month) or via the `AL_IMAGE_SEARCH_API_KEY` env override. The button is hidden when the feature isn't configured.
+- **Production compose network hardening.** Backend now runs on a private `ammoledger_net` bridge with no published ports — nothing on the host or LAN can reach it directly. Frontend bound to `127.0.0.1:5173` (was `:5173` on all interfaces) so a reverse proxy must be in front of it for any external access. Optional commented-out `proxy_net` attachment for users who run their reverse proxy in a separate compose stack. See PRD §12.5 / §12.6 for the full topology and the list of outbound hosts the backend may reach (all tied to optional features that degrade gracefully when blocked).
+
+### v0.3.0 — Firearms tracking, range session logging, and firearm maintenance log
 
 Highlights since v0.2.x:
 
@@ -176,6 +183,14 @@ docker pull ghcr.io/crzykidd/ammoledger-frontend:dev
 ```
 
 > For stable releases use the `:latest` tag. For development builds use the `:dev` tag. `:latest` advances on every merge to `main` and on every published release. `:dev` tracks the `dev` branch and may include work-in-progress changes.
+
+### Network topology
+
+By default the production compose file puts both services on a private bridge network and binds the frontend to `127.0.0.1:5173` only — nothing reachable from the LAN or internet without a reverse proxy in front of it. The backend has no published ports at all.
+
+If you run a separate reverse-proxy stack (Nginx Proxy Manager, Traefik, Caddy, Cloudflare Tunnel), uncomment the `proxy_net` lines in `docker-compose.yml` so your proxy can reach the AmmoLedger frontend by container name. See PRD §12.5 for the full pattern.
+
+The backend needs outbound internet access for optional features (Find Image, GitHub version check, community lookup sync, Discord / SMTP notifications). See PRD §12.6 for the host allowlist. None of these are required for core ammo / firearm / range tracking — the app runs entirely offline if you want it to.
 
 ### Upgrading
 

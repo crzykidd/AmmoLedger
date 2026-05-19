@@ -1,8 +1,11 @@
+import re
+import secrets
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func
@@ -20,8 +23,17 @@ from models import (
     Product,
     User,
 )
-from schemas import AutoGenerateResponse, ProductCreate, ProductRead, ProductUpdate, ProductUpdateResponse
+from schemas import (
+    AutoGenerateResponse,
+    ImageFromSearchRequest,
+    ImagePreviewRequest,
+    ProductCreate,
+    ProductRead,
+    ProductUpdate,
+    ProductUpdateResponse,
+)
 from utils.config import UPLOADS_PATH
+from utils.image_search import ImageSearchNotConfigured, get_provider
 from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
 
@@ -532,3 +544,311 @@ def get_product_image(
     }
     media_type = media_types.get(ext, "application/octet-stream")
     return FileResponse(str(path), media_type=media_type)
+
+
+# ---------------------------------------------------------------------------
+# Image search endpoints (Find Image Online feature)
+# ---------------------------------------------------------------------------
+
+_PREVIEW_DIR = Path("/tmp/ammoledger_image_previews")
+_PREVIEW_TTL_SECONDS = 15 * 60
+
+
+def _cleanup_stale_previews(preview_dir: Path) -> None:
+    import time
+    cutoff = time.time() - _PREVIEW_TTL_SECONDS
+    try:
+        for f in preview_dir.glob("*.bin"):
+            try:
+                if f.stat().st_mtime < cutoff:
+                    f.unlink(missing_ok=True)
+                    meta = f.with_suffix(".meta")
+                    meta.unlink(missing_ok=True)
+            except OSError:
+                pass
+    except OSError as exc:
+        logger.debug("preview cleanup: %s", exc)
+
+
+# Preview tokens are produced by secrets.token_urlsafe(24), which yields a
+# 32-character string from the alphabet [A-Za-z0-9_-]. We still apply the
+# regex as a first-line reject for obviously malformed input, but the
+# returned Path objects come from Path.iterdir() — never from f-string
+# concatenation with the user-supplied token. This is the pattern CodeQL
+# recognizes as a path-injection sanitizer.
+_PREVIEW_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{32}$")
+
+
+def _lookup_preview_paths(token: str) -> Optional[tuple[Path, Path]]:
+    """
+    Resolve a preview token to its on-disk (.bin, .meta) Path pair by
+    enumerating _PREVIEW_DIR and matching the file stem against the
+    token. Returns None if no matching file exists (caller should
+    respond with 404).
+
+    The Path objects returned originate from Path.iterdir() — the OS's
+    directory entries — not from user-controlled string concatenation.
+    This is the sanitizer pattern documented for CodeQL's py/path-injection
+    query.
+
+    Raises HTTPException(400) for obviously malformed tokens (failing
+    fast before touching the filesystem).
+    """
+    if _PREVIEW_TOKEN_RE.fullmatch(token) is None:
+        raise HTTPException(status_code=400, detail="Invalid token")
+
+    try:
+        entries = list(_PREVIEW_DIR.iterdir())
+    except (OSError, FileNotFoundError):
+        return None
+
+    bin_path: Optional[Path] = None
+    meta_path: Optional[Path] = None
+    for entry in entries:
+        # `entry` is a Path object from iterdir(); its name is the actual
+        # on-disk filename, not anything derived from user input.
+        if entry.name == f"{token}.bin":
+            bin_path = entry
+        elif entry.name == f"{token}.meta":
+            meta_path = entry
+        if bin_path is not None and meta_path is not None:
+            break
+
+    if bin_path is None:
+        return None
+    # meta_path may be None if the .meta file was lost; that's not fatal
+    # for the GET endpoint (it falls back to JPEG), but we surface it so
+    # the caller can decide. Return a synthetic Path for the meta slot
+    # only if it doesn't need to exist; otherwise return None to mean
+    # "no preview." Practically, .bin existence is the only requirement.
+    return (bin_path, meta_path if meta_path is not None else _PREVIEW_DIR / "__missing__")
+
+
+@router.get("/{product_id}/image/search")
+async def search_product_images(
+    product_id: int,
+    q: str = Query(..., min_length=1, max_length=200),
+    page: int = Query(0, ge=0, le=20),
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    product = db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    _check_write(product, user)
+
+    try:
+        provider = get_provider()
+    except ImageSearchNotConfigured as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    try:
+        results = await provider.search(q, page=page)
+    except httpx.HTTPStatusError as e:
+        logger.warning("image search provider returned %s: %s", e.response.status_code, e.response.text[:200])
+        raise HTTPException(status_code=502, detail="Image search provider returned an error")
+    except httpx.HTTPError as e:
+        logger.warning("image search provider request failed: %s", e)
+        raise HTTPException(status_code=502, detail="Image search provider unreachable")
+
+    return {
+        "query": q,
+        "page": page,
+        "results": [r.__dict__ for r in results],
+    }
+
+
+@router.post("/{product_id}/image/preview")
+async def preview_product_image(
+    product_id: int,
+    body: ImagePreviewRequest,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    product = db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    _check_write(product, user)
+
+    if not (body.source_url.startswith("http://") or body.source_url.startswith("https://")):
+        raise HTTPException(status_code=422, detail="source_url must be http(s)")
+
+    MAX_FETCH_BYTES = 10 * 1024 * 1024
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            async with client.stream("GET", body.source_url) as resp:
+                resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "").lower()
+                if not content_type.startswith("image/"):
+                    raise HTTPException(status_code=422, detail=f"URL did not return an image (got {content_type})")
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in resp.aiter_bytes():
+                    total += len(chunk)
+                    if total > MAX_FETCH_BYTES:
+                        raise HTTPException(status_code=413, detail="Source image exceeds 10 MB limit")
+                    chunks.append(chunk)
+                raw = b"".join(chunks)
+    except HTTPException:
+        raise
+    except httpx.HTTPError as e:
+        logger.warning("preview fetch failed: %s", e)
+        raise HTTPException(status_code=502, detail="Could not fetch source image")
+
+    from io import BytesIO
+    from PIL import Image, UnidentifiedImageError
+    try:
+        img = Image.open(BytesIO(raw))
+        img.verify()
+        img = Image.open(BytesIO(raw))
+        width, height = img.size
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=422, detail="Source URL is not a valid image")
+
+    fmt = (img.format or "").upper()
+    if fmt in ("HEIC", "HEIF"):
+        raise HTTPException(status_code=422, detail="HEIC/HEIF not supported — export as JPEG and try again")
+
+    _PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+    token = secrets.token_urlsafe(24)
+    temp_path = _PREVIEW_DIR / f"{token}.bin"
+    temp_path.write_bytes(raw)
+
+    meta_path = _PREVIEW_DIR / f"{token}.meta"
+    meta_path.write_text(f"{fmt}\n{width}\n{height}\n", encoding="utf-8")
+
+    _cleanup_stale_previews(_PREVIEW_DIR)
+
+    return {
+        "preview_token": token,
+        "preview_url": f"/api/products/{product_id}/image/preview/{token}",
+        "width": width,
+        "height": height,
+    }
+
+
+@router.get("/{product_id}/image/preview/{token}")
+def get_preview_image(
+    product_id: int,
+    token: str,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    product = db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    _check_write(product, user)
+
+    # Path objects returned by the lookup helper originate from
+    # Path.iterdir(); they are not constructed from user-supplied data.
+    paths = _lookup_preview_paths(token)
+    if paths is None:
+        raise HTTPException(status_code=404, detail="Preview not found or expired")
+    path, meta_path = paths
+
+    # Defense-in-depth: confirm the discovered path is still under the
+    # preview dir. Should be unreachable since iterdir() returns only
+    # direct children, but the check costs nothing.
+    try:
+        if not path.resolve().is_relative_to(_PREVIEW_DIR.resolve()):
+            raise HTTPException(status_code=404, detail="Preview not found or expired")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Preview not found or expired")
+
+    fmt = "JPEG"
+    if meta_path.exists():
+        try:
+            fmt = meta_path.read_text(encoding="utf-8").splitlines()[0]
+        except OSError:
+            pass
+    media_types = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "GIF": "image/gif"}
+    return FileResponse(str(path), media_type=media_types.get(fmt, "application/octet-stream"))
+
+
+@router.post("/{product_id}/image/from-search", response_model=ProductRead)
+def commit_searched_image(
+    product_id: int,
+    body: ImageFromSearchRequest,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_session),
+):
+    product = db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    _check_write(product, user)
+
+    # Path objects returned by the lookup helper originate from
+    # Path.iterdir(); they are not constructed from user-supplied data.
+    try:
+        paths = _lookup_preview_paths(body.preview_token)
+    except HTTPException as exc:
+        if exc.status_code == 400:
+            raise HTTPException(status_code=400, detail="Invalid preview token")
+        raise
+    if paths is None:
+        raise HTTPException(status_code=404, detail="Preview not found or expired")
+    temp_path, meta_path = paths
+
+    # Defense-in-depth: confirm the discovered path is still under the
+    # preview dir. Should be unreachable since iterdir() returns only
+    # direct children, but the check costs nothing.
+    try:
+        if not temp_path.resolve().is_relative_to(_PREVIEW_DIR.resolve()):
+            raise HTTPException(status_code=404, detail="Preview not found or expired")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Preview not found or expired")
+
+    from PIL import Image, ImageOps
+    img = Image.open(temp_path)
+    img = ImageOps.exif_transpose(img)
+
+    if body.crop is not None:
+        c = body.crop
+        x = max(0, min(c.x, img.width - 1))
+        y = max(0, min(c.y, img.height - 1))
+        w = max(1, min(c.width, img.width - x))
+        h = max(1, min(c.height, img.height - y))
+        img = img.crop((x, y, x + w, y + h))
+
+    MAX_DIM = 2048
+    if max(img.width, img.height) > MAX_DIM:
+        img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
+
+    if img.mode in ("RGBA", "LA", "P"):
+        rgb = Image.new("RGB", img.size, (255, 255, 255))
+        rgb.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
+        img = rgb
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
+
+    if product.image_path:
+        try:
+            Path(product.image_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    PRODUCTS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    safe_id = int(product.id)
+    dest = PRODUCTS_UPLOAD_DIR / f"{safe_id}.jpg"
+    resolved = dest.resolve()
+    try:
+        if not resolved.is_relative_to(PRODUCTS_UPLOAD_DIR.resolve()):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    img.save(str(resolved), format="JPEG", quality=85, optimize=True)
+
+    product.image_path = str(dest)
+    product.updated_at = datetime.utcnow()
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+
+    try:
+        temp_path.unlink(missing_ok=True)
+        meta_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+    logger.info("product %d image set via search by user %d", product.id, user.id)
+    return _enrich(product, db)

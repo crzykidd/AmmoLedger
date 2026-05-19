@@ -7,6 +7,28 @@ import type {
   ProductUpdateResponse,
 } from '@/types'
 
+export interface ImageSearchResultDto {
+  url: string
+  thumbnail_url: string
+  width: number | null
+  height: number | null
+  source_page_url: string | null
+  title: string | null
+}
+
+export interface ImageSearchResponse {
+  query: string
+  page: number
+  results: ImageSearchResultDto[]
+}
+
+export interface ImagePreviewResponse {
+  preview_token: string
+  preview_url: string
+  width: number
+  height: number
+}
+
 export const listProducts = (params?: {
   search?: string
   caliber_id?: number
@@ -40,6 +62,28 @@ export const deleteProductImage = (id: number) =>
   api.delete<ProductRead>(`/products/${id}/image`)
 
 export const getProductImageUrl = (id: number) => `/api/products/${id}/image`
+
+export const searchProductImages = (
+  productId: number,
+  q: string,
+  page = 0,
+): Promise<ImageSearchResponse> => {
+  const qs = new URLSearchParams({ q, page: String(page) })
+  return api.get<ImageSearchResponse>(`/products/${productId}/image/search?${qs}`)
+}
+
+export const previewProductImage = (
+  productId: number,
+  sourceUrl: string,
+): Promise<ImagePreviewResponse> =>
+  api.post<ImagePreviewResponse>(`/products/${productId}/image/preview`, { source_url: sourceUrl })
+
+export const commitProductImageFromSearch = (
+  productId: number,
+  preview_token: string,
+  crop: { x: number; y: number; width: number; height: number } | null,
+): Promise<ProductRead> =>
+  api.post<ProductRead>(`/products/${productId}/image/from-search`, { preview_token, crop })
 
 export const uploadProductImage = async (id: number, file: File): Promise<ProductRead> => {
   const formData = new FormData()

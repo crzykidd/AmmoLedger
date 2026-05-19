@@ -1,6 +1,6 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 2.9 — Working Draft  
+**Version:** 3.40 — Working Draft  
 **Date:** April 2026  
 **Status:** In Review
 
@@ -78,6 +78,10 @@
 | 3.37 | 2026-05-17 | Firearm nickname as primary label. Frontend-only change: a new `firearmLabel` / `firearmLabelParts` / `firearmLabelForToast` utility at `frontend/src/lib/firearm-label.ts` provides a single canonical label builder. When a firearm has a `nickname` set, it is used as the headline (e.g. "Bedside Carry — SIG Sauer P365"); without a nickname the label falls back to "Manufacturer Model" — existing behavior. Applied to all picker dropdowns (LogRangeDayDialog, QuickExpendPopover), list and card views (FirearmsListPage — name sort updated to sort by nickname primary), session grouping and cell labels (RangeSessionDetailPage, RangePage), the dashboard Firearms Needing Service widget, delete and log-event confirmation dialogs, and `document.title` on FirearmDetailPage. §10.1 display subsection updated to reflect nickname-first rendering. |
 | 3.38 | 2026-05-17 | v0.3.0 release: firearms registry, range sessions, firearm maintenance log, photos, CSV import/export, LookupCombobox inline create, backup zip integration, At Range session attribution. CHANGELOG `[Unreleased]` stamped as `[0.3.0]`. |
 | 3.39 | 2026-05-18 | Established sub-document structure under `docs/prd/`. Added `prd/tagging.md` covering physical tokens, label templates, NFC binding, scan modes, and the networked-scanner architecture. Added `hardware/` folder for build references and ESPHome configurations. Added rows to §3 Ownership Model and §5.2 Permission Matrix for the new entities. Added §17 Index of Feature Documents. |
+| 3.40 | 2026-05-18 | Added `prd/legal-owners.md` and `prd/licenses.md` as DRAFT sub-documents covering the planned Licenses feature area (carry permits, NFA stamps, reciprocity, coverage view) and its prerequisite Legal Owners entity layer (trusts, LLCs, recurring filings). Added rows to §3.3 Ownership Model and §5.2 Permission Matrix for the new entities. Added entries to §17 Index of Feature Documents. No schema, backend, or frontend changes — design committed to docs only; implementation phases not yet scheduled. |
+| 3.40 | 2026-05-18 | Products "Find Image" feature — search-based product photo selection via Brave Image Search API; preview-then-commit flow with optional square crop; new `image_search` config block with ENV overrides (`AL_IMAGE_SEARCH_ENABLED`, `AL_IMAGE_SEARCH_PROVIDER`, `AL_IMAGE_SEARCH_API_KEY`); new endpoints `GET /products/{id}/image/search`, `POST /products/{id}/image/preview`, `GET /products/{id}/image/preview/{token}`, `POST /products/{id}/image/from-search`. §6.14, §9.13, §15.1 updated. |
+| 3.41 | 2026-05-18 | Network segmentation and outbound hosts — §12.5 added (private ammoledger_net bridge, optional external proxy_net attachment for reverse-proxy stacks, locking-down outbound caveat); §12.6 added (full table of outbound hosts the backend may reach per optional feature). Production docker-compose.yml refactored to match: backend has no published ports and lives on ammoledger_net only; frontend bound to 127.0.0.1:5173 (matching §12.4); commented opt-in proxy_net attachment. |
+| 3.42 | 2026-05-18 | v0.3.4 release: Products Find Image Online (Brave Search API integration with optional square crop), production compose network hardening (private ammoledger_net bridge, no backend published ports, opt-in proxy_net external attachment, outbound host documentation §12.6). CHANGELOG [Unreleased] stamped as [0.3.4]. |
 
 ---
 
@@ -202,6 +206,8 @@ This produces four meaningful states:
 | Expenditure log | logged_by user | always visible to Admin | Full audit trail regardless of box ownership |
 | Range session (v2.0) | creator | configurable | Who shot, what gun, what ammo, how many rounds |
 | `physical_tokens` | Inherited from target entity at mint time | N/A (visibility computed from target) | Retired when target is hard-deleted |
+| `legal_owners` (planned) | creator | N/A — no `is_shared` flag in v1 | Each entity is private to its creator; admins can view all entities globally. See [`prd/legal-owners.md`](./prd/legal-owners.md). |
+| `licenses` (planned) | creator | N/A — licenses are always personal | Carry permits, NFA stamps, certificates, etc. NFA stamps may reference a `legal_owners` entity via `legal_owner_id`. See [`prd/licenses.md`](./prd/licenses.md). |
 
 ### 3.4 Audit Trail
 
@@ -379,6 +385,33 @@ security:
 | Scan a token (resolve via `/t/{token}`) | ✓ | ✓ | ✓ | Results respect target visibility; Read-Only sees read-only landing |
 | Design label templates | ✓ | ✓ | ✗ | |
 | Manage own scan mode | ✓ | ✓ | ✓ | Read-Only limited to read-only modes |
+
+**Legal Owners** (see [`prd/legal-owners.md`](./prd/legal-owners.md) for full feature spec)
+
+| Permission | Admin | Member | Read-Only | Notes |
+|------------|:-----:|:------:|:---------:|-------|
+| View own legal owner entities | ✓ | ✓ | ✗ | Each user sees their own entities; admins see all |
+| View any legal owner entity | ✓ | ✗ | ✗ | Admin only |
+| Create / edit own legal owner entity | ✓ | ✓ | ✗ | Each entity is private to its creator |
+| Create / edit any legal owner entity | ✓ | ✗ | ✗ | Admin only |
+| Manage filings on own entity | ✓ | ✓ | ✗ | Add / edit / mark filed |
+| Manage filings on any entity | ✓ | ✗ | ✗ | Admin only |
+| Reference an entity as a firearm's `legal_owner` | ✓ | ✓ | ✗ | Subject to user's visibility on the entity |
+
+**Licenses** (see [`prd/licenses.md`](./prd/licenses.md) for full feature spec)
+
+| Permission | Admin | Member | Read-Only | Notes |
+|------------|:-----:|:------:|:---------:|-------|
+| View own licenses | ✓ | ✓ | ✗ | Carry permits and credentials are always personal |
+| View any user's licenses | ✓ | ✗ | ✗ | Admin only |
+| Create / edit own license | ✓ | ✓ | ✗ | After acknowledging the disclaimer |
+| Create / edit any license | ✓ | ✗ | ✗ | Admin only |
+| Link firearm to own license | ✓ | ✓ | ✗ | Firearm must be visible to the user per existing firearm RBAC |
+| Acknowledge licenses disclaimer | ✓ | ✓ | ✓ | Per-user; required before interactive use of `/licenses` |
+| Upload license photos | ✓ | ✓ | ✗ | Backup is opt-in via separate config flag |
+| Manage community license types (lookups admin) | ✓ | ✗ | ✗ | PATCH / DELETE / toggle-active admin-only; POST follows existing LookupCombobox policy |
+| Manage community jurisdictions / reciprocity (lookups admin) | ✓ | ✗ | ✗ | Admin only — sensitive data |
+| View coverage map / list | ✓ | ✓ | ✗ | Computed against user's own license set |
 
 ### 5.3 Enforcement
 
@@ -923,6 +956,12 @@ ON products(caliber_id, manufacturer_id, COALESCE(product_name, ''), COALESCE(gr
 #### Image storage
 
 Product images are stored at `/data/uploads/products/{id}.{ext}`. The extension is determined at upload time from the file's content type. Served by `GET /products/{id}/image`. Maximum size: 5 MB. Accepted types: jpg, jpeg, png, webp.
+
+#### Image search (v0.3.x)
+
+Product images can also be sourced from the web via Brave Image Search. The Edit Product drawer surfaces a **Find Image Online** button alongside the existing upload affordance. Pre-fills the search query from the product's auto-generated name (e.g. "American Eagle .45 ACP 230gr FMJ"), shows 10 results per page with previous/next pagination, and supports an optional square-aspect crop step before commit. Crop is applied server-side via Pillow, then the image is normalized to JPEG q85 with longest side ≤ 2048 px (same pipeline as manual upload). Requires an admin to configure `image_search.api_key` in `config.yaml` (or the `AL_IMAGE_SEARCH_API_KEY` env override) and set `image_search.enabled: true`. The Find Image button is hidden in the UI when the feature is not configured.
+
+Preview-then-commit flow: `GET /products/{id}/image/search` returns up to 10 thumbnail URLs; `POST /products/{id}/image/preview` fetches and caches the chosen full-size image to `/tmp/ammoledger_image_previews/{token}.bin` (TTL 15 min, 10 MB cap); `POST /products/{id}/image/from-search` opens the cached file, applies optional crop, normalizes via Pillow, saves to `/data/uploads/products/{id}.jpg`, updates `image_path`, and deletes the temp file. Token format: `secrets.token_urlsafe(24)` (URL-safe alphanumeric characters plus `-` and `_`).
 
 #### API
 
@@ -2034,7 +2073,7 @@ Single source of truth for the entire app. Docker image built with this version 
 
 Fields: Name (auto-built, read-only), Caliber (required), Manufacturer (required), Product Name (free text), Gr/Oz + Unit toggle (GR/OZ), Type, Category, Condition, Default Cost per Round, UPC, Shared toggle, Notes, Image upload area
 
-Image upload area: click to browse or drag-and-drop; shows preview with remove button; accepts jpg/jpeg/png/webp ≤ 5 MB; uploaded after save via `POST /products/{id}/image`
+Image upload area: click to browse or drag-and-drop; shows preview with remove button; accepts jpg/jpeg/png/webp ≤ 5 MB; uploaded after save via `POST /products/{id}/image`. In addition, when the image search feature is configured (admin sets `image_search.enabled` and `image_search.api_key`), the image area shows a **Find Image Online** button. Clicking it opens the `FindImageDialog` modal pre-filled with the product's auto-generated name as the search query. Results render as a 5×2 thumbnail grid with Previous/Next pagination. Selecting a thumbnail fetches a full-size preview and opens a square-aspect crop pane (skip with "Use full image"). The cropped or full image runs through the same Pillow normalize pipeline as manual upload before saving. Find Image requires an existing product ID — for newly-added products, the user saves first, then re-opens the product to search. For new products when image search would otherwise be available, the upload area shows a hint: "Save the product first to search for an image online."
 
 #### Add Box Integration
 
@@ -2581,6 +2620,61 @@ services:
       - "127.0.0.1:5173:5173"
 ```
 
+### 12.5 Network Segmentation
+
+The shipped `docker-compose.yml` puts both services on a private bridge network (`ammoledger_net`) and binds the frontend's host port to `127.0.0.1`. The backend has no published ports at all, so nothing on the host or LAN can connect to it directly — frontend container traffic to `http://backend:8000` resolves through Docker DNS on the private network.
+
+This gives you an **asymmetric** traffic pattern by default:
+
+| Direction | Backend | Frontend |
+|-----------|---------|----------|
+| Inbound from internet | ✗ (no published ports) | Via reverse proxy only |
+| Inbound from host / LAN | ✗ | `127.0.0.1:5173` only |
+| Inbound from sibling containers on `ammoledger_net` | ✓ frontend can reach `backend:8000` | — |
+| Outbound to internet | ✓ (NAT through Docker bridge) | ✓ |
+
+The backend keeps outbound access because optional features (Find Image, GitHub version check, community lookup sync, Discord notifications, SMTP email) need to reach external hosts — see §12.6.
+
+#### Attaching to an externally-managed reverse-proxy network
+
+The standard homelab pattern runs a reverse proxy (Nginx Proxy Manager, Traefik, Caddy) in its own compose stack that owns a Docker network like `proxy_net`. To let that proxy reach AmmoLedger's frontend by container name:
+
+1. Create the shared network from the proxy's compose stack (or out-of-band: `docker network create proxy_net`). AmmoLedger does not create it.
+2. In `docker-compose.yml`, uncomment the `proxy_net` block under `networks:` at the bottom. Replace the `name:` value with the actual name your proxy stack uses if different.
+3. In the `frontend` service, uncomment the `- proxy_net` line under `networks:`.
+4. Restart AmmoLedger: `docker compose up -d`.
+5. In the reverse proxy, add a route pointing at `http://frontend:5173` (Docker DNS resolves `frontend` to the AmmoLedger frontend container, since both are now on `proxy_net`).
+
+The backend is **never** attached to `proxy_net`. The reverse proxy must always go through the frontend, never directly to `:8000`. This keeps the API surface behind a single entry point.
+
+#### Locking down outbound (advanced, not recommended)
+
+If a deployment policy forbids outbound traffic from the backend, you can change `ammoledger_net` to `internal: true`. This will:
+
+- Break Find Image (image search button hidden when the feature can't reach the provider)
+- Skip the GitHub version check (in-app About page shows last cached value, "Check Now" button errors)
+- Skip community lookup sync (falls back to the bundled YAMLs shipped with the image)
+- Break Discord notifications and SMTP email if those are enabled
+
+Core ammo / firearm / range tracking continues to work entirely locally. This is a supported configuration, not a recommended one.
+
+### 12.6 Outbound Hosts
+
+The backend may reach the following external hosts depending on which optional features are enabled. **None are required for core operation** — all are tied to features that degrade gracefully when the network is unavailable.
+
+| Feature | Host | Configured by | Required for core? |
+|---------|------|---------------|--------------------|
+| Version check (stable builds) | `api.github.com` | Built-in | No — degrades to cached value |
+| Version check (dev builds) | `api.github.com` | Built-in | No |
+| Community lookup sync | `raw.githubusercontent.com` | Built-in | No — falls back to bundled YAMLs |
+| Find Image (Products) | `api.search.brave.com` | `image_search.enabled` + `api_key` | No — button hidden when disabled |
+| Discord notifications | `discord.com` (webhook URL) | `notifications.discord.enabled` | No |
+| Email notifications | User's SMTP server | `smtp.enabled` + `smtp.host` | No |
+
+If your firewall enforces an outbound allowlist, allow the hosts for the features you actually use. Features whose hosts are not allowlisted fail closed: log a warning, leave related UI hidden or disabled, never block core operation.
+
+A future release may surface "blocked outbound" as an explicit error in the UI rather than a generic toast. For now, when an optional feature fails to reach its host, the backend logs the underlying httpx error at WARNING level.
+
 ---
 
 ## 13. Technical Stack
@@ -2681,6 +2775,9 @@ If `AL_SESSION_SECRET` is set, `config.yaml` is **not required**. The app loads 
 | `AL_BACKUP_SCHEDULE` | `backup.schedule` | string | Backup time in HH:MM format |
 | `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | integer | Days to keep old backup files |
 | `AL_BACKUP_PATH` | `backup.path` | string | Backup storage directory path |
+| `AL_IMAGE_SEARCH_ENABLED` | `image_search.enabled` | boolean | Enable the Products "Find Image" feature |
+| `AL_IMAGE_SEARCH_PROVIDER` | `image_search.provider` | string | Image search provider — currently only `"brave"` |
+| `AL_IMAGE_SEARCH_API_KEY` | `image_search.api_key` | string | Brave Search API subscription token |
 
 Boolean ENV values accept `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off` (case-insensitive).
 
@@ -2869,6 +2966,8 @@ As AmmoLedger's feature surface has grown, individual feature areas are being pr
 ### Active sub-documents
 
 - [`prd/tagging.md`](./prd/tagging.md) — Physical tokens (QR codes and NFC tags), label template designer, tag programming workflows, scan modes (Range Day, Intake, Cleanup, Audit), and forward-compatible architecture for networked scanners.
+- [`prd/legal-owners.md`](./prd/legal-owners.md) — Non-individual legal owners (gun trusts, LLCs, corporations) and their recurring filings (annual reports, franchise taxes, registered agent renewals). Prerequisite for NFA tax stamp tracking in the Licenses feature. **DRAFT — design committed, not yet scheduled.**
+- [`prd/licenses.md`](./prd/licenses.md) — Carry permits, NFA tax stamps, ownership licenses (UK FAC, Canadian PAL), hunting licenses, instructor credentials, state prerequisites. Includes reciprocity modeling, coverage view, renewal reminders, and per-user disclaimer acknowledgement. **DRAFT — design committed, not yet scheduled.**
 
 ### Hardware reference
 

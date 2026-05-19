@@ -25,7 +25,9 @@ services:
       # visible to a `:dev` install before they ship to main. Override with
       # `AL_COMMUNITY_BRANCH=somebranch` to test against a feature branch.
       - GIT_BRANCH=dev
-      
+      - AL_IMAGE_SEARCH_ENABLED=true
+      - AL_IMAGE_SEARCH_PROVIDER=brave
+      - AL_IMAGE_SEARCH_API_KEY=${AL_IMAGE_SEARCH_API_KEY}      
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -45,6 +47,8 @@ services:
       - /app/node_modules       # keep node_modules inside container
     environment:
       - AL_BACKEND_URL=http://backend:8000
+
+  
     depends_on:
       - backend
     restart: unless-stopped

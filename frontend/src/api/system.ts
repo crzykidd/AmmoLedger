@@ -20,6 +20,7 @@ export interface SystemVersionResponse {
   dev_behind_by: number | null
   dev_latest_sha: string | null
   dev_latest_message: string | null
+  image_search_enabled: boolean
 }
 
 export interface ChangelogSection {

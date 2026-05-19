@@ -1,6 +1,6 @@
 {
   "name": "ammoledger-frontend",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -27,6 +27,7 @@
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
+    "react-image-crop": "^11.0.7",
     "react-hook-form": "^7.74.0",
     "react-router-dom": "^7.14.2",
     "tailwind-merge": "^3.5.0",

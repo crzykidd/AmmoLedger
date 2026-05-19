@@ -132,6 +132,58 @@ Auto-Generate (admin only, via the **Auto-Generate** button on the Products page
 
 Yes — the same shared/private ownership model applies to products. Shared products are visible to all users; private products are only visible to the owner and admins. The Shared toggle appears in the Add/Edit Product form.
 
+### How do I add a photo to a product?
+
+Open the Products page, click the **Edit** icon (pencil) on a product card, and either drag-and-drop a photo onto the upload area or click **Find Image Online** to search the web by the product's name. The Find Image option requires an admin to set up a Brave Search API key first — see the questions below.
+
+### What is Find Image Online?
+
+In the Edit Product drawer, alongside the drag-and-drop upload area, there's a **Find Image Online** button (visible only when the feature is configured). Clicking it opens a search modal pre-filled with the product's auto-generated name (e.g. "American Eagle .45 ACP 230gr FMJ") and shows ten image thumbnails from the web. Pick one, crop to square if you want (or use the full image), and save. The cropped image becomes the product photo.
+
+The feature requires an administrator to set up a free Brave Search API key in `config.yaml` (see the Setup question below).
+
+### How do I set up Find Image Online?
+
+Find Image uses the [Brave Search API](https://api.search.brave.com) — the free tier covers 2,000 queries per month, which is plenty for a household install. To enable it:
+
+1. Sign up at [api.search.brave.com](https://api.search.brave.com) and create a "Data for Free" subscription
+2. Generate an API token (it starts with `BSA-`)
+3. Either edit `/data/config.yaml`:
+
+    ```yaml
+    image_search:
+      enabled: true
+      provider: brave
+      api_key: "BSA-your-actual-key-here"
+    ```
+
+    Or set the env override in `docker-compose.yml`:
+
+    ```yaml
+    environment:
+      - AL_IMAGE_SEARCH_ENABLED=true
+      - AL_IMAGE_SEARCH_PROVIDER=brave
+      - AL_IMAGE_SEARCH_API_KEY=BSA-your-actual-key-here
+    ```
+
+4. Restart the backend container
+
+The **Find Image Online** button appears on the Edit Product drawer once the feature is enabled. If the button isn't showing up, check the backend startup log for `ENV override: AL_IMAGE_SEARCH_API_KEY` or `image_search.enabled = true` to confirm the config landed.
+
+### Can I use Find Image on images I find?
+
+The images come from a web search, so they're hosted by whoever published them originally. For personal self-hosted use (a family inventory app), this is generally fine — most manufacturer product photos are freely shareable and many ammunition retailers explicitly mark their photos as "free to use for non-commercial purposes." Watermarks or copyright notices on the source image carry over to the cropped version, so if you'd rather not display them, pick a different result.
+
+If you ever take AmmoLedger commercial or public-facing, you'd want to review image-licensing more carefully before using web-sourced photos. For private use within your household, treat it the same way you'd treat saving an image to your phone.
+
+### Why is Find Image edit-only — why can't I use it when adding a new product?
+
+The search and save endpoints need a product ID to work, and a brand-new product doesn't have one until you save it first. After saving the product with its name, caliber, and other fields filled in, re-open it from the Products page and click **Find Image Online** in the edit drawer. The button only appears in edit mode for this reason.
+
+### My image looks rectangular but the product card crops it to a square. Why?
+
+The product card grid uses a square aspect ratio so every card lines up cleanly. When you use Find Image, the crop step locks to a square 1:1 selection by default — drag the selection box to frame the most important part of the product photo (usually the front face of the box with the manufacturer name and caliber). You can also pick **Use full image** to skip the crop entirely; in that case a wider or taller photo will display with empty space on the sides or top/bottom of the card. The manual upload path (drag-and-drop) doesn't have a crop step, so manually-uploaded rectangular photos will also show with empty space in the card grid.
+
 ## Import
 
 ### What CSV format does AmmoLedger use?

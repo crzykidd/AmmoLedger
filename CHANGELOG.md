@@ -19,6 +19,25 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Security
+
+- **Resolved CodeQL path-traversal alerts in product image preview endpoints.** Preview tokens no longer flow into `Path()` construction. Instead, the matching on-disk file is discovered via `Path.iterdir()` — the Path objects we operate on originate from the OS's directory listing, not from user-supplied input. A regex pre-check (`^[A-Za-z0-9_-]{32}$`) still rejects obviously malformed tokens before touching the filesystem; the `.is_relative_to()` defense-in-depth check is retained. Behavior unchanged — malformed tokens still return 400, missing previews still return 404. Resolves 5 GitHub Advanced Security "Uncontrolled data used in path expression" alerts in `backend/routers/products.py`.
+
+## [0.3.4] — 2026-05-18
+
+### Added
+
+- **Products: Find Image Online.** Edit a product and click "Find Image Online" in the image area to search the web for a product photo using the product's name. Pick from a 5×2 grid of results, crop to square (or skip), and save. Requires admin to configure a Brave Search API key in `config.yaml` (`image_search.api_key`) or via `AL_IMAGE_SEARCH_API_KEY`; the button is hidden when not configured.
+
+### Changed
+
+- **Production docker-compose: network hardening.** Backend now runs on a private `ammoledger_net` bridge with no published ports. Frontend bound to `127.0.0.1:5173` only (was `:5173` on all interfaces) so a reverse proxy must be in front of it for any external access. Optional commented-out `proxy_net` attachment for users who run their reverse proxy in a separate compose stack with an externally-managed network. No behavior change for users running standalone with a localhost-bound proxy.
+- **Documented backend outbound hosts.** PRD §12.6 lists every external host the backend may reach (GitHub for version check and community sync, `api.search.brave.com` for Find Image, Discord and SMTP for notifications). All are tied to optional features and degrade gracefully when unreachable.
+
+### Documentation
+
+- **Design-only PRD additions: Licenses and Legal Owners.** Two new feature areas were designed and documented under `docs/prd/` (carry permits / NFA tax stamps / reciprocity / coverage view, and trusts / LLCs / recurring filings). **Not yet implemented** — no UI, no API, no database schema. Implementation is not scheduled to any release; this is design groundwork only. See `docs/prd/licenses.md` and `docs/prd/legal-owners.md` for the full specs.
+
 ## [0.3.3] — 2026-05-18
 
 ### Fixed

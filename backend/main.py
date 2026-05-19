@@ -35,6 +35,7 @@ from utils.config import (
     set_setting,
     validate_config,
 )
+from utils.image_search import is_enabled as image_search_is_enabled
 from utils.logging import get_logger, setup_logging
 from utils.rbac import require_auth, require_role
 from utils.scheduler import reschedule, start_scheduler, stop_scheduler
@@ -373,6 +374,7 @@ def _build_version_response(db: Session) -> dict:
         "dev_behind_by": dev_behind_by,
         "dev_latest_sha": dev_latest_sha,
         "dev_latest_message": dev_latest_message,
+        "image_search_enabled": image_search_is_enabled(),
     }
 
 

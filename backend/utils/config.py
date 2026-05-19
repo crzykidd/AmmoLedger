@@ -27,15 +27,18 @@ _VALID_REGISTRATION_MODES = {"invite_only", "open", "disabled"}
 # ---------------------------------------------------------------------------
 
 _ENV_MAP: tuple[tuple[str, list[str], type], ...] = (
-    ("AL_SESSION_SECRET",        ["security", "session_secret"],    str),
-    ("AL_RESET_TOKEN",           ["security", "reset_token"],       str),
-    ("AL_APP_NAME",              ["app",      "name"],              str),
-    ("AL_BASE_URL",              ["app",      "base_url"],          str),
-    ("AL_BACKUP_ENABLED",        ["backup",   "enabled"],           bool),
-    ("AL_BACKUP_SCHEDULE",       ["backup",   "schedule"],          str),
-    ("AL_BACKUP_RETENTION_DAYS", ["backup",   "retention_days"],    int),
-    ("AL_BACKUP_PATH",           ["backup",   "path"],              str),
-    ("AL_BACKUP_INCLUDE_PHOTOS", ["backup",   "include_photos"],    bool),
+    ("AL_SESSION_SECRET",        ["security",     "session_secret"],    str),
+    ("AL_RESET_TOKEN",           ["security",     "reset_token"],       str),
+    ("AL_APP_NAME",              ["app",          "name"],              str),
+    ("AL_BASE_URL",              ["app",          "base_url"],          str),
+    ("AL_BACKUP_ENABLED",        ["backup",       "enabled"],           bool),
+    ("AL_BACKUP_SCHEDULE",       ["backup",       "schedule"],          str),
+    ("AL_BACKUP_RETENTION_DAYS", ["backup",       "retention_days"],    int),
+    ("AL_BACKUP_PATH",           ["backup",       "path"],              str),
+    ("AL_BACKUP_INCLUDE_PHOTOS", ["backup",       "include_photos"],    bool),
+    ("AL_IMAGE_SEARCH_ENABLED",  ["image_search", "enabled"],           bool),
+    ("AL_IMAGE_SEARCH_PROVIDER", ["image_search", "provider"],          str),
+    ("AL_IMAGE_SEARCH_API_KEY",  ["image_search", "api_key"],           str),
 )
 
 
@@ -308,6 +311,22 @@ def validate_config(config: dict) -> dict:
             "Discord notifications will not work until a webhook URL is configured"
         )
 
+    img_search_enabled = _get("image_search", "enabled")
+    img_search_key = _get("image_search", "api_key") or ""
+    img_search_provider = _get("image_search", "provider")
+    if img_search_enabled is True and not img_search_key:
+        warnings.append(
+            "[image_search] enabled is true but api_key is empty — "
+            "image search will be disabled at runtime until an API key is configured"
+        )
+        config.setdefault("image_search", {})["enabled"] = False
+    if img_search_provider is not None and img_search_provider != "brave":
+        warnings.append(
+            f"[image_search.provider] unknown provider '{img_search_provider}' — "
+            "image search will be disabled"
+        )
+        config.setdefault("image_search", {})["enabled"] = False
+
     if _get("backup", "enabled") is False:
         warnings.append("[backup.enabled] is false — nightly backups are disabled")
 
@@ -447,3 +466,22 @@ def load_config() -> dict:
         shutil.copy2(_BUNDLED_TEMPLATE, config_path)
     with open(config_path) as f:
         return yaml.safe_load(f) or {}
+
+
+def get_config() -> dict:
+    """Return the runtime config with ENV overrides applied. Does not validate."""
+    config_path = Path(CONFIG_PATH)
+    if not config_path.exists():
+        try:
+            with open(_BUNDLED_TEMPLATE) as f:
+                config = yaml.safe_load(f) or {}
+        except OSError:
+            config = {}
+    else:
+        try:
+            with open(config_path) as f:
+                config = yaml.safe_load(f) or {}
+        except (OSError, yaml.YAMLError):
+            config = {}
+    _apply_env_overrides(config)
+    return config
