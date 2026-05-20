@@ -12,6 +12,10 @@
 # Outbound hosts the backend may need to reach (all optional features —
 # see PRD §12.6): api.github.com, raw.githubusercontent.com,
 # api.search.brave.com, discord.com, your SMTP server.
+#
+# Data file ownership: set PUID/PGID (or define them in a .env file next to
+# this compose file) to match the host user that should own /data. Defaults
+# to 1000:1000. Find your IDs with `id -u` and `id -g`.
 
 services:
   backend:
@@ -25,6 +29,10 @@ services:
       - BACKUP_PATH=/data/backups
       - UPLOADS_PATH=/data/uploads
       - PYTHONUNBUFFERED=1
+      # Set PUID/PGID to match the host user that should own the data files.
+      # Find yours with `id -u` and `id -g`. Defaults to 1000:1000.
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
     networks:
       - ammoledger_net
     healthcheck:

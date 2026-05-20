@@ -2,23 +2,30 @@ FROM python:3.12.9-slim-bookworm
 
 WORKDIR /app
 
-# curl needed for HEALTHCHECK
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# curl for HEALTHCHECK; gosu for dropping privileges from the entrypoint
+RUN apt-get update && apt-get install -y --no-install-recommends curl gosu \
     && rm -rf /var/lib/apt/lists/*
 
-# Create user before any files exist so all subsequent COPYs land with correct ownership
-RUN adduser --disabled-password --gecos "" appuser \
+# Create the runtime group and user with a default UID/GID of 1000. The
+# entrypoint can remap these at container start via PUID/PGID env vars.
+RUN groupadd --gid 1000 appuser \
+    && useradd --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin appuser \
     && mkdir -p /data && chown appuser:appuser /data
 
 # Install dependencies — path relative to repo root (build context is .)
-COPY --chown=appuser:appuser backend/requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend app code
-COPY --chown=appuser:appuser backend/ .
+# Copy backend app code (owned by root; entrypoint does not need to chown
+# /app since the app only reads it — writes go to /data)
+COPY backend/ .
 
 # Bundle community YAML files for air-gapped installs
-COPY --chown=appuser:appuser community/ /app/community/
+COPY community/ /app/community/
+
+# Entrypoint that handles PUID/PGID remapping
+COPY backend/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ARG VERSION=dev
 ARG GIT_SHA=unknown
@@ -27,13 +34,17 @@ ENV APP_VERSION=$VERSION \
     GIT_SHA=$GIT_SHA \
     GIT_BRANCH=$GIT_BRANCH \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
-
-USER appuser
+    PYTHONDONTWRITEBYTECODE=1 \
+    PUID=1000 \
+    PGID=1000
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
+# NOTE: container starts as root so the entrypoint can adjust UID/GID and
+# fix /data ownership, then drops to the appuser via gosu before exec'ing
+# the app. Do NOT add `USER appuser` here — that would defeat the remap.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -19,6 +19,12 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.5] — 2026-05-19
+
+### Fixed
+
+- **Backend now honors PUID/PGID for data file ownership.** Previously the container always ran as UID 1000 (baked into the image at build time), so setting a different user — common on NAS and multi-user homelab setups — caused permission errors writing to the `/data` volume. The backend now starts as root, remaps its internal user to the `PUID`/`PGID` environment variables (default 1000:1000 for backward compatibility), fixes `/data` ownership, and drops privileges before running. Existing deployments that don't set PUID/PGID are unaffected. See PRD §15.2.
+
 ### Security
 
 - **Resolved CodeQL path-traversal alerts in product image preview endpoints.** Preview tokens no longer flow into `Path()` construction. Instead, the matching on-disk file is discovered via `Path.iterdir()` — the Path objects we operate on originate from the OS's directory listing, not from user-supplied input. A regex pre-check (`^[A-Za-z0-9_-]{32}$`) still rejects obviously malformed tokens before touching the filesystem; the `.is_relative_to()` defense-in-depth check is retained. Behavior unchanged — malformed tokens still return 400, missing previews still return 404. Resolves 5 GitHub Advanced Security "Uncontrolled data used in path expression" alerts in `backend/routers/products.py`.
