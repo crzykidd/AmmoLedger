@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -27,7 +26,9 @@ services:
       - GIT_BRANCH=dev
       - AL_IMAGE_SEARCH_ENABLED=true
       - AL_IMAGE_SEARCH_PROVIDER=brave
-      - AL_IMAGE_SEARCH_API_KEY=${AL_IMAGE_SEARCH_API_KEY}      
+      - AL_IMAGE_SEARCH_API_KEY=${AL_IMAGE_SEARCH_API_KEY}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

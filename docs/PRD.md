@@ -82,6 +82,7 @@
 | 3.40 | 2026-05-18 | Products "Find Image" feature — search-based product photo selection via Brave Image Search API; preview-then-commit flow with optional square crop; new `image_search` config block with ENV overrides (`AL_IMAGE_SEARCH_ENABLED`, `AL_IMAGE_SEARCH_PROVIDER`, `AL_IMAGE_SEARCH_API_KEY`); new endpoints `GET /products/{id}/image/search`, `POST /products/{id}/image/preview`, `GET /products/{id}/image/preview/{token}`, `POST /products/{id}/image/from-search`. §6.14, §9.13, §15.1 updated. |
 | 3.41 | 2026-05-18 | Network segmentation and outbound hosts — §12.5 added (private ammoledger_net bridge, optional external proxy_net attachment for reverse-proxy stacks, locking-down outbound caveat); §12.6 added (full table of outbound hosts the backend may reach per optional feature). Production docker-compose.yml refactored to match: backend has no published ports and lives on ammoledger_net only; frontend bound to 127.0.0.1:5173 (matching §12.4); commented opt-in proxy_net attachment. |
 | 3.42 | 2026-05-18 | v0.3.4 release: Products Find Image Online (Brave Search API integration with optional square crop), production compose network hardening (private ammoledger_net bridge, no backend published ports, opt-in proxy_net external attachment, outbound host documentation §12.6). CHANGELOG [Unreleased] stamped as [0.3.4]. |
+| 3.43 | 2026-05-19 | PUID/PGID runtime file ownership — §15.2 added (File Ownership: PUID/PGID env vars, default 1000:1000, backward compatible). Dockerfile.backend installs gosu and delegates to a new entrypoint script that remaps appuser UID/GID at container start, chowns /data only when ownership differs, then drops privileges via gosu. docker-compose.yml and docker-compose.dev.yml pass PUID/PGID with ${PUID:-1000}/${PGID:-1000}; dev compose user: directive removed. Former §15.2/§15.3 renumbered to §15.3/§15.4. |
 
 ---
 
@@ -2842,7 +2843,20 @@ If `/data/config.yaml` does not exist on startup:
 
 The operator edits the file and restarts. This prevents accidental startup with missing or unconfigured credentials.
 
-### 15.2 Error Handling
+### 15.2 File Ownership (PUID / PGID)
+
+The backend container writes persistent data (SQLite database, backups, uploaded images) to the `/data` volume. By default it writes as UID 1000 / GID 1000. To make the data files owned by a specific host user — common on NAS and multi-user homelab setups — set the `PUID` and `PGID` environment variables on the backend service:
+
+| ENV Variable | Default | Description |
+|--------------|---------|-------------|
+| `PUID` | `1000` | UID the backend process runs as; owns `/data` files |
+| `PGID` | `1000` | GID the backend process runs as |
+
+Find your host user's IDs with `id -u` and `id -g`. The container starts as root, remaps its internal user to PUID/PGID, fixes `/data` ownership, then drops privileges before running the application. Existing deployments that don't set these continue to run as 1000:1000 with no change.
+
+The frontend container does not need PUID/PGID — it writes only to ephemeral in-container paths, never to a mounted volume.
+
+### 15.3 Error Handling
 
 #### API Error Format
 
@@ -2886,7 +2900,7 @@ All API errors return a consistent JSON envelope:
 - **Session expiry (401):** redirect to login with return URL preserved; user lands back where they were after logging in
 - **Form validation:** inline errors shown next to each field; submit button disabled while errors exist
 
-### 15.3 Logging & Error Handling
+### 15.4 Logging & Error Handling
 
 #### Log Levels
 

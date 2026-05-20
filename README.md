@@ -192,6 +192,10 @@ If you run a separate reverse-proxy stack (Nginx Proxy Manager, Traefik, Caddy, 
 
 The backend needs outbound internet access for optional features (Find Image, GitHub version check, community lookup sync, Discord / SMTP notifications). See PRD §12.6 for the host allowlist. None of these are required for core ammo / firearm / range tracking — the app runs entirely offline if you want it to.
 
+### Data file ownership (PUID/PGID)
+
+If you need the data files (database, backups, uploads) owned by a specific host user — for example on a NAS or shared homelab box — set `PUID` and `PGID` on the backend service in `docker-compose.yml` (or in a `.env` file next to it). Find your IDs with `id -u` and `id -g`. Defaults to 1000:1000. See PRD §15.2 for details.
+
 ### Upgrading
 
 ```bash
