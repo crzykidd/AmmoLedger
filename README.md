@@ -6,7 +6,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.3.4-gold)
+![Version](https://img.shields.io/badge/version-0.3.5-gold)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![PRD](https://img.shields.io/badge/docs-PRD-navy)
 
@@ -14,19 +14,24 @@
 
 # AmmoLedger
 
-> ### 🆕 New in v0.3.0–v0.3.4 — Firearms, Range Sessions & Find Image
+> ### 🆕 New in v0.3.0–v0.3.5 — Firearms, Range Sessions & Find Image
 >
 > Track your firearms and range trips alongside your ammo. The **Firearms** page registers each gun with manufacturer, model, caliber, serial, compliance tags, and personal tags. The **Range** page logs multi-line range days that deduct rounds from ammo boxes and bump per-firearm round counters atomically — and reverse cleanly if you edit or delete a session. The **firearm maintenance log** with cleaning, service, and note events drives a green/amber/red cleaning-status indicator on every firearm and a dedicated dashboard widget for firearms needing service.
 >
 > **Tip:** firearms and range sessions follow the same ownership model as ammo boxes — members own private records by default; admins can mark items shared so everyone on the install can see them. Read-only users see shared items only.
 >
-> **v0.3.1:** fixed a firearm detail page crash on first load (React hook order violation). **v0.3.2:** fixed landscape photo cropping in the firearms list view thumbnail cell. **v0.3.3:** fixed range session delete 500 error, firearm clean-state drift on session reversal, date timezone shift in non-UTC installs, and backend validation errors displaying as `[object Object]`. **v0.3.4:** Products page gains **Find Image Online** — search the web for a product photo using the product's name, pick from a 5×2 grid, optionally crop square, save. Plus production compose hardening: backend now runs on a private bridge network with no published ports, frontend bound to localhost-only so a reverse proxy is the only entry point.
+> **v0.3.1:** fixed a firearm detail page crash on first load (React hook order violation). **v0.3.2:** fixed landscape photo cropping in the firearms list view thumbnail cell. **v0.3.3:** fixed range session delete 500 error, firearm clean-state drift on session reversal, date timezone shift in non-UTC installs, and backend validation errors displaying as `[object Object]`. **v0.3.4:** Products page gains **Find Image Online** — search the web for a product photo using the product's name, pick from a 5×2 grid, optionally crop square, save. Plus production compose hardening: backend now runs on a private bridge network with no published ports, frontend bound to localhost-only so a reverse proxy is the only entry point. **v0.3.5:** security hardening (CodeQL path-traversal fix in product image preview) and a fix so the backend honors PUID/PGID for data file ownership — important for NAS and multi-user homelab setups where the data files need to be owned by a specific host user.
 
 A self-hosted web application to track your ammunition inventory, firearms, and range sessions. Keep your counts accurate on and off the range.
 
-> 🎯 **AmmoLedger v0.3.4 — Find product photos online, network-hardened production compose.** Self-hosted, stable, ready for daily use. **Accessories management** is next on the roadmap — see [What's Coming Next](#whats-coming-next).
+> 🎯 **AmmoLedger v0.3.5 — Security and deployment hardening.** Self-hosted, stable, ready for daily use. **Accessories management** is next on the roadmap — see [What's Coming Next](#whats-coming-next).
 
 ## What's New
+
+### v0.3.5 (2026-05-19)
+
+- **PUID/PGID support for data file ownership.** The backend container previously always ran as UID 1000, baked in at build time. It now honors `PUID`/`PGID` environment variables (default 1000:1000) so self-hosters — especially on NAS and multi-user homelab boxes — can have the data files owned by a specific host user. The container remaps its internal user, fixes `/data` ownership, and drops privileges at startup. Existing deployments are unaffected. See PRD §15.2.
+- **Security: CodeQL path-traversal fix.** The product image preview endpoints no longer construct filesystem paths from user-supplied tokens. Matching preview files are discovered via the OS directory listing instead, resolving 5 GitHub Advanced Security alerts. Behavior is unchanged.
 
 ### v0.3.4 (2026-05-18)
 
