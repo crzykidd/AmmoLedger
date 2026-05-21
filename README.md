@@ -127,7 +127,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add dealers, manufacturers, ca
 - [Product Requirements Document](docs/PRD.md) — full feature specs, data model, architecture decisions, and roadmap
 - [Installation Guide](docs/INSTALL.md) — detailed setup, external access, and upgrade instructions
 
-**Project history:** See [docs/HISTORY.md](./docs/HISTORY.md) for structural events and [docs/CHANGELOG-pre-v0.1.9.md](./docs/CHANGELOG-pre-v0.1.9.md) for the pre-release changelog archive.
+**Project history:** See [docs/HISTORY.md](./docs/HISTORY.md) for structural events and [docs/CHANGELOG-0.1.x.md](./docs/CHANGELOG-0.1.x.md) for the 0.1.x changelog archive.
 
 ---
 

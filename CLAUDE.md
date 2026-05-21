@@ -47,7 +47,7 @@
 ## Build Status
 
 Current release target: v0.3.3 (bugfix — range session fixes, date timezone, validation errors)
-Last shipped public release: v0.3.2 (2026-05-17)
+Last shipped public release: v0.3.5 (2026-05-19)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 
@@ -121,6 +121,7 @@ Last shipped public release: v0.3.2 (2026-05-17)
   2. Create a new tag in `v1.0.0` format
   3. Publish the release
   4. GitHub Actions builds and pushes `:latest`, `:1.0.0`, and `:1` to GHCR
+- **Archive trigger (new minor only):** when cutting the first release of a new minor (e.g. `0.4.0`), before tagging: move the entire previous minor series out of `CHANGELOG.md` into a new `docs/CHANGELOG-<prev-minor>.x.md`, prepend a link in the "Archived releases" index, and confirm the active file is back to `[Unreleased]` + the new current minor. Patch releases within a minor (`0.3.6`, etc.) do **not** trigger archiving.
 
 ## URL Structure (Production Target)
 
@@ -147,6 +148,9 @@ Last shipped public release: v0.3.2 (2026-05-17)
 - On release: move [Unreleased] to new version section with today's date
 - GitHub release body = that version's CHANGELOG section (single source of truth)
 - In-app About page fetches release notes from GitHub Releases API
+- **Rolling per-minor archive:** the active `CHANGELOG.md` holds only `[Unreleased]` plus the current minor series (e.g. all `0.3.x` while shipping any 0.3.x release).
+- Each older minor series lives in `docs/CHANGELOG-<MAJOR>.<MINOR>.x.md` (one file per minor), newest-first within the file.
+- The root file ends with an "Archived releases" index linking each archive; when a new archive is created, prepend a line to the index.
 
 ## Database Rules
 
