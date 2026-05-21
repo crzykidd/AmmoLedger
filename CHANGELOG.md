@@ -21,7 +21,10 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Changed
 
-- **Sidebar navigation reorganized.** The "Settings" section has been removed. Import and Thresholds moved under a unified "Admin" section, which is now visible to all roles (admin-only items are hidden from non-admins). Products is now visually nested under Ammo in the main nav to clarify it is the ammo product catalog. Profile settings are now accessible via the gear icon next to the username in the sidebar footer, replacing the standalone Profile nav item.   Fixes #32
+- **Sidebar navigation reorganized.** The "Settings" section has been removed. Import and Thresholds moved under a unified "Admin" section, which is now visible to all roles (admin-only items are hidden from non-admins). Products is now visually nested under Ammo in the main nav to clarify it is the ammo product catalog. Profile settings are now accessible via the gear icon next to the username in the sidebar footer, replacing the standalone Profile nav item. Fixes #32
+- **Products page: Add Box opens on-page drawer.** Clicking **Add Box** on a product card or row no longer navigates away to the Inventory page. A focused drawer opens on the Products page itself, showing the product thumbnail and name at the top, then collecting the box-specific fields: Qty per Box, # of Boxes (creates N identical boxes in one save), Purchase Date, Cost/Round, Dealer, Location, Container, and Notes. All dropdowns support inline item creation. Fixes #30
+- **Products page: usage count is now a link.** "Used by X boxes" in grid view and the boxes count in list view are clickable — they navigate to the Inventory page pre-filtered to that product's boxes. Fixes #30
+- **Products page filters expanded.** The single "Show Empty" toggle is replaced by two independent filters: **Has Empty** (products with at least one box at 0 qty remaining) and **Has Archived** (products with at least one archived box). Fixes #30
 
 ## [0.3.5] — 2026-05-19
 

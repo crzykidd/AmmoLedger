@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import {
   Box,
+  CalendarIcon,
   Globe,
   Grid,
   ImageOff,
@@ -33,6 +35,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +61,7 @@ import {
   updateProduct,
   uploadProductImage,
 } from '@/api/products'
+import { createAmmo } from '@/api/ammo'
 import { getSystemVersion } from '@/api/system'
 import { FindImageDialog } from '@/components/products/FindImageDialog'
 import {
@@ -64,16 +69,26 @@ import {
   createAmmoTypeEntry,
   createCalibersEntry,
   createCategoryEntry,
+  createContainerEntry,
+  createDealerEntry,
+  createLocationEntry,
   createManufacturerWithTypes,
   getAmmoConditions,
   getAmmoTypes,
   getCalibersLookup,
   getCategories,
+  getContainers,
+  getDealers,
+  getLocations,
   getManufacturers,
 } from '@/api/lookups'
 import { LookupCombobox, type LookupOption } from '@/components/ui/LookupCombobox'
 import { useAuth } from '@/hooks/useAuth'
 import type {
+  AmmoBoxCreate,
+  ContainerItem,
+  DealerItem,
+  LocationItem,
   LookupItem,
   ManufacturerItem,
   ProductCreate,
@@ -853,6 +868,280 @@ function ProductFormSheet({
 }
 
 // ---------------------------------------------------------------------------
+// Add Box from Product sheet (simplified — product fields pre-filled)
+// ---------------------------------------------------------------------------
+
+interface AddBoxSheetProps {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  product: ProductRead | null
+  locations: LocationItem[]
+  containers: ContainerItem[]
+  dealers: DealerItem[]
+}
+
+function AddBoxFromProductSheet({
+  open,
+  onOpenChange,
+  product,
+  locations,
+  containers,
+  dealers,
+}: AddBoxSheetProps) {
+  const queryClient = useQueryClient()
+
+  const [qtyPerBox, setQtyPerBox] = useState('')
+  const [numBoxes, setNumBoxes] = useState('1')
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [purchaseDate, setPurchaseDate] = useState<Date | undefined>(undefined)
+  const [costPerRound, setCostPerRound] = useState('')
+  const [dealerId, setDealerId] = useState<number | null>(null)
+  const [locationId, setLocationId] = useState<number | null>(null)
+  const [containerId, setContainerId] = useState<number | null>(null)
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open || !product) return
+    setQtyPerBox('')
+    setNumBoxes('1')
+    setPurchaseDate(undefined)
+    setCostPerRound(product.default_cost != null ? String(product.default_cost) : '')
+    setDealerId(null)
+    setLocationId(null)
+    setContainerId(null)
+    setNotes('')
+    setSaving(false)
+    setError(null)
+  }, [open, product])
+
+  const createDealerInline = async (name: string) => {
+    const created = await createDealerEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['dealers'] })
+    return { id: created.id, name: created.name, source: null }
+  }
+  const createLocationInline = async (name: string) => {
+    const created = await createLocationEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['locations'] })
+    return { id: created.id, name: created.name, source: null }
+  }
+  const createContainerInline = async (name: string) => {
+    const created = await createContainerEntry(name)
+    await queryClient.invalidateQueries({ queryKey: ['containers'] })
+    return { id: created.id, name: created.name, source: null }
+  }
+
+  const handleSave = async () => {
+    if (!product) return
+    const qty = parseInt(qtyPerBox)
+    if (isNaN(qty) || qty < 1) {
+      setError('Qty per box must be at least 1')
+      return
+    }
+    const n = Math.max(1, Math.min(50, parseInt(numBoxes) || 1))
+    setError(null)
+    setSaving(true)
+    try {
+      const payload: AmmoBoxCreate = {
+        caliber_id: product.caliber_id,
+        manufacturer_id: product.manufacturer_id,
+        product_id: product.id,
+        qty_original: qty,
+        qty_remaining: qty,
+        ...(product.type_id != null && { type_id: product.type_id }),
+        ...(product.ammo_condition_id != null && { ammo_condition_id: product.ammo_condition_id }),
+        ...(product.category_id != null && { category_id: product.category_id }),
+        ...(product.gr_oz != null && { gr_oz: product.gr_oz }),
+        ...(product.weight_unit != null && { weight_unit: product.weight_unit }),
+        ...(purchaseDate && { purchase_date: format(purchaseDate, 'yyyy-MM-dd') }),
+        ...(costPerRound && { cost_per_round: parseFloat(costPerRound) }),
+        ...(dealerId != null && { dealer_id: dealerId }),
+        ...(locationId != null && { location_id: locationId }),
+        ...(containerId != null && { container_id: containerId }),
+        ...(notes && { notes }),
+      }
+      await Promise.all(Array.from({ length: n }, () => createAmmo(payload)))
+      void queryClient.invalidateQueries({ queryKey: ['ammo'] })
+      void queryClient.invalidateQueries({ queryKey: ['products'] })
+      toast({ title: `Added ${n} box${n !== 1 ? 'es' : ''} of ${product.name}` })
+      onOpenChange(false)
+    } catch (e: unknown) {
+      setError((e as { detail?: string })?.detail ?? 'An error occurred')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const imageUrl = product?.image_path ? getProductImageUrl(product.id) : null
+  const subtitle = product
+    ? [
+        product.caliber_name,
+        product.gr_oz != null ? `${product.gr_oz}${(product.weight_unit ?? 'gr').toLowerCase()}` : null,
+        product.type_name,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : ''
+
+  const locationOptions = locations
+    .filter((l) => l.is_active)
+    .map((l) => ({ id: l.id, name: l.name, source: null }))
+  const containerOptions = containers
+    .filter((c) => c.is_active)
+    .map((c) => ({ id: c.id, name: c.name, source: null }))
+  const dealerOptions = dealers
+    .filter((d) => d.is_active)
+    .map((d) => ({ id: d.id, name: d.name, source: null }))
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent title="Add Box" description="">
+        <SheetHeader>
+          <SheetTitle>Add Box</SheetTitle>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* Product header */}
+          {product && (
+            <div className="flex items-center gap-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 p-3">
+              <div className="w-14 h-14 rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden shrink-0">
+                {imageUrl ? (
+                  <SafeImage src={imageUrl} alt={product.name} className="w-full h-full object-contain" />
+                ) : (
+                  <ImageOff className="w-6 h-6 text-gray-300 dark:text-gray-600" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm text-gray-900 dark:text-white leading-tight">{product.name}</p>
+                {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Qty per Box" required>
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                step={1}
+                placeholder="e.g. 20"
+                value={qtyPerBox}
+                onChange={(e) => setQtyPerBox(e.target.value)}
+              />
+            </Field>
+            <Field label="# of Boxes">
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                max={50}
+                step={1}
+                placeholder="1"
+                value={numBoxes}
+                onChange={(e) => setNumBoxes(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <Field label="Purchase Date">
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    inputCls,
+                    'flex items-center gap-2 text-left',
+                    !purchaseDate && 'text-gray-400 dark:text-gray-500',
+                  )}
+                >
+                  <CalendarIcon className="w-4 h-4 shrink-0" />
+                  {purchaseDate ? format(purchaseDate, 'MMM d, yyyy') : 'Select date'}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={purchaseDate}
+                  onSelect={(d) => { setPurchaseDate(d); setCalendarOpen(false) }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </Field>
+
+          <Field label="Cost per Round ($)">
+            <input
+              className={inputCls}
+              type="number"
+              step="0.001"
+              min={0}
+              placeholder={product?.default_cost != null ? `Default: $${product.default_cost.toFixed(3)}` : '0.000'}
+              value={costPerRound}
+              onChange={(e) => setCostPerRound(e.target.value)}
+            />
+          </Field>
+
+          <Field label="Dealer">
+            <LookupCombobox
+              value={dealerId}
+              options={dealerOptions}
+              onChange={setDealerId}
+              onCreate={createDealerInline}
+              placeholder="Select dealer"
+              label="Dealer"
+            />
+          </Field>
+
+          <Field label="Location">
+            <LookupCombobox
+              value={locationId}
+              options={locationOptions}
+              onChange={setLocationId}
+              onCreate={createLocationInline}
+              placeholder="Select location"
+              label="Location"
+            />
+          </Field>
+
+          <Field label="Container">
+            <LookupCombobox
+              value={containerId}
+              options={containerOptions}
+              onChange={setContainerId}
+              onCreate={createContainerInline}
+              placeholder="Select container"
+              label="Container"
+            />
+          </Field>
+
+          <Field label="Notes">
+            <Textarea
+              rows={2}
+              placeholder="Optional notes…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </Field>
+
+          {error && <p className="text-sm text-red-500">{error}</p>}
+        </div>
+
+        <SheetFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={() => void handleSave()} disabled={saving}>
+            {saving ? 'Saving…' : `Add ${parseInt(numBoxes) > 1 ? `${parseInt(numBoxes)} Boxes` : 'Box'}`}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Product card
 // ---------------------------------------------------------------------------
 
@@ -862,12 +1151,14 @@ function ProductCard({
   onEdit,
   onDelete,
   onAddBox,
+  onViewBoxes,
 }: {
   product: ProductRead
   user: User | null
   onEdit: () => void
   onDelete: () => void
   onAddBox: () => void
+  onViewBoxes: () => void
 }) {
   const imageUrl = product.image_path ? getProductImageUrl(product.id) : null
 
@@ -910,9 +1201,17 @@ function ProductCard({
             Default: ${product.default_cost.toFixed(3)}/rd
           </p>
         )}
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-auto pt-1">
-          Used by {product.usage_count} box{product.usage_count !== 1 ? 'es' : ''}
-        </p>
+        {product.usage_count > 0 ? (
+          <button
+            type="button"
+            onClick={onViewBoxes}
+            className="text-xs text-gold hover:underline mt-auto pt-1 text-left"
+          >
+            Used by {product.usage_count} box{product.usage_count !== 1 ? 'es' : ''}
+          </button>
+        ) : (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-auto pt-1">No boxes</p>
+        )}
       </div>
 
       {/* Actions */}
@@ -956,13 +1255,16 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filterCaliberId, setFilterCaliberId] = useState<string>('')
-  const [showEmptyOnly, setShowEmptyOnly] = useState(false)
+  const [showEmptyBoxes, setShowEmptyBoxes] = useState(false)
+  const [showArchivedProducts, setShowArchivedProducts] = useState(false)
   const [sortField, setSortField] = useState<string>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [formOpen, setFormOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<ProductRead | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProductRead | null>(null)
   const [autoGenerating, setAutoGenerating] = useState(false)
+  const [addBoxProduct, setAddBoxProduct] = useState<ProductRead | null>(null)
+  const [addBoxOpen, setAddBoxOpen] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300)
@@ -998,6 +1300,21 @@ export default function ProductsPage() {
     queryKey: ['lookups', 'ammo-conditions'],
     queryFn: getAmmoConditions,
   })
+  const { data: dealers = [] } = useQuery({
+    queryKey: ['dealers'],
+    queryFn: getDealers,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: locations = [] } = useQuery({
+    queryKey: ['locations'],
+    queryFn: getLocations,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: containers = [] } = useQuery({
+    queryKey: ['containers'],
+    queryFn: getContainers,
+    staleTime: 5 * 60 * 1000,
+  })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteProduct(id),
@@ -1030,15 +1347,14 @@ export default function ProductsPage() {
     }
   }
 
-  const hasFilters = !!(debouncedSearch || (filterCaliberId && filterCaliberId !== NONE) || showEmptyOnly)
+  const hasFilters = !!(debouncedSearch || (filterCaliberId && filterCaliberId !== NONE) || showEmptyBoxes || showArchivedProducts)
 
   const filteredProducts = useMemo(() => {
     let list = products
-    if (showEmptyOnly) {
-      list = list.filter((p) => p.usage_count === 0)
-    }
+    if (showEmptyBoxes) list = list.filter((p) => p.empty_count > 0)
+    if (showArchivedProducts) list = list.filter((p) => p.archived_count > 0)
     return list
-  }, [products, showEmptyOnly])
+  }, [products, showEmptyBoxes, showArchivedProducts])
 
   const sortedProducts = useMemo(() => {
     const list = [...filteredProducts]
@@ -1066,7 +1382,12 @@ export default function ProductsPage() {
   }, [filteredProducts, sortField, sortDir])
 
   const handleAddBox = (product: ProductRead) => {
-    navigate(`/ammo?product_id=${product.id}`)
+    setAddBoxProduct(product)
+    setAddBoxOpen(true)
+  }
+
+  const handleViewBoxes = (product: ProductRead) => {
+    navigate(`/ammo?searchField=product&search=${encodeURIComponent(product.product_name || product.name)}`)
   }
 
   const openAdd = () => {
@@ -1158,12 +1479,20 @@ export default function ProductsPage() {
           </div>
 
           <Button
-            variant={showEmptyOnly ? 'default' : 'secondary'}
+            variant={showEmptyBoxes ? 'default' : 'secondary'}
             size="sm"
-            onClick={() => setShowEmptyOnly(!showEmptyOnly)}
+            onClick={() => setShowEmptyBoxes(!showEmptyBoxes)}
             className="whitespace-nowrap"
           >
-            {showEmptyOnly ? 'Showing Empty' : 'Show Empty'}
+            Has Empty
+          </Button>
+          <Button
+            variant={showArchivedProducts ? 'default' : 'secondary'}
+            size="sm"
+            onClick={() => setShowArchivedProducts(!showArchivedProducts)}
+            className="whitespace-nowrap"
+          >
+            Has Archived
           </Button>
 
           <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -1265,7 +1594,7 @@ export default function ProductsPage() {
                 <p className="font-medium text-gray-600 dark:text-gray-300">No products match your filters</p>
                 <p className="text-sm text-gray-400 mt-1">Try adjusting your search or clearing filters.</p>
               </div>
-              <Button variant="secondary" onClick={() => { setSearch(''); setFilterCaliberId(''); setShowEmptyOnly(false) }}>
+              <Button variant="secondary" onClick={() => { setSearch(''); setFilterCaliberId(''); setShowEmptyBoxes(false); setShowArchivedProducts(false) }}>
                 Clear Filters
               </Button>
             </div>
@@ -1306,6 +1635,7 @@ export default function ProductsPage() {
                 onEdit={() => openEdit(p)}
                 onDelete={() => setDeleteTarget(p)}
                 onAddBox={() => handleAddBox(p)}
+                onViewBoxes={() => handleViewBoxes(p)}
               />
             ))}
           </div>
@@ -1363,8 +1693,18 @@ export default function ProductsPage() {
                       <td className="px-4 py-3 text-right hidden md:table-cell text-gray-600 dark:text-gray-300">
                         {p.default_cost != null ? `$${p.default_cost.toFixed(3)}` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
-                        {p.usage_count}
+                      <td className="px-4 py-3 text-right">
+                        {p.usage_count > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => handleViewBoxes(p)}
+                            className="text-gold hover:underline"
+                          >
+                            {p.usage_count}
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">0</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 hidden xl:table-cell text-gray-600 dark:text-gray-300">
                         {new Date(p.updated_at).toLocaleDateString()}
@@ -1402,6 +1742,16 @@ export default function ProductsPage() {
           </div>
         )}
       </div>
+
+      {/* Add Box drawer */}
+      <AddBoxFromProductSheet
+        open={addBoxOpen}
+        onOpenChange={setAddBoxOpen}
+        product={addBoxProduct}
+        locations={locations}
+        containers={containers}
+        dealers={dealers}
+      />
 
       {/* Add / Edit sheet */}
       <ProductFormSheet

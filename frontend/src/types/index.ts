@@ -680,6 +680,8 @@ export interface ProductRead {
   category_name: string | null
   condition_name: string | null
   usage_count: number
+  empty_count: number
+  archived_count: number
 }
 
 export interface ProductCreate {
