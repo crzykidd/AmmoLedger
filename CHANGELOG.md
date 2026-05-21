@@ -18,6 +18,10 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Fixed
+
+- **Inventory search now works for all fields.** Searching with "All Fields" selected previously returned no results for Manufacturer, Category, Condition, Dealer, and Location because the search was handled server-side and only matched product name and legacy ID. Search is now fully client-side and matches across all fields including caliber, manufacturer, type, category, condition, dealer, location, container, product name, notes, and box ID. Fixes #29
+
 ### Changed
 
 - **Sidebar navigation reorganized.** The "Settings" section has been removed. Import and Thresholds moved under a unified "Admin" section, which is now visible to all roles (admin-only items are hidden from non-admins). Products is now visually nested under Ammo in the main nav to clarify it is the ammo product catalog. Profile settings are now accessible via the gear icon next to the username in the sidebar footer, replacing the standalone Profile nav item. Fixes #32

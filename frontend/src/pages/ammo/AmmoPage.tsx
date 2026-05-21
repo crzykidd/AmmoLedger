@@ -317,12 +317,11 @@ export default function AmmoPage() {
     [lookups.containers],
   )
 
-  const apiSearch = searchField === 'all' ? (search || undefined) : undefined
   const showEmpty = emptyFilter !== 'active'
   const showArchived = archivedFilter !== 'active'
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['ammo', { search: apiSearch, showEmpty, showArchived }],
-    queryFn: () => listAmmo({ search: apiSearch, show_empty: showEmpty, show_archived: showArchived }),
+    queryKey: ['ammo', { showEmpty, showArchived }],
+    queryFn: () => listAmmo({ show_empty: showEmpty, show_archived: showArchived }),
   })
 
   const allBoxes = data?.boxes ?? []
@@ -355,12 +354,27 @@ export default function AmmoPage() {
     [boxes, lowCaliberIds],
   )
 
-  // Client-side field-scoped search (active when searchField !== 'all')
+  // Client-side field-scoped search
   const searchedBoxes = useMemo(() => {
-    if (!search.trim() || searchField === 'all') return viewFiltered
+    if (!search.trim()) return viewFiltered
     const q = search.trim().toLowerCase()
     return viewFiltered.filter((box) => {
       switch (searchField) {
+        case 'all':
+          return (
+            String(box.id).includes(q) ||
+            (box.legacy_id ?? '').toLowerCase().includes(q) ||
+            (caliberMap.get(box.caliber_id) ?? '').toLowerCase().includes(q) ||
+            (manufacturerMap.get(box.manufacturer_id) ?? '').toLowerCase().includes(q) ||
+            (box.type_id != null && (typeMap.get(box.type_id) ?? '').toLowerCase().includes(q)) ||
+            (box.category_id != null && (categoryMap.get(box.category_id) ?? '').toLowerCase().includes(q)) ||
+            (box.ammo_condition_id != null && (conditionMap.get(box.ammo_condition_id) ?? '').toLowerCase().includes(q)) ||
+            (box.dealer_id != null && (dealerMap.get(box.dealer_id) ?? '').toLowerCase().includes(q)) ||
+            (box.location_id != null && (locationMap.get(box.location_id) ?? '').toLowerCase().includes(q)) ||
+            (box.container_id != null && (containerMap.get(box.container_id) ?? '').toLowerCase().includes(q)) ||
+            (box.product_name ?? '').toLowerCase().includes(q) ||
+            (box.notes ?? '').toLowerCase().includes(q)
+          )
         case 'id':
           return String(box.id).includes(q) || (box.legacy_id ?? '').toLowerCase().includes(q)
         case 'caliber':
