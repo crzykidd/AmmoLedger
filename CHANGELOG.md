@@ -21,7 +21,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 ### Fixed
 
 - **Vite dev server now detects file changes on Windows Docker.** Added filesystem polling (`usePolling: true`) to `vite.config.ts` — without this, inotify events from the Windows host never reach the Linux container, so HMR silently stops working after the first change.
-- **Inventory search now works for all fields.** Searching with "All Fields" selected previously returned no results for Manufacturer, Category, Condition, Dealer, and Location because the search was handled server-side and only matched product name and legacy ID. Search is now fully client-side and matches across all fields including caliber, manufacturer, type, category, condition, dealer, location, container, product name, notes, and box ID. Fixes #29
+- **Inventory search now works for all fields.** Searching with "All Fields" selected previously returned no results for Manufacturer, Category, Condition, Dealer, and Location because the search was handled server-side and only matched product name and legacy ID. Search is now fully client-side and matches across all fields including caliber, manufacturer, type, category, condition, dealer, location, container, product name, notes, and box ID. Product Name search also looks up the linked catalog product via product_id, so it works even for boxes whose `product_name` field isn't denormalized. Fixes #29
 
 ### Changed
 

@@ -19,6 +19,7 @@ import ExpendDialog from '@/components/inventory/ExpendDialog'
 import SplitBoxDialog from '@/components/inventory/SplitBoxDialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo, exportAmmoCsv } from '@/api/ammo'
+import { listProducts } from '@/api/products'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -324,6 +325,19 @@ export default function AmmoPage() {
     queryFn: () => listAmmo({ show_empty: showEmpty, show_archived: showArchived }),
   })
 
+  // Products catalog — used so Product Name search also matches boxes whose
+  // box.product_name field is empty but which are linked to a catalog product
+  // via product_id.
+  const { data: productsData } = useQuery({
+    queryKey: ['products', 'all'],
+    queryFn: () => listProducts(),
+    staleTime: 5 * 60 * 1000,
+  })
+  const productMap = useMemo(
+    () => new Map((productsData ?? []).map((p) => [p.id, p])),
+    [productsData],
+  )
+
   const allBoxes = data?.boxes ?? []
   // Apply the condition toolbar filter
   const boxes = conditionFilter
@@ -358,6 +372,16 @@ export default function AmmoPage() {
   const searchedBoxes = useMemo(() => {
     if (!search.trim()) return viewFiltered
     const q = search.trim().toLowerCase()
+    // Resolve product display name from box.product_name or linked product
+    // (covers boxes where product_name is null but product_id is set).
+    const productNameFor = (box: AmmoBoxRead): string => {
+      if (box.product_name) return box.product_name
+      if (box.product_id != null) {
+        const p = productMap.get(box.product_id)
+        if (p) return p.product_name ?? p.name ?? ''
+      }
+      return ''
+    }
     return viewFiltered.filter((box) => {
       switch (searchField) {
         case 'all':
@@ -372,7 +396,7 @@ export default function AmmoPage() {
             (box.dealer_id != null && (dealerMap.get(box.dealer_id) ?? '').toLowerCase().includes(q)) ||
             (box.location_id != null && (locationMap.get(box.location_id) ?? '').toLowerCase().includes(q)) ||
             (box.container_id != null && (containerMap.get(box.container_id) ?? '').toLowerCase().includes(q)) ||
-            (box.product_name ?? '').toLowerCase().includes(q) ||
+            productNameFor(box).toLowerCase().includes(q) ||
             (box.notes ?? '').toLowerCase().includes(q)
           )
         case 'id':
@@ -394,12 +418,12 @@ export default function AmmoPage() {
         case 'container':
           return box.container_id != null && (containerMap.get(box.container_id) ?? '').toLowerCase().includes(q)
         case 'product':
-          return (box.product_name ?? '').toLowerCase().includes(q)
+          return productNameFor(box).toLowerCase().includes(q)
         default:
           return true
       }
     })
-  }, [viewFiltered, search, searchField, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, dealerMap, locationMap, containerMap])
+  }, [viewFiltered, search, searchField, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, dealerMap, locationMap, containerMap, productMap])
 
   // Apply column filters — AND logic with field search + condition filter above
   const filteredBoxes = useMemo(() => {
