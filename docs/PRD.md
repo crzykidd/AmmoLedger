@@ -84,6 +84,7 @@
 | 3.42 | 2026-05-18 | v0.3.4 release: Products Find Image Online (Brave Search API integration with optional square crop), production compose network hardening (private ammoledger_net bridge, no backend published ports, opt-in proxy_net external attachment, outbound host documentation §12.6). CHANGELOG [Unreleased] stamped as [0.3.4]. |
 | 3.43 | 2026-05-19 | PUID/PGID runtime file ownership — §15.2 added (File Ownership: PUID/PGID env vars, default 1000:1000, backward compatible). Dockerfile.backend installs gosu and delegates to a new entrypoint script that remaps appuser UID/GID at container start, chowns /data only when ownership differs, then drops privileges via gosu. docker-compose.yml and docker-compose.dev.yml pass PUID/PGID with ${PUID:-1000}/${PGID:-1000}; dev compose user: directive removed. Former §15.2/§15.3 renumbered to §15.3/§15.4. |
 | 3.44 | 2026-05-19 | v0.3.5 release: CodeQL path-traversal fix in product image preview endpoints (tokens resolved via directory listing, not path construction); backend honors PUID/PGID for /data ownership instead of baked-in UID 1000 (§15.2). CHANGELOG [Unreleased] stamped [0.3.5]; duplicate CodeQL entry removed from [0.3.4]. |
+| 3.45 | 2026-05-20 | Sidebar navigation reorganized — "Settings" section removed. Import and Thresholds moved into the Admin section. Admin section is now visible to all roles; admin-only items (Thresholds, Users, Backup, Datasets, Tasks) hidden from non-admins; Import hidden from read-only. Products visually nested under Ammo in the main nav. Profile nav item removed; profile drawer now opened via a gear icon in the sidebar footer next to the username. §9.2.6 Import navigation note updated; §9.13 Products sidebar placement updated. |
 
 ---
 
@@ -1598,7 +1599,7 @@ Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an 
 
 **Result card layout:** the text container inside each result card uses `flex-1 min-w-0` so long box descriptions (long product names, manufacturer names) wrap within the `max-w-lg` boundary rather than forcing the entire page wider. Both description lines use `break-words`.
 
-**Import navigation change:** Import has been moved from the top nav section (Dashboard / Ammo / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Ammo, Products, At Range.
+**Sidebar navigation (current):** The top section contains Dashboard, Ammo, Products (visually nested under Ammo), Firearms, Range, and At Range. The Admin section (visible to all roles; admin-only items hidden from non-admins) contains Import (hidden from read-only), Thresholds (admin only), Users, Backup, Datasets, and Tasks. Profile settings are accessed via a gear icon in the sidebar footer next to the username. There is no longer a separate Settings section.
 
 ### 9.3 Expend Rounds
 
@@ -2061,7 +2062,7 @@ Single source of truth for the entire app. Docker image built with this version 
 
 #### Products Page (`/products`)
 
-- Accessible to all authenticated roles via sidebar (BookOpen icon, between Ammo and Import)
+- Accessible to all authenticated roles via sidebar (BookOpen icon, visually nested under Ammo in the main nav section)
 - Two view modes: **Grid** (image card layout) and **List** (compact rows) — toggled by icon buttons, saved to localStorage
 - Search input filters by name, caliber, or manufacturer (client-side across loaded results)
 - Caliber filter dropdown to narrow list to a single caliber
