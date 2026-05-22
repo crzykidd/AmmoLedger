@@ -18,6 +18,8 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.6] — 2026-05-21
+
 ### Fixed
 
 - **Vite dev server now detects file changes on Windows Docker.** Added filesystem polling (`usePolling: true`) to `vite.config.ts` — without this, inotify events from the Windows host never reach the Linux container, so HMR silently stops working after the first change.
