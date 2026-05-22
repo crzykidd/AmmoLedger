@@ -255,10 +255,10 @@ docker compose -f docker-compose.dev.yml exec backend alembic current
 
 ## Data Directory
 
-All runtime data lives in the `ammoledger_data` Docker volume (mounted at `/data` inside the container). The directory is created automatically on first startup.
+All runtime data lives in the `ammoledger_data` Docker volume, mounted at `/data` inside the container and created automatically on first startup. Inside that volume:
 
 ```
-data/
+/data
 ├── ammoledger.db        # SQLite database
 ├── config.yaml          # App settings and secrets (auto-created)
 ├── defaults.yaml        # Editable seed data
@@ -266,7 +266,13 @@ data/
 └── uploads/             # Product and firearm images (auto-created)
 ```
 
-To back up: copy the entire `data/` directory (or the volume contents) somewhere safe. See the [Installation Guide](docs/INSTALL.md) for the in-app backup and restore workflow.
+Because this is a Docker named volume, there is no `data/` folder sitting next
+to your compose file by default — the files live inside the volume Docker
+manages. The easiest way to get a copy of your data is the built-in backup on
+the Backup page, which writes a downloadable archive. See the
+[Installation Guide](docs/INSTALL.md) for the full backup and restore workflow,
+and for how to bind-mount a host folder instead if you'd rather have the files
+directly on disk.
 
 ## Project Structure
 
