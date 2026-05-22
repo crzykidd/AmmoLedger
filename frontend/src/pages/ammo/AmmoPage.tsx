@@ -224,9 +224,12 @@ export default function AmmoPage() {
 
   // Pre-selected product from /products?product_id=X
   const [initialProductId, setInitialProductId] = useState<number | null>(null)
+  // FK filter from /products?product_filter_id=X — filters boxes by product_id
+  const [productFilterId, setProductFilterId] = useState<number | null>(null)
 
   useEffect(() => {
     const pid = searchParams.get('product_id')
+    const productFilterIdParam = searchParams.get('product_filter_id')
     const searchFieldParam = searchParams.get('searchField')
     const searchVal = searchParams.get('search')
     const emptyFilterParam = searchParams.get('emptyFilter')
@@ -241,6 +244,11 @@ export default function AmmoPage() {
       }
     }
 
+    if (productFilterIdParam) {
+      const id = parseInt(productFilterIdParam)
+      if (!isNaN(id)) setProductFilterId(id)
+    }
+
     if (searchFieldParam) setSearchField(searchFieldParam)
     if (searchVal) setSearch(searchVal)
 
@@ -253,7 +261,7 @@ export default function AmmoPage() {
       localStorage.setItem('ammo_archived_filter', statusFilterParam)
     }
 
-    if (pid || searchFieldParam || searchVal || emptyFilterParam || statusFilterParam) {
+    if (pid || productFilterIdParam || searchFieldParam || searchVal || emptyFilterParam || statusFilterParam) {
       setSearchParams({}, { replace: true })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -277,7 +285,7 @@ export default function AmmoPage() {
   // Clear selection when filters or groupBy change
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [columnFilters, groupBy, conditionFilter, search, searchField, emptyFilter, archivedFilter])
+  }, [columnFilters, groupBy, conditionFilter, search, searchField, emptyFilter, archivedFilter, productFilterId])
 
   const lookups = useInventoryLookups()
   const { status: thresholdStatus } = useThresholdStatus()
@@ -346,14 +354,15 @@ export default function AmmoPage() {
       )
     : allBoxes
 
-  // Client-side filter for "only" modes (empty-only / archived-only)
+  // Client-side filter for "only" modes (empty-only / archived-only) + product FK filter
   const viewFiltered = useMemo(() => {
     return boxes.filter((b) => {
       if (emptyFilter === 'empty' && b.qty_remaining !== 0) return false
       if (archivedFilter === 'archived' && !b.is_archived) return false
+      if (productFilterId != null && b.product_id !== productFilterId) return false
       return true
     })
-  }, [boxes, emptyFilter, archivedFilter])
+  }, [boxes, emptyFilter, archivedFilter, productFilterId])
 
   const canAdd = user?.role !== 'read_only'
 
@@ -810,6 +819,19 @@ export default function AmmoPage() {
           {/* Row 2: filter controls + stats */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Product FK filter chip */}
+              {productFilterId != null && (
+                <span className="inline-flex items-center gap-1.5 text-xs bg-gold/10 text-gold border border-gold/30 rounded-full px-2.5 py-1 font-medium">
+                  Product: {productMap.get(productFilterId)?.name ?? `#${productFilterId}`}
+                  <button
+                    onClick={() => setProductFilterId(null)}
+                    className="hover:opacity-70"
+                    aria-label="Clear product filter"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
               {/* Active filter count + Clear */}
               {activeFilterCount > 0 && (
                 <>
