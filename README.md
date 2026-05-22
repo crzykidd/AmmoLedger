@@ -5,10 +5,10 @@
 
 <div align="center">
 
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.3.8-gold)
-![Docker](https://img.shields.io/badge/docker-ready-blue)
-![PRD](https://img.shields.io/badge/docs-PRD-navy)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.3.8-gold)](CHANGELOG.md)
+[![Docker](https://img.shields.io/badge/docker-ready-blue)](https://github.com/crzykidd/AmmoLedger/pkgs/container/ammoledger-backend)
+[![PRD](https://img.shields.io/badge/docs-PRD-navy)](docs/PRD.md)
 
 </div>
 
