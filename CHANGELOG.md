@@ -18,6 +18,12 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Changed
+
+- **README and Installation Guide overhauled for public beta.** README is now a tight landing page (tagline, screenshots placeholder, four feature areas — Ammo / Firearm / Range / Cleaning & Utilization, three-step Quick Start, community blurb). Removed the inline "What's New" history (now changelog-only) and "What's Coming Next" (now tracked in [GitHub issues](https://github.com/crzykidd/AmmoLedger/issues)). Moved env var reference, NAS/PUID-PGID, reverse-proxy topology, generic version-agnostic upgrade steps, and DB maintenance into `docs/INSTALL.md`.
+- **Production compose: frontend now publishes on `5173:5173`** (was `127.0.0.1:5173` only). External access still wants a reverse proxy in front, but the bind no longer assumes one is already there. Backend remains on the private `ammoledger_net` bridge with no published ports.
+- **Production compose: backend env block trimmed.** Removed the redundant `DATABASE_URL`, `CONFIG_PATH`, `DEFAULTS_PATH`, `BACKUP_PATH`, and `UPLOADS_PATH` lines (all have correct `/data/...` defaults baked into the image). Only `PYTHONUNBUFFERED`, `PUID`, and `PGID` remain uncommented; every `AL_*` override is listed as an optional commented example with accurate names.
+
 ## [0.3.6] — 2026-05-21
 
 ### Fixed

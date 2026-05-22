@@ -72,7 +72,7 @@ docker compose restart backend
 | Web UI   | <http://localhost:5173>                      |
 | API docs | <http://localhost:5173/api/docs>             |
 
-For reverse proxy / external access, point your proxy at port **5173**.
+For reverse proxy / external access, point your proxy at port **5173**. See [Network topology](#network-topology) below for the recommended setup.
 
 ---
 
@@ -94,7 +94,35 @@ docker compose pull
 docker compose up -d
 ```
 
-Alembic migrations run automatically on startup. No manual database work required.
+Alembic migrations run automatically on startup. Your data in the `ammoledger_data` volume is never touched during an upgrade. For per-version notes, see the [Changelog](../CHANGELOG.md).
+
+> **Tip:** if you're cautious, take a backup before upgrading. Admin → Backups → Backup Now produces a WAL-safe SQLite snapshot in seconds.
+
+---
+
+## Network topology
+
+By default the production compose file puts both services on a private bridge network (`ammoledger_net`) and publishes the frontend on host port `5173`. The backend has no published ports — it is only reachable from the frontend over the internal network.
+
+For LAN or internet access, put a reverse proxy in front of the frontend (Nginx Proxy Manager, Traefik, Caddy, Cloudflare Tunnel). If your reverse proxy runs in a separate compose stack, uncomment the `proxy_net` lines in `docker-compose.yml` so your proxy can reach the AmmoLedger frontend by container name. See PRD §12.5 for the full pattern.
+
+The backend needs outbound internet access for optional features (Find Image, GitHub version check, community lookup sync, Discord / SMTP notifications). See PRD §12.6 for the host allowlist. None of these are required for core ammo / firearm / range tracking — the app runs entirely offline if you want it to.
+
+---
+
+## Data file ownership (PUID/PGID)
+
+If you need the data files (database, backups, uploads) owned by a specific host user — for example on a NAS or shared homelab box — set `PUID` and `PGID` on the backend service in `docker-compose.yml` (or in a `.env` file next to it). Find your IDs with `id -u` and `id -g`. Defaults are `1000:1000`.
+
+```yaml
+services:
+  backend:
+    environment:
+      - PUID=1000
+      - PGID=1000
+```
+
+The backend container starts as root, remaps its internal `appuser` to the requested UID/GID, fixes ownership of `/data`, and drops privileges before running. Existing deployments that don't set PUID/PGID see no change. See PRD §15.2 for details.
 
 ---
 
@@ -156,17 +184,41 @@ ENV values always take priority over `config.yaml` when both are present.
 
 ### Environment Variable Reference
 
-| Variable | config.yaml equivalent | Default | Description |
-| --- | --- | --- | --- |
-| `AL_SESSION_SECRET` | `security.session_secret` | (required) | Session signing key — min 32 chars; generate with `openssl rand -hex 32` |
-| `AL_RESET_TOKEN` | `security.reset_token` | `""` | Emergency admin password reset token; clear after use |
-| `AL_APP_NAME` | `app.name` | `AmmoLedger` | Application display name |
-| `AL_BASE_URL` | `app.base_url` | `http://localhost:5173` | Public URL used in invite links and QR codes |
-| `AL_BACKUP_ENABLED` | `backup.enabled` | `true` | Enable nightly scheduled backups |
-| `AL_BACKUP_SCHEDULE` | `backup.schedule` | `03:00` | Nightly backup time (HH:MM, 24-hour) |
-| `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | `30` | Days to keep old backup files |
-| `AL_BACKUP_PATH` | `backup.path` | `/data/backups` | Backup storage directory |
-| `AL_BACKEND_URL` | (frontend only) | `http://backend:8000` | Container-internal URL the frontend proxy uses to reach the backend. Change only if your backend runs on a different service name or port. |
+This is the complete list of environment variables AmmoLedger recognizes. Any setting not in this table is `config.yaml`-only (no env override). ENV values always take priority over `config.yaml` when both are set.
+
+| Variable | config.yaml key | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `AL_SESSION_SECRET` | `security.session_secret` | str (≥32 chars) | (required) | Session signing key. If set, the app starts without a config.yaml. Generate with `openssl rand -hex 32`. |
+| `AL_RESET_TOKEN` | `security.reset_token` | str | `""` | Emergency admin password reset token; clear after use. |
+| `AL_APP_NAME` | `app.name` | str | `AmmoLedger` | Application display name. |
+| `AL_BASE_URL` | `app.base_url` | str (URL) | `http://localhost:5173` | Public URL used in invite links and QR codes. |
+| `AL_BACKUP_ENABLED` | `backup.enabled` | bool | `true` | Enable nightly scheduled backups. |
+| `AL_BACKUP_SCHEDULE` | `backup.schedule` | str (HH:MM) | `03:00` | Nightly backup time (24-hour). |
+| `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | int (1–365) | `30` | Days to keep old backup files. |
+| `AL_BACKUP_PATH` | `backup.path` | str | `/data/backups` | Backup storage directory. |
+| `AL_BACKUP_INCLUDE_PHOTOS` | `backup.include_photos` | bool | `true` | Bundle uploaded photos into zip backups alongside the database. |
+| `AL_IMAGE_SEARCH_ENABLED` | `image_search.enabled` | bool | `false` | Enable Find Image Online on the Products page. |
+| `AL_IMAGE_SEARCH_PROVIDER` | `image_search.provider` | str (`brave`) | `brave` | Image search provider. Only `brave` is currently supported. |
+| `AL_IMAGE_SEARCH_API_KEY` | `image_search.api_key` | str | `""` | API key for the image search provider. |
+| `PUID` | (entrypoint, not config) | int | `1000` | UID to run the backend as. Match the host user that should own `/data`. |
+| `PGID` | (entrypoint, not config) | int | `1000` | GID to run the backend as. |
+
+The frontend container also reads one variable that is not a `config.yaml` setting:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `AL_BACKEND_URL` | `http://backend:8000` | Container-internal URL the frontend proxy uses to reach the backend. Change only if your backend runs on a different service name or port. |
+
+### config.yaml-only settings (no env override)
+
+A handful of common settings are configurable via `config.yaml` only:
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `app.session_timeout_hours` | `8` | Session lifetime (1–720 hours). |
+| `security.registration` | `invite_only` | Who can register: `invite_only`, `open`, or `disabled`. |
+| `smtp.*` | (disabled) | SMTP server settings for email notifications. |
+| `notifications.discord.*` | (disabled) | Discord webhook URL and toggle for alert notifications. |
 
 ---
 
@@ -259,6 +311,27 @@ Visit `http://localhost:5173/reset?token=your-random-token-here`, enter your adm
 **Scheduled backup:** Configured in `config.yaml` under `backup:` — runs nightly at 03:00 by default, retains 30 days.
 
 **Restore:** Admin panel → Settings → Import Backup → upload a `.json` backup file.
+
+---
+
+## Database maintenance
+
+AmmoLedger ships with two scheduled SQLite maintenance tasks, visible on the Tasks page (admin only):
+
+- **Database Optimize** — runs `PRAGMA optimize` daily at 04:00. Refreshes query planner statistics for tables with stale data so the database uses indexes efficiently. **Enabled by default.**
+- **Database Vacuum** — runs `VACUUM` daily at 04:30. Reclaims unused space and defragments the database file. **Disabled by default** — read the warning below before enabling.
+
+### Before enabling Database Vacuum
+
+VACUUM rewrites the entire database. While it runs:
+
+- It needs roughly **2× the current database size in free disk space** on the volume hosting `/data`. A 200 MB database needs ~200 MB free during the rewrite. If the disk runs out, VACUUM fails and the task records a `failed` entry in task history. Your data is not lost — VACUUM operates on a copy and only swaps after success.
+- The database is **locked for writes** for the duration. On typical inventories this is seconds; on very large databases it can be a few minutes. Reads still work in WAL mode.
+- The task has `requires_exclusive: true`, so it will not run concurrently with backup or optimize tasks.
+
+To enable: go to the Tasks page, toggle Database Vacuum on, and confirm the warning dialog. You can change the schedule after enabling.
+
+If your server is tight on disk space, leave the task disabled and trigger VACUUM manually via Tasks → Run Now when you can monitor it.
 
 ---
 
