@@ -18,6 +18,8 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.7] — 2026-05-21
+
 ### Added
 
 - **Datasets page now shows firearm usage alongside ammo usage.** Each lookup entry's "In Use" column previously only counted ammo boxes (firearm-specific lookups like action types, frame sizes, optic cuts, etc. always showed 0). The column now renders a blue "N boxes" chip and a separate purple "N firearms" chip when applicable — covering calibers, manufacturers, dealers, and every firearm-specific lookup (action types, models, compliance tags, frame sizes, optic cuts, rail types, finishes, conditions). Clicking the firearms chip on a caliber or manufacturer deep-links to `/firearms` with the matching filter pre-applied; for other lookups it navigates to the firearms list unfiltered. Hide and Delete now respect both ammo and firearm references — entries used by firearms can no longer be silently deleted, and the lock tooltip shows both counts. Fixes #20

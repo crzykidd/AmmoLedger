@@ -46,7 +46,7 @@
 
 ## Build Status
 
-Current release target: v0.3.6 (sidebar reorg, Products UX fixes #30, inventory all-fields search #29, Windows Docker HMR)
+Current release target: v0.3.7 (Datasets firearm-usage chips #20, structured startup banner #33, README/Install overhaul, prod compose hardening, Windows CRLF fix)
 Last shipped public release: v0.3.6 (2026-05-21)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
