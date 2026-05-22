@@ -18,6 +18,18 @@ AmmoLedger is a self-hosted web app for tracking your ammunition inventory, fire
 
 > **Latest release:** see the [Changelog](./CHANGELOG.md) for what's new in the current and past releases.
 
+## Why AmmoLedger
+
+Ammo and firearms are a touchy subject, and where your records live matters. You can hand your inventory to someone else's cloud, or you can own it. That's the whole point of self-hosting: **you decide.** Run AmmoLedger entirely inside your own network, or reach it from anywhere by putting it behind something you control — Cloudflare Tunnel, Tailscale, a VPN, your call. Either way the data is yours and stays where you put it.
+
+Most of us have real money tied up in firearms and ammo. It's worth knowing exactly what you have — what's on the shelf, what's running low, what's due for cleaning.
+
+A note on how this was built: I used to write a lot of code, and these days this project is mostly vibe-coded. But it's run through multiple security pipelines, and it doesn't talk to the outside world unless *you* turn on a feature or set a config that allows it. Nothing phones home by default.
+
+I built this because I relied on another program whose author stopped supporting it, and I needed something to take its place. So this isn't a project I'll wander away from — I run my own inventory on it. I maintain it because I have to: I need it to work too.
+
+If you find issues, log them. But most importantly: stay safe, and keep the rounds downrange.
+
 ## Screenshots
 
 <table>
