@@ -431,7 +431,9 @@ function EntryRow({
 }) {
   const navigate = useNavigate()
 
-  const handleUsageClick = () => {
+  // Ammo deep-link only makes sense for tables that ammo boxes reference.
+  // Firearm-* lookups are firearm-only and never produce an ammo badge.
+  const handleAmmoUsageClick = () => {
     if (entry.usage_count === 0) return
     const fieldMap: Record<string, string> = {
       'calibers': 'caliber',
@@ -445,6 +447,20 @@ function EntryRow({
     }
     const field = fieldMap[tableKey] ?? 'all'
     navigate(`/ammo?searchField=${field}&search=${encodeURIComponent(entry.name)}`)
+  }
+
+  // Firearms only support caliber_id / manufacturer_id URL filters today.
+  // For other lookups (action type, finish, etc.) we navigate to the list
+  // unfiltered — the user can refine from there.
+  const handleFirearmUsageClick = () => {
+    if (entry.firearm_usage_count === 0) return
+    if (tableKey === 'calibers') {
+      navigate(`/firearms?caliber_id=${entry.id}`)
+    } else if (tableKey === 'manufacturers') {
+      navigate(`/firearms?manufacturer_id=${entry.id}`)
+    } else {
+      navigate('/firearms')
+    }
   }
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(entry.name)
@@ -507,8 +523,9 @@ function EntryRow({
     )
   }
 
-  const canHide = (entry.source === 'yaml' || entry.source === 'community' || entry.source === 'local') && entry.usage_count === 0 && entry.is_active
-  const canDelete = (entry.source === 'user' || entry.source === 'local') && entry.usage_count === 0 && entry.is_active
+  const totalUsage = entry.usage_count + entry.firearm_usage_count
+  const canHide = (entry.source === 'yaml' || entry.source === 'community' || entry.source === 'local') && totalUsage === 0 && entry.is_active
+  const canDelete = (entry.source === 'user' || entry.source === 'local') && totalUsage === 0 && entry.is_active
   const canUnhide = !entry.is_active
 
   return (
@@ -549,15 +566,29 @@ function EntryRow({
 
         <td className="py-2 pr-3"><SourceBadge source={entry.source} /></td>
         <td className="py-2 pr-3 text-xs tabular-nums">
-          {entry.usage_count > 0 ? (
-            <button
-              onClick={handleUsageClick}
-              className="text-blue-600 dark:text-blue-400 hover:underline tabular-nums"
-            >
-              {entry.usage_count} box{entry.usage_count === 1 ? '' : 'es'}
-            </button>
-          ) : (
+          {entry.usage_count === 0 && entry.firearm_usage_count === 0 ? (
             <span className="text-gray-500 dark:text-gray-400">—</span>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {entry.usage_count > 0 && (
+                <button
+                  onClick={handleAmmoUsageClick}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 tabular-nums"
+                  title={`Used by ${entry.usage_count} ammo box${entry.usage_count === 1 ? '' : 'es'}`}
+                >
+                  {entry.usage_count} box{entry.usage_count === 1 ? '' : 'es'}
+                </button>
+              )}
+              {entry.firearm_usage_count > 0 && (
+                <button
+                  onClick={handleFirearmUsageClick}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 tabular-nums"
+                  title={`Used by ${entry.firearm_usage_count} firearm${entry.firearm_usage_count === 1 ? '' : 's'}`}
+                >
+                  {entry.firearm_usage_count} firearm{entry.firearm_usage_count === 1 ? '' : 's'}
+                </button>
+              )}
+            </div>
           )}
         </td>
 
@@ -585,8 +616,11 @@ function EntryRow({
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               )}
-              {entry.usage_count > 0 && (
-                <span className="p-1 text-xs text-gray-400 cursor-default" title={`Used by ${entry.usage_count} boxes — cannot hide or delete`}>🔒</span>
+              {totalUsage > 0 && (
+                <span
+                  className="p-1 text-xs text-gray-400 cursor-default"
+                  title={`Used by ${entry.usage_count} box${entry.usage_count === 1 ? '' : 'es'} and ${entry.firearm_usage_count} firearm${entry.firearm_usage_count === 1 ? '' : 's'} — cannot hide or delete`}
+                >🔒</span>
               )}
             </div>
           )}
@@ -600,11 +634,12 @@ function EntryRow({
 // Accordion section
 // ---------------------------------------------------------------------------
 
-function AccordionSection({ config, communityStatus, isOpen, onToggle }: {
+function AccordionSection({ config, communityStatus, isOpen, onToggle, pageFilters }: {
   config: SectionConfig
   communityStatus: Record<string, { pending: number }> | undefined
   isOpen: boolean
   onToggle: () => void
+  pageFilters: PageFilters
 }) {
   const queryClient = useQueryClient()
   const queryKey = [config.key, 'admin']
@@ -637,9 +672,19 @@ function AccordionSection({ config, communityStatus, isOpen, onToggle }: {
     return a.name.localeCompare(b.name)
   })
 
-  const filtered = search.trim()
-    ? sorted.filter((e) => e.name.toLowerCase().includes(search.toLowerCase()))
-    : sorted
+  const filtered = sorted
+    .filter((e) => {
+      if (pageFilters.hideUnused && (e.usage_count + e.firearm_usage_count) === 0) return false
+      if (pageFilters.hideInactive && !e.is_active) return false
+      if (pageFilters.source === 'community' && !(e.source === 'community' || e.source === 'yaml')) return false
+      if (pageFilters.source === 'user' && !(e.source === 'user' || e.source === 'local')) return false
+      return true
+    })
+    .filter((e) =>
+      search.trim()
+        ? e.name.toLowerCase().includes(search.toLowerCase())
+        : true,
+    )
 
   const activeCount = data.filter((e) => e.is_active).length
 
@@ -785,6 +830,15 @@ function AccordionSection({ config, communityStatus, isOpen, onToggle }: {
 // ---------------------------------------------------------------------------
 
 const LS_OPEN_SECTIONS = 'datasets_open_sections'
+const LS_PAGE_FILTERS = 'datasets_filters'
+
+type SourceFilter = 'all' | 'community' | 'user'
+interface PageFilters {
+  hideUnused: boolean
+  hideInactive: boolean
+  source: SourceFilter
+}
+const DEFAULT_FILTERS: PageFilters = { hideUnused: false, hideInactive: false, source: 'all' }
 
 function readOpenSections(): Set<string> {
   try {
@@ -794,9 +848,29 @@ function readOpenSections(): Set<string> {
   return new Set()
 }
 
+function readPageFilters(): PageFilters {
+  try {
+    const raw = localStorage.getItem(LS_PAGE_FILTERS)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<PageFilters>
+      return { ...DEFAULT_FILTERS, ...parsed }
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_FILTERS
+}
+
 export default function DatasetsPage() {
   const queryClient = useQueryClient()
   const [openSections, setOpenSections] = useState<Set<string>>(readOpenSections)
+  const [pageFilters, setPageFilters] = useState<PageFilters>(readPageFilters)
+
+  const updateFilters = (patch: Partial<PageFilters>) => {
+    setPageFilters((prev) => {
+      const next = { ...prev, ...patch }
+      localStorage.setItem(LS_PAGE_FILTERS, JSON.stringify(next))
+      return next
+    })
+  }
 
   const toggleSection = (key: string) => {
     setOpenSections((prev) => {
@@ -875,6 +949,41 @@ export default function DatasetsPage() {
         }
       />
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-3">
+        {/* Page-level filters (persisted in localStorage). Apply to every section. */}
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2.5 text-sm">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Filter</span>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={pageFilters.hideUnused}
+              onChange={(e) => updateFilters({ hideUnused: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-gold focus:ring-gold"
+            />
+            Hide unused
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={pageFilters.hideInactive}
+              onChange={(e) => updateFilters({ hideInactive: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-gold focus:ring-gold"
+            />
+            Hide hidden
+          </label>
+          <div className="inline-flex items-center gap-1.5">
+            <span className="text-gray-700 dark:text-gray-300">Source:</span>
+            <select
+              value={pageFilters.source}
+              onChange={(e) => updateFilters({ source: e.target.value as SourceFilter })}
+              className="h-7 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gold"
+            >
+              <option value="all">All</option>
+              <option value="community">Community</option>
+              <option value="user">User-added</option>
+            </select>
+          </div>
+        </div>
+
         {SECTIONS.map((config) => (
           <AccordionSection
             key={config.key}
@@ -882,6 +991,7 @@ export default function DatasetsPage() {
             communityStatus={communityStatus as Record<string, { pending: number }> | undefined}
             isOpen={openSections.has(config.key)}
             onToggle={() => toggleSection(config.key)}
+            pageFilters={pageFilters}
           />
         ))}
       </div>

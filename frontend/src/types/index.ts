@@ -63,6 +63,7 @@ export interface LookupItem {
   community_key?: string | null
   is_imported: boolean
   usage_count: number
+  firearm_usage_count: number
 }
 
 export interface LocationItem {
@@ -72,6 +73,7 @@ export interface LocationItem {
   is_active: boolean
   source: string
   usage_count: number
+  firearm_usage_count: number
 }
 
 export interface ContainerItem {
@@ -82,6 +84,7 @@ export interface ContainerItem {
   is_active: boolean
   source: string
   usage_count: number
+  firearm_usage_count: number
 }
 
 export interface ManufacturerItem {
@@ -95,6 +98,7 @@ export interface ManufacturerItem {
   /** JSON-encoded array, e.g. '["ammo"]' or '["ammo","firearm"]'. Parse via parseManufacturerTypes(). */
   types: string | null
   usage_count: number
+  firearm_usage_count: number
 }
 
 export type ManufacturerDomain = 'ammo' | 'firearm'
@@ -124,6 +128,7 @@ export interface DealerItem {
   state?: string | null
   is_standard_geo: boolean
   usage_count: number
+  firearm_usage_count: number
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +143,7 @@ export interface FirearmActionTypeItem {
   community_key?: string | null
   is_imported: boolean
   usage_count: number
+  firearm_usage_count: number
 }
 
 export interface FirearmModelItem {
@@ -157,6 +163,7 @@ export interface FirearmModelItem {
   default_caliber_name: string | null
   default_action_type_name: string | null
   usage_count: number
+  firearm_usage_count: number
 }
 
 /** Common shape for the four physical-attribute community lookups
@@ -170,6 +177,7 @@ export interface FirearmAttributeLookupItem {
   community_key?: string | null
   is_imported: boolean
   usage_count: number
+  firearm_usage_count: number
 }
 
 export type FirearmFrameSizeItem = FirearmAttributeLookupItem
@@ -188,6 +196,7 @@ export interface FirearmComplianceTagItem {
   community_key?: string | null
   is_imported: boolean
   usage_count: number
+  firearm_usage_count: number
 }
 
 export interface FirearmUserTagItem {

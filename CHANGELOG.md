@@ -18,6 +18,11 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Added
+
+- **Datasets page now shows firearm usage alongside ammo usage.** Each lookup entry's "In Use" column previously only counted ammo boxes (firearm-specific lookups like action types, frame sizes, optic cuts, etc. always showed 0). The column now renders a blue "N boxes" chip and a separate purple "N firearms" chip when applicable — covering calibers, manufacturers, dealers, and every firearm-specific lookup (action types, models, compliance tags, frame sizes, optic cuts, rail types, finishes, conditions). Clicking the firearms chip on a caliber or manufacturer deep-links to `/firearms` with the matching filter pre-applied; for other lookups it navigates to the firearms list unfiltered. Hide and Delete now respect both ammo and firearm references — entries used by firearms can no longer be silently deleted, and the lock tooltip shows both counts. Fixes #20
+- **Datasets page filter toolbar.** A persistent toolbar above the sections lets you hide unused entries, hide entries that are already hidden, and filter by source (All / Community / User-added). All three preferences are stored in localStorage so they survive page reloads.
+
 ### Changed
 
 - **Backend and frontend now print a structured startup banner.** On startup both services emit a single line that identifies the running build: version (e.g. `v0.3.6-dev (abc1234)`), release channel (`dev` vs `release`), git branch, short SHA, and runtime version (Python for backend, Node for frontend). This makes it possible to confirm at a glance — from `docker compose logs` alone — which image is actually running, instead of cross-referencing tags. Fixes #33
