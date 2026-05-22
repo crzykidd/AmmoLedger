@@ -92,6 +92,7 @@
 | 3.49 | 2026-05-21 | v0.3.7 release: Datasets page reports both ammo and firearm usage per lookup entry with deep-link chips and a persistent filter toolbar (#20); structured startup banner on backend and frontend identifies the running build from `docker compose logs` (#33); README and Installation Guide overhauled for public beta; production compose publishes frontend on `5173:5173` and trims redundant backend env block; `.gitattributes` pins LF line endings so Windows checkouts no longer break `backend/docker-entrypoint.sh`. CHANGELOG `[Unreleased]` stamped as `[0.3.7]`. |
 | 3.50 | 2026-05-22 | Server-side restore endpoint — `POST /backup/restore/server` lets an admin restore from a backup file already on disk (selected from `GET /backup/list`) without re-uploading it through the browser. Filename is sanitized and confined to the backup directory by the same helpers used for download and delete; `.json` exports are rejected. Reuses the same `.db` / `.zip` restore impls as `/backup/restore` — one restore pipeline, two entry points. §11.1 updated. |
 | 3.51 | 2026-05-22 | Product images now travel with zip backups and restores (#46), and every restore path now rotates `firearm_photos/` and `products/` to `.old` snapshots before placing new contents (§11.9). `.db` restores and JSON full-imports blank both image directories because those formats carry no image data — leaving prior contents live would surface stray photos belonging to the previous install. New admin endpoints: `GET /backup/restore-snapshots` and `POST /backup/restore-snapshots/discard`. Backup page shows a persistent banner naming any snapshot directory still on disk; restore response payloads include an `image_snapshots` field. §11.1 / §11.8 / §11.9 updated. |
+| 3.52 | 2026-05-22 | Server-side JSON import — twin endpoints `POST /backup/import/preview/server` and `POST /backup/import/commit/server` accept `{ "filename" }` and route through the same `_import_preview_impl` / `_import_commit_impl` as the upload flow (#47). The Backup History table on the Backup page now exposes a per-row Restore icon: `.db` / `.zip` rows reuse the existing destructive-restore confirm dialog and call `POST /backup/restore/server`; `.json` rows load the standard preview panel via the new server-preview endpoint, and the existing "Full Replace" button commits via the server-commit endpoint. No upload required for any in-place restore. `import_preview` and `import_commit` were refactored to delegate to shared impls so the upload and server entry points share one code path. §11.1 updated. |
 
 ---
 
@@ -2480,9 +2481,22 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
   `{filename}` from `GET /backup/list` and restores an on-disk backup in
   place — no browser upload. Admin only; the filename is sanitized and
   confined to the backup directory by the same helpers used for download
-  and delete; `.json` exports are rejected (they go through the import
-  preview/commit flow, not restore). Reuses the same restore pipeline as
+  and delete; `.json` exports are rejected here (they have their own
+  server-side endpoints below). Reuses the same restore pipeline as
   `/backup/restore`
+- `POST /backup/import/preview/server` and `POST /backup/import/commit/server`
+  are the JSON counterparts: both accept `{filename}` from `GET /backup/list`,
+  validate that the file is `.json`, and route through the same
+  `_import_preview_impl` / `_import_commit_impl` as the upload flow. The
+  pre-import safety backup, image directory rotation, and forced logout all
+  apply identically — server-side import is not a fast path, it is the same
+  pipeline with a different entry point
+- The Backup History table on the Backup page exposes a single per-row
+  Restore icon that dispatches by file type: `.db` / `.zip` open the
+  destructive-restore confirm dialog and call `/backup/restore/server`;
+  `.json` rows load the standard preview panel via
+  `/backup/import/preview/server`, and the existing "Full Replace" button
+  commits via `/backup/import/commit/server`
 - The deprecated `/backup/restore/sqlite` alias accepts both formats and
   remains for one release
 

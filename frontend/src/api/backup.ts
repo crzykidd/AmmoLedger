@@ -134,3 +134,15 @@ export const commitImport = (file: File) => {
   fd.append('file', file)
   return postFormData<ImportResult>('/backup/import/commit', fd)
 }
+
+// Restore from a backup file already on the server (no upload). The filename
+// must be one of the entries from listBackups(); the backend sanitizes and
+// contains it inside the backup directory.
+export const restoreFromServer = (filename: string) =>
+  api.post<RestoreResult>('/backup/restore/server', { filename })
+
+export const previewImportFromServer = (filename: string) =>
+  api.post<ImportPreview>('/backup/import/preview/server', { filename })
+
+export const commitImportFromServer = (filename: string) =>
+  api.post<ImportResult>('/backup/import/commit/server', { filename })

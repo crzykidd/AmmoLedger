@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Clock,
   ShieldAlert,
+  RotateCcw,
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -39,12 +40,23 @@ import {
   restoreSqlite,
   previewImport,
   commitImport,
+  restoreFromServer,
+  previewImportFromServer,
+  commitImportFromServer,
   getSystemConfig,
   saveSystemConfig,
   getRestoreSnapshots,
   discardRestoreSnapshots,
 } from '@/api/backup'
 import type { BackupFile, ImportPreview, ImportResult, ImageSnapshots } from '@/api/backup'
+
+// Source for a restore/import action — either an uploaded File from the
+// browser or a filename of a backup that already exists on the server.
+type RestoreSource =
+  | { kind: 'upload'; file: File }
+  | { kind: 'server'; filename: string }
+
+type ImportSource = RestoreSource
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -139,14 +151,16 @@ export default function BackupPage() {
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  // Restore from SQLite
+  // Restore from SQLite / zip
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
+  const [restoreSource, setRestoreSource] = useState<RestoreSource | null>(null)
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false)
 
   // Import from JSON
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importFile, setImportFile] = useState<File | null>(null)
+  const [importSource, setImportSource] = useState<ImportSource | null>(null)
   const [importPreviewData, setImportPreviewData] = useState<ImportPreview | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [importConfirmOpen, setImportConfirmOpen] = useState(false)
@@ -226,9 +240,13 @@ export default function BackupPage() {
   })
 
   const restoreMutation = useMutation({
-    mutationFn: (file: File) => restoreSqlite(file),
+    mutationFn: (source: RestoreSource) =>
+      source.kind === 'upload'
+        ? restoreSqlite(source.file)
+        : restoreFromServer(source.filename),
     onSuccess: async (res) => {
       setRestoreFile(null)
+      setRestoreSource(null)
       if (restoreInputRef.current) restoreInputRef.current.value = ''
       if (res.force_logout) {
         toast({ title: res.logout_reason ?? 'Database replaced. Logging out…' })
@@ -242,7 +260,10 @@ export default function BackupPage() {
   })
 
   const previewMutation = useMutation({
-    mutationFn: (file: File) => previewImport(file),
+    mutationFn: (source: ImportSource) =>
+      source.kind === 'upload'
+        ? previewImport(source.file)
+        : previewImportFromServer(source.filename),
     onSuccess: (preview) => {
       setImportPreviewData(preview)
       setImportResult(null)
@@ -251,11 +272,14 @@ export default function BackupPage() {
   })
 
   const commitMutation = useMutation({
-    mutationFn: ({ file }: { file: File }) =>
-      commitImport(file),
+    mutationFn: (source: ImportSource) =>
+      source.kind === 'upload'
+        ? commitImport(source.file)
+        : commitImportFromServer(source.filename),
     onSuccess: async (result) => {
       setImportPreviewData(null)
       setImportFile(null)
+      setImportSource(null)
       if (importInputRef.current) importInputRef.current.value = ''
       if (result.force_logout) {
         toast({ title: result.logout_reason ?? 'Import complete. Logging out…' })
@@ -271,6 +295,31 @@ export default function BackupPage() {
     },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   })
+
+  // Per-row restore: dispatch by file type. .db/.zip → open destructive
+  // confirm dialog, .json → load preview into existing import preview pane.
+  const handleRestoreFromServer = (b: BackupFile) => {
+    if (b.type === 'json') {
+      // Clear any pending upload so the preview panel reflects the server source.
+      setImportFile(null)
+      if (importInputRef.current) importInputRef.current.value = ''
+      setImportSource({ kind: 'server', filename: b.filename })
+      setImportResult(null)
+      previewMutation.mutate({ kind: 'server', filename: b.filename })
+      // Scroll the existing import section into view so the preview is visible.
+      setTimeout(() => {
+        document
+          .getElementById('restore-import-section')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 50)
+      return
+    }
+    // .db / .zip
+    setRestoreFile(null)
+    if (restoreInputRef.current) restoreInputRef.current.value = ''
+    setRestoreSource({ kind: 'server', filename: b.filename })
+    setRestoreConfirmOpen(true)
+  }
 
   const discardSnapshotsMutation = useMutation({
     mutationFn: discardRestoreSnapshots,
@@ -509,7 +558,7 @@ export default function BackupPage() {
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Size</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</th>
-                      <th className="px-4 py-2.5 w-24" />
+                      <th className="px-4 py-2.5 w-32" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -544,6 +593,20 @@ export default function BackupPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-gray-400 hover:text-red-600"
+                              title={b.type === 'json' ? 'Preview & import from this file' : 'Restore from this file'}
+                              onClick={() => handleRestoreFromServer(b)}
+                              disabled={
+                                restoreMutation.isPending ||
+                                previewMutation.isPending ||
+                                commitMutation.isPending
+                              }
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-gray-400 hover:text-red-600"
                               title="Delete"
                               onClick={() => setDeleteTarget(b.filename)}
                             >
@@ -560,6 +623,7 @@ export default function BackupPage() {
           </Section>
 
           {/* Restore & Import */}
+          <div id="restore-import-section" />
           <Section title="Restore & Import">
             {/* Warning banner */}
             <div className="flex items-start gap-3 rounded-xl border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-500/30 px-4 py-3 mb-6">
@@ -596,7 +660,11 @@ export default function BackupPage() {
                   type="file"
                   accept=".db,.zip"
                   className="text-sm text-gray-500 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-700 file:text-sm file:bg-white dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-50 dark:hover:file:bg-gray-700 cursor-pointer"
-                  onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null
+                    setRestoreFile(f)
+                    setRestoreSource(f ? { kind: 'upload', file: f } : null)
+                  }}
                 />
                 <Button
                   variant="destructive"
@@ -624,7 +692,9 @@ export default function BackupPage() {
                   accept=".json"
                   className="text-sm text-gray-500 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-700 file:text-sm file:bg-white dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-50 dark:hover:file:bg-gray-700 cursor-pointer"
                   onChange={(e) => {
-                    setImportFile(e.target.files?.[0] ?? null)
+                    const f = e.target.files?.[0] ?? null
+                    setImportFile(f)
+                    setImportSource(f ? { kind: 'upload', file: f } : null)
                     setImportPreviewData(null)
                     setImportResult(null)
                   }}
@@ -633,7 +703,11 @@ export default function BackupPage() {
                   variant="outline"
                   size="sm"
                   disabled={!importFile || previewMutation.isPending}
-                  onClick={() => { if (importFile) previewMutation.mutate(importFile) }}
+                  onClick={() => {
+                    if (importFile) {
+                      previewMutation.mutate({ kind: 'upload', file: importFile })
+                    }
+                  }}
                 >
                   {previewMutation.isPending ? 'Previewing…' : 'Preview Import'}
                 </Button>
@@ -642,6 +716,11 @@ export default function BackupPage() {
               {/* Preview panel */}
               {importPreviewData && (
                 <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-4 space-y-3">
+                  {importSource?.kind === 'server' && (
+                    <div className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                      Source: {importSource.filename} (server backup)
+                    </div>
+                  )}
                   <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
                     <span>Version: <span className="text-gray-900 dark:text-white font-medium">{importPreviewData.version}</span></span>
                     <span>Exported: <span className="text-gray-900 dark:text-white font-medium">{fmtDate(importPreviewData.exported_at)}</span></span>
@@ -844,9 +923,14 @@ export default function BackupPage() {
             <AlertDialogTitle>Replace database from backup?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                {restoreSource?.kind === 'server' && (
+                  <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                    Source: {restoreSource.filename}
+                  </p>
+                )}
                 <p>
                   This will <strong className="text-gray-900 dark:text-white">permanently replace</strong> all data
-                  in the current database with the contents of the uploaded file. After restore:
+                  in the current database with the contents of the selected backup. After restore:
                 </p>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>
@@ -870,7 +954,7 @@ export default function BackupPage() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
-                if (restoreFile) restoreMutation.mutate(restoreFile)
+                if (restoreSource) restoreMutation.mutate(restoreSource)
                 setRestoreConfirmOpen(false)
               }}
             >
@@ -951,8 +1035,8 @@ export default function BackupPage() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
-                if (importFile) {
-                  commitMutation.mutate({ file: importFile })
+                if (importSource) {
+                  commitMutation.mutate(importSource)
                 }
                 setImportConfirmOpen(false)
               }}

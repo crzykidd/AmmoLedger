@@ -1391,12 +1391,12 @@ async def restore_sqlite(
 # POST /backup/import/preview
 # ---------------------------------------------------------------------------
 
-@router.post("/import/preview")
-async def import_preview(
-    file: UploadFile = File(...),
-    _: Any = Depends(require_role("admin")),
-):
-    contents = await file.read()
+async def _import_preview_impl(contents: bytes) -> dict:
+    """Parse JSON export and produce a non-destructive preview payload.
+
+    Shared by `/import/preview` (upload) and `/import/preview/server` (existing
+    backup on disk). Read-only — no actor/source logging required.
+    """
     data = _parse_import_json(contents)
 
     db_path = _db_path()
@@ -1518,24 +1518,51 @@ async def import_preview(
     }
 
 
+@router.post("/import/preview")
+async def import_preview(
+    file: UploadFile = File(...),
+    _: Any = Depends(require_role("admin")),
+):
+    contents = await file.read()
+    return await _import_preview_impl(contents)
+
+
+@router.post("/import/preview/server")
+async def import_preview_from_server(
+    body: RestoreFromServerRequest,
+    _: Any = Depends(require_role("admin")),
+):
+    """Preview a JSON export that already exists in the backup directory.
+
+    Read-only — no destructive side effects. The frontend uses this to render
+    the same preview panel as the upload flow before the admin commits.
+    """
+    path = _backup_file_path(body.filename)
+    if not path.name.lower().endswith(".json"):
+        raise HTTPException(
+            status_code=400,
+            detail="Selected file is not a .json export",
+        )
+    contents = path.read_bytes()
+    return await _import_preview_impl(contents)
+
+
 # ---------------------------------------------------------------------------
 # POST /backup/import/commit
 # ---------------------------------------------------------------------------
 
-@router.post("/import/commit")
-async def import_commit(
-    file: UploadFile = File(...),
-    current_user: User = Depends(require_role("admin")),
-):
+async def _import_commit_impl(
+    contents: bytes, *, actor: str = "unknown", source: str = "upload"
+) -> dict:
+    """Full-replace JSON import. Shared by upload and server-side entry points."""
     # Fetch inside the handler so get_logger() repairs the uvicorn-disabled
     # logger at call time. See utils/logging.py.
     logger = get_logger(__name__)
-    contents = await file.read()
     data = _parse_import_json(contents)
     tables = data["tables"]
 
-    safe_source = log_safe(file.filename or "upload")
-    safe_actor = log_safe(current_user.username)
+    safe_source = log_safe(source)
+    safe_actor = log_safe(actor)
     logger.info("Import started | actor=%s | source=%s", safe_actor, safe_source)
 
     db_path = _db_path()
@@ -1687,3 +1714,44 @@ async def import_commit(
         ),
         "image_snapshots": image_snapshots,
     }
+
+
+@router.post("/import/commit")
+async def import_commit(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role("admin")),
+):
+    contents = await file.read()
+    return await _import_commit_impl(
+        contents,
+        actor=current_user.username,
+        source=file.filename or "upload",
+    )
+
+
+@router.post("/import/commit/server")
+async def import_commit_from_server(
+    body: RestoreFromServerRequest,
+    current_user: User = Depends(require_role("admin")),
+):
+    """Full-replace import from a JSON export already on the server.
+
+    Mirrors `/restore/server` — `_backup_file_path` sanitizes/contains the
+    filename, then bytes are read from disk and routed through the same
+    `_import_commit_impl` as the upload flow. The pre-import safety backup,
+    image rotation, and forced logout all apply identically.
+    """
+    path = _backup_file_path(body.filename)
+    if not path.name.lower().endswith(".json"):
+        raise HTTPException(
+            status_code=400,
+            detail="Selected file is not a .json export",
+        )
+    contents = path.read_bytes()
+    result = await _import_commit_impl(
+        contents,
+        actor=current_user.username,
+        source=path.name,
+    )
+    result["restored_from"] = path.name
+    return result
