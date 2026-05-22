@@ -90,6 +90,7 @@
 | 3.48 | 2026-05-22 | Datasets page now reports both ammo and firearm usage per lookup entry (#20). Backend lookup admin endpoints add a `firearm_usage_count` field alongside `usage_count`, derived from new `_FIREARM_COUNT_SQL` / `_FIREARM_SINGLE_COUNT_SQL` maps covering calibers, manufacturers, dealers, and the seven firearm-specific lookups (action types, models, compliance tags, frame sizes, optic cuts, rail types, finishes, conditions). Hide/Delete guards now check both counts; firearm-specific lookup deletes gain the same usage guard. Frontend `LookupsPage` renders two side-by-side chips per row (blue "N boxes", purple "N firearms") with deep-links — caliber/manufacturer chips route to `/firearms?caliber_id=` / `?manufacturer_id=` (FirearmsListPage now hydrates filters from URL params on mount); other firearm-only lookups navigate to the firearms list unfiltered. New page-level filter toolbar (Hide unused, Hide hidden, Source: All/Community/User-added) persisted to localStorage under `datasets_filters`. |
 | 3.48 | 2026-05-21 | Structured startup banner on both services (#33) — backend `on_startup` and a new `startupBanner` Vite plugin in `frontend/vite.config.ts` each emit a single identifier line on container start (version, channel `dev`/`release`, branch, short SHA, Python/Node runtime). §7.4 updated with example output and channel-derivation rule. Lets operators confirm the running image from `docker compose logs` without cross-referencing tags. |
 | 3.49 | 2026-05-21 | v0.3.7 release: Datasets page reports both ammo and firearm usage per lookup entry with deep-link chips and a persistent filter toolbar (#20); structured startup banner on backend and frontend identifies the running build from `docker compose logs` (#33); README and Installation Guide overhauled for public beta; production compose publishes frontend on `5173:5173` and trims redundant backend env block; `.gitattributes` pins LF line endings so Windows checkouts no longer break `backend/docker-entrypoint.sh`. CHANGELOG `[Unreleased]` stamped as `[0.3.7]`. |
+| 3.50 | 2026-05-22 | Server-side restore endpoint — `POST /backup/restore/server` lets an admin restore from a backup file already on disk (selected from `GET /backup/list`) without re-uploading it through the browser. Filename is sanitized and confined to the backup directory by the same helpers used for download and delete; `.json` exports are rejected. Reuses the same `.db` / `.zip` restore impls as `/backup/restore` — one restore pipeline, two entry points. §11.1 updated. |
 
 ---
 
@@ -2464,6 +2465,13 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
   extension. Zip restore validates each archive entry against
   path-traversal before extraction (rejects absolute paths and `..`
   components)
+- `POST /backup/restore/server` is an alternate entry point that accepts a
+  `{filename}` from `GET /backup/list` and restores an on-disk backup in
+  place — no browser upload. Admin only; the filename is sanitized and
+  confined to the backup directory by the same helpers used for download
+  and delete; `.json` exports are rejected (they go through the import
+  preview/commit flow, not restore). Reuses the same restore pipeline as
+  `/backup/restore`
 - The deprecated `/backup/restore/sqlite` alias accepts both formats and
   remains for one release
 
