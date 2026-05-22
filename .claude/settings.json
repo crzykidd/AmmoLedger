@@ -43,10 +43,12 @@
       "Bash(curl -sf http://127.0.0.1:5173/api/openapi.json)",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(p for p in sorted\\(d['paths']\\) if 'backup' in p or 'import' in p\\)\\)\")",
       "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/defaults.yaml'\\)\\); print\\('defaults OK'\\)\")",
-      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/config.template.yaml'\\)\\); print\\('template OK'\\)\")"
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/config.template.yaml'\\)\\); print\\('template OK'\\)\")",
+      "Bash(awk '/^## \\\\[0\\\\.3\\\\.8\\\\]/{flag=1} /^## \\\\[0\\\\.3\\\\.7\\\\]/{flag=0} flag' CHANGELOG.md > /tmp/_pr_body_v038.md && wc -l /tmp/_pr_body_v038.md && head -3 /tmp/_pr_body_v038.md && echo \"---\" && tail -3 /tmp/_pr_body_v038.md)"
     ],
     "additionalDirectories": [
-      "C:\\projects\\AmmoLedger\\backend\\migrations\\versions"
+      "C:\\projects\\AmmoLedger\\backend\\migrations\\versions",
+      "\\tmp"
     ]
   },
   "hooks": {
