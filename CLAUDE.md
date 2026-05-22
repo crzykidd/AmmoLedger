@@ -46,7 +46,7 @@
 
 ## Build Status
 
-Current release target: v0.3.7 (Datasets firearm-usage chips #20, structured startup banner #33, README/Install overhaul, prod compose hardening, Windows CRLF fix)
+Current release target: v0.3.8 (per-row server-side restore/import #47, product images in zip backups + .old snapshot rotation #46, self-healing logging, durable atomic DB swap on restore, dangling sqlite_stat1 fix + startup auto-repair, live passwords-match indicator #35, structured actor/source/outcome restore + import logging)
 Last shipped public release: v0.3.7 (2026-05-21)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.

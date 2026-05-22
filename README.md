@@ -6,7 +6,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.3.7-gold)
+![Version](https://img.shields.io/badge/version-0.3.8-gold)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![PRD](https://img.shields.io/badge/docs-PRD-navy)
 
@@ -170,8 +170,8 @@ docker pull ghcr.io/crzykidd/ammoledger-backend:latest
 docker pull ghcr.io/crzykidd/ammoledger-frontend:latest
 
 # Specific version
-docker pull ghcr.io/crzykidd/ammoledger-backend:0.3.7
-docker pull ghcr.io/crzykidd/ammoledger-frontend:0.3.7
+docker pull ghcr.io/crzykidd/ammoledger-backend:0.3.8
+docker pull ghcr.io/crzykidd/ammoledger-frontend:0.3.8
 
 # Latest development build (may be unstable)
 docker pull ghcr.io/crzykidd/ammoledger-backend:dev

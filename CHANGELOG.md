@@ -18,6 +18,8 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.8] — 2026-05-22
+
 ### Added
 
 - **Product images are now included in zip backups and restores.** Previously the `firearm_photos/` directory was bundled into `.zip` backups but `products/` was missed entirely, so any product cover art was lost on restore. Both directories are now bundled (gated by the existing `backup.include_photos` toggle) and restored together. Closes #46

@@ -41,7 +41,9 @@
       "Bash(DATABASE_URL=\"sqlite:///./_release_check.db\" python -m alembic upgrade head)",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/backup.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
       "Bash(curl -sf http://127.0.0.1:5173/api/openapi.json)",
-      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(p for p in sorted\\(d['paths']\\) if 'backup' in p or 'import' in p\\)\\)\")"
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(p for p in sorted\\(d['paths']\\) if 'backup' in p or 'import' in p\\)\\)\")",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/defaults.yaml'\\)\\); print\\('defaults OK'\\)\")",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/config.template.yaml'\\)\\); print\\('template OK'\\)\")"
     ],
     "additionalDirectories": [
       "C:\\projects\\AmmoLedger\\backend\\migrations\\versions"
