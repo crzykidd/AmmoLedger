@@ -9,6 +9,7 @@ import type { ResetTokenInfo } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
+import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
 import logoFull from '@/assets/brand/logo-full-dark.png'
 
 const schema = z.object({
@@ -34,6 +35,7 @@ export default function ResetPage() {
     defaultValues: { email: '', new_password: '', confirm_password: '' },
   })
   const watchedPassword = watch('new_password')
+  const watchedConfirm = watch('confirm_password')
 
   useEffect(() => {
     if (!token) {
@@ -152,6 +154,7 @@ export default function ResetPage() {
                   Confirm Password
                 </label>
                 <Input {...register('confirm_password')} type="password" placeholder="••••••••••••" />
+                <PasswordMatchIndicator password={watchedPassword} confirm={watchedConfirm} />
               </div>
 
               {submitError && (
@@ -163,7 +166,7 @@ export default function ResetPage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isSubmitting || !allRulesPassed(watchedPassword)}
+                disabled={isSubmitting || !allRulesPassed(watchedPassword) || !passwordsMatch(watchedPassword, watchedConfirm)}
               >
                 {isSubmitting ? 'Resetting…' : 'Reset password'}
               </Button>

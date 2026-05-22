@@ -18,6 +18,10 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Added
+
+- **Live "passwords match" feedback on every password+confirm form.** First-run setup, invitation register, password reset, profile change-password, and the profile drawer change-password all now show an inline red X / green check under the Confirm field as soon as you start typing it — matching the existing strength meter's visual language. The Submit button is also disabled until the two fields agree, so the mismatch can't make it as far as a submit-time error banner anymore. Fixes #35
+
 ## [0.3.7] — 2026-05-21
 
 ### Added

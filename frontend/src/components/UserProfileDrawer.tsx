@@ -7,6 +7,7 @@ import { format, parseISO } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
+import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
 import { useAuth } from '@/contexts/AuthContext'
 import { changeMyPassword } from '@/api/users'
 import { toast } from '@/hooks/use-toast'
@@ -49,6 +50,7 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
   })
 
   const watchedPassword = watch('new_password')
+  const watchedConfirm = watch('confirm_password')
 
   // Close on Escape
   useEffect(() => {
@@ -215,6 +217,7 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
                 placeholder="••••••••••••"
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/20"
               />
+              <PasswordMatchIndicator password={watchedPassword} confirm={watchedConfirm} />
             </div>
 
             {submitError && (
@@ -226,7 +229,7 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
             <Button
               type="submit"
               size="sm"
-              disabled={isSubmitting || !allRulesPassed(watchedPassword)}
+              disabled={isSubmitting || !allRulesPassed(watchedPassword) || !passwordsMatch(watchedPassword, watchedConfirm)}
               className="w-full"
             >
               {isSubmitting ? 'Saving…' : 'Change password'}

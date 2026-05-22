@@ -8,6 +8,7 @@ import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
+import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
 import { useAuth } from '@/contexts/AuthContext'
 import { changeMyPassword } from '@/api/users'
 import { toast } from '@/hooks/use-toast'
@@ -29,6 +30,7 @@ export default function ProfilePage() {
   })
 
   const watchedPassword = watch('new_password')
+  const watchedConfirm = watch('confirm_password')
 
   const onSubmit = async (data: FormData) => {
     if (!allRulesPassed(data.new_password)) return
@@ -128,6 +130,7 @@ export default function ProfilePage() {
                   Confirm New Password
                 </label>
                 <Input {...register('confirm_password')} type="password" placeholder="••••••••••••" />
+                <PasswordMatchIndicator password={watchedPassword} confirm={watchedConfirm} />
               </div>
 
               {submitError && (
@@ -138,7 +141,7 @@ export default function ProfilePage() {
 
               <Button
                 type="submit"
-                disabled={isSubmitting || !allRulesPassed(watchedPassword)}
+                disabled={isSubmitting || !allRulesPassed(watchedPassword) || !passwordsMatch(watchedPassword, watchedConfirm)}
               >
                 {isSubmitting ? 'Saving…' : 'Change password'}
               </Button>
