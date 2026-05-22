@@ -41,7 +41,7 @@ AmmoLedger is a self-hosted web app for tracking your ammunition inventory, fire
 
 Inventory of every box and lot with full CRUD.
 
-- Full inventory CRUD with bulk edit; archive workflow with reason capture and Unarchive
+- Add, edit, archive, and delete boxes — including bulk edits across multiple rows
 - Quick-expend (crosshair) inline round logging with smart presets; "At Range" mobile mode
 - Product catalog with images and auto-fill; auto-generate products from existing inventory
 - Group by 9 dimensions, sort by 6, field-scoped search, per-column range filters

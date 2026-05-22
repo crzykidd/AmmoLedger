@@ -24,6 +24,10 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Production compose: frontend now publishes on `5173:5173`** (was `127.0.0.1:5173` only). External access still wants a reverse proxy in front, but the bind no longer assumes one is already there. Backend remains on the private `ammoledger_net` bridge with no published ports.
 - **Production compose: backend env block trimmed.** Removed the redundant `DATABASE_URL`, `CONFIG_PATH`, `DEFAULTS_PATH`, `BACKUP_PATH`, and `UPLOADS_PATH` lines (all have correct `/data/...` defaults baked into the image). Only `PYTHONUNBUFFERED`, `PUID`, and `PGID` remain uncommented; every `AL_*` override is listed as an optional commented example with accurate names.
 
+### Fixed
+
+- **Backend container no longer fails to start on Windows checkouts due to CRLF line endings.** Added a repo-root `.gitattributes` that pins shell scripts, Dockerfiles, and other text files to LF on checkout (while keeping `.bat`/`.cmd`/`.ps1` as CRLF). Without this, Git's `core.autocrlf=true` on Windows would silently smudge `backend/docker-entrypoint.sh` to CRLF on checkout, causing the bind-mounted dev container to fail with `exec /usr/local/bin/docker-entrypoint.sh: no such file or directory` — the kernel was reading the shebang as `#!/bin/sh\r` and looking for an interpreter that doesn't exist. Fresh clones on Windows now get LF for files that must stay LF.
+
 ## [0.3.6] — 2026-05-21
 
 ### Fixed
