@@ -39,12 +39,12 @@ AmmoLedger is a self-hosted web app for tracking your ammunition inventory, fire
 
 ### Ammo Tracking
 
-Inventory of every box and lot with full CRUD.
+Track every box and lot of ammo you own.
 
 - Add, edit, archive, and delete boxes — including bulk edits across multiple rows
 - Quick-expend (crosshair) inline round logging with smart presets; "At Range" mobile mode
 - Product catalog with images and auto-fill; auto-generate products from existing inventory
-- Group by 9 dimensions, sort by 6, field-scoped search, per-column range filters
+- Organize your inventory your way — group by caliber, location, manufacturer and more; sort and search by any field; filter by range (for example, "boxes with fewer than 50 rounds left")
 - Three-tier low-stock thresholds (global / per-caliber / per-location)
 - Dashboard caliber mix and stock-vs-threshold views; Current vs All scope toggle
 
@@ -80,7 +80,7 @@ The maintenance story that ties rounds fired to upkeep.
 
 ### Also included
 
-RBAC (Admin / Member / Read-Only) with invitations, CSV import/export for ammo and firearms, backup & restore (WAL-safe SQLite + JSON), a first-run setup wizard, a searchable Help/FAQ page, an About page with version check, an Admin Tasks page for scheduled jobs, and a Datasets page for community-maintained lookups.
+user roles (Admin / Member / Read-Only) with invitations, CSV import/export for ammo and firearms, backup & restore (safe SQLite snapshots + JSON export), a first-run setup wizard, a searchable Help/FAQ page, an About page with version check, an Admin Tasks page for scheduled jobs, and a Datasets page for community-maintained lookups.
 
 ## Community Data
 
@@ -114,6 +114,41 @@ docker compose up -d
 **3. Open <http://localhost:5173>** and create your admin account.
 
 That's it. Docker pulls the images from GHCR automatically. For external access, optional settings, NAS file ownership (PUID/PGID), and reverse-proxy setup, see the [Installation Guide](docs/INSTALL.md).
+
+### Without Docker Compose
+
+If you'd rather not use Compose, you can start the two containers by hand.
+AmmoLedger has two parts — a **backend** (the engine) and a **frontend** (the
+web page) — and the frontend needs to find the backend by name on a shared
+network. These commands set that up:
+
+```bash
+# 1. Create a private network so the two containers can find each other
+docker network create ammoledger
+
+# 2. Start the backend — it MUST be named "backend" (the frontend looks for it
+#    by that name)
+docker run -d \
+  --name backend \
+  --network ammoledger \
+  -v ammoledger_data:/data \
+  ghcr.io/crzykidd/ammoledger-backend:latest
+
+# 3. Start the frontend and open it on http://localhost:5173
+docker run -d \
+  --name frontend \
+  --network ammoledger \
+  -p 5173:5173 \
+  -e AL_BACKEND_URL=http://backend:8000 \
+  ghcr.io/crzykidd/ammoledger-frontend:latest
+```
+
+Then open <http://localhost:5173>. Docker Compose does all of this in one
+command, which is why it's the recommended path — but the result is the same.
+
+> **Windows note:** the `\` at the end of each line is for Linux/Mac shells. In
+> PowerShell, put each `docker run` on one line, or use a backtick `` ` `` at
+> the end of each line instead of `\`.
 
 ### Pulling a specific version
 

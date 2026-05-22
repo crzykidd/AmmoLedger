@@ -30,7 +30,8 @@
       "Bash(curl -s http://localhost:8000/openapi.json)",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); paths=[p for p in d['paths'] if 'photo' in p or 'restore' in p]; print\\('\\\\n'.join\\(sorted\\(paths\\)\\)\\)\")",
       "Bash(git diff *)",
-      "Bash(git restore *)"
+      "Bash(git restore *)",
+      "Bash(gh auth *)"
     ],
     "additionalDirectories": [
       "C:\\projects\\AmmoLedger\\backend\\migrations\\versions"
