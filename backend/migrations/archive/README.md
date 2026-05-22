@@ -9,7 +9,7 @@ chain. Alembic will not discover them in this directory.
 
 For the rationale behind the squash, see [docs/HISTORY.md](../../../docs/HISTORY.md).
 For the feature-level changelog of pre-v0.1.9 development, see
-[docs/CHANGELOG-pre-v0.1.9.md](../../../docs/CHANGELOG-pre-v0.1.9.md).
+[docs/CHANGELOG-0.1.x.md](../../../docs/CHANGELOG-0.1.x.md).
 
 ## Original migration chain
 

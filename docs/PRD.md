@@ -84,6 +84,9 @@
 | 3.42 | 2026-05-18 | v0.3.4 release: Products Find Image Online (Brave Search API integration with optional square crop), production compose network hardening (private ammoledger_net bridge, no backend published ports, opt-in proxy_net external attachment, outbound host documentation §12.6). CHANGELOG [Unreleased] stamped as [0.3.4]. |
 | 3.43 | 2026-05-19 | PUID/PGID runtime file ownership — §15.2 added (File Ownership: PUID/PGID env vars, default 1000:1000, backward compatible). Dockerfile.backend installs gosu and delegates to a new entrypoint script that remaps appuser UID/GID at container start, chowns /data only when ownership differs, then drops privileges via gosu. docker-compose.yml and docker-compose.dev.yml pass PUID/PGID with ${PUID:-1000}/${PGID:-1000}; dev compose user: directive removed. Former §15.2/§15.3 renumbered to §15.3/§15.4. |
 | 3.44 | 2026-05-19 | v0.3.5 release: CodeQL path-traversal fix in product image preview endpoints (tokens resolved via directory listing, not path construction); backend honors PUID/PGID for /data ownership instead of baked-in UID 1000 (§15.2). CHANGELOG [Unreleased] stamped [0.3.5]; duplicate CodeQL entry removed from [0.3.4]. |
+| 3.45 | 2026-05-20 | Sidebar navigation reorganized — "Settings" section removed. Import and Thresholds moved into the Admin section. Admin section is now visible to all roles; admin-only items (Thresholds, Users, Backup, Datasets, Tasks) hidden from non-admins; Import hidden from read-only. Products visually nested under Ammo in the main nav. Profile nav item removed; profile drawer now opened via a gear icon in the sidebar footer next to the username. §9.2.6 Import navigation note updated; §9.13 Products sidebar placement updated. |
+| 3.46 | 2026-05-20 | Products page UX fixes (issue #30) — Add Box opens `AddBoxFromProductSheet` on-page (no navigation); usage count links to filtered inventory; "Show Empty" replaced by "Has Empty" + "Has Archived" toggles; `ProductRead` gains `empty_count` and `archived_count`. §9.13 Add Box Integration section rewritten. |
+| 3.47 | 2026-05-21 | v0.3.6 release: sidebar reorganized (Settings folded into Admin; Products nested under Ammo; profile drawer via footer gear), Products page UX fixes (#30 — on-page Add Box drawer, FK-scoped usage link, Has Empty / Has Archived filters), inventory "All Fields" search now matches every column (#29), and Vite HMR fixed on Windows Docker via filesystem polling. CHANGELOG `[Unreleased]` stamped as `[0.3.6]`. |
 
 ---
 
@@ -1598,7 +1601,7 @@ Dedicated mobile-optimized page (`/at-range`) for logging rounds used during an 
 
 **Result card layout:** the text container inside each result card uses `flex-1 min-w-0` so long box descriptions (long product names, manufacturer names) wrap within the `max-w-lg` boundary rather than forcing the entire page wider. Both description lines use `break-words`.
 
-**Import navigation change:** Import has been moved from the top nav section (Dashboard / Ammo / Products) into the Settings section (alongside Profile and Thresholds). The top section now contains Dashboard, Ammo, Products, At Range.
+**Sidebar navigation (current):** The top section contains Dashboard, Ammo, Products (visually nested under Ammo), Firearms, Range, and At Range. The Admin section (visible to all roles; admin-only items hidden from non-admins) contains Import (hidden from read-only), Thresholds (admin only), Users, Backup, Datasets, and Tasks. Profile settings are accessed via a gear icon in the sidebar footer next to the username. There is no longer a separate Settings section.
 
 ### 9.3 Expend Rounds
 
@@ -2061,13 +2064,17 @@ Single source of truth for the entire app. Docker image built with this version 
 
 #### Products Page (`/products`)
 
-- Accessible to all authenticated roles via sidebar (BookOpen icon, between Ammo and Import)
+- Accessible to all authenticated roles via sidebar (BookOpen icon, visually nested under Ammo in the main nav section)
 - Two view modes: **Grid** (image card layout) and **List** (compact rows) — toggled by icon buttons, saved to localStorage
 - Search input filters by name, caliber, or manufacturer (client-side across loaded results)
 - Caliber filter dropdown to narrow list to a single caliber
+- **Has Empty** toggle — shows only products with at least one non-archived box at 0 qty remaining (`empty_count > 0`)
+- **Has Archived** toggle — shows only products with at least one archived box (`archived_count > 0`)
+- Both toggles can be active simultaneously (AND logic)
 - **Add Product** button opens a Sheet drawer (member+ only)
 - Each product card/row shows: name, caliber, bullet weight+unit, type badge, usage count ("X boxes"), and product image (or placeholder icon)
-- Card actions: **Add Box** (navigates to `/ammo?product_id={id}`) and edit/delete (owner or admin)
+- "Used by X boxes" (grid) and the boxes count (list) are clickable links — navigate to `/ammo?searchField=product&search={name}` to show that product's boxes in inventory
+- Card actions: **Add Box** (opens `AddBoxFromProductSheet` on-page) and edit/delete (owner or admin)
 - Delete confirmation AlertDialog before removing a product
 - **Auto-Generate** button (admin only) — triggers `POST /products/auto-generate`; shows counts of created products and linked boxes in a success toast
 
@@ -2077,14 +2084,24 @@ Fields: Name (auto-built, read-only), Caliber (required), Manufacturer (required
 
 Image upload area: click to browse or drag-and-drop; shows preview with remove button; accepts jpg/jpeg/png/webp ≤ 5 MB; uploaded after save via `POST /products/{id}/image`. In addition, when the image search feature is configured (admin sets `image_search.enabled` and `image_search.api_key`), the image area shows a **Find Image Online** button. Clicking it opens the `FindImageDialog` modal pre-filled with the product's auto-generated name as the search query. Results render as a 5×2 thumbnail grid with Previous/Next pagination. Selecting a thumbnail fetches a full-size preview and opens a square-aspect crop pane (skip with "Use full image"). The cropped or full image runs through the same Pillow normalize pipeline as manual upload before saving. Find Image requires an existing product ID — for newly-added products, the user saves first, then re-opens the product to search. For new products when image search would otherwise be available, the upload area shows a hint: "Save the product first to search for an image online."
 
-#### Add Box Integration
+#### Add Box from Product Sheet (`AddBoxFromProductSheet`)
+
+Opened by the **Add Box** button on any product card or list row. Stays on the Products page — no navigation.
+
+- Header shows the product thumbnail (or placeholder icon) and the auto-generated product name + subtitle (caliber · weight · type)
+- Caliber, manufacturer, type, condition, category, gr/oz, and weight unit are taken from the product and are not shown
+- User-editable fields: **Qty per Box** (required), **# of Boxes** (1–50; creates N identical boxes on save), **Purchase Date** (calendar picker), **Cost per Round** (pre-filled from `default_cost` if set), **Dealer**, **Location**, **Container**, **Notes**
+- All three lookup dropdowns (Dealer, Location, Container) support inline item creation
+- On save: calls `POST /ammo` once per box in parallel; invalidates ammo and products query caches; shows a toast confirming N boxes added
+- `ProductRead` includes `empty_count` and `archived_count` (populated server-side via two extra SQL aggregates in `_build_maps`)
+
+#### Add Box from Inventory (AmmoFormPanel product selector)
 
 - `AmmoFormPanel` shows a **Product Selector** at the top of the Add form (hidden in edit mode)
 - Selector: search-as-you-type input, dropdown of matching products, "Enter details manually →" link
 - Selecting a product calls `applyProduct()` — fills caliber, manufacturer, product_name, gr_oz, weight_unit, type, category, condition, cost_per_round from the product and switches to manual mode
 - In manual mode: shows selected product name in a muted chip with a ×Clear link
 - "Enter details manually" hides the selector and lets the user fill all fields themselves
-- When navigating from the Products page ("Add Box" button), the URL carries `?product_id={id}`; AmmoPage reads the param, opens the Add form, and passes `initialProductId` to `AmmoFormPanel` which fetches the product and auto-fills
 
 #### Save as Template Dialog
 

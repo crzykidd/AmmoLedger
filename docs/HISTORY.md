@@ -4,8 +4,8 @@ This file documents structural events in the project's history — things that
 don't fit neatly in a changelog entry but are worth knowing about.
 
 For the feature-level changelog, see [CHANGELOG.md](../CHANGELOG.md) (active,
-v0.1.9 onward) and [CHANGELOG-pre-v0.1.9.md](./CHANGELOG-pre-v0.1.9.md)
-(archive, v0.1.0–v0.1.8).
+v0.3.x onward) and [CHANGELOG-0.1.x.md](./CHANGELOG-0.1.x.md)
+(0.1.x archive, v0.1.0–v0.1.9).
 
 ---
 

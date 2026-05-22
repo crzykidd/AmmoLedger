@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    ports:
-      - "127.0.0.1:8000:8000"
+    #ports:
+    #  - "127.0.0.1:8000:8000"
     volumes:
       - ./backend:/app          # live reload your Python code
       - ./community:/app/community  # live reload community YAML files

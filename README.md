@@ -6,7 +6,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.3.5-gold)
+![Version](https://img.shields.io/badge/version-0.3.6-gold)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![PRD](https://img.shields.io/badge/docs-PRD-navy)
 
@@ -14,19 +14,26 @@
 
 # AmmoLedger
 
-> ### 🆕 New in v0.3.0–v0.3.5 — Firearms, Range Sessions & Find Image
+> ### 🆕 New in v0.3.0–v0.3.6 — Firearms, Range Sessions & Find Image
 >
 > Track your firearms and range trips alongside your ammo. The **Firearms** page registers each gun with manufacturer, model, caliber, serial, compliance tags, and personal tags. The **Range** page logs multi-line range days that deduct rounds from ammo boxes and bump per-firearm round counters atomically — and reverse cleanly if you edit or delete a session. The **firearm maintenance log** with cleaning, service, and note events drives a green/amber/red cleaning-status indicator on every firearm and a dedicated dashboard widget for firearms needing service.
 >
 > **Tip:** firearms and range sessions follow the same ownership model as ammo boxes — members own private records by default; admins can mark items shared so everyone on the install can see them. Read-only users see shared items only.
 >
-> **v0.3.1:** fixed a firearm detail page crash on first load (React hook order violation). **v0.3.2:** fixed landscape photo cropping in the firearms list view thumbnail cell. **v0.3.3:** fixed range session delete 500 error, firearm clean-state drift on session reversal, date timezone shift in non-UTC installs, and backend validation errors displaying as `[object Object]`. **v0.3.4:** Products page gains **Find Image Online** — search the web for a product photo using the product's name, pick from a 5×2 grid, optionally crop square, save. Plus production compose hardening: backend now runs on a private bridge network with no published ports, frontend bound to localhost-only so a reverse proxy is the only entry point. **v0.3.5:** security hardening (CodeQL path-traversal fix in product image preview) and a fix so the backend honors PUID/PGID for data file ownership — important for NAS and multi-user homelab setups where the data files need to be owned by a specific host user.
+> **v0.3.1:** fixed a firearm detail page crash on first load (React hook order violation). **v0.3.2:** fixed landscape photo cropping in the firearms list view thumbnail cell. **v0.3.3:** fixed range session delete 500 error, firearm clean-state drift on session reversal, date timezone shift in non-UTC installs, and backend validation errors displaying as `[object Object]`. **v0.3.4:** Products page gains **Find Image Online** — search the web for a product photo using the product's name, pick from a 5×2 grid, optionally crop square, save. Plus production compose hardening: backend now runs on a private bridge network with no published ports, frontend bound to localhost-only so a reverse proxy is the only entry point. **v0.3.5:** security hardening (CodeQL path-traversal fix in product image preview) and a fix so the backend honors PUID/PGID for data file ownership — important for NAS and multi-user homelab setups where the data files need to be owned by a specific host user. **v0.3.6:** sidebar reorganized (Settings folded into Admin; Products nested under Ammo; profile drawer opens via the footer gear icon), Products page UX fixes (Add Box opens on-page, "Used by X boxes" link filters by FK, separate Has Empty and Has Archived toggles), inventory "All Fields" search now matches every column, and Windows Docker dev gets working HMR via Vite filesystem polling.
 
 A self-hosted web application to track your ammunition inventory, firearms, and range sessions. Keep your counts accurate on and off the range.
 
-> 🎯 **AmmoLedger v0.3.5 — Security and deployment hardening.** Self-hosted, stable, ready for daily use. **Accessories management** is next on the roadmap — see [What's Coming Next](#whats-coming-next).
+> 🎯 **AmmoLedger v0.3.6 — Sidebar reorg, Products UX, search fix.** Self-hosted, stable, ready for daily use. **Accessories management** is next on the roadmap — see [What's Coming Next](#whats-coming-next).
 
 ## What's New
+
+### v0.3.6 (2026-05-21)
+
+- **Sidebar reorganized.** The "Settings" section is gone. Import and Thresholds now live under a unified **Admin** section that's visible to all roles (admin-only items are hidden from non-admins). Products is visually nested under Ammo in the main nav. The standalone Profile nav item is replaced by a gear icon in the sidebar footer next to your username. Fixes #32.
+- **Products page UX fixes (issue #30).** Clicking **Add Box** on a product card or row no longer navigates away — a focused drawer opens on the Products page itself with Qty per Box, # of Boxes (create N identical boxes in one save), and the usual box fields, all dropdowns supporting inline create. "Used by X boxes" is now a clickable link that filters Inventory to that product's boxes by FK (not by sub-brand text — fixes the bug where the link would surface every box sharing a sub-brand name). The single "Show Empty" toggle is replaced by independent **Has Empty** and **Has Archived** filters.
+- **Inventory "All Fields" search now matches every column.** Previously, picking All Fields silently dropped Manufacturer, Category, Condition, Dealer, and Location from the match set because search was server-side and only checked product name and legacy ID. Search is now client-side and matches across every visible column plus notes and Box ID, and Product Name search falls back to the linked catalog product for boxes whose `product_name` isn't denormalized. Fixes #29.
+- **Vite HMR works again on Windows Docker.** Added filesystem polling to `vite.config.ts` so inotify events from the Windows host reach the Linux container — dev-only fix, no impact on production builds.
 
 ### v0.3.5 (2026-05-19)
 
@@ -127,7 +134,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add dealers, manufacturers, ca
 - [Product Requirements Document](docs/PRD.md) — full feature specs, data model, architecture decisions, and roadmap
 - [Installation Guide](docs/INSTALL.md) — detailed setup, external access, and upgrade instructions
 
-**Project history:** See [docs/HISTORY.md](./docs/HISTORY.md) for structural events and [docs/CHANGELOG-pre-v0.1.9.md](./docs/CHANGELOG-pre-v0.1.9.md) for the pre-release changelog archive.
+**Project history:** See [docs/HISTORY.md](./docs/HISTORY.md) for structural events and [docs/CHANGELOG-0.1.x.md](./docs/CHANGELOG-0.1.x.md) for the 0.1.x changelog archive.
 
 ---
 

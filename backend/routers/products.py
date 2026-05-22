@@ -95,6 +95,23 @@ def _build_maps(products: list, db: Session) -> dict:
     ).fetchall()
     usage_map = {r[0]: r[1] for r in usage_rows}
 
+    empty_rows = db.execute(
+        sa_select(AmmoBox.product_id, func.count().label("cnt"))
+        .where(AmmoBox.product_id.in_(product_ids))
+        .where(AmmoBox.qty_remaining == 0)
+        .where(AmmoBox.is_archived == False)  # noqa: E712
+        .group_by(AmmoBox.product_id)
+    ).fetchall()
+    empty_map = {r[0]: r[1] for r in empty_rows}
+
+    archived_rows = db.execute(
+        sa_select(AmmoBox.product_id, func.count().label("cnt"))
+        .where(AmmoBox.product_id.in_(product_ids))
+        .where(AmmoBox.is_archived == True)  # noqa: E712
+        .group_by(AmmoBox.product_id)
+    ).fetchall()
+    archived_map = {r[0]: r[1] for r in archived_rows}
+
     return {
         "caliber": caliber_map,
         "manufacturer": mfr_map,
@@ -102,6 +119,8 @@ def _build_maps(products: list, db: Session) -> dict:
         "category": category_map,
         "condition": condition_map,
         "usage": usage_map,
+        "empty": empty_map,
+        "archived": archived_map,
     }
 
 
@@ -117,6 +136,8 @@ def _enrich_with_maps(product: Product, maps: dict) -> ProductRead:
     data.category_name = maps["category"].get(product.category_id) if product.category_id else None
     data.condition_name = maps["condition"].get(product.ammo_condition_id) if product.ammo_condition_id else None
     data.usage_count = maps["usage"].get(product.id, 0)
+    data.empty_count = maps["empty"].get(product.id, 0)
+    data.archived_count = maps["archived"].get(product.id, 0)
     return data
 
 

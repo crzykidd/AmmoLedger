@@ -13,6 +13,10 @@ export default defineConfig({
     host: true,
     port: 5173,
     allowedHosts: true,
+    watch: {
+      usePolling: true,   // needed for inotify-less filesystems (Windows Docker)
+      interval: 1000,
+    },
     proxy: {
       '/api': {
         target: process.env.AL_BACKEND_URL || 'http://backend:8000',

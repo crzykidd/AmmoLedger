@@ -19,6 +19,7 @@ import ExpendDialog from '@/components/inventory/ExpendDialog'
 import SplitBoxDialog from '@/components/inventory/SplitBoxDialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { listAmmo, exportAmmoCsv } from '@/api/ammo'
+import { listProducts } from '@/api/products'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -223,9 +224,12 @@ export default function AmmoPage() {
 
   // Pre-selected product from /products?product_id=X
   const [initialProductId, setInitialProductId] = useState<number | null>(null)
+  // FK filter from /products?product_filter_id=X — filters boxes by product_id
+  const [productFilterId, setProductFilterId] = useState<number | null>(null)
 
   useEffect(() => {
     const pid = searchParams.get('product_id')
+    const productFilterIdParam = searchParams.get('product_filter_id')
     const searchFieldParam = searchParams.get('searchField')
     const searchVal = searchParams.get('search')
     const emptyFilterParam = searchParams.get('emptyFilter')
@@ -240,6 +244,11 @@ export default function AmmoPage() {
       }
     }
 
+    if (productFilterIdParam) {
+      const id = parseInt(productFilterIdParam)
+      if (!isNaN(id)) setProductFilterId(id)
+    }
+
     if (searchFieldParam) setSearchField(searchFieldParam)
     if (searchVal) setSearch(searchVal)
 
@@ -252,7 +261,7 @@ export default function AmmoPage() {
       localStorage.setItem('ammo_archived_filter', statusFilterParam)
     }
 
-    if (pid || searchFieldParam || searchVal || emptyFilterParam || statusFilterParam) {
+    if (pid || productFilterIdParam || searchFieldParam || searchVal || emptyFilterParam || statusFilterParam) {
       setSearchParams({}, { replace: true })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,7 +285,7 @@ export default function AmmoPage() {
   // Clear selection when filters or groupBy change
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [columnFilters, groupBy, conditionFilter, search, searchField, emptyFilter, archivedFilter])
+  }, [columnFilters, groupBy, conditionFilter, search, searchField, emptyFilter, archivedFilter, productFilterId])
 
   const lookups = useInventoryLookups()
   const { status: thresholdStatus } = useThresholdStatus()
@@ -317,13 +326,25 @@ export default function AmmoPage() {
     [lookups.containers],
   )
 
-  const apiSearch = searchField === 'all' ? (search || undefined) : undefined
   const showEmpty = emptyFilter !== 'active'
   const showArchived = archivedFilter !== 'active'
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['ammo', { search: apiSearch, showEmpty, showArchived }],
-    queryFn: () => listAmmo({ search: apiSearch, show_empty: showEmpty, show_archived: showArchived }),
+    queryKey: ['ammo', { showEmpty, showArchived }],
+    queryFn: () => listAmmo({ show_empty: showEmpty, show_archived: showArchived }),
   })
+
+  // Products catalog — used so Product Name search also matches boxes whose
+  // box.product_name field is empty but which are linked to a catalog product
+  // via product_id.
+  const { data: productsData } = useQuery({
+    queryKey: ['products', 'all'],
+    queryFn: () => listProducts(),
+    staleTime: 5 * 60 * 1000,
+  })
+  const productMap = useMemo(
+    () => new Map((productsData ?? []).map((p) => [p.id, p])),
+    [productsData],
+  )
 
   const allBoxes = data?.boxes ?? []
   // Apply the condition toolbar filter
@@ -333,14 +354,15 @@ export default function AmmoPage() {
       )
     : allBoxes
 
-  // Client-side filter for "only" modes (empty-only / archived-only)
+  // Client-side filter for "only" modes (empty-only / archived-only) + product FK filter
   const viewFiltered = useMemo(() => {
     return boxes.filter((b) => {
       if (emptyFilter === 'empty' && b.qty_remaining !== 0) return false
       if (archivedFilter === 'archived' && !b.is_archived) return false
+      if (productFilterId != null && b.product_id !== productFilterId) return false
       return true
     })
-  }, [boxes, emptyFilter, archivedFilter])
+  }, [boxes, emptyFilter, archivedFilter, productFilterId])
 
   const canAdd = user?.role !== 'read_only'
 
@@ -355,12 +377,37 @@ export default function AmmoPage() {
     [boxes, lowCaliberIds],
   )
 
-  // Client-side field-scoped search (active when searchField !== 'all')
+  // Client-side field-scoped search
   const searchedBoxes = useMemo(() => {
-    if (!search.trim() || searchField === 'all') return viewFiltered
+    if (!search.trim()) return viewFiltered
     const q = search.trim().toLowerCase()
+    // Resolve product display name from box.product_name or linked product
+    // (covers boxes where product_name is null but product_id is set).
+    const productNameFor = (box: AmmoBoxRead): string => {
+      if (box.product_name) return box.product_name
+      if (box.product_id != null) {
+        const p = productMap.get(box.product_id)
+        if (p) return p.product_name ?? p.name ?? ''
+      }
+      return ''
+    }
     return viewFiltered.filter((box) => {
       switch (searchField) {
+        case 'all':
+          return (
+            String(box.id).includes(q) ||
+            (box.legacy_id ?? '').toLowerCase().includes(q) ||
+            (caliberMap.get(box.caliber_id) ?? '').toLowerCase().includes(q) ||
+            (manufacturerMap.get(box.manufacturer_id) ?? '').toLowerCase().includes(q) ||
+            (box.type_id != null && (typeMap.get(box.type_id) ?? '').toLowerCase().includes(q)) ||
+            (box.category_id != null && (categoryMap.get(box.category_id) ?? '').toLowerCase().includes(q)) ||
+            (box.ammo_condition_id != null && (conditionMap.get(box.ammo_condition_id) ?? '').toLowerCase().includes(q)) ||
+            (box.dealer_id != null && (dealerMap.get(box.dealer_id) ?? '').toLowerCase().includes(q)) ||
+            (box.location_id != null && (locationMap.get(box.location_id) ?? '').toLowerCase().includes(q)) ||
+            (box.container_id != null && (containerMap.get(box.container_id) ?? '').toLowerCase().includes(q)) ||
+            productNameFor(box).toLowerCase().includes(q) ||
+            (box.notes ?? '').toLowerCase().includes(q)
+          )
         case 'id':
           return String(box.id).includes(q) || (box.legacy_id ?? '').toLowerCase().includes(q)
         case 'caliber':
@@ -380,12 +427,12 @@ export default function AmmoPage() {
         case 'container':
           return box.container_id != null && (containerMap.get(box.container_id) ?? '').toLowerCase().includes(q)
         case 'product':
-          return (box.product_name ?? '').toLowerCase().includes(q)
+          return productNameFor(box).toLowerCase().includes(q)
         default:
           return true
       }
     })
-  }, [viewFiltered, search, searchField, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, dealerMap, locationMap, containerMap])
+  }, [viewFiltered, search, searchField, caliberMap, manufacturerMap, typeMap, categoryMap, conditionMap, dealerMap, locationMap, containerMap, productMap])
 
   // Apply column filters — AND logic with field search + condition filter above
   const filteredBoxes = useMemo(() => {
@@ -772,6 +819,19 @@ export default function AmmoPage() {
           {/* Row 2: filter controls + stats */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Product FK filter chip */}
+              {productFilterId != null && (
+                <span className="inline-flex items-center gap-1.5 text-xs bg-gold/10 text-gold border border-gold/30 rounded-full px-2.5 py-1 font-medium">
+                  Product: {productMap.get(productFilterId)?.name ?? `#${productFilterId}`}
+                  <button
+                    onClick={() => setProductFilterId(null)}
+                    className="hover:opacity-70"
+                    aria-label="Clear product filter"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
               {/* Active filter count + Clear */}
               {activeFilterCount > 0 && (
                 <>

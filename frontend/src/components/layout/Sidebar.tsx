@@ -6,7 +6,7 @@ import {
   BookOpen,
   FileUp,
   SlidersHorizontal,
-  User,
+  Settings,
   Users,
   DatabaseBackup,
   Database,
@@ -33,7 +33,7 @@ import logoCircle from '@/assets/brand/logo-circle-dark.png'
 const STORAGE_KEY = 'sidebar_collapsed'
 const SECTION_STORAGE_KEY = 'sidebar_sections_collapsed'
 
-const COLLAPSIBLE_SECTION_LABELS = new Set(['Settings', 'Admin'])
+const COLLAPSIBLE_SECTION_LABELS = new Set(['Admin'])
 const isCollapsibleSection = (label?: string) => !!label && COLLAPSIBLE_SECTION_LABELS.has(label)
 
 function loadCollapsedSections(): Set<string> {
@@ -53,11 +53,12 @@ interface NavItem {
   icon: React.ElementType
   href: string
   readOnlyHidden?: boolean
+  adminOnly?: boolean
+  subItem?: boolean
 }
 
 interface NavSection {
   label?: string
-  adminOnly?: boolean
   items: NavItem[]
 }
 
@@ -66,28 +67,21 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Ammo', icon: CartridgeIcon, href: '/ammo' },
-      { label: 'Products', icon: BookOpen, href: '/products' },
+      { label: 'Products', icon: BookOpen, href: '/products', subItem: true },
       { label: 'Firearms', icon: FirearmIcon, href: '/firearms' },
       { label: 'Range', icon: Target, href: '/range' },
       { label: 'At Range', icon: Crosshair, href: '/at-range', readOnlyHidden: true },
     ],
   },
   {
-    label: 'Settings',
-    items: [
-      { label: 'Profile', icon: User, href: '/settings/profile' },
-      { label: 'Thresholds', icon: SlidersHorizontal, href: '/settings/thresholds' },
-      { label: 'Import', icon: FileUp, href: '/import' },
-    ],
-  },
-  {
     label: 'Admin',
-    adminOnly: true,
     items: [
-      { label: 'Users', icon: Users, href: '/admin/users' },
-      { label: 'Backup', icon: DatabaseBackup, href: '/admin/backup' },
-      { label: 'Datasets', icon: Database, href: '/admin/datasets' },
-      { label: 'Tasks', icon: ClipboardList, href: '/admin/tasks' },
+      { label: 'Import', icon: FileUp, href: '/import', readOnlyHidden: true },
+      { label: 'Thresholds', icon: SlidersHorizontal, href: '/settings/thresholds', adminOnly: true },
+      { label: 'Users', icon: Users, href: '/admin/users', adminOnly: true },
+      { label: 'Backup', icon: DatabaseBackup, href: '/admin/backup', adminOnly: true },
+      { label: 'Datasets', icon: Database, href: '/admin/datasets', adminOnly: true },
+      { label: 'Tasks', icon: ClipboardList, href: '/admin/tasks', adminOnly: true },
     ],
   },
 ]
@@ -212,8 +206,13 @@ export default function Sidebar() {
         {/* Nav */}
         <nav className="flex-1 py-4 overflow-y-auto">
           {NAV_SECTIONS.map((section, si) => {
-            if (section.adminOnly && user?.role !== 'admin') return null
-            const sectionHasActive = section.items.some((item) => isActive(item.href, location.pathname))
+            const visibleItems = section.items.filter(
+              (item) =>
+                !(item.readOnlyHidden && user?.role === 'read_only') &&
+                !(item.adminOnly && user?.role !== 'admin'),
+            )
+            if (section.label && visibleItems.length === 0) return null
+            const sectionHasActive = visibleItems.some((item) => isActive(item.href, location.pathname))
             const sectionCollapsible = isCollapsibleSection(section.label)
             const sectionCollapsed =
               !collapsed
@@ -246,7 +245,7 @@ export default function Sidebar() {
                 )}
                 {!sectionCollapsed && (
                   <div id={`sidebar-section-${section.label ?? si}`} className="px-2 space-y-1">
-                    {section.items.filter((item) => !(item.readOnlyHidden && user?.role === 'read_only')).map((item) => {
+                    {visibleItems.map((item) => {
                       const active = isActive(item.href, location.pathname)
                       const Icon = item.icon
                       return (
@@ -259,6 +258,7 @@ export default function Sidebar() {
                               ? 'bg-gold/20 text-gold'
                               : 'text-white/60 hover:text-white hover:bg-white/10',
                             collapsed && 'justify-center',
+                            !collapsed && item.subItem && 'pl-8',
                           )}
                           title={collapsed ? item.label : undefined}
                         >
@@ -329,22 +329,36 @@ export default function Sidebar() {
         {/* User + Logout */}
         <div className="border-t border-white/10 p-3">
           {!collapsed && user && (
+            <div className="flex items-center justify-between mb-2 px-1 py-1.5">
+              <div className="min-w-0">
+                <p className="text-white text-sm font-medium truncate">
+                  {user.first_name} {user.last_name}
+                </p>
+                <span
+                  className={cn(
+                    'inline-block text-xs px-2 py-0.5 rounded-full mt-1',
+                    roleMeta.className,
+                  )}
+                >
+                  {roleMeta.label}
+                </span>
+              </div>
+              <button
+                onClick={() => setProfileOpen(true)}
+                className="shrink-0 ml-2 p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+                title="Profile settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          {collapsed && (
             <button
               onClick={() => setProfileOpen(true)}
-              className="w-full text-left mb-2 px-1 py-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer group"
-              title="View profile"
+              className="flex items-center justify-center w-full p-2 mb-1 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+              title="Profile settings"
             >
-              <p className="text-white text-sm font-medium truncate group-hover:text-white/90">
-                {user.first_name} {user.last_name}
-              </p>
-              <span
-                className={cn(
-                  'inline-block text-xs px-2 py-0.5 rounded-full mt-1',
-                  roleMeta.className,
-                )}
-              >
-                {roleMeta.label}
-              </span>
+              <Settings className="w-4 h-4" />
             </button>
           )}
           <button

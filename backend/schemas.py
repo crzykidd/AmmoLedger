@@ -834,6 +834,8 @@ class ProductRead(_OrmBase):
     category_name: Optional[str] = None
     condition_name: Optional[str] = None
     usage_count: int = 0
+    empty_count: int = 0
+    archived_count: int = 0
 
 
 class ProductCreate(BaseModel):
