@@ -87,6 +87,9 @@
 | 3.45 | 2026-05-20 | Sidebar navigation reorganized — "Settings" section removed. Import and Thresholds moved into the Admin section. Admin section is now visible to all roles; admin-only items (Thresholds, Users, Backup, Datasets, Tasks) hidden from non-admins; Import hidden from read-only. Products visually nested under Ammo in the main nav. Profile nav item removed; profile drawer now opened via a gear icon in the sidebar footer next to the username. §9.2.6 Import navigation note updated; §9.13 Products sidebar placement updated. |
 | 3.46 | 2026-05-20 | Products page UX fixes (issue #30) — Add Box opens `AddBoxFromProductSheet` on-page (no navigation); usage count links to filtered inventory; "Show Empty" replaced by "Has Empty" + "Has Archived" toggles; `ProductRead` gains `empty_count` and `archived_count`. §9.13 Add Box Integration section rewritten. |
 | 3.47 | 2026-05-21 | v0.3.6 release: sidebar reorganized (Settings folded into Admin; Products nested under Ammo; profile drawer via footer gear), Products page UX fixes (#30 — on-page Add Box drawer, FK-scoped usage link, Has Empty / Has Archived filters), inventory "All Fields" search now matches every column (#29), and Vite HMR fixed on Windows Docker via filesystem polling. CHANGELOG `[Unreleased]` stamped as `[0.3.6]`. |
+| 3.48 | 2026-05-22 | Datasets page now reports both ammo and firearm usage per lookup entry (#20). Backend lookup admin endpoints add a `firearm_usage_count` field alongside `usage_count`, derived from new `_FIREARM_COUNT_SQL` / `_FIREARM_SINGLE_COUNT_SQL` maps covering calibers, manufacturers, dealers, and the seven firearm-specific lookups (action types, models, compliance tags, frame sizes, optic cuts, rail types, finishes, conditions). Hide/Delete guards now check both counts; firearm-specific lookup deletes gain the same usage guard. Frontend `LookupsPage` renders two side-by-side chips per row (blue "N boxes", purple "N firearms") with deep-links — caliber/manufacturer chips route to `/firearms?caliber_id=` / `?manufacturer_id=` (FirearmsListPage now hydrates filters from URL params on mount); other firearm-only lookups navigate to the firearms list unfiltered. New page-level filter toolbar (Hide unused, Hide hidden, Source: All/Community/User-added) persisted to localStorage under `datasets_filters`. |
+| 3.48 | 2026-05-21 | Structured startup banner on both services (#33) — backend `on_startup` and a new `startupBanner` Vite plugin in `frontend/vite.config.ts` each emit a single identifier line on container start (version, channel `dev`/`release`, branch, short SHA, Python/Node runtime). §7.4 updated with example output and channel-derivation rule. Lets operators confirm the running image from `docker compose logs` without cross-referencing tags. |
+| 3.49 | 2026-05-21 | v0.3.7 release: Datasets page reports both ammo and firearm usage per lookup entry with deep-link chips and a persistent filter toolbar (#20); structured startup banner on backend and frontend identifies the running build from `docker compose logs` (#33); README and Installation Guide overhauled for public beta; production compose publishes frontend on `5173:5173` and trims redundant backend env block; `.gitattributes` pins LF line endings so Windows checkouts no longer break `backend/docker-entrypoint.sh`. CHANGELOG `[Unreleased]` stamped as `[0.3.7]`. |
 
 ---
 
@@ -1031,6 +1034,15 @@ On every container start, FastAPI runs this sequence before accepting requests:
 2. sync_yaml_seeds()     — YAML seed data: insert any new lookup values
 3. check_first_run()     — If no users exist, flag app for first-run setup flow
 ```
+
+Before the sequence runs, both backend and frontend emit a structured startup banner identifying the running build, so operators can confirm which image is live from `docker compose logs` alone:
+
+```text
+✓ AmmoLedger backend starting | version=v0.3.6-dev (abc1234) | channel=dev | branch=dev | sha=abc1234 | python=3.12.9
+✓ AmmoLedger frontend starting | version=v0.3.6 | channel=dev | branch=dev | sha=abc1234 | node=v20.19.1
+```
+
+Channel is `release` when `GIT_BRANCH` is `main` or a version tag, and `dev` otherwise. The frontend banner is emitted by a small Vite plugin (`startupBanner`) in `frontend/vite.config.ts`; the backend banner is logged from `on_startup` in `backend/main.py` using `version.get_build_info()`.
 
 ### 7.5 Developer Workflow
 

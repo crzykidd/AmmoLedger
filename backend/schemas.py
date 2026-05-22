@@ -47,6 +47,7 @@ class LookupRead(_OrmBase):
     community_key: Optional[str] = None
     is_imported: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class LookupCreate(BaseModel):
@@ -97,6 +98,7 @@ class ManufacturerRead(_OrmBase):
     is_imported: bool = True
     types: Optional[str] = None  # JSON-encoded array, e.g. '["ammo","firearm"]'
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class ManufacturerCreate(BaseModel):
@@ -134,6 +136,7 @@ class DealerRead(_OrmBase):
     state: Optional[str] = None
     is_standard_geo: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class DealerCreate(BaseModel):
@@ -153,6 +156,7 @@ class LocationRead(_OrmBase):
     is_active: bool
     source: str
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class LocationCreate(BaseModel):
@@ -168,6 +172,7 @@ class ContainerRead(_OrmBase):
     is_active: bool
     source: str
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class ContainerCreate(BaseModel):
@@ -193,6 +198,7 @@ class FirearmActionTypeRead(_OrmBase):
     community_key: Optional[str] = None
     is_imported: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class FirearmActionTypeCreate(BaseModel):
@@ -219,6 +225,7 @@ class FirearmModelRead(_OrmBase):
     default_caliber_name: Optional[str] = None
     default_action_type_name: Optional[str] = None
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class FirearmModelCreate(BaseModel):
@@ -267,6 +274,7 @@ class FirearmFrameSizeRead(_OrmBase):
     community_key: Optional[str] = None
     is_imported: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class FirearmFrameSizeCreate(BaseModel):
@@ -285,6 +293,7 @@ class FirearmConditionRead(_OrmBase):
     community_key: Optional[str] = None
     is_imported: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class FirearmConditionCreate(BaseModel):
@@ -303,6 +312,7 @@ class FirearmOpticCutRead(_OrmBase):
     community_key: Optional[str] = None
     is_imported: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class FirearmOpticCutCreate(BaseModel):
@@ -321,6 +331,7 @@ class FirearmRailTypeRead(_OrmBase):
     community_key: Optional[str] = None
     is_imported: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class FirearmRailTypeCreate(BaseModel):
@@ -339,6 +350,7 @@ class FirearmFinishRead(_OrmBase):
     community_key: Optional[str] = None
     is_imported: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class FirearmFinishCreate(BaseModel):
@@ -359,6 +371,7 @@ class FirearmComplianceTagRead(_OrmBase):
     community_key: Optional[str] = None
     is_imported: bool = True
     usage_count: int = 0
+    firearm_usage_count: int = 0
 
 
 class FirearmComplianceTagCreate(BaseModel):

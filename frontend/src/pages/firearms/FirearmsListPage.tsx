@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Grid,
@@ -242,6 +242,26 @@ export default function FirearmsListPage() {
   useEffect(() => {
     localStorage.setItem(FILTERS_KEY, JSON.stringify(filters))
   }, [filters])
+
+  // Deep-link from Datasets page: ?caliber_id=N or ?manufacturer_id=N
+  // pre-applies the matching filter dropdown on first mount, overriding the
+  // localStorage value for that one field. Consumed once and stripped.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const caliberParam = searchParams.get('caliber_id')
+    const mfrParam = searchParams.get('manufacturer_id')
+    if (!caliberParam && !mfrParam) return
+    setFilters((prev) => ({
+      ...prev,
+      ...(caliberParam ? { caliber_id: caliberParam } : {}),
+      ...(mfrParam ? { manufacturer_id: mfrParam } : {}),
+    }))
+    const next = new URLSearchParams(searchParams)
+    next.delete('caliber_id')
+    next.delete('manufacturer_id')
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [sortField, setSortField] = useState<SortField>(() => {
     const v = localStorage.getItem(SORT_FIELD_KEY)

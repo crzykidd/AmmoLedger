@@ -89,26 +89,60 @@ jobs:
     permissions:
       packages: write
 
+    # Two independent retention policies per package, each scoped to one tag
+    # shape by its ignore-versions regex. A step can only delete versions it
+    # does NOT ignore, so each step is structurally incapable of touching the
+    # other's tags:
+    #   - SHA step:     ignores everything that is NOT a sha-* tag → only prunes sha-* (keep 30)
+    #   - Release step: ignores everything that is NOT a bare semver → only prunes versions (keep 15)
+    # latest, dev, and the bare-major tag are protected by BOTH steps' ignore
+    # patterns and are never eligible for deletion.
     steps:
-      - name: Delete old backend versions
+      # ---- backend ----
+      - name: Prune old backend SHA builds (keep 30)
         uses: actions/delete-package-versions@v5
         with:
           owner: crzykidd
           package-name: ammoledger-backend
           package-type: container
-          min-versions-to-keep: 10
+          min-versions-to-keep: 30
           delete-only-untagged-versions: false
-          ignore-versions: "^(latest|dev|\\d+\\.\\d+\\.\\d+)$"
+          # Ignore (protect) anything that is NOT a sha-* build, so only sha-* can be pruned.
+          ignore-versions: "^(?!sha-).*$"
 
-      - name: Delete old frontend versions
+      - name: Prune old backend releases (keep 15)
+        uses: actions/delete-package-versions@v5
+        with:
+          owner: crzykidd
+          package-name: ammoledger-backend
+          package-type: container
+          min-versions-to-keep: 15
+          delete-only-untagged-versions: false
+          # Ignore (protect) anything that is NOT a bare MAJOR.MINOR.PATCH, so only
+          # released versions can be pruned. latest, dev, the bare-major tag, and
+          # sha-* are all protected here.
+          ignore-versions: "^(?!\\d+\\.\\d+\\.\\d+$).*$"
+
+      # ---- frontend ----
+      - name: Prune old frontend SHA builds (keep 30)
         uses: actions/delete-package-versions@v5
         with:
           owner: crzykidd
           package-name: ammoledger-frontend
           package-type: container
-          min-versions-to-keep: 10
+          min-versions-to-keep: 30
           delete-only-untagged-versions: false
-          ignore-versions: "^(latest|dev|\\d+\\.\\d+\\.\\d+)$"
+          ignore-versions: "^(?!sha-).*$"
+
+      - name: Prune old frontend releases (keep 15)
+        uses: actions/delete-package-versions@v5
+        with:
+          owner: crzykidd
+          package-name: ammoledger-frontend
+          package-type: container
+          min-versions-to-keep: 15
+          delete-only-untagged-versions: false
+          ignore-versions: "^(?!\\d+\\.\\d+\\.\\d+$).*$"
 
   build-frontend:
     runs-on: ubuntu-latest

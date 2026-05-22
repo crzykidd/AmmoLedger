@@ -18,6 +18,24 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.7] — 2026-05-21
+
+### Added
+
+- **Datasets page now shows firearm usage alongside ammo usage.** Each lookup entry's "In Use" column previously only counted ammo boxes (firearm-specific lookups like action types, frame sizes, optic cuts, etc. always showed 0). The column now renders a blue "N boxes" chip and a separate purple "N firearms" chip when applicable — covering calibers, manufacturers, dealers, and every firearm-specific lookup (action types, models, compliance tags, frame sizes, optic cuts, rail types, finishes, conditions). Clicking the firearms chip on a caliber or manufacturer deep-links to `/firearms` with the matching filter pre-applied; for other lookups it navigates to the firearms list unfiltered. Hide and Delete now respect both ammo and firearm references — entries used by firearms can no longer be silently deleted, and the lock tooltip shows both counts. Fixes #20
+- **Datasets page filter toolbar.** A persistent toolbar above the sections lets you hide unused entries, hide entries that are already hidden, and filter by source (All / Community / User-added). All three preferences are stored in localStorage so they survive page reloads.
+
+### Changed
+
+- **Backend and frontend now print a structured startup banner.** On startup both services emit a single line that identifies the running build: version (e.g. `v0.3.6-dev (abc1234)`), release channel (`dev` vs `release`), git branch, short SHA, and runtime version (Python for backend, Node for frontend). This makes it possible to confirm at a glance — from `docker compose logs` alone — which image is actually running, instead of cross-referencing tags. Fixes #33
+- **README and Installation Guide overhauled for public beta.** README is now a tight landing page (tagline, screenshots placeholder, four feature areas — Ammo / Firearm / Range / Cleaning & Utilization, three-step Quick Start, community blurb). Removed the inline "What's New" history (now changelog-only) and "What's Coming Next" (now tracked in [GitHub issues](https://github.com/crzykidd/AmmoLedger/issues)). Moved env var reference, NAS/PUID-PGID, reverse-proxy topology, generic version-agnostic upgrade steps, and DB maintenance into `docs/INSTALL.md`.
+- **Production compose: frontend now publishes on `5173:5173`** (was `127.0.0.1:5173` only). External access still wants a reverse proxy in front, but the bind no longer assumes one is already there. Backend remains on the private `ammoledger_net` bridge with no published ports.
+- **Production compose: backend env block trimmed.** Removed the redundant `DATABASE_URL`, `CONFIG_PATH`, `DEFAULTS_PATH`, `BACKUP_PATH`, and `UPLOADS_PATH` lines (all have correct `/data/...` defaults baked into the image). Only `PYTHONUNBUFFERED`, `PUID`, and `PGID` remain uncommented; every `AL_*` override is listed as an optional commented example with accurate names.
+
+### Fixed
+
+- **Backend container no longer fails to start on Windows checkouts due to CRLF line endings.** Added a repo-root `.gitattributes` that pins shell scripts, Dockerfiles, and other text files to LF on checkout (while keeping `.bat`/`.cmd`/`.ps1` as CRLF). Without this, Git's `core.autocrlf=true` on Windows would silently smudge `backend/docker-entrypoint.sh` to CRLF on checkout, causing the bind-mounted dev container to fail with `exec /usr/local/bin/docker-entrypoint.sh: no such file or directory` — the kernel was reading the shebang as `#!/bin/sh\r` and looking for an interpreter that doesn't exist. Fresh clones on Windows now get LF for files that must stay LF.
+
 ## [0.3.6] — 2026-05-21
 
 ### Fixed
@@ -90,17 +108,6 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **Firearm detail page crash on first load.** The page rendered a blank shell on every visit due to a React Rules of Hooks violation: the `document.title`-setting `useEffect` was placed after three conditional early returns (invalid ID, error, loading). React detected a hook count mismatch between the loading render and the data-arrival render and unmounted the entire tree. The effect is now declared unconditionally at the top of the component with an `if (!firearm) return` guard inside its body.
 
-### Coming Next
-
-The following items were deliberately scoped out of v0.3.0 and remain
-on the roadmap:
-
-- **Multi-caliber firearms.** v1 firearms have a single caliber FK plus a free-text `caliber_notes` field for the workaround. A `firearm_calibers` join table will be added in a future migration without renaming the existing column.
-- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet; future migration adds it when the feature ships. (Firearm photos shipped in v0.3.0 — this is line-level target photos only.)
-- **Range sessions CSV import.** Export-only this release; import will follow when its remap UX is designed.
-- **Accessories module** (PRD v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
-- **At Range / Range workflow merge.** The mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.
-- **Additional community lookups.** Sight types, finishes, and other taxonomies are currently free-text on firearms. They become candidates for community lookups based on user feedback.
 
 ## [0.3.0] — 2026-05-17
 

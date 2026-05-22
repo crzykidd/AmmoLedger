@@ -82,8 +82,7 @@ _TABLE_CONFIG: dict = {
     "dealers": Dealer,
     "locations": Location,
     "containers": Container,
-    # Firearm lookups (usage counts are firearm-table-driven; not wired into
-    # the ammo_box-centric _COUNT_SQL above, so usage_count stays 0 here).
+    # Firearm lookups — usage counts come from _FIREARM_COUNT_SQL below.
     "firearm-models": FirearmModel,
     "firearm-action-types": FirearmActionType,
     "firearm-compliance-tags": FirearmComplianceTag,
@@ -91,6 +90,7 @@ _TABLE_CONFIG: dict = {
     "firearm-optic-cuts": FirearmOpticCut,
     "firearm-rail-types": FirearmRailType,
     "firearm-finishes": FirearmFinish,
+    "firearm-conditions": FirearmCondition,
 }
 
 # SQL fragments that count non-archived ammo_box rows per lookup entry
@@ -125,6 +125,49 @@ _SINGLE_COUNT_SQL: dict[str, str] = {
         "SELECT COUNT(*) FROM ammo_box WHERE location_id=:id AND is_archived=0",
 }
 
+# SQL fragments that count firearms rows per lookup entry. Firearms have no
+# is_archived column, so all rows count. The compliance-tag mapping goes
+# through the firearm_compliance_tag_links join table.
+_FIREARM_COUNT_SQL: dict[str, str] = {
+    "calibers":
+        "SELECT caliber_id, COUNT(*) FROM firearms GROUP BY caliber_id",
+    "manufacturers":
+        "SELECT manufacturer_id, COUNT(*) FROM firearms GROUP BY manufacturer_id",
+    "dealers":
+        "SELECT dealer_id, COUNT(*) FROM firearms WHERE dealer_id IS NOT NULL GROUP BY dealer_id",
+    "firearm-models":
+        "SELECT firearm_model_id, COUNT(*) FROM firearms WHERE firearm_model_id IS NOT NULL GROUP BY firearm_model_id",
+    "firearm-action-types":
+        "SELECT action_type_id, COUNT(*) FROM firearms WHERE action_type_id IS NOT NULL GROUP BY action_type_id",
+    "firearm-frame-sizes":
+        "SELECT frame_size_id, COUNT(*) FROM firearms WHERE frame_size_id IS NOT NULL GROUP BY frame_size_id",
+    "firearm-optic-cuts":
+        "SELECT optic_cut_id, COUNT(*) FROM firearms WHERE optic_cut_id IS NOT NULL GROUP BY optic_cut_id",
+    "firearm-rail-types":
+        "SELECT rail_type_id, COUNT(*) FROM firearms WHERE rail_type_id IS NOT NULL GROUP BY rail_type_id",
+    "firearm-finishes":
+        "SELECT finish_id, COUNT(*) FROM firearms WHERE finish_id IS NOT NULL GROUP BY finish_id",
+    "firearm-conditions":
+        "SELECT firearm_condition_id, COUNT(*) FROM firearms WHERE firearm_condition_id IS NOT NULL GROUP BY firearm_condition_id",
+    "firearm-compliance-tags":
+        "SELECT tag_id, COUNT(DISTINCT firearm_id) FROM firearm_compliance_tag_links GROUP BY tag_id",
+}
+
+_FIREARM_SINGLE_COUNT_SQL: dict[str, str] = {
+    "calibers": "SELECT COUNT(*) FROM firearms WHERE caliber_id=:id",
+    "manufacturers": "SELECT COUNT(*) FROM firearms WHERE manufacturer_id=:id",
+    "dealers": "SELECT COUNT(*) FROM firearms WHERE dealer_id=:id",
+    "firearm-models": "SELECT COUNT(*) FROM firearms WHERE firearm_model_id=:id",
+    "firearm-action-types": "SELECT COUNT(*) FROM firearms WHERE action_type_id=:id",
+    "firearm-frame-sizes": "SELECT COUNT(*) FROM firearms WHERE frame_size_id=:id",
+    "firearm-optic-cuts": "SELECT COUNT(*) FROM firearms WHERE optic_cut_id=:id",
+    "firearm-rail-types": "SELECT COUNT(*) FROM firearms WHERE rail_type_id=:id",
+    "firearm-finishes": "SELECT COUNT(*) FROM firearms WHERE finish_id=:id",
+    "firearm-conditions": "SELECT COUNT(*) FROM firearms WHERE firearm_condition_id=:id",
+    "firearm-compliance-tags":
+        "SELECT COUNT(DISTINCT firearm_id) FROM firearm_compliance_tag_links WHERE tag_id=:id",
+}
+
 
 def _get_count_map(table: str, db: Session) -> dict[int, int]:
     sql = _COUNT_SQL.get(table)
@@ -142,8 +185,25 @@ def _get_single_count(table: str, entry_id: int, db: Session) -> int:
     return row[0] if row else 0
 
 
+def _get_firearm_count_map(table: str, db: Session) -> dict[int, int]:
+    sql = _FIREARM_COUNT_SQL.get(table)
+    if not sql:
+        return {}
+    rows = db.execute(text(sql)).all()
+    return {row[0]: row[1] for row in rows}
+
+
+def _get_firearm_single_count(table: str, entry_id: int, db: Session) -> int:
+    sql = _FIREARM_SINGLE_COUNT_SQL.get(table)
+    if not sql:
+        return 0
+    row = db.execute(text(sql), {"id": entry_id}).fetchone()
+    return row[0] if row else 0
+
+
 def _fetch_entries(model_class, table_name: str, active_only: bool, db: Session) -> list:
-    """Return all entries as dicts, with usage_count when active_only=False."""
+    """Return all entries as dicts, with usage_count + firearm_usage_count
+    populated when active_only=False."""
     stmt = select(model_class)
     if active_only:
         stmt = stmt.where(model_class.is_active == True)  # noqa: E712
@@ -152,12 +212,14 @@ def _fetch_entries(model_class, table_name: str, active_only: bool, db: Session)
             stmt = stmt.where(model_class.is_imported == True)  # noqa: E712
     entries = db.exec(stmt).all()
 
-    count_map = _get_count_map(table_name, db) if not active_only else {}
+    ammo_map = _get_count_map(table_name, db) if not active_only else {}
+    firearm_map = _get_firearm_count_map(table_name, db) if not active_only else {}
 
     result = []
     for e in entries:
         d = e.model_dump()
-        d["usage_count"] = count_map.get(e.id, 0)
+        d["usage_count"] = ammo_map.get(e.id, 0)
+        d["firearm_usage_count"] = firearm_map.get(e.id, 0)
         result.append(d)
     return result
 
@@ -277,6 +339,7 @@ def update_manufacturer_types(
     db.refresh(m)
     d = m.model_dump()
     d["usage_count"] = _get_single_count("manufacturers", entry_id, db)
+    d["firearm_usage_count"] = _get_firearm_single_count("manufacturers", entry_id, db)
     return d
 
 
@@ -502,6 +565,7 @@ def update_lookup_entry(
     db.refresh(entry)
     d = entry.model_dump()
     d["usage_count"] = _get_single_count(table, entry_id, db)
+    d["firearm_usage_count"] = _get_firearm_single_count(table, entry_id, db)
     return d
 
 
@@ -523,6 +587,7 @@ def toggle_lookup_active(
     db.refresh(entry)
     d = entry.model_dump()
     d["usage_count"] = _get_single_count(table, entry_id, db)
+    d["firearm_usage_count"] = _get_firearm_single_count(table, entry_id, db)
     return d
 
 
@@ -545,11 +610,17 @@ def delete_lookup_entry(
             detail="Cannot delete community entries — use Hide instead",
         )
 
-    count = _get_single_count(table, entry_id, db)
-    if count > 0:
+    ammo_count = _get_single_count(table, entry_id, db)
+    firearm_count = _get_firearm_single_count(table, entry_id, db)
+    if ammo_count > 0 or firearm_count > 0:
+        parts: list[str] = []
+        if ammo_count > 0:
+            parts.append(f"{ammo_count} box{'es' if ammo_count != 1 else ''}")
+        if firearm_count > 0:
+            parts.append(f"{firearm_count} firearm{'s' if firearm_count != 1 else ''}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete — used by {count} boxes",
+            detail="Cannot delete — used by " + " and ".join(parts),
         )
 
     db.delete(entry)
@@ -561,9 +632,10 @@ def delete_lookup_entry(
 # Firearm Action Types — community-managed flat list
 # ---------------------------------------------------------------------------
 
-def _action_type_dict(entry: FirearmActionType) -> dict:
+def _action_type_dict(entry: FirearmActionType, firearm_count: int = 0) -> dict:
     d = entry.model_dump()
-    d["usage_count"] = 0  # firearms table ships in P1b
+    d["usage_count"] = 0  # ammo-side: action types are firearm-only
+    d["firearm_usage_count"] = firearm_count
     return d
 
 
@@ -577,7 +649,8 @@ def list_firearm_action_types(
     if active_only:
         stmt = stmt.where(FirearmActionType.is_active == True)  # noqa: E712
         stmt = stmt.where(FirearmActionType.is_imported == True)  # noqa: E712
-    return [_action_type_dict(e) for e in db.exec(stmt).all()]
+    firearm_map = _get_firearm_count_map("firearm-action-types", db) if not active_only else {}
+    return [_action_type_dict(e, firearm_map.get(e.id, 0)) for e in db.exec(stmt).all()]
 
 
 @router.post(
@@ -601,7 +674,7 @@ def create_firearm_action_type(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _action_type_dict(e)
+    return _action_type_dict(e, _get_firearm_single_count("firearm-action-types", e.id, db))
 
 
 @router.patch("/firearm-action-types/{entry_id}", response_model=FirearmActionTypeRead)
@@ -632,7 +705,7 @@ def update_firearm_action_type(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _action_type_dict(e)
+    return _action_type_dict(e, _get_firearm_single_count("firearm-action-types", e.id, db))
 
 
 @router.delete(
@@ -652,7 +725,12 @@ def delete_firearm_action_type(
             status_code=400,
             detail="Cannot delete community entries — use Hide instead",
         )
-    # When P1b ships firearm_models we'll need a usage count guard here.
+    firearm_count = _get_firearm_single_count("firearm-action-types", entry_id, db)
+    if firearm_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — used by {firearm_count} firearm{'s' if firearm_count != 1 else ''}",
+        )
     db.delete(e)
     db.commit()
     return None
@@ -662,7 +740,7 @@ def delete_firearm_action_type(
 # Firearm Models — community-managed; resolves manufacturer/caliber/action names
 # ---------------------------------------------------------------------------
 
-def _resolve_model_names(model: FirearmModel, db: Session) -> dict:
+def _resolve_model_names(model: FirearmModel, db: Session, firearm_count: int = 0) -> dict:
     d = model.model_dump()
     mfr = db.get(Manufacturer, model.manufacturer_id)
     d["manufacturer_name"] = mfr.name if mfr else None
@@ -676,7 +754,8 @@ def _resolve_model_names(model: FirearmModel, db: Session) -> dict:
         d["default_action_type_name"] = act.name if act else None
     else:
         d["default_action_type_name"] = None
-    d["usage_count"] = 0  # firearms table ships in P1b
+    d["usage_count"] = 0  # ammo-side: models are firearm-only
+    d["firearm_usage_count"] = firearm_count
     return d
 
 
@@ -693,7 +772,8 @@ def list_firearm_models(
         stmt = stmt.where(FirearmModel.is_imported == True)  # noqa: E712
     if manufacturer_id is not None:
         stmt = stmt.where(FirearmModel.manufacturer_id == manufacturer_id)
-    return [_resolve_model_names(m, db) for m in db.exec(stmt).all()]
+    firearm_map = _get_firearm_count_map("firearm-models", db) if not active_only else {}
+    return [_resolve_model_names(m, db, firearm_map.get(m.id, 0)) for m in db.exec(stmt).all()]
 
 
 @router.post(
@@ -739,7 +819,7 @@ def create_firearm_model(
     db.add(m)
     db.commit()
     db.refresh(m)
-    return _resolve_model_names(m, db)
+    return _resolve_model_names(m, db, _get_firearm_single_count("firearm-models", m.id, db))
 
 
 @router.patch("/firearm-models/{entry_id}", response_model=FirearmModelRead)
@@ -793,7 +873,7 @@ def update_firearm_model(
     db.add(m)
     db.commit()
     db.refresh(m)
-    return _resolve_model_names(m, db)
+    return _resolve_model_names(m, db, _get_firearm_single_count("firearm-models", m.id, db))
 
 
 @router.delete(
@@ -813,6 +893,12 @@ def delete_firearm_model(
             status_code=400,
             detail="Cannot delete community entries — use Hide instead",
         )
+    firearm_count = _get_firearm_single_count("firearm-models", entry_id, db)
+    if firearm_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — used by {firearm_count} firearm{'s' if firearm_count != 1 else ''}",
+        )
     db.delete(m)
     db.commit()
     return None
@@ -822,9 +908,10 @@ def delete_firearm_model(
 # Firearm Compliance Tags — community-managed; jurisdiction-grouped
 # ---------------------------------------------------------------------------
 
-def _compliance_tag_dict(t: FirearmComplianceTag) -> dict:
+def _compliance_tag_dict(t: FirearmComplianceTag, firearm_count: int = 0) -> dict:
     d = t.model_dump()
-    d["usage_count"] = 0  # firearms table ships in P1b
+    d["usage_count"] = 0  # ammo-side: compliance tags are firearm-only
+    d["firearm_usage_count"] = firearm_count
     return d
 
 
@@ -838,7 +925,8 @@ def list_firearm_compliance_tags(
     if active_only:
         stmt = stmt.where(FirearmComplianceTag.is_active == True)  # noqa: E712
         stmt = stmt.where(FirearmComplianceTag.is_imported == True)  # noqa: E712
-    return [_compliance_tag_dict(t) for t in db.exec(stmt).all()]
+    firearm_map = _get_firearm_count_map("firearm-compliance-tags", db) if not active_only else {}
+    return [_compliance_tag_dict(t, firearm_map.get(t.id, 0)) for t in db.exec(stmt).all()]
 
 
 @router.post(
@@ -866,7 +954,7 @@ def create_firearm_compliance_tag(
     db.add(t)
     db.commit()
     db.refresh(t)
-    return _compliance_tag_dict(t)
+    return _compliance_tag_dict(t, _get_firearm_single_count("firearm-compliance-tags", t.id, db))
 
 
 @router.patch(
@@ -904,7 +992,7 @@ def update_firearm_compliance_tag(
     db.add(t)
     db.commit()
     db.refresh(t)
-    return _compliance_tag_dict(t)
+    return _compliance_tag_dict(t, _get_firearm_single_count("firearm-compliance-tags", t.id, db))
 
 
 @router.delete(
@@ -923,6 +1011,12 @@ def delete_firearm_compliance_tag(
         raise HTTPException(
             status_code=400,
             detail="Cannot delete community entries — use Hide instead",
+        )
+    firearm_count = _get_firearm_single_count("firearm-compliance-tags", entry_id, db)
+    if firearm_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — used by {firearm_count} firearm{'s' if firearm_count != 1 else ''}",
         )
     db.delete(t)
     db.commit()
@@ -1031,15 +1125,17 @@ def delete_firearm_user_tag(
 # differ per route and the per-table 404 / 409 messages stay readable.
 # ---------------------------------------------------------------------------
 
-def _attr_lookup_dict(entry) -> dict:
-    """Common shape for the four physical-attribute lookup reads.
+def _attr_lookup_dict(entry, firearm_count: int = 0) -> dict:
+    """Common shape for the physical-attribute lookup reads (frame size,
+    optic cut, rail type, finish, condition).
 
-    `usage_count` is left at 0 — the firearms table writes here happen via
-    FK on the firearms row, but a usage rollup would require a separate
-    aggregate query that isn't worth the cost on the lookups admin page.
+    `usage_count` is left at 0 (ammo-side) — these are firearm-only lookups.
+    `firearm_usage_count` reflects FK references from the firearms table;
+    callers pass a precomputed count to avoid per-row queries.
     """
     d = entry.model_dump()
     d["usage_count"] = 0
+    d["firearm_usage_count"] = firearm_count
     return d
 
 
@@ -1055,7 +1151,8 @@ def list_firearm_frame_sizes(
     if active_only:
         stmt = stmt.where(FirearmFrameSize.is_active == True)  # noqa: E712
         stmt = stmt.where(FirearmFrameSize.is_imported == True)  # noqa: E712
-    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+    firearm_map = _get_firearm_count_map("firearm-frame-sizes", db) if not active_only else {}
+    return [_attr_lookup_dict(e, firearm_map.get(e.id, 0)) for e in db.exec(stmt).all()]
 
 
 @router.post(
@@ -1079,7 +1176,7 @@ def create_firearm_frame_size(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-frame-sizes", e.id, db))
 
 
 @router.patch("/firearm-frame-sizes/{entry_id}", response_model=FirearmFrameSizeRead)
@@ -1110,7 +1207,7 @@ def update_firearm_frame_size(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-frame-sizes", e.id, db))
 
 
 @router.delete(
@@ -1130,6 +1227,12 @@ def delete_firearm_frame_size(
             status_code=400,
             detail="Cannot delete community entries — use Hide instead",
         )
+    firearm_count = _get_firearm_single_count("firearm-frame-sizes", entry_id, db)
+    if firearm_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — used by {firearm_count} firearm{'s' if firearm_count != 1 else ''}",
+        )
     db.delete(e)
     db.commit()
     return None
@@ -1147,7 +1250,8 @@ def list_firearm_optic_cuts(
     if active_only:
         stmt = stmt.where(FirearmOpticCut.is_active == True)  # noqa: E712
         stmt = stmt.where(FirearmOpticCut.is_imported == True)  # noqa: E712
-    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+    firearm_map = _get_firearm_count_map("firearm-optic-cuts", db) if not active_only else {}
+    return [_attr_lookup_dict(e, firearm_map.get(e.id, 0)) for e in db.exec(stmt).all()]
 
 
 @router.post(
@@ -1171,7 +1275,7 @@ def create_firearm_optic_cut(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-optic-cuts", e.id, db))
 
 
 @router.patch("/firearm-optic-cuts/{entry_id}", response_model=FirearmOpticCutRead)
@@ -1202,7 +1306,7 @@ def update_firearm_optic_cut(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-optic-cuts", e.id, db))
 
 
 @router.delete(
@@ -1222,6 +1326,12 @@ def delete_firearm_optic_cut(
             status_code=400,
             detail="Cannot delete community entries — use Hide instead",
         )
+    firearm_count = _get_firearm_single_count("firearm-optic-cuts", entry_id, db)
+    if firearm_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — used by {firearm_count} firearm{'s' if firearm_count != 1 else ''}",
+        )
     db.delete(e)
     db.commit()
     return None
@@ -1239,7 +1349,8 @@ def list_firearm_rail_types(
     if active_only:
         stmt = stmt.where(FirearmRailType.is_active == True)  # noqa: E712
         stmt = stmt.where(FirearmRailType.is_imported == True)  # noqa: E712
-    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+    firearm_map = _get_firearm_count_map("firearm-rail-types", db) if not active_only else {}
+    return [_attr_lookup_dict(e, firearm_map.get(e.id, 0)) for e in db.exec(stmt).all()]
 
 
 @router.post(
@@ -1263,7 +1374,7 @@ def create_firearm_rail_type(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-rail-types", e.id, db))
 
 
 @router.patch("/firearm-rail-types/{entry_id}", response_model=FirearmRailTypeRead)
@@ -1294,7 +1405,7 @@ def update_firearm_rail_type(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-rail-types", e.id, db))
 
 
 @router.delete(
@@ -1314,6 +1425,12 @@ def delete_firearm_rail_type(
             status_code=400,
             detail="Cannot delete community entries — use Hide instead",
         )
+    firearm_count = _get_firearm_single_count("firearm-rail-types", entry_id, db)
+    if firearm_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — used by {firearm_count} firearm{'s' if firearm_count != 1 else ''}",
+        )
     db.delete(e)
     db.commit()
     return None
@@ -1331,7 +1448,8 @@ def list_firearm_finishes(
     if active_only:
         stmt = stmt.where(FirearmFinish.is_active == True)  # noqa: E712
         stmt = stmt.where(FirearmFinish.is_imported == True)  # noqa: E712
-    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+    firearm_map = _get_firearm_count_map("firearm-finishes", db) if not active_only else {}
+    return [_attr_lookup_dict(e, firearm_map.get(e.id, 0)) for e in db.exec(stmt).all()]
 
 
 @router.post(
@@ -1355,7 +1473,7 @@ def create_firearm_finish(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-finishes", e.id, db))
 
 
 @router.patch("/firearm-finishes/{entry_id}", response_model=FirearmFinishRead)
@@ -1386,7 +1504,7 @@ def update_firearm_finish(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-finishes", e.id, db))
 
 
 @router.delete(
@@ -1406,6 +1524,12 @@ def delete_firearm_finish(
             status_code=400,
             detail="Cannot delete community entries — use Hide instead",
         )
+    firearm_count = _get_firearm_single_count("firearm-finishes", entry_id, db)
+    if firearm_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — used by {firearm_count} firearm{'s' if firearm_count != 1 else ''}",
+        )
     db.delete(e)
     db.commit()
     return None
@@ -1423,7 +1547,8 @@ def list_firearm_conditions(
     if active_only:
         stmt = stmt.where(FirearmCondition.is_active == True)  # noqa: E712
         stmt = stmt.where(FirearmCondition.is_imported == True)  # noqa: E712
-    return [_attr_lookup_dict(e) for e in db.exec(stmt).all()]
+    firearm_map = _get_firearm_count_map("firearm-conditions", db) if not active_only else {}
+    return [_attr_lookup_dict(e, firearm_map.get(e.id, 0)) for e in db.exec(stmt).all()]
 
 
 @router.post(
@@ -1447,7 +1572,7 @@ def create_firearm_condition(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-conditions", e.id, db))
 
 
 @router.patch("/firearm-conditions/{entry_id}", response_model=FirearmConditionRead)
@@ -1478,7 +1603,7 @@ def update_firearm_condition(
     db.add(e)
     db.commit()
     db.refresh(e)
-    return _attr_lookup_dict(e)
+    return _attr_lookup_dict(e, _get_firearm_single_count("firearm-conditions", e.id, db))
 
 
 @router.delete(
@@ -1497,6 +1622,12 @@ def delete_firearm_condition(
         raise HTTPException(
             status_code=400,
             detail="Cannot delete community entries — use Hide instead",
+        )
+    firearm_count = _get_firearm_single_count("firearm-conditions", entry_id, db)
+    if firearm_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — used by {firearm_count} firearm{'s' if firearm_count != 1 else ''}",
         )
     db.delete(e)
     db.commit()

@@ -28,7 +28,17 @@
       "Bash(curl -s http://localhost:8000/firearm-frame-sizes)",
       "Bash(curl -s http://localhost:8000/health)",
       "Bash(curl -s http://localhost:8000/openapi.json)",
-      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); paths=[p for p in d['paths'] if 'photo' in p or 'restore' in p]; print\\('\\\\n'.join\\(sorted\\(paths\\)\\)\\)\")"
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); paths=[p for p in d['paths'] if 'photo' in p or 'restore' in p]; print\\('\\\\n'.join\\(sorted\\(paths\\)\\)\\)\")",
+      "Bash(git diff *)",
+      "Bash(git restore *)",
+      "Bash(gh auth *)",
+      "Bash(curl -s -c /tmp/cookies.txt -X POST http://localhost:5173/api/auth/login -H \"Content-Type: application/json\" -d '{\"identifier\":\"admin\",\"password\":\"changeme\"}')",
+      "Bash(curl -s -b /tmp/cookies.txt \"http://localhost:5173/api/calibers?active_only=false\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\('count:', len\\(data\\)\\); print\\('sample:', json.dumps\\(data[0], indent=2\\) if data else 'empty'\\)\")",
+      "Bash(curl -s -c /tmp/cookies.txt -X POST http://localhost:5173/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@example.com\",\"password\":\"changeme\"}')",
+      "Bash(python -m ruff check .)",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('d:/projects/AmmoLedger/backend/defaults.yaml'\\)\\); yaml.safe_load\\(open\\('d:/projects/AmmoLedger/backend/config.template.yaml'\\)\\); print\\('YAML OK'\\)\")",
+      "Bash(DATABASE_URL=\"sqlite:///./_release_check.db\" python -m alembic upgrade head)"
     ],
     "additionalDirectories": [
       "C:\\projects\\AmmoLedger\\backend\\migrations\\versions"

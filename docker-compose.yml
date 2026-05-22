@@ -1,9 +1,10 @@
 # AmmoLedger — production compose
 #
-# By default this stack runs both services on a private bridge network
-# (`ammoledger_net`) with the frontend bound to 127.0.0.1:5173 on the host.
-# Put a reverse proxy (Nginx Proxy Manager, Traefik, Caddy, Cloudflare
-# Tunnel, etc.) in front of it for external access — see PRD §12.
+# This stack publishes the frontend on host port 5173 and runs the backend
+# on a private bridge network (`ammoledger_net`) with no published ports.
+# For external / internet access put a reverse proxy (Nginx Proxy Manager,
+# Traefik, Caddy, Cloudflare Tunnel, etc.) in front of the frontend — see
+# docs/INSTALL.md for topology and PRD §12.
 #
 # To attach the frontend to an externally-managed reverse-proxy network so
 # your proxy stack can reach it by container name, see the commented
@@ -23,16 +24,33 @@ services:
     volumes:
       - ammoledger_data:/data
     environment:
-      - DATABASE_URL=sqlite:////data/ammoledger.db
-      - CONFIG_PATH=/data/config.yaml
-      - DEFAULTS_PATH=/data/defaults.yaml
-      - BACKUP_PATH=/data/backups
-      - UPLOADS_PATH=/data/uploads
       - PYTHONUNBUFFERED=1
-      # Set PUID/PGID to match the host user that should own the data files.
-      # Find yours with `id -u` and `id -g`. Defaults to 1000:1000.
+      # --- Optional: data file ownership on NAS / multi-user hosts ---
+      # Match the host user that should own /data. Find yours with `id -u` / `id -g`.
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
+      # --- Optional: run without a config.yaml by setting a session secret ---
+      # Generate one with: openssl rand -hex 32
+      # - AL_SESSION_SECRET=replace-with-a-32+-char-random-string
+      #
+      # --- Other optional overrides (all have safe defaults) ---
+      # - AL_APP_NAME=AmmoLedger
+      # - AL_BASE_URL=http://localhost:5173
+      # - AL_BACKUP_ENABLED=true
+      # - AL_BACKUP_SCHEDULE=03:00
+      # - AL_BACKUP_RETENTION_DAYS=30
+      # - AL_BACKUP_INCLUDE_PHOTOS=true
+      # - AL_RESET_TOKEN=
+      # - AL_IMAGE_SEARCH_ENABLED=false
+      # - AL_IMAGE_SEARCH_PROVIDER=brave
+      # - AL_IMAGE_SEARCH_API_KEY=
+      #
+      # The container defaults these to /data/... — only set if you relocate them:
+      # - DATABASE_URL=sqlite:////data/ammoledger.db
+      # - CONFIG_PATH=/data/config.yaml
+      # - DEFAULTS_PATH=/data/defaults.yaml
+      # - BACKUP_PATH=/data/backups
+      # - UPLOADS_PATH=/data/uploads
     networks:
       - ammoledger_net
     healthcheck:
@@ -46,7 +64,7 @@ services:
   frontend:
     image: ghcr.io/crzykidd/ammoledger-frontend:latest
     ports:
-      - "127.0.0.1:5173:5173"
+      - "5173:5173"
     environment:
       - AL_BACKEND_URL=http://backend:8000
     networks:
