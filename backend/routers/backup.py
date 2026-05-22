@@ -219,28 +219,107 @@ def _backup_to_db(db_path: Path, dest: Path) -> None:
         src.close()
 
 
+# Directories under UPLOADS_PATH that participate in zip backup and zip
+# restore. Each is bundled into the zip relative to UPLOADS_PATH and
+# restored back into the same layout. Tuple order is the restore order.
+_IMAGE_DIR_NAMES: tuple[str, ...] = ("firearm_photos", "products")
+_OLD_SUFFIX = ".old"
+
+
+def _image_dir_specs() -> list[tuple[Path, Path]]:
+    """Return [(live_dir, snapshot_dir), ...] for image dirs under UPLOADS_PATH."""
+    base = Path(UPLOADS_PATH)
+    return [(base / name, base / f"{name}{_OLD_SUFFIX}") for name in _IMAGE_DIR_NAMES]
+
+
+def _dir_metrics(p: Path) -> tuple[int, int]:
+    """Return (file_count, total_size_bytes) for `p`. (0, 0) if absent."""
+    if not p.exists():
+        return 0, 0
+    count = 0
+    total = 0
+    for f in p.rglob("*"):
+        if f.is_file():
+            count += 1
+            try:
+                total += f.stat().st_size
+            except OSError:
+                pass
+    return count, total
+
+
+def _rotate_image_dir_to_old(live: Path, old: Path) -> None:
+    """Move `live` to `old`, deleting any prior snapshot.
+
+    Both paths sit on the same filesystem under UPLOADS_PATH, so this is a
+    rename. If `live` is absent, just clear any stale `.old` so the next
+    placement starts from a clean state. After this call `live` does not
+    exist and `old` either contains the prior live state or is absent.
+    """
+    if old.exists():
+        shutil.rmtree(old, ignore_errors=True)
+    if live.exists():
+        shutil.move(str(live), str(old))
+
+
+def _place_or_empty(extracted: Path | None, live: Path) -> None:
+    """Move `extracted` into `live`, or create an empty `live` dir.
+
+    Caller guarantees `live` does not exist (was rotated to .old just prior).
+    """
+    if extracted is not None and extracted.exists():
+        live.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(extracted), str(live))
+    else:
+        live.mkdir(parents=True, exist_ok=True)
+
+
+def _capture_image_snapshot_status() -> dict:
+    """Report which `.old` snapshots exist and how large they are.
+
+    Used by the restore response payload and the dedicated GET endpoint so the
+    frontend can surface a "you have a pre-restore image snapshot — discard?"
+    banner after a restore force-logout cycle.
+    """
+    snapshots: dict[str, dict] = {}
+    for live, old in _image_dir_specs():
+        if not old.exists():
+            continue
+        count, size = _dir_metrics(old)
+        # Empty .old dirs aren't worth flagging — there's nothing to restore from.
+        if count == 0:
+            continue
+        snapshots[live.name] = {"file_count": count, "size_bytes": size}
+    return snapshots
+
+
 def _backup_to_zip(db_path: Path, dest: Path) -> None:
-    """Bundle SQLite + photos directory into a single zip.
+    """Bundle SQLite + image directories into a single zip.
 
     Order: take a WAL-safe SQLite copy to a temp file first (the live DB
     file is unsafe to read directly while the app is running — the WAL
-    sidecar holds recent writes), then zip the temp DB plus the photos
-    directory. The zip preserves the on-disk `firearm_photos/<id>/` layout
+    sidecar holds recent writes), then zip the temp DB plus each image
+    directory listed in `_IMAGE_DIR_NAMES`. The zip preserves the on-disk
+    layout (e.g. `firearm_photos/<firearm_id>/...` and `products/<id>.jpg`)
     so restore is a straight rename.
     """
     temp_db = dest.parent / f"{dest.stem}.tmp.db"
     _backup_to_db(db_path, temp_db)
 
-    photos_root = Path(UPLOADS_PATH) / "firearm_photos"
+    uploads_root = Path(UPLOADS_PATH)
 
     try:
         with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(str(temp_db), "ammoledger.db")
-            if photos_root.exists():
-                for path in photos_root.rglob("*"):
+            for dir_name in _IMAGE_DIR_NAMES:
+                src_dir = uploads_root / dir_name
+                if not src_dir.exists():
+                    continue
+                for path in src_dir.rglob("*"):
                     if path.is_file():
-                        # Archive name preserves firearm_photos/... structure.
-                        arcname = path.relative_to(photos_root.parent)
+                        # Archive name preserves the on-disk layout relative
+                        # to UPLOADS_PATH so restore is a 1:1 rename.
+                        arcname = path.relative_to(uploads_root)
                         zf.write(str(path), str(arcname))
     finally:
         temp_db.unlink(missing_ok=True)
@@ -422,6 +501,42 @@ def list_backups(_: Any = Depends(require_role("admin"))):
         reverse=True,
     )
     return [_file_meta(f) for f in files]
+
+
+# ---------------------------------------------------------------------------
+# GET /backup/restore-snapshots
+# POST /backup/restore-snapshots/discard
+# ---------------------------------------------------------------------------
+
+@router.get("/restore-snapshots")
+def get_restore_snapshots(_: Any = Depends(require_role("admin"))):
+    """Report any pre-restore image directory snapshots (`.old`) still on disk.
+
+    Every restore / full import rotates the live image directories to
+    `<name>.old` before placing the new contents. Snapshots persist until an
+    admin discards them so they can be reviewed or manually salvaged. The
+    Backup page polls this endpoint to render a banner with a Discard button.
+    """
+    return {"snapshots": _capture_image_snapshot_status()}
+
+
+@router.post("/restore-snapshots/discard")
+def discard_restore_snapshots(_: Any = Depends(require_role("admin"))):
+    """Delete all pre-restore image snapshot directories."""
+    discarded: dict[str, dict] = {}
+    for live, old in _image_dir_specs():
+        if not old.exists():
+            continue
+        count, size = _dir_metrics(old)
+        shutil.rmtree(old, ignore_errors=True)
+        # Skip empty .old entries from the response — nothing useful to report.
+        if count > 0:
+            discarded[live.name] = {"file_count": count, "size_bytes": size}
+    logger.info(
+        "Pre-restore image snapshots discarded: %s",
+        sorted(discarded.keys()) or "(none)",
+    )
+    return {"discarded": discarded}
 
 
 # ---------------------------------------------------------------------------
@@ -919,18 +1034,43 @@ async def _restore_sqlite_impl(
     # tiny window between dispose() and the os.replace, but make sure.
     _remove_wal_sidecars(db_path)
 
+    # A .db restore carries no images. Blank both image dirs so the restored
+    # DB never references photos from the previous install — rotated to .old
+    # so an admin can recover them or discard them later.
+    for live, old in _image_dir_specs():
+        try:
+            _rotate_image_dir_to_old(live, old)
+            _place_or_empty(None, live)
+        except OSError as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, f"images:{live.name}", exc,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"Could not rotate image directory {live.name}: {exc}. "
+                    f"The database has been restored but image directories "
+                    f"are in an inconsistent state. The previous contents "
+                    f"may be preserved at {old.name}."
+                ),
+            ) from exc
+
+    image_snapshots = _capture_image_snapshot_status()
     logger.info(
-        "Restore complete | actor=%s | source=%s | restored database (no photos in backup)",
-        safe_actor, safe_source,
+        "Restore complete | actor=%s | source=%s | restored database, "
+        "image dirs blanked | snapshots=%s",
+        safe_actor, safe_source, sorted(image_snapshots.keys()),
     )
     return {
         "success": True,
-        "message": "Database restored successfully.",
+        "message": "Database restored successfully. Image directories were cleared.",
         "force_logout": True,
         "logout_reason": (
             "The user database was replaced. Please log in with your "
             "restored credentials."
         ),
+        "image_snapshots": image_snapshots,
     }
 
 
@@ -1077,13 +1217,21 @@ async def _restore_zip_impl(
             )
             raise
 
-        # Count photos in staging before they are moved into place so the
-        # completion log can report the number that was restored.
-        photos_root = Path(UPLOADS_PATH) / "firearm_photos"
-        extracted_photos = staging / "firearm_photos"
-        photo_count = 0
-        if extracted_photos.exists():
-            photo_count = sum(1 for p in extracted_photos.rglob("*") if p.is_file())
+        # Pre-resolve extracted image dirs so we can count what's coming in
+        # (for the completion log) and validate containment before any
+        # destructive moves.
+        extracted_dirs: dict[str, Path | None] = {}
+        for dir_name in _IMAGE_DIR_NAMES:
+            candidate = staging / dir_name
+            if candidate.exists():
+                _safe_resolve_under(candidate, staging)
+                extracted_dirs[dir_name] = candidate
+            else:
+                extracted_dirs[dir_name] = None
+        placed_counts = {
+            name: (sum(1 for p in path.rglob("*") if p.is_file()) if path else 0)
+            for name, path in extracted_dirs.items()
+        }
 
         db_path = _db_path()
         # Release the app's WAL handle on the live DB BEFORE swapping the file,
@@ -1106,27 +1254,48 @@ async def _restore_zip_impl(
         # the tiny window between dispose() and the os.replace, but make sure.
         _remove_wal_sidecars(db_path)
 
-        if extracted_photos.exists():
-            _safe_resolve_under(extracted_photos, staging)
-            if photos_root.exists():
-                shutil.rmtree(photos_root, ignore_errors=True)
-            photos_root.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(extracted_photos), str(photos_root))
-        # If the zip had no photos directory, leave the photos root empty —
-        # fresh state matches the .db we just put in.
+        # Image dirs: rotate live -> .old (snapshot for admin review), then
+        # place extracted contents — or create an empty dir when the zip did
+        # not carry that image kind. Even a .db-equivalent zip (no image
+        # entries) blanks the live dirs so the restored DB never references
+        # photos from the previous install.
+        for live, old in _image_dir_specs():
+            try:
+                _rotate_image_dir_to_old(live, old)
+                _place_or_empty(extracted_dirs.get(live.name), live)
+            except OSError as exc:
+                logger.error(
+                    "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                    safe_actor, safe_source, f"images:{live.name}", exc,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        f"Could not rotate image directory {live.name}: {exc}. "
+                        f"The database has been restored but image directories "
+                        f"are in an inconsistent state. The previous contents "
+                        f"may be preserved at {old.name}."
+                    ),
+                ) from exc
 
+        image_snapshots = _capture_image_snapshot_status()
         logger.info(
-            "Restore complete | actor=%s | source=%s | restored database and %d firearm photo(s)",
-            safe_actor, safe_source, photo_count,
+            "Restore complete | actor=%s | source=%s | restored database, "
+            "placed %d firearm photo(s) and %d product image(s) | snapshots=%s",
+            safe_actor, safe_source,
+            placed_counts.get("firearm_photos", 0),
+            placed_counts.get("products", 0),
+            sorted(image_snapshots.keys()),
         )
         return {
             "success": True,
-            "message": "Database and photos restored successfully.",
+            "message": "Database and image directories restored successfully.",
             "force_logout": True,
             "logout_reason": (
                 "The user database was replaced. Please log in with your "
                 "restored credentials."
             ),
+            "image_snapshots": image_snapshots,
         }
     finally:
         shutil.rmtree(staging, ignore_errors=True)
@@ -1479,10 +1648,32 @@ async def import_commit(
     except Exception:
         pass
 
+    # JSON exports carry no images. The newly-imported rows reference
+    # image filenames that may belong to a different install — blank both
+    # image dirs and snapshot the previous contents to .old so the admin
+    # can recover or discard them.
+    image_rotation_warnings: list[str] = []
+    for live, old in _image_dir_specs():
+        try:
+            _rotate_image_dir_to_old(live, old)
+            _place_or_empty(None, live)
+        except OSError as exc:
+            msg = f"images:{live.name}: {exc}"
+            logger.warning(
+                "Import: image rotation failed | actor=%s | source=%s | %s",
+                safe_actor, safe_source, msg,
+            )
+            if len(warnings) < 20:
+                warnings.append(msg)
+            image_rotation_warnings.append(msg)
+
+    image_snapshots = _capture_image_snapshot_status()
+
     logger.info(
-        "Import complete | actor=%s | source=%s | imported %d record(s) across %d table(s) | warnings=%d",
+        "Import complete | actor=%s | source=%s | imported %d record(s) across %d table(s) | warnings=%d | snapshots=%s",
         safe_actor, safe_source,
-        records_imported, sum(1 for t in _EXPORT_TABLES if tables.get(t)), len(warnings),
+        records_imported, sum(1 for t in _EXPORT_TABLES if tables.get(t)),
+        len(warnings), sorted(image_snapshots.keys()),
     )
 
     return {
@@ -1494,4 +1685,5 @@ async def import_commit(
             "The user database was replaced as part of a full restore. "
             "Please log in with your restored credentials."
         ),
+        "image_snapshots": image_snapshots,
     }

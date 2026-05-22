@@ -41,8 +41,10 @@ import {
   commitImport,
   getSystemConfig,
   saveSystemConfig,
+  getRestoreSnapshots,
+  discardRestoreSnapshots,
 } from '@/api/backup'
-import type { BackupFile, ImportPreview, ImportResult } from '@/api/backup'
+import type { BackupFile, ImportPreview, ImportResult, ImageSnapshots } from '@/api/backup'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -171,6 +173,14 @@ export default function BackupPage() {
     queryFn: getSystemConfig,
   })
 
+  const { data: snapshotsData } = useQuery({
+    queryKey: ['restore-snapshots'],
+    queryFn: getRestoreSnapshots,
+  })
+  const snapshots: ImageSnapshots = snapshotsData?.snapshots ?? {}
+  const hasSnapshots = Object.keys(snapshots).length > 0
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
+
   useEffect(() => {
     if (systemConfig && !schedLoaded) {
       setSchedEnabled(systemConfig.backup.enabled)
@@ -262,6 +272,21 @@ export default function BackupPage() {
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   })
 
+  const discardSnapshotsMutation = useMutation({
+    mutationFn: discardRestoreSnapshots,
+    onSuccess: (res) => {
+      const names = Object.keys(res.discarded)
+      toast({
+        title:
+          names.length === 0
+            ? 'No pre-restore snapshots to discard'
+            : `Discarded pre-restore snapshots: ${names.join(', ')}`,
+      })
+      void qc.invalidateQueries({ queryKey: ['restore-snapshots'] })
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
+  })
+
   const saveScheduleMutation = useMutation({
     mutationFn: () =>
       saveSystemConfig({
@@ -285,6 +310,45 @@ export default function BackupPage() {
       <TopBar title="Backup & Restore" />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl space-y-6">
+
+          {/* Pre-restore image snapshot banner */}
+          {hasSnapshots && (
+            <Alert className="border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-500/30">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertDescription>
+                <div className="text-amber-800 dark:text-amber-300 space-y-2">
+                  <p className="font-medium">
+                    Pre-restore image snapshot{Object.keys(snapshots).length > 1 ? 's' : ''} on disk
+                  </p>
+                  <p className="text-sm">
+                    The last restore moved your previous image directories aside before
+                    placing the restored contents. Review them and discard when you&apos;re
+                    sure the restored data is correct.
+                  </p>
+                  <ul className="text-xs font-mono space-y-0.5">
+                    {Object.entries(snapshots).map(([name, info]) => (
+                      <li key={name}>
+                        {name}.old — {info.file_count} file{info.file_count === 1 ? '' : 's'}{' '}
+                        ({fmtBytes(info.size_bytes)})
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-amber-500 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                      onClick={() => setDiscardConfirmOpen(true)}
+                      disabled={discardSnapshotsMutation.isPending}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                      {discardSnapshotsMutation.isPending ? 'Discarding…' : 'Discard snapshots'}
+                    </Button>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Quick Backup */}
           <Section
@@ -399,13 +463,13 @@ export default function BackupPage() {
               <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Include firearm photos in backups
+                    Include images in backups
                   </label>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     When enabled, scheduled and manual backups produce a single .zip
-                    containing the database and all firearm photos. When disabled, backups
-                    are smaller .db files but photos are not included. Existing zip backups
-                    remain restorable either way.
+                    containing the database, firearm photos, and product images. When
+                    disabled, backups are smaller .db files and images are not included.
+                    Existing zip backups remain restorable either way.
                   </p>
                 </div>
                 <Switch
@@ -511,9 +575,21 @@ export default function BackupPage() {
                 Restore from backup file
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                Accepts a `.db` SQLite backup or a `.zip` archive (database + firearm photos).
-                Best for rolling back to a recent backup on the same version.
+                Accepts a <code>.db</code> SQLite backup or a <code>.zip</code> archive
+                (database + firearm photos + product images). Best for rolling back to a
+                recent backup on the same version.
               </p>
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50/60 dark:bg-amber-950/15 dark:border-amber-500/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Restore will move your current <code>firearm_photos/</code> and{' '}
+                  <code>products/</code> directories aside to <code>.old</code> snapshots
+                  before placing the restored contents. <code>.db</code> restores and JSON
+                  imports blank both image directories. Any existing <code>.old</code>
+                  snapshot is overwritten — review and discard from the banner above before
+                  starting another restore if you want to keep it.
+                </span>
+              </div>
               <div className="flex items-center gap-3">
                 <input
                   ref={restoreInputRef}
@@ -799,6 +875,47 @@ export default function BackupPage() {
               }}
             >
               Replace Database
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Discard pre-restore snapshots dialog */}
+      <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard pre-restore image snapshots?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <p>
+                  This will <strong className="text-gray-900 dark:text-white">permanently delete</strong>{' '}
+                  the following image directories that were preserved by the last restore:
+                </p>
+                <ul className="list-disc pl-5 space-y-0.5">
+                  {Object.entries(snapshots).map(([name, info]) => (
+                    <li key={name} className="font-mono text-xs">
+                      {name}.old — {info.file_count} file{info.file_count === 1 ? '' : 's'}{' '}
+                      ({fmtBytes(info.size_bytes)})
+                    </li>
+                  ))}
+                </ul>
+                <p>
+                  Only proceed if you&apos;ve confirmed the restored data references the
+                  correct images. This cannot be undone.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                discardSnapshotsMutation.mutate()
+                setDiscardConfirmOpen(false)
+              }}
+            >
+              Discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -196,7 +196,7 @@ This is the complete list of environment variables AmmoLedger recognizes. Any se
 | `AL_BACKUP_SCHEDULE` | `backup.schedule` | str (HH:MM) | `03:00` | Nightly backup time (24-hour). |
 | `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | int (1–365) | `30` | Days to keep old backup files. |
 | `AL_BACKUP_PATH` | `backup.path` | str | `/data/backups` | Backup storage directory. |
-| `AL_BACKUP_INCLUDE_PHOTOS` | `backup.include_photos` | bool | `true` | Bundle uploaded photos into zip backups alongside the database. |
+| `AL_BACKUP_INCLUDE_PHOTOS` | `backup.include_photos` | bool | `true` | Bundle firearm photos and product images into zip backups alongside the database. When `false`, backups are bare `.db` files and images are not preserved by the backup. |
 | `AL_IMAGE_SEARCH_ENABLED` | `image_search.enabled` | bool | `false` | Enable Find Image Online on the Products page. |
 | `AL_IMAGE_SEARCH_PROVIDER` | `image_search.provider` | str (`brave`) | `brave` | Image search provider. Only `brave` is currently supported. |
 | `AL_IMAGE_SEARCH_API_KEY` | `image_search.api_key` | str | `""` | API key for the image search provider. |
