@@ -20,6 +20,8 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ## [0.3.8] — 2026-05-22
 
+**Reliability release focused on backup and restore.** Fixes several restore-path bugs that could corrupt the database on Docker Desktop / Windows (durable atomic DB swap, dangling `sqlite_stat1` rootpage, silent log loss), adds in-place server-side restore/import (no more re-uploading backup files you already have on the server), and rotates `firearm_photos/` + `products/` to `.old` snapshots before every restore so prior images can be reviewed and discarded after.
+
 ### Added
 
 - **Product images are now included in zip backups and restores.** Previously the `firearm_photos/` directory was bundled into `.zip` backups but `products/` was missed entirely, so any product cover art was lost on restore. Both directories are now bundled (gated by the existing `backup.include_photos` toggle) and restored together. Closes #46
