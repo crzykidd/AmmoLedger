@@ -291,8 +291,18 @@ def on_startup():
         )
         raise SystemExit(1)
 
-    logger.info("AmmoLedger %s starting...", get_display_version())
-    print(f"✓ AmmoLedger {get_display_version()} starting", flush=True)
+    _build = get_build_info()
+    _build_channel = "dev" if _build["is_dev"] else "release"
+    _startup_banner = (
+        f"AmmoLedger backend starting | "
+        f"version={get_display_version()} | "
+        f"channel={_build_channel} | "
+        f"branch={_build['branch']} | "
+        f"sha={_build['sha']} | "
+        f"python={sys.version.split()[0]}"
+    )
+    logger.info(_startup_banner)
+    print(f"✓ {_startup_banner}", flush=True)
     _config = load_and_validate_config()
     logger.info("Config loaded from %s", CONFIG_PATH)
     print("✓ Config loaded", flush=True)

@@ -20,6 +20,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Changed
 
+- **Backend and frontend now print a structured startup banner.** On startup both services emit a single line that identifies the running build: version (e.g. `v0.3.6-dev (abc1234)`), release channel (`dev` vs `release`), git branch, short SHA, and runtime version (Python for backend, Node for frontend). This makes it possible to confirm at a glance — from `docker compose logs` alone — which image is actually running, instead of cross-referencing tags. Fixes #33
 - **README and Installation Guide overhauled for public beta.** README is now a tight landing page (tagline, screenshots placeholder, four feature areas — Ammo / Firearm / Range / Cleaning & Utilization, three-step Quick Start, community blurb). Removed the inline "What's New" history (now changelog-only) and "What's Coming Next" (now tracked in [GitHub issues](https://github.com/crzykidd/AmmoLedger/issues)). Moved env var reference, NAS/PUID-PGID, reverse-proxy topology, generic version-agnostic upgrade steps, and DB maintenance into `docs/INSTALL.md`.
 - **Production compose: frontend now publishes on `5173:5173`** (was `127.0.0.1:5173` only). External access still wants a reverse proxy in front, but the bind no longer assumes one is already there. Backend remains on the private `ammoledger_net` bridge with no published ports.
 - **Production compose: backend env block trimmed.** Removed the redundant `DATABASE_URL`, `CONFIG_PATH`, `DEFAULTS_PATH`, `BACKUP_PATH`, and `UPLOADS_PATH` lines (all have correct `/data/...` defaults baked into the image). Only `PYTHONUNBUFFERED`, `PUID`, and `PGID` remain uncommented; every `AL_*` override is listed as an optional commented example with accurate names.
@@ -100,17 +101,6 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **Firearm detail page crash on first load.** The page rendered a blank shell on every visit due to a React Rules of Hooks violation: the `document.title`-setting `useEffect` was placed after three conditional early returns (invalid ID, error, loading). React detected a hook count mismatch between the loading render and the data-arrival render and unmounted the entire tree. The effect is now declared unconditionally at the top of the component with an `if (!firearm) return` guard inside its body.
 
-### Coming Next
-
-The following items were deliberately scoped out of v0.3.0 and remain
-on the roadmap:
-
-- **Multi-caliber firearms.** v1 firearms have a single caliber FK plus a free-text `caliber_notes` field for the workaround. A `firearm_calibers` join table will be added in a future migration without renaming the existing column.
-- **Target photo uploads on range session lines.** Schema has no `target_photo` column yet; future migration adds it when the feature ships. (Firearm photos shipped in v0.3.0 — this is line-level target photos only.)
-- **Range sessions CSV import.** Export-only this release; import will follow when its remap UX is designed.
-- **Accessories module** (PRD v3.0). Tracking sights, optics, holsters, spare magazines, etc. is a separate feature.
-- **At Range / Range workflow merge.** The mobile quick-expend page (At Range) and the multi-line Range Sessions page remain separate. Future UX research will determine whether to unify them.
-- **Additional community lookups.** Sight types, finishes, and other taxonomies are currently free-text on firearms. They become candidates for community lookups based on user feedback.
 
 ## [0.3.0] — 2026-05-17
 
