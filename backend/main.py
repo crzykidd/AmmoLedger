@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 
-from database import engine, get_session, run_migrations
+from database import engine, get_session, heal_dangling_stats, run_migrations
 from routers import auth, ammo, expenditure, lookups, users
 from routers.backup import router as backup_router
 from routers.community import router as community_router
@@ -36,7 +36,7 @@ from utils.config import (
     validate_config,
 )
 from utils.image_search import is_enabled as image_search_is_enabled
-from utils.logging import get_logger, setup_logging
+from utils.logging import get_logger, reapply_logging, setup_logging
 from utils.rbac import require_auth, require_role
 from utils.scheduler import reschedule, start_scheduler, stop_scheduler
 from utils.seeds import sync_yaml_seeds
@@ -250,6 +250,9 @@ def _record_version() -> None:
 
 @app.on_event("startup")
 def on_startup():
+    # Re-attach our stdout handler after uvicorn's logging dictConfig runs
+    # (uvicorn's takeover orphans the handler installed at import time).
+    reapply_logging()
     global _config
 
     # Check /data is writable before doing anything else
@@ -306,6 +309,15 @@ def on_startup():
     _config = load_and_validate_config()
     logger.info("Config loaded from %s", CONFIG_PATH)
     print("✓ Config loaded", flush=True)
+    # Auto-repair databases corrupted by a pre-fix restore (dangling
+    # sqlite_stat1/stat4 rootpage). Safe no-op on healthy DBs. Must run
+    # before migrations so Alembic can read sqlite_master.
+    try:
+        if heal_dangling_stats():
+            logger.warning("Startup auto-repair applied to database")
+            print("⚠ Startup auto-repair applied to database", flush=True)
+    except Exception as exc:
+        logger.error("heal_dangling_stats raised: %s", exc)
     run_migrations()
     logger.info("Migrations complete")
     print("✓ Migrations complete", flush=True)

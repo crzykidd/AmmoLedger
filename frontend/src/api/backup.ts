@@ -40,12 +40,22 @@ export interface ImportPreview {
   ownership_summary: OwnershipSummaryEntry[]
 }
 
+export interface ImageSnapshotEntry {
+  file_count: number
+  size_bytes: number
+}
+
+// Keys are image directory names (firearm_photos, products). Empty object
+// means no pre-restore snapshots exist on disk.
+export type ImageSnapshots = Record<string, ImageSnapshotEntry>
+
 export interface ImportResult {
   records_imported: number
   records_skipped: number
   warnings: string[]
   force_logout?: boolean
   logout_reason?: string | null
+  image_snapshots?: ImageSnapshots
 }
 
 export interface RestoreResult {
@@ -53,6 +63,15 @@ export interface RestoreResult {
   message: string
   force_logout?: boolean
   logout_reason?: string
+  image_snapshots?: ImageSnapshots
+}
+
+export interface RestoreSnapshotsResponse {
+  snapshots: ImageSnapshots
+}
+
+export interface DiscardSnapshotsResponse {
+  discarded: ImageSnapshots
 }
 
 export interface BackupConfig {
@@ -72,6 +91,10 @@ export const listBackups = () => api.get<BackupFile[]>('/backup/list')
 export const deleteBackup = (filename: string) => api.delete<void>(`/backup/${filename}`)
 export const getSystemConfig = () => api.get<BackupConfig>('/system/config')
 export const saveSystemConfig = (data: BackupConfig) => api.post<BackupConfig>('/system/config', data)
+export const getRestoreSnapshots = () =>
+  api.get<RestoreSnapshotsResponse>('/backup/restore-snapshots')
+export const discardRestoreSnapshots = () =>
+  api.post<DiscardSnapshotsResponse>('/backup/restore-snapshots/discard')
 
 // Multipart file upload helper — bypasses the JSON-only ApiClient
 async function postFormData<T>(path: string, formData: FormData): Promise<T> {
@@ -111,3 +134,15 @@ export const commitImport = (file: File) => {
   fd.append('file', file)
   return postFormData<ImportResult>('/backup/import/commit', fd)
 }
+
+// Restore from a backup file already on the server (no upload). The filename
+// must be one of the entries from listBackups(); the backend sanitizes and
+// contains it inside the backup directory.
+export const restoreFromServer = (filename: string) =>
+  api.post<RestoreResult>('/backup/restore/server', { filename })
+
+export const previewImportFromServer = (filename: string) =>
+  api.post<ImportPreview>('/backup/import/preview/server', { filename })
+
+export const commitImportFromServer = (filename: string) =>
+  api.post<ImportResult>('/backup/import/commit/server', { filename })

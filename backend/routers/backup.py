@@ -13,10 +13,12 @@ from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from database import get_session
+from models import User
 from utils.config import BACKUP_PATH, UPLOADS_PATH, load_and_validate_config
-from utils.logging import get_logger
+from utils.logging import get_logger, log_safe
 from utils.rbac import require_role
 from version import __version__
 
@@ -191,6 +193,36 @@ def _backup_file_path(filename: str) -> Path:
     return _safe_resolve_under_backup_root(candidate)
 
 
+def _read_backup_file_bytes(filename: str) -> tuple[Path, bytes]:
+    """Locate a backup file by directory listing and return (path, contents).
+
+    CodeQL's stock `py/uncontrolled-data-in-path-expression` query flagged the
+    `_backup_file_path(body.filename) → path.read_bytes()` two-step pattern
+    even though the path was validated upstream (#82–#84) — taint analysis
+    does not propagate sanitization through Pydantic body attribute access
+    into a path constructed via `_backup_dir() / safe_name`. The previously
+    shipped custom sanitizer model (`AmmoLedgerSanitizers.qll`) was removed
+    when CodeQL was switched back to default setup, so we now use the
+    stock-recognized sanitizer pattern: `Path` objects originate from
+    `Path.iterdir()`, and user input is only used in string comparison
+    against `entry.name` values that came from the OS directory listing.
+
+    Also re-applies the strict filename regex as a fast malformed-input reject.
+
+    Returns the resolved path alongside the file contents — callers typically
+    need `path.name` for structured logging.
+
+    Raises 400 on bad name, 404 if missing.
+    """
+    safe_name = _sanitize_backup_filename(filename)
+    backup_dir = _backup_dir()
+    if backup_dir.is_dir():
+        for entry in backup_dir.iterdir():
+            if entry.is_file() and entry.name == safe_name:
+                return entry, entry.read_bytes()
+    raise HTTPException(status_code=404, detail="File not found")
+
+
 _TYPE_MAP = {".db": "sqlite", ".json": "json", ".zip": "zip"}
 
 
@@ -217,28 +249,107 @@ def _backup_to_db(db_path: Path, dest: Path) -> None:
         src.close()
 
 
+# Directories under UPLOADS_PATH that participate in zip backup and zip
+# restore. Each is bundled into the zip relative to UPLOADS_PATH and
+# restored back into the same layout. Tuple order is the restore order.
+_IMAGE_DIR_NAMES: tuple[str, ...] = ("firearm_photos", "products")
+_OLD_SUFFIX = ".old"
+
+
+def _image_dir_specs() -> list[tuple[Path, Path]]:
+    """Return [(live_dir, snapshot_dir), ...] for image dirs under UPLOADS_PATH."""
+    base = Path(UPLOADS_PATH)
+    return [(base / name, base / f"{name}{_OLD_SUFFIX}") for name in _IMAGE_DIR_NAMES]
+
+
+def _dir_metrics(p: Path) -> tuple[int, int]:
+    """Return (file_count, total_size_bytes) for `p`. (0, 0) if absent."""
+    if not p.exists():
+        return 0, 0
+    count = 0
+    total = 0
+    for f in p.rglob("*"):
+        if f.is_file():
+            count += 1
+            try:
+                total += f.stat().st_size
+            except OSError:
+                pass
+    return count, total
+
+
+def _rotate_image_dir_to_old(live: Path, old: Path) -> None:
+    """Move `live` to `old`, deleting any prior snapshot.
+
+    Both paths sit on the same filesystem under UPLOADS_PATH, so this is a
+    rename. If `live` is absent, just clear any stale `.old` so the next
+    placement starts from a clean state. After this call `live` does not
+    exist and `old` either contains the prior live state or is absent.
+    """
+    if old.exists():
+        shutil.rmtree(old, ignore_errors=True)
+    if live.exists():
+        shutil.move(str(live), str(old))
+
+
+def _place_or_empty(extracted: Path | None, live: Path) -> None:
+    """Move `extracted` into `live`, or create an empty `live` dir.
+
+    Caller guarantees `live` does not exist (was rotated to .old just prior).
+    """
+    if extracted is not None and extracted.exists():
+        live.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(extracted), str(live))
+    else:
+        live.mkdir(parents=True, exist_ok=True)
+
+
+def _capture_image_snapshot_status() -> dict:
+    """Report which `.old` snapshots exist and how large they are.
+
+    Used by the restore response payload and the dedicated GET endpoint so the
+    frontend can surface a "you have a pre-restore image snapshot — discard?"
+    banner after a restore force-logout cycle.
+    """
+    snapshots: dict[str, dict] = {}
+    for live, old in _image_dir_specs():
+        if not old.exists():
+            continue
+        count, size = _dir_metrics(old)
+        # Empty .old dirs aren't worth flagging — there's nothing to restore from.
+        if count == 0:
+            continue
+        snapshots[live.name] = {"file_count": count, "size_bytes": size}
+    return snapshots
+
+
 def _backup_to_zip(db_path: Path, dest: Path) -> None:
-    """Bundle SQLite + photos directory into a single zip.
+    """Bundle SQLite + image directories into a single zip.
 
     Order: take a WAL-safe SQLite copy to a temp file first (the live DB
     file is unsafe to read directly while the app is running — the WAL
-    sidecar holds recent writes), then zip the temp DB plus the photos
-    directory. The zip preserves the on-disk `firearm_photos/<id>/` layout
+    sidecar holds recent writes), then zip the temp DB plus each image
+    directory listed in `_IMAGE_DIR_NAMES`. The zip preserves the on-disk
+    layout (e.g. `firearm_photos/<firearm_id>/...` and `products/<id>.jpg`)
     so restore is a straight rename.
     """
     temp_db = dest.parent / f"{dest.stem}.tmp.db"
     _backup_to_db(db_path, temp_db)
 
-    photos_root = Path(UPLOADS_PATH) / "firearm_photos"
+    uploads_root = Path(UPLOADS_PATH)
 
     try:
         with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(str(temp_db), "ammoledger.db")
-            if photos_root.exists():
-                for path in photos_root.rglob("*"):
+            for dir_name in _IMAGE_DIR_NAMES:
+                src_dir = uploads_root / dir_name
+                if not src_dir.exists():
+                    continue
+                for path in src_dir.rglob("*"):
                     if path.is_file():
-                        # Archive name preserves firearm_photos/... structure.
-                        arcname = path.relative_to(photos_root.parent)
+                        # Archive name preserves the on-disk layout relative
+                        # to UPLOADS_PATH so restore is a 1:1 rename.
+                        arcname = path.relative_to(uploads_root)
                         zf.write(str(path), str(arcname))
     finally:
         temp_db.unlink(missing_ok=True)
@@ -423,6 +534,42 @@ def list_backups(_: Any = Depends(require_role("admin"))):
 
 
 # ---------------------------------------------------------------------------
+# GET /backup/restore-snapshots
+# POST /backup/restore-snapshots/discard
+# ---------------------------------------------------------------------------
+
+@router.get("/restore-snapshots")
+def get_restore_snapshots(_: Any = Depends(require_role("admin"))):
+    """Report any pre-restore image directory snapshots (`.old`) still on disk.
+
+    Every restore / full import rotates the live image directories to
+    `<name>.old` before placing the new contents. Snapshots persist until an
+    admin discards them so they can be reviewed or manually salvaged. The
+    Backup page polls this endpoint to render a banner with a Discard button.
+    """
+    return {"snapshots": _capture_image_snapshot_status()}
+
+
+@router.post("/restore-snapshots/discard")
+def discard_restore_snapshots(_: Any = Depends(require_role("admin"))):
+    """Delete all pre-restore image snapshot directories."""
+    discarded: dict[str, dict] = {}
+    for live, old in _image_dir_specs():
+        if not old.exists():
+            continue
+        count, size = _dir_metrics(old)
+        shutil.rmtree(old, ignore_errors=True)
+        # Skip empty .old entries from the response — nothing useful to report.
+        if count > 0:
+            discarded[live.name] = {"file_count": count, "size_bytes": size}
+    logger.info(
+        "Pre-restore image snapshots discarded: %s",
+        sorted(discarded.keys()) or "(none)",
+    )
+    return {"discarded": discarded}
+
+
+# ---------------------------------------------------------------------------
 # GET /backup/download/{filename}
 # GET /backup/export/download/{filename}
 # ---------------------------------------------------------------------------
@@ -549,6 +696,98 @@ def _migrate_db_to_head(db_file: Path) -> None:
     )
     alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_file}")
     alembic_command.upgrade(alembic_cfg, "head")
+    # Fold Alembic's WAL into the main file so later steps / the move see a
+    # complete single file.
+    _checkpoint_and_unwal(db_file)
+
+
+def _classify_db_revision(db_file: Path) -> tuple[str, str | None, str]:
+    """Classify a candidate DB against the app's Alembic revision graph.
+
+    Returns (state, db_rev, head) where state is one of:
+      'at_head'  — db_rev == script head; no migration needed.
+      'behind'   — db_rev is a known ancestor of head; upgrade required.
+      'ahead'    — db_rev is known but NOT an ancestor of head (descendant /
+                   side branch); restore must reject.
+      'unknown'  — db_rev is not present in this app's migration scripts;
+                   either a newer revision or an unrelated tree. Reject.
+      'missing'  — alembic_version table absent or empty. Reject.
+
+    Uses the revision graph (script_directory.walk_revisions), never string
+    ordering — revision IDs are opaque hashes / slugs.
+    """
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg = AlembicConfig(os.path.join(backend_dir, "alembic.ini"))
+    cfg.set_main_option("script_location", os.path.join(backend_dir, "migrations"))
+    from alembic.script import ScriptDirectory  # noqa: PLC0415
+    script = ScriptDirectory.from_config(cfg)
+    head = script.get_current_head()
+
+    con = sqlite3.connect(str(db_file))
+    try:
+        try:
+            row = con.execute(
+                "SELECT version_num FROM alembic_version LIMIT 1"
+            ).fetchone()
+        except sqlite3.Error:
+            return ("missing", None, head)
+    finally:
+        con.close()
+
+    db_rev = row[0] if row else None
+    if db_rev is None:
+        return ("missing", None, head)
+    if db_rev == head:
+        return ("at_head", db_rev, head)
+    try:
+        script.get_revision(db_rev)
+    except Exception:
+        return ("unknown", db_rev, head)
+    ancestors = {r.revision for r in script.walk_revisions(base="base", head=head)}
+    if db_rev in ancestors:
+        return ("behind", db_rev, head)
+    return ("ahead", db_rev, head)
+
+
+def _migrate_if_needed(db_file: Path) -> None:
+    """Run Alembic upgrade only when the candidate DB is behind head.
+
+    Skips Alembic entirely when already at head (avoids needless WAL churn),
+    rejects ahead / unknown / missing revisions with HTTP 400. Finalization
+    (checkpoint + strip stats + integrity check) still runs in the caller
+    regardless of which branch is taken, so the at-head skip is still safe
+    for backups that arrive in WAL mode.
+    """
+    state, db_rev, head = _classify_db_revision(db_file)
+    if state == "at_head":
+        logger.info("Restore DB already at head (%s); skipping migration", head)
+        return
+    if state == "behind":
+        logger.info("Restore DB at %s; upgrading to head %s", db_rev, head)
+        _migrate_db_to_head(db_file)
+        return
+    if state in ("ahead", "unknown"):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "This backup was created by a newer version of AmmoLedger "
+                    "than this installation supports. Upgrade AmmoLedger to at "
+                    "least the version that produced the backup, then restore."
+                ),
+                "technical": (
+                    f"Backup schema revision {db_rev!r} is not an ancestor of "
+                    f"this app's head {head!r} (state={state})."
+                ),
+            },
+        )
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "This file does not record an AmmoLedger schema version and cannot "
+            "be restored. Re-export from a current AmmoLedger installation."
+        ),
+    )
 
 
 def _validate_sqlite_file(path: Path) -> None:
@@ -568,71 +807,334 @@ def _validate_sqlite_file(path: Path) -> None:
         ) from exc
 
 
-async def _restore_sqlite_impl(contents: bytes) -> dict:
+def _checkpoint_and_unwal(path: Path) -> None:
+    """Fold any WAL into the main file and leave a single self-contained DB.
+
+    A SQLite file in WAL mode keeps recent committed pages in a `-wal`
+    sidecar. Moving the main file without checkpointing loses those pages
+    (observed as 'invalid rootpage' after restore on weak-fsync filesystems
+    such as Docker Desktop bind mounts). Switching journal_mode to DELETE
+    forces a checkpoint and removes the sidecar so the file can be moved
+    atomically as one file.
+    """
+    con = sqlite3.connect(str(path))
+    try:
+        con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        # journal_mode=DELETE checkpoints and drops out of WAL; the result is a
+        # single file with no -wal/-shm sidecar.
+        con.execute("PRAGMA journal_mode=DELETE")
+        con.commit()
+    finally:
+        con.close()
+
+
+def _assert_no_wal_sidecar(path: Path) -> None:
+    """Belt-and-suspenders check before an atomic file move.
+
+    Turns a silent corruption (committed pages stranded in a -wal that won't
+    travel with the main file) into a clear error. Raises HTTPException(500)
+    if a non-empty `<path>-wal` is found.
+    """
+    wal = path.with_name(path.name + "-wal")
+    if wal.exists() and wal.stat().st_size > 0:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Internal error: restored database still has an un-checkpointed "
+                "WAL; aborting to avoid corruption. Live database untouched."
+            ),
+        )
+
+
+def _remove_wal_sidecars(path: Path) -> None:
+    """Delete -wal and -shm sidecars for a DB path. Safe if absent.
+
+    The live DB runs in WAL mode while the app is up, so its -wal/-shm
+    sidecars belong to the OLD database. If we os.replace the main .db
+    without clearing them first, SQLite will replay stale WAL frames from
+    the old DB onto the freshly placed file on the next open — splicing
+    pages from two unrelated databases and producing 'database disk image
+    is malformed'. Must be called AFTER engine.dispose() releases the
+    handle that holds the sidecars open.
+    """
+    for suffix in ("-wal", "-shm"):
+        sidecar = path.with_name(path.name + suffix)
+        sidecar.unlink(missing_ok=True)
+
+
+def _durable_replace(src: Path, dst: Path) -> None:
+    """Atomically and durably move `src` onto `dst`.
+
+    Works across filesystems and on weak-fsync mounts (e.g. Docker Desktop bind
+    mounts on Windows), where shutil.move's non-fsync cross-FS copy+delete can
+    leave a partially-flushed 'database disk image is malformed' file.
+
+    Stage a copy in dst's OWN directory (guarantees same filesystem, so
+    os.replace is a true atomic rename), fsync the staged file, fsync the
+    directory, os.replace into place, then fsync the directory again so the
+    rename is durable before the caller reopens the DB.
+    """
+    dst_dir = dst.parent
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    staged = dst_dir / f".{dst.name}.swap.tmp"
+    try:
+        with open(src, "rb") as fsrc, open(staged, "wb") as fdst:
+            shutil.copyfileobj(fsrc, fdst)
+            fdst.flush()
+            os.fsync(fdst.fileno())
+        dir_fd = os.open(str(dst_dir), os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+        os.replace(str(staged), str(dst))
+        dir_fd = os.open(str(dst_dir), os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    finally:
+        if staged.exists():
+            staged.unlink(missing_ok=True)
+    src.unlink(missing_ok=True)
+
+
+def _strip_sqlite_stats(path: Path) -> None:
+    """Remove derived query-planner statistics tables.
+
+    `sqlite_stat1` / `sqlite_stat4` are regenerable stats whose cached
+    rootpage pointers in sqlite_master can be invalidated by DDL run during
+    an Alembic migration, producing
+    'malformed database schema (sqlite_stat1) - invalid rootpage' on the
+    next schema-touching query. They must never be carried through a
+    restore + migrate. Dropping them is safe; SQLite rebuilds them on the
+    next ANALYZE / PRAGMA optimize.
+    """
+    con = sqlite3.connect(str(path))
+    try:
+        con.execute("DROP TABLE IF EXISTS sqlite_stat1")
+        con.execute("DROP TABLE IF EXISTS sqlite_stat4")
+        con.commit()
+    finally:
+        con.close()
+
+
+def _finalize_restored_db(path: Path) -> None:
+    """Prepare a migrated DB for an atomic single-file move.
+
+    Order matters:
+      1. Checkpoint+unwal so the migrated schema is fully in the main file.
+      2. Drop derived stats tables (sqlite_stat1/stat4). Absent stats is the
+         only state proven to boot cleanly; SQLite regenerates them lazily at
+         runtime. We deliberately do NOT run ANALYZE — that reallocates stat
+         pages into a fresh WAL and reintroduces the dangling-rootpage bug.
+      3. Checkpoint+unwal again to flush the DROPs into the main file.
+      4. Integrity-check. Abort (HTTP 400) if not 'ok' — live DB untouched.
+    Call AFTER Alembic upgrade and BEFORE moving the file into place.
+    """
+    _checkpoint_and_unwal(path)
+    _strip_sqlite_stats(path)
+    _checkpoint_and_unwal(path)
+    con = sqlite3.connect(str(path))
+    try:
+        result = con.execute("PRAGMA integrity_check").fetchone()
+        if not result or result[0] != "ok":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Restored database failed integrity check after "
+                    "migration — restore aborted, live database untouched."
+                ),
+            )
+    finally:
+        con.close()
+
+
+async def _restore_sqlite_impl(
+    contents: bytes, *, actor: str = "unknown", source: str = "upload"
+) -> dict:
     """Replace the live DB with the contents of an uploaded .db file."""
+    # Fetch inside the handler so get_logger() repairs the uvicorn-disabled
+    # logger at call time. See utils/logging.py — module-level loggers do not
+    # survive uvicorn --reload's dictConfig.
+    logger = get_logger(__name__)
     if len(contents) < 100:
         raise HTTPException(
             status_code=400, detail="File too small to be a valid SQLite database"
         )
 
+    safe_source = log_safe(source)
+    safe_actor = log_safe(actor)
+    logger.info(
+        "Restore started | actor=%s | source=%s | kind=db", safe_actor, safe_source
+    )
+
     temp_path = Path("/data/ammoledger_restore_temp.db")
     try:
         temp_path.write_bytes(contents)
     except OSError as exc:
+        logger.error(
+            "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+            safe_actor, safe_source, "write_temp", exc,
+        )
         raise HTTPException(
             status_code=500, detail=f"Could not write temp file: {exc}"
         ) from exc
 
     try:
         _validate_sqlite_file(temp_path)
-    except HTTPException:
+    except HTTPException as exc:
         temp_path.unlink(missing_ok=True)
+        logger.error(
+            "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+            safe_actor, safe_source, "validation", exc.detail,
+        )
         raise
 
     try:
-        _migrate_db_to_head(temp_path)
+        _migrate_if_needed(temp_path)
+    except HTTPException as exc:
+        temp_path.unlink(missing_ok=True)
+        logger.error(
+            "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+            safe_actor, safe_source, "migration", exc.detail,
+        )
+        raise
     except Exception as exc:
         temp_path.unlink(missing_ok=True)
+        logger.error(
+            "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+            safe_actor, safe_source, "migration", exc,
+        )
         raise HTTPException(
             status_code=500, detail=f"Migration failed on uploaded database: {exc}"
         ) from exc
 
-    db_path = _db_path()
     try:
-        shutil.move(str(temp_path), str(db_path))
+        _finalize_restored_db(temp_path)
+    except HTTPException as exc:
+        temp_path.unlink(missing_ok=True)
+        # Deliberate integrity-abort inside _finalize_restored_db is an HTTP 400
+        # — a rejected restore, not a crash. Log at warning and re-raise unchanged.
+        logger.warning(
+            "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+            safe_actor, safe_source, "finalize", exc.detail,
+        )
+        raise
+    except Exception as exc:
+        temp_path.unlink(missing_ok=True)
+        logger.error(
+            "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+            safe_actor, safe_source, "finalize", exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Post-migration finalization failed: {exc}",
+        ) from exc
+
+    try:
+        _assert_no_wal_sidecar(temp_path)
+    except HTTPException as exc:
+        temp_path.unlink(missing_ok=True)
+        logger.error(
+            "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+            safe_actor, safe_source, "wal_guard", exc.detail,
+        )
+        raise
+
+    db_path = _db_path()
+    # Release the app's WAL handle on the live DB BEFORE swapping the file,
+    # then clear the now-orphaned -wal/-shm sidecars so SQLite cannot replay
+    # stale WAL frames from the old DB onto the newly placed file.
+    from database import engine  # noqa: PLC0415
+    engine.dispose()
+    _remove_wal_sidecars(db_path)
+    try:
+        _durable_replace(temp_path, db_path)
     except OSError as exc:
         temp_path.unlink(missing_ok=True)
-        logger.error("Restore failed: %s", exc)
+        logger.error(
+            "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+            safe_actor, safe_source, "replace", exc,
+        )
         raise HTTPException(
             status_code=500, detail=f"Could not replace database: {exc}"
         ) from exc
+    # Belt-and-suspenders: nothing should have recreated the sidecars in the
+    # tiny window between dispose() and the os.replace, but make sure.
+    _remove_wal_sidecars(db_path)
 
-    from database import engine  # noqa: PLC0415
-    engine.dispose()
+    # A .db restore carries no images. Blank both image dirs so the restored
+    # DB never references photos from the previous install — rotated to .old
+    # so an admin can recover them or discard them later.
+    for live, old in _image_dir_specs():
+        try:
+            _rotate_image_dir_to_old(live, old)
+            _place_or_empty(None, live)
+        except OSError as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, f"images:{live.name}", exc,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"Could not rotate image directory {live.name}: {exc}. "
+                    f"The database has been restored but image directories "
+                    f"are in an inconsistent state. The previous contents "
+                    f"may be preserved at {old.name}."
+                ),
+            ) from exc
 
-    logger.info("Restore complete (db only)")
+    image_snapshots = _capture_image_snapshot_status()
+    logger.info(
+        "Restore complete | actor=%s | source=%s | restored database, "
+        "image dirs blanked | snapshots=%s",
+        safe_actor, safe_source, sorted(image_snapshots.keys()),
+    )
     return {
         "success": True,
-        "message": "Database restored successfully.",
+        "message": "Database restored successfully. Image directories were cleared.",
         "force_logout": True,
         "logout_reason": (
             "The user database was replaced. Please log in with your "
             "restored credentials."
         ),
+        "image_snapshots": image_snapshots,
     }
 
 
-async def _restore_zip_impl(contents: bytes) -> dict:
+async def _restore_zip_impl(
+    contents: bytes, *, actor: str = "unknown", source: str = "upload"
+) -> dict:
     """Replace DB + photos directory from a .zip archive."""
+    # Fetch inside the handler so get_logger() repairs the uvicorn-disabled
+    # logger at call time. See utils/logging.py.
+    logger = get_logger(__name__)
     if len(contents) < 100:
         raise HTTPException(
             status_code=400, detail="File too small to be a valid zip backup"
         )
 
+    safe_source = log_safe(source)
+    safe_actor = log_safe(actor)
+    logger.info(
+        "Restore started | actor=%s | source=%s | kind=zip", safe_actor, safe_source
+    )
+
     staging = Path(tempfile.mkdtemp(prefix="ammoledger_restore_"))
     try:
         zip_path = staging / "upload.zip"
-        zip_path.write_bytes(contents)
+        try:
+            zip_path.write_bytes(contents)
+        except OSError as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "write_temp", exc,
+            )
+            raise HTTPException(
+                status_code=500, detail=f"Could not write temp file: {exc}"
+            ) from exc
 
         try:
             with zipfile.ZipFile(zip_path) as zf:
@@ -665,52 +1167,165 @@ async def _restore_zip_impl(contents: bytes) -> dict:
                     with zf.open(n) as src, open(target, "wb") as dst:
                         shutil.copyfileobj(src, dst)
         except zipfile.BadZipFile as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "validation", exc,
+            )
             raise HTTPException(
                 status_code=400, detail=f"Not a valid zip file: {exc}"
             ) from exc
-
-        extracted_db = staging / "ammoledger.db"
-        if not extracted_db.is_file():
-            raise HTTPException(
-                status_code=400, detail="ammoledger.db missing after extraction"
+        except HTTPException as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "validation", exc.detail,
             )
-        # Final containment check before destructive moves.
-        _safe_resolve_under(extracted_db, staging)
-        _validate_sqlite_file(extracted_db)
+            raise
 
         try:
-            _migrate_db_to_head(extracted_db)
+            extracted_db = staging / "ammoledger.db"
+            if not extracted_db.is_file():
+                raise HTTPException(
+                    status_code=400, detail="ammoledger.db missing after extraction"
+                )
+            # Final containment check before destructive moves.
+            _safe_resolve_under(extracted_db, staging)
+            _validate_sqlite_file(extracted_db)
+        except HTTPException as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "validation", exc.detail,
+            )
+            raise
+
+        try:
+            _migrate_if_needed(extracted_db)
+        except HTTPException as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "migration", exc.detail,
+            )
+            raise
         except Exception as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "migration", exc,
+            )
             raise HTTPException(
                 status_code=500, detail=f"Migration failed: {exc}"
             ) from exc
 
+        # Post-migration finalization. If this raises, the `finally` below
+        # cleans up staging and the live DB / photos remain untouched.
+        try:
+            _finalize_restored_db(extracted_db)
+        except HTTPException as exc:
+            # Deliberate integrity-abort inside _finalize_restored_db is an HTTP
+            # 400 — a rejected restore, not a crash. Log at warning and re-raise.
+            logger.warning(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "finalize", exc.detail,
+            )
+            raise
+        except Exception as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "finalize", exc,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Post-migration finalization failed: {exc}",
+            ) from exc
+
+        # Belt-and-suspenders: bail out if a -wal somehow remains. The
+        # surrounding `finally` rmtree's staging; live DB stays untouched.
+        try:
+            _assert_no_wal_sidecar(extracted_db)
+        except HTTPException as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "wal_guard", exc.detail,
+            )
+            raise
+
+        # Pre-resolve extracted image dirs so we can count what's coming in
+        # (for the completion log) and validate containment before any
+        # destructive moves.
+        extracted_dirs: dict[str, Path | None] = {}
+        for dir_name in _IMAGE_DIR_NAMES:
+            candidate = staging / dir_name
+            if candidate.exists():
+                _safe_resolve_under(candidate, staging)
+                extracted_dirs[dir_name] = candidate
+            else:
+                extracted_dirs[dir_name] = None
+        placed_counts = {
+            name: (sum(1 for p in path.rglob("*") if p.is_file()) if path else 0)
+            for name, path in extracted_dirs.items()
+        }
+
         db_path = _db_path()
-        shutil.move(str(extracted_db), str(db_path))
-
-        photos_root = Path(UPLOADS_PATH) / "firearm_photos"
-        extracted_photos = staging / "firearm_photos"
-        if extracted_photos.exists():
-            _safe_resolve_under(extracted_photos, staging)
-            if photos_root.exists():
-                shutil.rmtree(photos_root, ignore_errors=True)
-            photos_root.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(extracted_photos), str(photos_root))
-        # If the zip had no photos directory, leave the photos root empty —
-        # fresh state matches the .db we just put in.
-
+        # Release the app's WAL handle on the live DB BEFORE swapping the file,
+        # then clear the now-orphaned -wal/-shm sidecars so SQLite cannot replay
+        # stale WAL frames from the old DB onto the newly placed file.
         from database import engine  # noqa: PLC0415
         engine.dispose()
+        _remove_wal_sidecars(db_path)
+        try:
+            _durable_replace(extracted_db, db_path)
+        except OSError as exc:
+            logger.error(
+                "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                safe_actor, safe_source, "replace", exc,
+            )
+            raise HTTPException(
+                status_code=500, detail=f"Could not replace database: {exc}"
+            ) from exc
+        # Belt-and-suspenders: nothing should have recreated the sidecars in
+        # the tiny window between dispose() and the os.replace, but make sure.
+        _remove_wal_sidecars(db_path)
 
-        logger.info("Restore complete (zip — db + photos)")
+        # Image dirs: rotate live -> .old (snapshot for admin review), then
+        # place extracted contents — or create an empty dir when the zip did
+        # not carry that image kind. Even a .db-equivalent zip (no image
+        # entries) blanks the live dirs so the restored DB never references
+        # photos from the previous install.
+        for live, old in _image_dir_specs():
+            try:
+                _rotate_image_dir_to_old(live, old)
+                _place_or_empty(extracted_dirs.get(live.name), live)
+            except OSError as exc:
+                logger.error(
+                    "Restore failed | actor=%s | source=%s | stage=%s | error=%s",
+                    safe_actor, safe_source, f"images:{live.name}", exc,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        f"Could not rotate image directory {live.name}: {exc}. "
+                        f"The database has been restored but image directories "
+                        f"are in an inconsistent state. The previous contents "
+                        f"may be preserved at {old.name}."
+                    ),
+                ) from exc
+
+        image_snapshots = _capture_image_snapshot_status()
+        logger.info(
+            "Restore complete | actor=%s | source=%s | restored database, "
+            "placed %d firearm photo(s) and %d product image(s) | snapshots=%s",
+            safe_actor, safe_source,
+            placed_counts.get("firearm_photos", 0),
+            placed_counts.get("products", 0),
+            sorted(image_snapshots.keys()),
+        )
         return {
             "success": True,
-            "message": "Database and photos restored successfully.",
+            "message": "Database and image directories restored successfully.",
             "force_logout": True,
             "logout_reason": (
                 "The user database was replaced. Please log in with your "
                 "restored credentials."
             ),
+            "image_snapshots": image_snapshots,
         }
     finally:
         shutil.rmtree(staging, ignore_errors=True)
@@ -719,34 +1334,86 @@ async def _restore_zip_impl(contents: bytes) -> dict:
 @router.post("/restore")
 async def restore_backup(
     file: UploadFile = File(...),
-    _: Any = Depends(require_role("admin")),
+    current_user: User = Depends(require_role("admin")),
 ):
     """Restore from a `.db` SQLite backup or a `.zip` (db + photos) archive."""
     name = (file.filename or "").lower()
     contents = await file.read()
-    logger.info("Restore started from: %s", file.filename or "unknown")
+    source = file.filename or "upload"
     if name.endswith(".zip"):
-        return await _restore_zip_impl(contents)
+        return await _restore_zip_impl(
+            contents, actor=current_user.username, source=source
+        )
     if name.endswith(".db"):
-        return await _restore_sqlite_impl(contents)
+        return await _restore_sqlite_impl(
+            contents, actor=current_user.username, source=source
+        )
     raise HTTPException(
         status_code=400,
         detail="Upload must be a .db or .zip backup file",
     )
 
 
+class RestoreFromServerRequest(BaseModel):
+    filename: str
+
+
+@router.post("/restore/server")
+async def restore_from_server(
+    body: RestoreFromServerRequest,
+    current_user: User = Depends(require_role("admin")),
+):
+    """Restore from a backup file that already exists on the server.
+
+    The filename must be one of the files returned by GET /backup/list. No
+    browser upload. Admin only — matches the upload-restore guard. The frontend
+    is responsible for its own destructive-action confirmation UX.
+    """
+    # Pre-flight suffix gate so we do not slurp a multi-GB file just to
+    # reject it. _read_backup_file_bytes also validates the name via the
+    # strict regex whitelist, but does so during the directory match.
+    name_lower = (body.filename or "").lower()
+    if not (name_lower.endswith(".zip") or name_lower.endswith(".db")):
+        raise HTTPException(
+            status_code=400,
+            detail="Selected file is not a .db or .zip backup",
+        )
+
+    # iterdir-match pattern recognized as a sanitizer by stock CodeQL —
+    # see docstring of _read_backup_file_bytes (#82).
+    path, contents = _read_backup_file_bytes(body.filename)
+    name = path.name.lower()
+
+    if name.endswith(".zip"):
+        result = await _restore_zip_impl(
+            contents, actor=current_user.username, source=path.name
+        )
+    else:
+        result = await _restore_sqlite_impl(
+            contents, actor=current_user.username, source=path.name
+        )
+
+    result["restored_from"] = path.name
+    return result
+
+
 @router.post("/restore/sqlite", deprecated=True)
 async def restore_sqlite(
     file: UploadFile = File(...),
-    _: Any = Depends(require_role("admin")),
+    current_user: User = Depends(require_role("admin")),
 ):
     """Deprecated alias for /backup/restore. Kept for one release cycle."""
     name = (file.filename or "").lower()
     contents = await file.read()
+    source = file.filename or "upload"
     if name.endswith(".zip"):
-        return await _restore_zip_impl(contents)
+        return await _restore_zip_impl(
+            contents, actor=current_user.username, source=source
+        )
     if name.endswith(".db"):
-        return await _restore_sqlite_impl(contents)
+        return await _restore_sqlite_impl(
+            contents, actor=current_user.username, source=source
+        )
     raise HTTPException(
         status_code=400, detail="File must be a .db or .zip backup file"
     )
@@ -756,12 +1423,12 @@ async def restore_sqlite(
 # POST /backup/import/preview
 # ---------------------------------------------------------------------------
 
-@router.post("/import/preview")
-async def import_preview(
-    file: UploadFile = File(...),
-    _: Any = Depends(require_role("admin")),
-):
-    contents = await file.read()
+async def _import_preview_impl(contents: bytes) -> dict:
+    """Parse JSON export and produce a non-destructive preview payload.
+
+    Shared by `/import/preview` (upload) and `/import/preview/server` (existing
+    backup on disk). Read-only — no actor/source logging required.
+    """
     data = _parse_import_json(contents)
 
     db_path = _db_path()
@@ -883,18 +1550,53 @@ async def import_preview(
     }
 
 
-# ---------------------------------------------------------------------------
-# POST /backup/import/commit
-# ---------------------------------------------------------------------------
-
-@router.post("/import/commit")
-async def import_commit(
+@router.post("/import/preview")
+async def import_preview(
     file: UploadFile = File(...),
     _: Any = Depends(require_role("admin")),
 ):
     contents = await file.read()
+    return await _import_preview_impl(contents)
+
+
+@router.post("/import/preview/server")
+async def import_preview_from_server(
+    body: RestoreFromServerRequest,
+    _: Any = Depends(require_role("admin")),
+):
+    """Preview a JSON export that already exists in the backup directory.
+
+    Read-only — no destructive side effects. The frontend uses this to render
+    the same preview panel as the upload flow before the admin commits.
+    """
+    # Pre-flight suffix gate before reading; iterdir-match read is the
+    # CodeQL-recognized sanitizer pattern (#83).
+    if not (body.filename or "").lower().endswith(".json"):
+        raise HTTPException(
+            status_code=400,
+            detail="Selected file is not a .json export",
+        )
+    _, contents = _read_backup_file_bytes(body.filename)
+    return await _import_preview_impl(contents)
+
+
+# ---------------------------------------------------------------------------
+# POST /backup/import/commit
+# ---------------------------------------------------------------------------
+
+async def _import_commit_impl(
+    contents: bytes, *, actor: str = "unknown", source: str = "upload"
+) -> dict:
+    """Full-replace JSON import. Shared by upload and server-side entry points."""
+    # Fetch inside the handler so get_logger() repairs the uvicorn-disabled
+    # logger at call time. See utils/logging.py.
+    logger = get_logger(__name__)
     data = _parse_import_json(contents)
     tables = data["tables"]
+
+    safe_source = log_safe(source)
+    safe_actor = log_safe(actor)
+    logger.info("Import started | actor=%s | source=%s", safe_actor, safe_source)
 
     db_path = _db_path()
 
@@ -972,9 +1674,27 @@ async def import_commit(
     except Exception as exc:
         con.rollback()
         con.close()
+        logger.error(
+            "Import failed | actor=%s | source=%s | error=%s",
+            safe_actor, safe_source, exc,
+        )
         raise HTTPException(status_code=500, detail=f"Import failed: {exc}") from exc
     finally:
         con.close()
+
+    # Drop stale query-planner stats on the live DB. Full-replace import
+    # deleted and re-inserted every row, so `sqlite_stat1` is stale. We do
+    # NOT run ANALYZE here — absent stats is the only proven-clean state on
+    # weak-fsync filesystems; SQLite regenerates them lazily at runtime.
+    # Checkpoint on either side keeps the live file's WAL flushed so the
+    # DROPs are durable. Failures are non-critical (data is already
+    # committed); log and continue.
+    try:
+        _checkpoint_and_unwal(db_path)
+        _strip_sqlite_stats(db_path)
+        _checkpoint_and_unwal(db_path)
+    except Exception as exc:
+        logger.warning("Post-import stats rebuild failed: %s", exc)
 
     # Flush SQLAlchemy connections so they see the updated rows
     try:
@@ -988,6 +1708,34 @@ async def import_commit(
     except Exception:
         pass
 
+    # JSON exports carry no images. The newly-imported rows reference
+    # image filenames that may belong to a different install — blank both
+    # image dirs and snapshot the previous contents to .old so the admin
+    # can recover or discard them.
+    image_rotation_warnings: list[str] = []
+    for live, old in _image_dir_specs():
+        try:
+            _rotate_image_dir_to_old(live, old)
+            _place_or_empty(None, live)
+        except OSError as exc:
+            msg = f"images:{live.name}: {exc}"
+            logger.warning(
+                "Import: image rotation failed | actor=%s | source=%s | %s",
+                safe_actor, safe_source, msg,
+            )
+            if len(warnings) < 20:
+                warnings.append(msg)
+            image_rotation_warnings.append(msg)
+
+    image_snapshots = _capture_image_snapshot_status()
+
+    logger.info(
+        "Import complete | actor=%s | source=%s | imported %d record(s) across %d table(s) | warnings=%d | snapshots=%s",
+        safe_actor, safe_source,
+        records_imported, sum(1 for t in _EXPORT_TABLES if tables.get(t)),
+        len(warnings), sorted(image_snapshots.keys()),
+    )
+
     return {
         "records_imported": records_imported,
         "records_skipped": 0,
@@ -997,4 +1745,47 @@ async def import_commit(
             "The user database was replaced as part of a full restore. "
             "Please log in with your restored credentials."
         ),
+        "image_snapshots": image_snapshots,
     }
+
+
+@router.post("/import/commit")
+async def import_commit(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role("admin")),
+):
+    contents = await file.read()
+    return await _import_commit_impl(
+        contents,
+        actor=current_user.username,
+        source=file.filename or "upload",
+    )
+
+
+@router.post("/import/commit/server")
+async def import_commit_from_server(
+    body: RestoreFromServerRequest,
+    current_user: User = Depends(require_role("admin")),
+):
+    """Full-replace import from a JSON export already on the server.
+
+    Mirrors `/restore/server` — `_backup_file_path` sanitizes/contains the
+    filename, then bytes are read from disk and routed through the same
+    `_import_commit_impl` as the upload flow. The pre-import safety backup,
+    image rotation, and forced logout all apply identically.
+    """
+    # Pre-flight suffix gate before reading; iterdir-match read is the
+    # CodeQL-recognized sanitizer pattern (#84).
+    if not (body.filename or "").lower().endswith(".json"):
+        raise HTTPException(
+            status_code=400,
+            detail="Selected file is not a .json export",
+        )
+    path, contents = _read_backup_file_bytes(body.filename)
+    result = await _import_commit_impl(
+        contents,
+        actor=current_user.username,
+        source=path.name,
+    )
+    result["restored_from"] = path.name
+    return result

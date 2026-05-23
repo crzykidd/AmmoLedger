@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
+import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
 import { cn } from '@/lib/utils'
 import logoFull from '@/assets/brand/logo-full-dark.png'
 
@@ -45,6 +46,7 @@ export default function RegisterPage() {
   })
 
   const watchedPassword = watch('password')
+  const watchedConfirm = watch('confirm_password')
 
   useEffect(() => {
     if (!token) {
@@ -179,6 +181,7 @@ export default function RegisterPage() {
                   Confirm Password
                 </label>
                 <Input {...register('confirm_password')} type="password" placeholder="••••••••••••" />
+                <PasswordMatchIndicator password={watchedPassword} confirm={watchedConfirm} />
               </div>
 
               {submitError && (
@@ -190,7 +193,7 @@ export default function RegisterPage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isSubmitting || !allRulesPassed(watchedPassword)}
+                disabled={isSubmitting || !allRulesPassed(watchedPassword) || !passwordsMatch(watchedPassword, watchedConfirm)}
               >
                 {isSubmitting ? 'Creating account…' : 'Create account'}
               </Button>

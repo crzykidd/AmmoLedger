@@ -38,10 +38,20 @@
       "Bash(curl -s -c /tmp/cookies.txt -X POST http://localhost:5173/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@example.com\",\"password\":\"changeme\"}')",
       "Bash(python -m ruff check .)",
       "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('d:/projects/AmmoLedger/backend/defaults.yaml'\\)\\); yaml.safe_load\\(open\\('d:/projects/AmmoLedger/backend/config.template.yaml'\\)\\); print\\('YAML OK'\\)\")",
-      "Bash(DATABASE_URL=\"sqlite:///./_release_check.db\" python -m alembic upgrade head)"
+      "Bash(DATABASE_URL=\"sqlite:///./_release_check.db\" python -m alembic upgrade head)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/backup.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(curl -sf http://127.0.0.1:5173/api/openapi.json)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(p for p in sorted\\(d['paths']\\) if 'backup' in p or 'import' in p\\)\\)\")",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/defaults.yaml'\\)\\); print\\('defaults OK'\\)\")",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/config.template.yaml'\\)\\); print\\('template OK'\\)\")",
+      "Bash(awk '/^## \\\\[0\\\\.3\\\\.8\\\\]/{flag=1} /^## \\\\[0\\\\.3\\\\.7\\\\]/{flag=0} flag' CHANGELOG.md > /tmp/_pr_body_v038.md && wc -l /tmp/_pr_body_v038.md && head -3 /tmp/_pr_body_v038.md && echo \"---\" && tail -3 /tmp/_pr_body_v038.md)",
+      "Bash(git log *)",
+      "Bash(grep -E \"\\\\.\\(qll|yml|yaml\\)$|codeql\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/backup.py', encoding='utf-8'\\).read\\(\\)\\); print\\('parse OK'\\)\")"
     ],
     "additionalDirectories": [
-      "C:\\projects\\AmmoLedger\\backend\\migrations\\versions"
+      "C:\\projects\\AmmoLedger\\backend\\migrations\\versions",
+      "\\tmp"
     ]
   },
   "hooks": {

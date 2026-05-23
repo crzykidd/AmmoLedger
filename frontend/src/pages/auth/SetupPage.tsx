@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { setup } from '@/api/auth'
 import type { ApiError } from '@/types'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
+import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
 import logoFull from '@/assets/brand/logo-full-dark.png'
 
 interface FormState {
@@ -145,6 +146,7 @@ export default function SetupPage() {
                 autoComplete="new-password"
                 required
               />
+              <PasswordMatchIndicator password={form.password} confirm={form.confirm} />
             </div>
 
             {error && (
@@ -153,7 +155,7 @@ export default function SetupPage() {
 
             <button
               type="submit"
-              disabled={submitting || !allRulesPassed(form.password)}
+              disabled={submitting || !allRulesPassed(form.password) || !passwordsMatch(form.password, form.confirm)}
               className="w-full py-2.5 bg-gold hover:bg-gold-light text-navy font-semibold rounded-lg transition-colors disabled:opacity-50 mt-2"
             >
               {submitting ? 'Creating account…' : 'Create admin account'}

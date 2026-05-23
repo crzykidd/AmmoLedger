@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Clock,
   ShieldAlert,
+  RotateCcw,
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -39,10 +40,23 @@ import {
   restoreSqlite,
   previewImport,
   commitImport,
+  restoreFromServer,
+  previewImportFromServer,
+  commitImportFromServer,
   getSystemConfig,
   saveSystemConfig,
+  getRestoreSnapshots,
+  discardRestoreSnapshots,
 } from '@/api/backup'
-import type { BackupFile, ImportPreview, ImportResult } from '@/api/backup'
+import type { BackupFile, ImportPreview, ImportResult, ImageSnapshots } from '@/api/backup'
+
+// Source for a restore/import action — either an uploaded File from the
+// browser or a filename of a backup that already exists on the server.
+type RestoreSource =
+  | { kind: 'upload'; file: File }
+  | { kind: 'server'; filename: string }
+
+type ImportSource = RestoreSource
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -137,14 +151,16 @@ export default function BackupPage() {
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  // Restore from SQLite
+  // Restore from SQLite / zip
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
+  const [restoreSource, setRestoreSource] = useState<RestoreSource | null>(null)
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false)
 
   // Import from JSON
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importFile, setImportFile] = useState<File | null>(null)
+  const [importSource, setImportSource] = useState<ImportSource | null>(null)
   const [importPreviewData, setImportPreviewData] = useState<ImportPreview | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [importConfirmOpen, setImportConfirmOpen] = useState(false)
@@ -170,6 +186,14 @@ export default function BackupPage() {
     queryKey: ['system-config'],
     queryFn: getSystemConfig,
   })
+
+  const { data: snapshotsData } = useQuery({
+    queryKey: ['restore-snapshots'],
+    queryFn: getRestoreSnapshots,
+  })
+  const snapshots: ImageSnapshots = snapshotsData?.snapshots ?? {}
+  const hasSnapshots = Object.keys(snapshots).length > 0
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (systemConfig && !schedLoaded) {
@@ -216,9 +240,13 @@ export default function BackupPage() {
   })
 
   const restoreMutation = useMutation({
-    mutationFn: (file: File) => restoreSqlite(file),
+    mutationFn: (source: RestoreSource) =>
+      source.kind === 'upload'
+        ? restoreSqlite(source.file)
+        : restoreFromServer(source.filename),
     onSuccess: async (res) => {
       setRestoreFile(null)
+      setRestoreSource(null)
       if (restoreInputRef.current) restoreInputRef.current.value = ''
       if (res.force_logout) {
         toast({ title: res.logout_reason ?? 'Database replaced. Logging out…' })
@@ -232,7 +260,10 @@ export default function BackupPage() {
   })
 
   const previewMutation = useMutation({
-    mutationFn: (file: File) => previewImport(file),
+    mutationFn: (source: ImportSource) =>
+      source.kind === 'upload'
+        ? previewImport(source.file)
+        : previewImportFromServer(source.filename),
     onSuccess: (preview) => {
       setImportPreviewData(preview)
       setImportResult(null)
@@ -241,11 +272,14 @@ export default function BackupPage() {
   })
 
   const commitMutation = useMutation({
-    mutationFn: ({ file }: { file: File }) =>
-      commitImport(file),
+    mutationFn: (source: ImportSource) =>
+      source.kind === 'upload'
+        ? commitImport(source.file)
+        : commitImportFromServer(source.filename),
     onSuccess: async (result) => {
       setImportPreviewData(null)
       setImportFile(null)
+      setImportSource(null)
       if (importInputRef.current) importInputRef.current.value = ''
       if (result.force_logout) {
         toast({ title: result.logout_reason ?? 'Import complete. Logging out…' })
@@ -258,6 +292,46 @@ export default function BackupPage() {
         })
         void qc.invalidateQueries({ queryKey: ['backups'] })
       }
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
+  })
+
+  // Per-row restore: dispatch by file type. .db/.zip → open destructive
+  // confirm dialog, .json → load preview into existing import preview pane.
+  const handleRestoreFromServer = (b: BackupFile) => {
+    if (b.type === 'json') {
+      // Clear any pending upload so the preview panel reflects the server source.
+      setImportFile(null)
+      if (importInputRef.current) importInputRef.current.value = ''
+      setImportSource({ kind: 'server', filename: b.filename })
+      setImportResult(null)
+      previewMutation.mutate({ kind: 'server', filename: b.filename })
+      // Scroll the existing import section into view so the preview is visible.
+      setTimeout(() => {
+        document
+          .getElementById('restore-import-section')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 50)
+      return
+    }
+    // .db / .zip
+    setRestoreFile(null)
+    if (restoreInputRef.current) restoreInputRef.current.value = ''
+    setRestoreSource({ kind: 'server', filename: b.filename })
+    setRestoreConfirmOpen(true)
+  }
+
+  const discardSnapshotsMutation = useMutation({
+    mutationFn: discardRestoreSnapshots,
+    onSuccess: (res) => {
+      const names = Object.keys(res.discarded)
+      toast({
+        title:
+          names.length === 0
+            ? 'No pre-restore snapshots to discard'
+            : `Discarded pre-restore snapshots: ${names.join(', ')}`,
+      })
+      void qc.invalidateQueries({ queryKey: ['restore-snapshots'] })
     },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   })
@@ -285,6 +359,45 @@ export default function BackupPage() {
       <TopBar title="Backup & Restore" />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl space-y-6">
+
+          {/* Pre-restore image snapshot banner */}
+          {hasSnapshots && (
+            <Alert className="border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-500/30">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertDescription>
+                <div className="text-amber-800 dark:text-amber-300 space-y-2">
+                  <p className="font-medium">
+                    Pre-restore image snapshot{Object.keys(snapshots).length > 1 ? 's' : ''} on disk
+                  </p>
+                  <p className="text-sm">
+                    The last restore moved your previous image directories aside before
+                    placing the restored contents. Review them and discard when you&apos;re
+                    sure the restored data is correct.
+                  </p>
+                  <ul className="text-xs font-mono space-y-0.5">
+                    {Object.entries(snapshots).map(([name, info]) => (
+                      <li key={name}>
+                        {name}.old — {info.file_count} file{info.file_count === 1 ? '' : 's'}{' '}
+                        ({fmtBytes(info.size_bytes)})
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-amber-500 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                      onClick={() => setDiscardConfirmOpen(true)}
+                      disabled={discardSnapshotsMutation.isPending}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                      {discardSnapshotsMutation.isPending ? 'Discarding…' : 'Discard snapshots'}
+                    </Button>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Quick Backup */}
           <Section
@@ -399,13 +512,13 @@ export default function BackupPage() {
               <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Include firearm photos in backups
+                    Include images in backups
                   </label>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     When enabled, scheduled and manual backups produce a single .zip
-                    containing the database and all firearm photos. When disabled, backups
-                    are smaller .db files but photos are not included. Existing zip backups
-                    remain restorable either way.
+                    containing the database, firearm photos, and product images. When
+                    disabled, backups are smaller .db files and images are not included.
+                    Existing zip backups remain restorable either way.
                   </p>
                 </div>
                 <Switch
@@ -445,7 +558,7 @@ export default function BackupPage() {
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Size</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</th>
-                      <th className="px-4 py-2.5 w-24" />
+                      <th className="px-4 py-2.5 w-32" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -480,6 +593,20 @@ export default function BackupPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-gray-400 hover:text-red-600"
+                              title={b.type === 'json' ? 'Preview & import from this file' : 'Restore from this file'}
+                              onClick={() => handleRestoreFromServer(b)}
+                              disabled={
+                                restoreMutation.isPending ||
+                                previewMutation.isPending ||
+                                commitMutation.isPending
+                              }
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-gray-400 hover:text-red-600"
                               title="Delete"
                               onClick={() => setDeleteTarget(b.filename)}
                             >
@@ -496,6 +623,7 @@ export default function BackupPage() {
           </Section>
 
           {/* Restore & Import */}
+          <div id="restore-import-section" />
           <Section title="Restore & Import">
             {/* Warning banner */}
             <div className="flex items-start gap-3 rounded-xl border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-500/30 px-4 py-3 mb-6">
@@ -511,16 +639,32 @@ export default function BackupPage() {
                 Restore from backup file
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                Accepts a `.db` SQLite backup or a `.zip` archive (database + firearm photos).
-                Best for rolling back to a recent backup on the same version.
+                Accepts a <code>.db</code> SQLite backup or a <code>.zip</code> archive
+                (database + firearm photos + product images). Best for rolling back to a
+                recent backup on the same version.
               </p>
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50/60 dark:bg-amber-950/15 dark:border-amber-500/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Restore will move your current <code>firearm_photos/</code> and{' '}
+                  <code>products/</code> directories aside to <code>.old</code> snapshots
+                  before placing the restored contents. <code>.db</code> restores and JSON
+                  imports blank both image directories. Any existing <code>.old</code>
+                  snapshot is overwritten — review and discard from the banner above before
+                  starting another restore if you want to keep it.
+                </span>
+              </div>
               <div className="flex items-center gap-3">
                 <input
                   ref={restoreInputRef}
                   type="file"
                   accept=".db,.zip"
                   className="text-sm text-gray-500 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-700 file:text-sm file:bg-white dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-50 dark:hover:file:bg-gray-700 cursor-pointer"
-                  onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null
+                    setRestoreFile(f)
+                    setRestoreSource(f ? { kind: 'upload', file: f } : null)
+                  }}
                 />
                 <Button
                   variant="destructive"
@@ -548,7 +692,9 @@ export default function BackupPage() {
                   accept=".json"
                   className="text-sm text-gray-500 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-700 file:text-sm file:bg-white dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-50 dark:hover:file:bg-gray-700 cursor-pointer"
                   onChange={(e) => {
-                    setImportFile(e.target.files?.[0] ?? null)
+                    const f = e.target.files?.[0] ?? null
+                    setImportFile(f)
+                    setImportSource(f ? { kind: 'upload', file: f } : null)
                     setImportPreviewData(null)
                     setImportResult(null)
                   }}
@@ -557,7 +703,11 @@ export default function BackupPage() {
                   variant="outline"
                   size="sm"
                   disabled={!importFile || previewMutation.isPending}
-                  onClick={() => { if (importFile) previewMutation.mutate(importFile) }}
+                  onClick={() => {
+                    if (importFile) {
+                      previewMutation.mutate({ kind: 'upload', file: importFile })
+                    }
+                  }}
                 >
                   {previewMutation.isPending ? 'Previewing…' : 'Preview Import'}
                 </Button>
@@ -566,6 +716,11 @@ export default function BackupPage() {
               {/* Preview panel */}
               {importPreviewData && (
                 <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-4 space-y-3">
+                  {importSource?.kind === 'server' && (
+                    <div className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                      Source: {importSource.filename} (server backup)
+                    </div>
+                  )}
                   <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
                     <span>Version: <span className="text-gray-900 dark:text-white font-medium">{importPreviewData.version}</span></span>
                     <span>Exported: <span className="text-gray-900 dark:text-white font-medium">{fmtDate(importPreviewData.exported_at)}</span></span>
@@ -768,9 +923,14 @@ export default function BackupPage() {
             <AlertDialogTitle>Replace database from backup?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                {restoreSource?.kind === 'server' && (
+                  <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                    Source: {restoreSource.filename}
+                  </p>
+                )}
                 <p>
                   This will <strong className="text-gray-900 dark:text-white">permanently replace</strong> all data
-                  in the current database with the contents of the uploaded file. After restore:
+                  in the current database with the contents of the selected backup. After restore:
                 </p>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>
@@ -794,11 +954,52 @@ export default function BackupPage() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
-                if (restoreFile) restoreMutation.mutate(restoreFile)
+                if (restoreSource) restoreMutation.mutate(restoreSource)
                 setRestoreConfirmOpen(false)
               }}
             >
               Replace Database
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Discard pre-restore snapshots dialog */}
+      <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard pre-restore image snapshots?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <p>
+                  This will <strong className="text-gray-900 dark:text-white">permanently delete</strong>{' '}
+                  the following image directories that were preserved by the last restore:
+                </p>
+                <ul className="list-disc pl-5 space-y-0.5">
+                  {Object.entries(snapshots).map(([name, info]) => (
+                    <li key={name} className="font-mono text-xs">
+                      {name}.old — {info.file_count} file{info.file_count === 1 ? '' : 's'}{' '}
+                      ({fmtBytes(info.size_bytes)})
+                    </li>
+                  ))}
+                </ul>
+                <p>
+                  Only proceed if you&apos;ve confirmed the restored data references the
+                  correct images. This cannot be undone.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                discardSnapshotsMutation.mutate()
+                setDiscardConfirmOpen(false)
+              }}
+            >
+              Discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -834,8 +1035,8 @@ export default function BackupPage() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
-                if (importFile) {
-                  commitMutation.mutate({ file: importFile })
+                if (importSource) {
+                  commitMutation.mutate(importSource)
                 }
                 setImportConfirmOpen(false)
               }}

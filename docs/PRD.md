@@ -90,6 +90,10 @@
 | 3.48 | 2026-05-22 | Datasets page now reports both ammo and firearm usage per lookup entry (#20). Backend lookup admin endpoints add a `firearm_usage_count` field alongside `usage_count`, derived from new `_FIREARM_COUNT_SQL` / `_FIREARM_SINGLE_COUNT_SQL` maps covering calibers, manufacturers, dealers, and the seven firearm-specific lookups (action types, models, compliance tags, frame sizes, optic cuts, rail types, finishes, conditions). Hide/Delete guards now check both counts; firearm-specific lookup deletes gain the same usage guard. Frontend `LookupsPage` renders two side-by-side chips per row (blue "N boxes", purple "N firearms") with deep-links — caliber/manufacturer chips route to `/firearms?caliber_id=` / `?manufacturer_id=` (FirearmsListPage now hydrates filters from URL params on mount); other firearm-only lookups navigate to the firearms list unfiltered. New page-level filter toolbar (Hide unused, Hide hidden, Source: All/Community/User-added) persisted to localStorage under `datasets_filters`. |
 | 3.48 | 2026-05-21 | Structured startup banner on both services (#33) — backend `on_startup` and a new `startupBanner` Vite plugin in `frontend/vite.config.ts` each emit a single identifier line on container start (version, channel `dev`/`release`, branch, short SHA, Python/Node runtime). §7.4 updated with example output and channel-derivation rule. Lets operators confirm the running image from `docker compose logs` without cross-referencing tags. |
 | 3.49 | 2026-05-21 | v0.3.7 release: Datasets page reports both ammo and firearm usage per lookup entry with deep-link chips and a persistent filter toolbar (#20); structured startup banner on backend and frontend identifies the running build from `docker compose logs` (#33); README and Installation Guide overhauled for public beta; production compose publishes frontend on `5173:5173` and trims redundant backend env block; `.gitattributes` pins LF line endings so Windows checkouts no longer break `backend/docker-entrypoint.sh`. CHANGELOG `[Unreleased]` stamped as `[0.3.7]`. |
+| 3.50 | 2026-05-22 | Server-side restore endpoint — `POST /backup/restore/server` lets an admin restore from a backup file already on disk (selected from `GET /backup/list`) without re-uploading it through the browser. Filename is sanitized and confined to the backup directory by the same helpers used for download and delete; `.json` exports are rejected. Reuses the same `.db` / `.zip` restore impls as `/backup/restore` — one restore pipeline, two entry points. §11.1 updated. |
+| 3.51 | 2026-05-22 | Product images now travel with zip backups and restores (#46), and every restore path now rotates `firearm_photos/` and `products/` to `.old` snapshots before placing new contents (§11.9). `.db` restores and JSON full-imports blank both image directories because those formats carry no image data — leaving prior contents live would surface stray photos belonging to the previous install. New admin endpoints: `GET /backup/restore-snapshots` and `POST /backup/restore-snapshots/discard`. Backup page shows a persistent banner naming any snapshot directory still on disk; restore response payloads include an `image_snapshots` field. §11.1 / §11.8 / §11.9 updated. |
+| 3.52 | 2026-05-22 | Server-side JSON import — twin endpoints `POST /backup/import/preview/server` and `POST /backup/import/commit/server` accept `{ "filename" }` and route through the same `_import_preview_impl` / `_import_commit_impl` as the upload flow (#47). The Backup History table on the Backup page now exposes a per-row Restore icon: `.db` / `.zip` rows reuse the existing destructive-restore confirm dialog and call `POST /backup/restore/server`; `.json` rows load the standard preview panel via the new server-preview endpoint, and the existing "Full Replace" button commits via the server-commit endpoint. No upload required for any in-place restore. `import_preview` and `import_commit` were refactored to delegate to shared impls so the upload and server entry points share one code path. §11.1 updated. |
+| 3.53 | 2026-05-22 | v0.3.8 release: in-place restore/import from on-disk backups via per-row icon in Backup History (#47, #46); restore now rotates `firearm_photos/` and `products/` to `.old` snapshots with a Discard banner; self-healing logging from request handlers (fixes silent log loss under uvicorn `--reload`); durable same-filesystem atomic DB swap on restore (fixes `database disk image is malformed` on Docker Desktop / Windows); restore no longer runs `ANALYZE` and startup auto-repairs databases corrupted by pre-fix restores (dangling `sqlite_stat1` rootpage); live "passwords match" indicator on every password+confirm form (#35); structured `actor / source / outcome` logging on all restore + import paths. CHANGELOG `[Unreleased]` stamped as `[0.3.8]`. |
 
 ---
 
@@ -2449,21 +2453,51 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
 - Used for: daily safety net, quick restore to same version
 - Restore: stop app, replace `ammoledger.db`, restart — Alembic detects version and migrates automatically if needed
 - Cannot be used to restore across major breaking schema changes
-- Does **not** include firearm photos — use Format C (zip) when photos exist
+- Does **not** include firearm photos or product images — use Format C (zip) when images exist
+- A `.db` restore through the app **always blanks** `firearm_photos/` and
+  `products/` (rotating their previous contents to `<name>.old`
+  snapshots — see §11.9), because a bare `.db` carries no image data and
+  the restored DB rows must not reference photos belonging to the previous
+  install
 
 #### Format C — Zip Archive (default for v0.3.0+)
 
 - Single `.zip` containing `ammoledger.db` (WAL-safely copied) plus the
-  `firearm_photos/` directory under its native layout
+  `firearm_photos/` and `products/` directories under their native layout
+  relative to `UPLOADS_PATH`
 - Filename: `ammoledger_YYYY-MM-DD_HH-MM.zip`
-- Used for: complete restore set when firearm photos are in play; the
-  database and the files it references travel together
+- Used for: complete restore set when firearm photos or product images are
+  in play; the database and the files it references travel together
 - Controlled by the `backup.include_photos` config setting (default `true`).
-  Set to `false` to fall back to bare `.db` files (Format A)
+  Set to `false` to fall back to bare `.db` files (Format A). The single
+  flag governs both image directories
+- Product images were added to the zip bundle in v0.3.8 (closes #46). Older
+  zips that only contain `firearm_photos/` remain restorable — `products/`
+  is simply blanked on restore in that case
 - `/backup/restore` accepts either `.db` or `.zip` and dispatches by
   extension. Zip restore validates each archive entry against
   path-traversal before extraction (rejects absolute paths and `..`
   components)
+- `POST /backup/restore/server` is an alternate entry point that accepts a
+  `{filename}` from `GET /backup/list` and restores an on-disk backup in
+  place — no browser upload. Admin only; the filename is sanitized and
+  confined to the backup directory by the same helpers used for download
+  and delete; `.json` exports are rejected here (they have their own
+  server-side endpoints below). Reuses the same restore pipeline as
+  `/backup/restore`
+- `POST /backup/import/preview/server` and `POST /backup/import/commit/server`
+  are the JSON counterparts: both accept `{filename}` from `GET /backup/list`,
+  validate that the file is `.json`, and route through the same
+  `_import_preview_impl` / `_import_commit_impl` as the upload flow. The
+  pre-import safety backup, image directory rotation, and forced logout all
+  apply identically — server-side import is not a fast path, it is the same
+  pipeline with a different entry point
+- The Backup History table on the Backup page exposes a single per-row
+  Restore icon that dispatches by file type: `.db` / `.zip` open the
+  destructive-restore confirm dialog and call `/backup/restore/server`;
+  `.json` rows load the standard preview panel via
+  `/backup/import/preview/server`, and the existing "Full Replace" button
+  commits via `/backup/import/commit/server`
 - The deprecated `/backup/restore/sqlite` alias accepts both formats and
   remains for one release
 
@@ -2600,6 +2634,59 @@ Returns a read-only analysis of what the import will do:
 Full replace only: all current data is deleted, then the export is loaded. A pre-import safety backup is created automatically before any deletes. Schema mismatch validation runs again on commit as a safety net.
 
 Additive import mode was removed in v0.2.1. It was broken-by-design for cross-installation merges: colliding user rows were skipped while their child rows still inserted, ending up pointing at whoever held the conflicting ID on the target database. See GitHub issue #10. Cross-installation row-level merge is not planned for v0.3.0.
+
+A successful full-replace import also rotates `firearm_photos/` and
+`products/` to `.old` snapshots and creates empty directories in their
+place (see §11.9). JSON exports do not carry images, so leaving the
+previous directories live would surface stray photos belonging to the
+prior install whenever a restored DB row references a matching filename.
+
+### 11.9 Pre-Restore Image Snapshots (v0.3.8+)
+
+Every restore path — zip restore, `.db` restore, server-side restore, and
+JSON full-import — rotates the live image directories to disk-resident
+snapshots before placing the restored contents:
+
+1. For each directory in `(firearm_photos, products)`:
+   - If `<name>.old` already exists, delete it (each restore replaces the
+     prior safety copy — the system keeps exactly one snapshot generation,
+     not a chain)
+   - If the live `<name>/` exists, rename it to `<name>.old` (same
+     filesystem, atomic on a single FS)
+2. Place the new directory contents:
+   - Zip restore: move the extracted directory into place, or create an
+     empty directory if the zip omitted that image kind
+   - `.db` restore and JSON import: always create empty directories
+3. The `.old` snapshots persist on disk until an admin discards them
+
+Snapshots survive the post-restore force-logout. After re-login the Backup
+page shows an amber banner naming each snapshot directory, its file count,
+and its total size. A `Discard snapshots` button (with confirmation)
+deletes the `.old` directories.
+
+**Endpoints:**
+
+- `GET /backup/restore-snapshots` — admin only; returns
+  `{ "snapshots": { "<name>": { "file_count": N, "size_bytes": M } } }`.
+  Empty snapshots are omitted (an empty `.old` directory has nothing worth
+  flagging — it's already what the live dir looked like)
+- `POST /backup/restore-snapshots/discard` — admin only; deletes all
+  non-empty `.old` directories under `UPLOADS_PATH` and returns a summary
+  of what was removed
+
+**Failure semantics:** if image rotation fails mid-restore, the response
+returns a 500 naming the directory that failed. The database swap has
+already occurred at that point (rotation runs after the durable replace),
+so the live image dirs may be in an inconsistent state — the previous
+contents are still recoverable from `<name>.old`. The Backup page banner
+will reflect whatever `.old` snapshots exist on disk regardless of
+restore success.
+
+**Why one snapshot generation, not a chain:** keeping every prior `.old`
+would grow without bound on installs that restore frequently, and disk
+usage on bind-mounted volumes is the most common storage complaint. One
+snapshot is enough to recover from a wrong-file restore; chronic
+multi-snapshot retention is what `BACKUP_PATH/.zip` files are for.
 
 ---
 
