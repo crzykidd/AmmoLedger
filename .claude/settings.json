@@ -47,7 +47,8 @@
       "Bash(awk '/^## \\\\[0\\\\.3\\\\.8\\\\]/{flag=1} /^## \\\\[0\\\\.3\\\\.7\\\\]/{flag=0} flag' CHANGELOG.md > /tmp/_pr_body_v038.md && wc -l /tmp/_pr_body_v038.md && head -3 /tmp/_pr_body_v038.md && echo \"---\" && tail -3 /tmp/_pr_body_v038.md)",
       "Bash(git log *)",
       "Bash(grep -E \"\\\\.\\(qll|yml|yaml\\)$|codeql\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/backup.py', encoding='utf-8'\\).read\\(\\)\\); print\\('parse OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/backup.py', encoding='utf-8'\\).read\\(\\)\\); print\\('parse OK'\\)\")",
+      "Bash(awk '/^## \\\\[0\\\\.3\\\\.8\\\\]/{flag=1; next} /^## \\\\[/{flag=0} flag' CHANGELOG.md)"
     ],
     "additionalDirectories": [
       "C:\\projects\\AmmoLedger\\backend\\migrations\\versions",
