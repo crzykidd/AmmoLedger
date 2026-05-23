@@ -193,6 +193,36 @@ def _backup_file_path(filename: str) -> Path:
     return _safe_resolve_under_backup_root(candidate)
 
 
+def _read_backup_file_bytes(filename: str) -> tuple[Path, bytes]:
+    """Locate a backup file by directory listing and return (path, contents).
+
+    CodeQL's stock `py/uncontrolled-data-in-path-expression` query flagged the
+    `_backup_file_path(body.filename) → path.read_bytes()` two-step pattern
+    even though the path was validated upstream (#82–#84) — taint analysis
+    does not propagate sanitization through Pydantic body attribute access
+    into a path constructed via `_backup_dir() / safe_name`. The previously
+    shipped custom sanitizer model (`AmmoLedgerSanitizers.qll`) was removed
+    when CodeQL was switched back to default setup, so we now use the
+    stock-recognized sanitizer pattern: `Path` objects originate from
+    `Path.iterdir()`, and user input is only used in string comparison
+    against `entry.name` values that came from the OS directory listing.
+
+    Also re-applies the strict filename regex as a fast malformed-input reject.
+
+    Returns the resolved path alongside the file contents — callers typically
+    need `path.name` for structured logging.
+
+    Raises 400 on bad name, 404 if missing.
+    """
+    safe_name = _sanitize_backup_filename(filename)
+    backup_dir = _backup_dir()
+    if backup_dir.is_dir():
+        for entry in backup_dir.iterdir():
+            if entry.is_file() and entry.name == safe_name:
+                return entry, entry.read_bytes()
+    raise HTTPException(status_code=404, detail="File not found")
+
+
 _TYPE_MAP = {".db": "sqlite", ".json": "json", ".zip": "zip"}
 
 
@@ -1339,18 +1369,20 @@ async def restore_from_server(
     browser upload. Admin only — matches the upload-restore guard. The frontend
     is responsible for its own destructive-action confirmation UX.
     """
-    # _backup_file_path sanitizes the name and confirms it is contained within
-    # the backup directory; raises 400 (bad name) / 404 (missing).
-    path = _backup_file_path(body.filename)
-
-    name = path.name.lower()
-    if not (name.endswith(".zip") or name.endswith(".db")):
+    # Pre-flight suffix gate so we do not slurp a multi-GB file just to
+    # reject it. _read_backup_file_bytes also validates the name via the
+    # strict regex whitelist, but does so during the directory match.
+    name_lower = (body.filename or "").lower()
+    if not (name_lower.endswith(".zip") or name_lower.endswith(".db")):
         raise HTTPException(
             status_code=400,
             detail="Selected file is not a .db or .zip backup",
         )
 
-    contents = path.read_bytes()
+    # iterdir-match pattern recognized as a sanitizer by stock CodeQL —
+    # see docstring of _read_backup_file_bytes (#82).
+    path, contents = _read_backup_file_bytes(body.filename)
+    name = path.name.lower()
 
     if name.endswith(".zip"):
         result = await _restore_zip_impl(
@@ -1537,13 +1569,14 @@ async def import_preview_from_server(
     Read-only — no destructive side effects. The frontend uses this to render
     the same preview panel as the upload flow before the admin commits.
     """
-    path = _backup_file_path(body.filename)
-    if not path.name.lower().endswith(".json"):
+    # Pre-flight suffix gate before reading; iterdir-match read is the
+    # CodeQL-recognized sanitizer pattern (#83).
+    if not (body.filename or "").lower().endswith(".json"):
         raise HTTPException(
             status_code=400,
             detail="Selected file is not a .json export",
         )
-    contents = path.read_bytes()
+    _, contents = _read_backup_file_bytes(body.filename)
     return await _import_preview_impl(contents)
 
 
@@ -1741,13 +1774,14 @@ async def import_commit_from_server(
     `_import_commit_impl` as the upload flow. The pre-import safety backup,
     image rotation, and forced logout all apply identically.
     """
-    path = _backup_file_path(body.filename)
-    if not path.name.lower().endswith(".json"):
+    # Pre-flight suffix gate before reading; iterdir-match read is the
+    # CodeQL-recognized sanitizer pattern (#84).
+    if not (body.filename or "").lower().endswith(".json"):
         raise HTTPException(
             status_code=400,
             detail="Selected file is not a .json export",
         )
-    contents = path.read_bytes()
+    path, contents = _read_backup_file_bytes(body.filename)
     result = await _import_commit_impl(
         contents,
         actor=current_user.username,
