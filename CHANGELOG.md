@@ -18,6 +18,8 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.9] — 2026-05-24
+
 ### Fixed
 
 - **Invitation and admin-generated password-reset links now honor the configured public URL.** The links were hard-coded to `http://localhost:5173` for every deployment because the backend was reading a non-existent `APP_BASE_URL` env var instead of the documented `AL_BASE_URL` / `app.base_url` config key — so neither `config.yaml` nor `AL_BASE_URL` had any effect on the URLs returned to admins. The auth router now resolves the base URL through the same config layer as everything else, so the value you set in `/data/config.yaml` (or via `AL_BASE_URL`) is finally reflected in the URLs an admin copies from the invite + reset dialogs. The `http://localhost:5173` default is preserved when nothing is configured (dev parity). Fixes #49
