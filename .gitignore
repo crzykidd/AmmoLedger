@@ -61,8 +61,14 @@ docker-compose.override.yml
 *.log
 logs/
 # Claude Code
+.claude/*
+# 2. SHARE project settings (hooks, guardrails, rules) with the team
+!.claude/settings.json
+# 3. SHARE custom terminal skills / tools built for this project
+!.claude/skills/
+# 4. IGNORE private local testing configs & overrides
 .claude/settings.local.json
-.claude/scheduled_tasks.lock
+CLAUDE.local.md
 
 # Vexp runtime files
 .vexp/daemon.pid
