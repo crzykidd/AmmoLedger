@@ -18,6 +18,10 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Fixed
+
+- **Invitation and admin-generated password-reset links now honor the configured public URL.** The links were hard-coded to `http://localhost:5173` for every deployment because the backend was reading a non-existent `APP_BASE_URL` env var instead of the documented `AL_BASE_URL` / `app.base_url` config key — so neither `config.yaml` nor `AL_BASE_URL` had any effect on the URLs returned to admins. The auth router now resolves the base URL through the same config layer as everything else, so the value you set in `/data/config.yaml` (or via `AL_BASE_URL`) is finally reflected in the URLs an admin copies from the invite + reset dialogs. The `http://localhost:5173` default is preserved when nothing is configured (dev parity). Fixes #49
+
 ## [0.3.8] — 2026-05-22
 
 **Reliability release focused on backup and restore.** Fixes several restore-path bugs that could corrupt the database on Docker Desktop / Windows (durable atomic DB swap, dangling `sqlite_stat1` rootpage, silent log loss), adds in-place server-side restore/import (no more re-uploading backup files you already have on the server), and rotates `firearm_photos/` + `products/` to `.old` snapshots before every restore so prior images can be reviewed and discarded after.

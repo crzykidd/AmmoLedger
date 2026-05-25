@@ -1,4 +1,3 @@
-import os
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional
@@ -25,7 +24,11 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:5173")
+
+def _base_url() -> str:
+    """Public app URL, sourced from config.yaml [app.base_url] or AL_BASE_URL."""
+    cfg = load_config()
+    return str((cfg.get("app") or {}).get("base_url") or "http://localhost:5173")
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +122,7 @@ def _make_invite_read(invite: Invitation, include_url: bool = False) -> InviteRe
         email_hint=invite.email_hint,
         is_revoked=invite.is_revoked,
         status=st,
-        invite_url=f"{BASE_URL}/register?token={invite.token}" if include_url and st == "valid" else None,
+        invite_url=f"{_base_url()}/register?token={invite.token}" if include_url and st == "valid" else None,
     )
 
 
@@ -397,7 +400,7 @@ def generate_reset_token(
     db.commit()
 
     logger.info("Password reset token generated for user %d", user_id)
-    return {"reset_url": f"{BASE_URL}/reset?token={token_str}"}
+    return {"reset_url": f"{_base_url()}/reset?token={token_str}"}
 
 
 @router.get("/reset", response_model=ResetTokenInfo)
