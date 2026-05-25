@@ -51,7 +51,8 @@
       "Bash(awk '/^## \\\\[0\\\\.3\\\\.8\\\\]/{flag=1; next} /^## \\\\[/{flag=0} flag' CHANGELOG.md)",
       "Bash(echo \"---exit $?\")",
       "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/defaults.yaml', encoding='utf-8'\\)\\); print\\('defaults.yaml OK'\\)\")",
-      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/config.template.yaml', encoding='utf-8'\\)\\); print\\('config.template.yaml OK'\\)\")"
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('backend/config.template.yaml', encoding='utf-8'\\)\\); print\\('config.template.yaml OK'\\)\")",
+      "Bash(awk '/^## \\\\[0\\\\.3\\\\.9\\\\]/{flag=1; next} /^## \\\\[/{flag=0} flag' CHANGELOG.md)"
     ],
     "additionalDirectories": [
       "C:\\projects\\AmmoLedger\\backend\\migrations\\versions",
