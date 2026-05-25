@@ -48,7 +48,8 @@
       "Bash(git log *)",
       "Bash(grep -E \"\\\\.\\(qll|yml|yaml\\)$|codeql\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/backup.py', encoding='utf-8'\\).read\\(\\)\\); print\\('parse OK'\\)\")",
-      "Bash(awk '/^## \\\\[0\\\\.3\\\\.8\\\\]/{flag=1; next} /^## \\\\[/{flag=0} flag' CHANGELOG.md)"
+      "Bash(awk '/^## \\\\[0\\\\.3\\\\.8\\\\]/{flag=1; next} /^## \\\\[/{flag=0} flag' CHANGELOG.md)",
+      "Bash(echo \"---exit $?\")"
     ],
     "additionalDirectories": [
       "C:\\projects\\AmmoLedger\\backend\\migrations\\versions",
