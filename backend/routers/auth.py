@@ -15,7 +15,7 @@ from password_utils import (
     validate_password_strength,
 )
 from schemas import InvitationCreate, InviteRead, RegisterRequest
-from utils.config import load_config
+from utils.config import get_config, load_config
 from utils.logging import get_logger
 from utils.rbac import require_role
 from utils.security import hash_password, verify_password
@@ -26,8 +26,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _base_url() -> str:
-    """Public app URL, sourced from config.yaml [app.base_url] or AL_BASE_URL."""
-    cfg = load_config()
+    """Public app URL, sourced from config.yaml [app.base_url] or AL_BASE_URL.
+
+    Uses get_config() (not load_config()) so AL_* env overrides are applied —
+    load_config() returns raw YAML and does not call _apply_env_overrides.
+    """
+    cfg = get_config()
     return str((cfg.get("app") or {}).get("base_url") or "http://localhost:5173")
 
 
