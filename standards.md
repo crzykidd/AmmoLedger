@@ -8,7 +8,7 @@ adopters.
 
 | Standard | Version | Adopted | Notes |
 |---|---|---|---|
-| [vexp-context-engine](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/vexp-context-engine/README.md) | 1.0.0 | 2026-05-29 | Full repo push: `.claude/hooks/vexp-guard.sh` (verbatim), `PreToolUse` guard + `mcp__vexp__*` allows merged into `.claude/settings.json`, `.vexpignore` at root, CLAUDE-snippet pasted verbatim into `CLAUDE.md`. `.vexp/manifest.json` is intentionally **not** tracked (manifest-not-tracked shape — each host owns its index); `.vexp/.gitignore` ignores all generated state. |
+| [vexp-context-engine](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/vexp-context-engine/README.md) | 1.0.1 | 2026-05-29 | Full repo push: `.claude/hooks/vexp-guard.sh` (verbatim), `PreToolUse` guard + `mcp__vexp__*` allows merged into `.claude/settings.json`, `.vexpignore` at root, CLAUDE-snippet pasted verbatim into `CLAUDE.md`. `.vexp/manifest.json` is intentionally **not** tracked (manifest-not-tracked shape — each host owns its index); `.vexp/.gitignore` ignores all generated state. v1.0.1 fix: `.gitignore` un-ignores `.claude/hooks/` (+ `.claude/commands/`) so the guard hook travels via git; vexp's auto-generated `.claude/CLAUDE.md` is untracked (per-host machine state). |
 
 ## Not yet formally adopted (de-facto present)
 
