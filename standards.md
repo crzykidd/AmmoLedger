@@ -8,17 +8,8 @@ adopters.
 
 | Standard | Version | Adopted | Notes |
 |---|---|---|---|
+| [code-checkin-and-pr](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/code-checkin-and-pr/README.md) | 1.1.0 | 2026-05-29 | `CLAUDE-snippet.md` pasted verbatim into `CLAUDE.md` ("Code check-in (operational rules)"). **Fully CI-conformant** — all five required checks exist: backend lint / YAML validation / migration-to-head / `docker compose config` ([.github/workflows/ci.yml](.github/workflows/ci.yml)) + PR-only image-build verification (build, no push) in [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml). Publishing matrix and registry retention (keep 30 `sha-*` / 15 semver; `latest`/`dev`/bare-major protected) also implemented in `docker-publish.yml`. |
+| [release-prep-and-cut](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/release-prep-and-cut/README.md) | 1.0.0 | 2026-05-29 | `CLAUDE-snippet.md` pasted verbatim into `CLAUDE.md` ("Release process (operational rules)"). `/release-prep` + `/release-cut` slash commands ([.claude/commands/](.claude/commands/)) are the standard's templates already tailored to AmmoLedger (`backend/version.py`, CHANGELOG per-minor archive trigger). |
+| [handoff-prompt-workflow](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/handoff-prompt-workflow/README.md) | 1.5.0 | 2026-05-29 | `prompts/TEMPLATE.md` copied verbatim; `prompts/done/` + `prompts/failed/` created lazily on first use. `docs/decisions.md` seeded (newest-first). Soft pointer added to `CLAUDE.md` ("Handoff prompts"). No `CLAUDE-snippet.md` ships for this standard. |
+| [repo-sandbox-permissions](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/repo-sandbox-permissions/README.md) | 1.0.0 | 2026-05-29 | scope: **local-only** (`.claude/settings.local.json`, already gitignored), 2026-05-29. Sandbox block merged standalone (no prior keys in that file). Per-stack blanks filled for Python + Node: `allowedDomains` += `pypi.org`, `files.pythonhosted.org`, `registry.npmjs.org`; `allowWrite` += `~/.npm/**`. Runtime deps (`bwrap` + `socat`) present on this host. No `CLAUDE-snippet.md` (config-driven, harness-enforced). **Restart Claude Code** for `sandbox.enabled` to take effect. |
 | [vexp-context-engine](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/vexp-context-engine/README.md) | 1.0.1 | 2026-05-29 | Full repo push: `.claude/hooks/vexp-guard.sh` (verbatim), `PreToolUse` guard + `mcp__vexp__*` allows merged into `.claude/settings.json`, `.vexpignore` at root, CLAUDE-snippet pasted verbatim into `CLAUDE.md`. `.vexp/manifest.json` is intentionally **not** tracked (manifest-not-tracked shape — each host owns its index); `.vexp/.gitignore` ignores all generated state. v1.0.1 fix: `.gitignore` un-ignores `.claude/hooks/` (+ `.claude/commands/`) so the guard hook travels via git; vexp's auto-generated `.claude/CLAUDE.md` is untracked (per-host machine state). |
-
-## Not yet formally adopted (de-facto present)
-
-These standards' rules are already wired into `CLAUDE.md` and tooling but have **not**
-been formally adopted (pinned here, registered in the homelab-configs registry, or
-reconciled against the canonical `CLAUDE-snippet.md`). Formalize before relying on them:
-
-- **release-prep-and-cut** — `/release-prep` + `/release-cut` slash commands exist
-  ([.claude/commands/](.claude/commands/)) and CLAUDE.md encodes the hard rules
-  (CHANGELOG single source of truth, one commit per prep, never re-tag).
-- **code-checkin-and-pr** — CLAUDE.md "Git Workflow" / "Release Process" encode the
-  branch strategy (`dev`→`main`, never push to `main`), conventional commit prefixes,
-  and GHCR image publishing — as hand-written prose, not the standard's verbatim snippet.
