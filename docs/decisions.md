@@ -7,6 +7,54 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-05-30 — Light-mode strategy: picker first, then component sweeps (#51)
+
+Planning decision for fixing the broken light mode (#51). Verified current state
+(2026-05-30): the theme **engine is already complete** in `src/contexts/ThemeContext.tsx`
+(consumed via `src/hooks/useTheme.ts`, mounted in `App.tsx`). It defines
+`type Theme = 'light' | 'dark' | 'system'`, **defaults to `system`**, persists per
+browser under localStorage key **`ammologger_theme`** (legacy name, underscore), resolves
+`system` via `matchMedia`, **subscribes to live OS theme changes** (with cleanup), and
+toggles the `dark` class on `document.documentElement`. It also carries an unused
+`accentColor` (default `amber`, key `ammologger_accent`) that no CSS reads. **But nothing
+in the UI consumes the context** — a repo-wide search found zero `useTheme`/`setTheme`
+callers and no "Appearance"/"Follow system" control — so the engine is wired but dormant
+and the app always runs in default `system`. Separately, there is **no semantic-token
+layer**: `index.css` is just the three `@tailwind` directives and `tailwind.config.js`
+(`darkMode: 'class'`) only defines `navy`/`gold`/`gold-light`; components hardcode dark
+utilities (`text-white`, `bg-navy*`, `border-white/*`). So #51 is really two problems:
+(a) no picker UI, and (b) no token layer, so light mode is illegible.
+
+- **Chosen sequencing:** ship the **picker UI first**
+  (`prompts/2026-05-30-theme-mode-picker.md`) — a Light/Dark/Follow-system control wired
+  to the existing `setTheme`, surfaced in the settings UI (the gear-icon
+  `UserProfileDrawer` is the de-facto settings surface; `ProfilePage` at
+  `/settings/profile` exists but may not be nav-linked). Only then write the
+  component-restyle prompts. Rationale: you cannot iterate on light-mode fixes without a
+  way to switch into light mode on demand; the picker is test tooling that unblocks
+  everything else.
+- **Add UI only — do not touch the engine:** the provider, `system` mode, default, live
+  listener, storage key, and `.dark` toggle all already work. The prompt adds a picker
+  (and an optional no-FOUC boot script, since the theme currently applies in a
+  post-mount `useEffect`); it must not change `Theme`, the default, or the storage key.
+- **Per-browser, not per-account:** appearance stays the existing localStorage preference
+  (`ammologger_theme`); no backend, no user-row column, no migration.
+- **Strict scope split:** the picker prompt keeps dark mode pixel-identical and is
+  forbidden from re-theming components; light mode is allowed to look broken after it
+  lands. The actual restyle — establishing semantic tokens and migrating hardcoded dark
+  utilities, sidebar/nav first per the #51 report — is deferred to follow-up prompts
+  written after manual testing reveals the worst offenders. The dormant `accentColor` is
+  decided during that token work (wire it up + add an accent picker, or remove it).
+- **Rejected — fix styling and add the picker in one pass:** too large to review safely
+  and you'd be restyling blind. Splitting gives a small, verifiable first PR and a
+  tester-driven punch list for the rest.
+
+> Process note: earlier drafts of this entry and the prompt were written from corrupted
+> tool reads that fabricated file contents (variously claimed no provider existed, a
+> token layer that isn't there, and that `system` mode / the live listener were missing).
+> Corrected against clean, self-consistent re-reads of the actual source before
+> committing.
+
 ## 2026-05-30 — Dev frontend container runs as the `node` user (uid 1000)
 
 `Dockerfile.frontend` created a custom `appuser` via `adduser`, which landed on **uid
