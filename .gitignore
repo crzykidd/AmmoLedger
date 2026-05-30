@@ -81,3 +81,6 @@ CLAUDE.local.md
 .vexp/healthy
 .vexp/index.db-shm
 .vexp/index.db-wal
+AmmoLedger.code-workspace
+.github/copilot-instructions.md
+.github/copilot-instructions.md
