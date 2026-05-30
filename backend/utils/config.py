@@ -31,6 +31,7 @@ _ENV_MAP: tuple[tuple[str, list[str], type], ...] = (
     ("AL_RESET_TOKEN",           ["security",     "reset_token"],       str),
     ("AL_APP_NAME",              ["app",          "name"],              str),
     ("AL_BASE_URL",              ["app",          "base_url"],          str),
+    ("AL_TIMEZONE",              ["app",          "timezone"],          str),
     ("AL_BACKUP_ENABLED",        ["backup",       "enabled"],           bool),
     ("AL_BACKUP_SCHEDULE",       ["backup",       "schedule"],          str),
     ("AL_BACKUP_RETENTION_DAYS", ["backup",       "retention_days"],    int),
@@ -153,6 +154,30 @@ def _is_valid_url(val) -> bool:
         return False
 
 
+def _is_valid_timezone(val) -> bool:
+    """True if val is a resolvable IANA timezone name (e.g. 'America/Chicago')."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError  # noqa: PLC0415
+
+    try:
+        ZoneInfo(str(val))
+        return True
+    except (ZoneInfoNotFoundError, ValueError):
+        return False
+
+
+def get_app_timezone(config: dict) -> str:
+    """Return the configured IANA timezone name for scheduling and display.
+
+    Resolution order: app.timezone (config / AL_TIMEZONE) → the container's
+    TZ env var → "UTC". An invalid value falls back to UTC so a typo can never
+    stop the scheduler from starting (validate_config surfaces the typo as a
+    config error separately).
+    """
+    candidate = ((config.get("app") or {}).get("timezone")) or os.environ.get("TZ") or "UTC"
+    candidate = str(candidate).strip() or "UTC"
+    return candidate if _is_valid_timezone(candidate) else "UTC"
+
+
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
@@ -259,6 +284,13 @@ def validate_config(config: dict) -> dict:
         errors.append(
             "[app.base_url] must be a valid URL with http or https scheme "
             "(e.g. 'http://localhost:5173' or 'https://ammo.example.com')"
+        )
+
+    tz = _get("app", "timezone")
+    if tz is not None and str(tz).strip() and not _is_valid_timezone(tz):
+        errors.append(
+            "[app.timezone] must be a valid IANA timezone name "
+            "(e.g. 'UTC', 'America/Chicago', 'Europe/London')"
         )
 
     invite_expiry = _get("security", "invite_expiry_hours")

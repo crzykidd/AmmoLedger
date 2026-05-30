@@ -13,6 +13,7 @@
 #   AL_RESET_TOKEN        — security.reset_token
 #   AL_APP_NAME           — app.name
 #   AL_BASE_URL           — app.base_url
+#   AL_TIMEZONE           — app.timezone
 #   AL_BACKUP_ENABLED     — backup.enabled
 #   AL_BACKUP_SCHEDULE    — backup.schedule
 #   AL_BACKUP_RETENTION_DAYS — backup.retention_days
@@ -36,6 +37,12 @@ app:
   # Change to your external URL if accessing from other devices.
   # Override with AL_BASE_URL env var.
   base_url: "http://localhost:5173"
+
+  # IANA timezone used to interpret daily scheduled-task and backup times
+  # (e.g. a "03:00" schedule means 3am in THIS zone) and to label times in the
+  # admin UI. Defaults to the container's TZ env var, then UTC. Examples:
+  # "UTC", "America/Chicago", "Europe/London". Override with AL_TIMEZONE env var.
+  timezone: "UTC"
 
   # Check GitHub releases for available updates on startup and every 24 hours.
   check_for_updates: true

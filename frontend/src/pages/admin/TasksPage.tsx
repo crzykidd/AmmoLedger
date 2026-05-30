@@ -36,27 +36,26 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { getTasks, getTaskHistory, getTaskConstraints, runTask, updateTask } from '@/api/tasks'
+import { getSystemVersion } from '@/api/system'
 import type { TaskConstraints, TaskHistory, TaskRegistry } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatInterval(task: TaskRegistry): string {
+function formatInterval(task: TaskRegistry, timezone: string): string {
   if (task.interval_type === 'hours') {
     const h = parseInt(task.interval_value, 10)
     return `Every ${h} hour${h !== 1 ? 's' : ''}`
   }
   if (task.interval_type === 'daily') {
+    // interval_value is the wall-clock time in the server's configured
+    // timezone — show it as-is (no client-local shift) so the displayed time
+    // matches what the edit form accepts.
     const [hh, mm] = task.interval_value.split(':').map(Number)
-    // Convert UTC schedule time to local timezone for display
-    const utcDate = new Date()
-    utcDate.setUTCHours(hh, mm, 0, 0)
-    const localH = utcDate.getHours()
-    const localM = utcDate.getMinutes()
-    const ampm = localH < 12 ? 'AM' : 'PM'
-    const h12 = localH % 12 === 0 ? 12 : localH % 12
-    return `Daily at ${h12}:${String(localM).padStart(2, '0')} ${ampm}`
+    const ampm = hh < 12 ? 'AM' : 'PM'
+    const h12 = hh % 12 === 0 ? 12 : hh % 12
+    return `Daily at ${h12}:${String(mm).padStart(2, '0')} ${ampm} (${timezone})`
   }
   return task.interval_value
 }
@@ -163,10 +162,12 @@ function HistoryStatusIcon({ status }: { status: string }) {
 function IntervalEditor({
   task,
   constraints,
+  timezone,
   onClose,
 }: {
   task: TaskRegistry
   constraints: TaskConstraints | undefined
+  timezone: string
   onClose: () => void
 }) {
   const qc = useQueryClient()
@@ -251,7 +252,7 @@ function IntervalEditor({
             onChange={(e) => setEditTime(e.target.value)}
             className="text-xs bg-white/5 border border-white/15 rounded px-2 py-1 text-white focus:outline-none focus:border-gold/50"
           />
-          <span className="text-white/40 text-xs">UTC</span>
+          <span className="text-white/40 text-xs">{timezone}</span>
         </div>
       )}
 
@@ -285,12 +286,14 @@ function IntervalEditor({
 function TaskRow({
   task,
   constraints,
+  timezone,
   onRun,
   onToggle,
   isRunning,
 }: {
   task: TaskRegistry
   constraints: TaskConstraints | undefined
+  timezone: string
   onRun: (key: string) => void
   onToggle: (key: string, enabled: boolean) => void
   isRunning: boolean
@@ -316,12 +319,13 @@ function TaskRow({
           <IntervalEditor
             task={task}
             constraints={constraints}
+            timezone={timezone}
             onClose={() => setEditingInterval(false)}
           />
         ) : (
           <div className="flex items-center gap-1.5 group">
             <span className="text-white/60 text-sm whitespace-nowrap">
-              {formatInterval(task)}
+              {formatInterval(task, timezone)}
             </span>
             <button
               type="button"
@@ -498,6 +502,13 @@ export default function TasksPage() {
     staleTime: Infinity,
   })
 
+  const { data: systemVersion } = useQuery({
+    queryKey: ['system-version'],
+    queryFn: getSystemVersion,
+    staleTime: Infinity,
+  })
+  const timezone = systemVersion?.timezone ?? 'UTC'
+
   const runMutation = useMutation({
     mutationFn: (key: string) => runTask(key),
     onMutate: (key) => setRunningKeys((s) => new Set(s).add(key)),
@@ -596,6 +607,7 @@ export default function TasksPage() {
                         key={task.task_key}
                         task={task}
                         constraints={constraintsMap[task.task_key]}
+                        timezone={timezone}
                         onRun={handleRun}
                         onToggle={handleToggle}
                         isRunning={runningKeys.has(task.task_key)}

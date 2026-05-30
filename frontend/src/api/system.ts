@@ -21,6 +21,7 @@ export interface SystemVersionResponse {
   dev_latest_sha: string | null
   dev_latest_message: string | null
   image_search_enabled: boolean
+  timezone: string
 }
 
 export interface ChangelogSection {

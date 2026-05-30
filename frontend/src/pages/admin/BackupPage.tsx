@@ -49,6 +49,7 @@ import {
   discardRestoreSnapshots,
 } from '@/api/backup'
 import type { BackupFile, ImportPreview, ImportResult, ImageSnapshots } from '@/api/backup'
+import { getSystemVersion } from '@/api/system'
 
 // Source for a restore/import action — either an uploaded File from the
 // browser or a filename of a backup that already exists on the server.
@@ -186,6 +187,13 @@ export default function BackupPage() {
     queryKey: ['system-config'],
     queryFn: getSystemConfig,
   })
+
+  const { data: systemVersion } = useQuery({
+    queryKey: ['system-version'],
+    queryFn: getSystemVersion,
+    staleTime: Infinity,
+  })
+  const timezone = systemVersion?.timezone ?? 'UTC'
 
   const { data: snapshotsData } = useQuery({
     queryKey: ['restore-snapshots'],
@@ -486,7 +494,7 @@ export default function BackupPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Schedule time (24-hour)
+                    Schedule time (24-hour, {timezone})
                   </label>
                   <input
                     type="time"
