@@ -1,3 +1,6 @@
+import { Menu } from 'lucide-react'
+import { useMobileNav } from './MobileNavContext'
+
 interface TopBarProps {
   title: string
   subtitle?: string
@@ -5,11 +8,22 @@ interface TopBarProps {
 }
 
 export default function TopBar({ title, subtitle, actions }: TopBarProps) {
+  const { toggleNav } = useMobileNav()
   return (
     <header className="h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 shrink-0">
-      <div>
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={toggleNav}
+          aria-label="Open navigation"
+          className="md:hidden flex items-center justify-center w-11 h-11 -ml-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h1>
+          {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
+        </div>
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </header>

@@ -20,6 +20,8 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Fixed
 
+- **Mobile navigation is now a hamburger drawer.** On phones and narrow viewports (below 768 px) the sidebar collapses off-screen; a hamburger button in the top bar slides it in as an overlay. Tapping any nav link or the backdrop closes the drawer. Desktop layout (≥ 768 px) is unchanged, including the collapse-to-icon mode. Fixes #52
+
 - **Light mode is now fully legible.** The sidebar, forms, and every page honor your chosen appearance. Added a semantic CSS design-token layer (HSL custom properties for `:root` light and `.dark` dark) wired into Tailwind, then migrated all hard-coded dark-only utilities (`text-white`, `bg-navy`, `border-white/*`) to token-based classes. Dark mode is pixel-identical to before. Closes #51
 
 ### Added

@@ -1,4 +1,5 @@
 import Sidebar from './Sidebar'
+import { MobileNavProvider } from './MobileNavContext'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -6,11 +7,13 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-950 overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {children}
-      </main>
-    </div>
+    <MobileNavProvider>
+      <div className="flex h-screen bg-gray-100 dark:bg-gray-950 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {children}
+        </main>
+      </div>
+    </MobileNavProvider>
   )
 }

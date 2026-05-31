@@ -7,6 +7,35 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-05-30 — Mobile hamburger nav drawer (#52)
+
+### Context over props for cross-subtree state
+
+`TopBar` (rendered per-page inside `<main>`) and `Sidebar` (rendered by `AppShell`) are
+in separate React subtrees. Wiring open/close state via props would require touching all
+18 page call sites. Instead a `MobileNavProvider` is added to `AppShell` — both
+`TopBar` and `Sidebar` consume `useMobileNav()`. No page call sites change.
+
+### `effectiveCollapsed` vs raw `collapsed`
+
+The user's desktop collapse preference is stored in localStorage. On mobile the drawer
+must always render full-width with labels regardless. Rather than ignoring the stored value,
+`effectiveCollapsed = isDesktop && collapsed` is computed: the preference is preserved for
+desktop but silently ignored on mobile. When the user resizes back to desktop, their
+preference is still intact.
+
+### `md` breakpoint = 768 px (Tailwind default, no custom override)
+
+The same breakpoint already used throughout the app. No custom `screens` config.
+
+### Collapse toggle hidden on mobile (`hidden md:flex`)
+
+The toggle button collapses the desktop sidebar to an icon strip. That concept doesn't
+apply to a slide-in drawer (it would collapse to nothing). Hidden on mobile; desktop
+behavior unchanged.
+
+---
+
 ## 2026-05-30 — Light mode: semantic token layer + component sweep (#51)
 
 ### Token layer approach
