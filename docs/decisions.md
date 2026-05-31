@@ -7,6 +7,13 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-05-30 — Theme mode picker: implementation choices
+
+- **Picker placed in `UserProfileDrawer`** (gear-icon surface in sidebar footer). `ProfilePage` at `/settings/profile` exists but has no persistent nav link — it is only reachable via the must-change-password redirect — so the drawer is the only surface users reliably reach. Confirms the planning recommendation in the preceding entry.
+- **No-FOUC boot script added** to `frontend/index.html` `<head>`. The theme context applies `dark` in a post-mount `useEffect`; without the script a `system`-mode user on a dark OS sees a brief white flash. The inline script reads `ammologger_theme` from `localStorage`, checks `matchMedia` for `system`, and sets `classList` before first paint — consistent with `resolveTheme()` in `ThemeContext.tsx`.
+
+---
+
 ## 2026-05-30 — Light-mode strategy: picker first, then component sweeps (#51)
 
 Planning decision for fixing the broken light mode (#51). Verified current state

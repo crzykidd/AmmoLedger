@@ -20,6 +20,8 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Added
 
+- **Choose your appearance.** A Light / Dark / Follow system mode picker in the Profile drawer lets you switch themes on demand; the choice persists per browser. Full light-mode visual polish is tracked separately (#51) — this ships the switch, not the finished light theme.
+
 - **Configurable application timezone for scheduled jobs.** A new `app.timezone` setting (env `AL_TIMEZONE`, defaults to the container's `TZ` then `UTC`) controls how daily task and backup schedules are interpreted and how times are labelled in the admin UI. Previously a "Daily at 03:00" task ran at 03:00 **UTC** regardless of where you live, the Scheduled Tasks list showed the time converted to your browser's local zone, but the edit field still expected the value in UTC — so the displayed time and the time you had to type in didn't match. Now the schedule is interpreted in the configured timezone end-to-end: the Tasks list, the inline interval editor, and the Backup schedule field all show and accept the time in that one zone (labelled, e.g. "Daily at 3:00 AM (America/Chicago)"). Set `app.timezone` (or `AL_TIMEZONE` / the standard Docker `TZ` env var) to your local zone and "3am" finally means 3am where you are. Fixes #43
 
 ### Security

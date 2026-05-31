@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
+import { ThemeModePicker } from '@/components/ThemeModePicker'
 import { useAuth } from '@/contexts/AuthContext'
 import { changeMyPassword } from '@/api/users'
 import { toast } from '@/hooks/use-toast'
@@ -168,6 +169,14 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
             <p className="text-xs text-white/40 mb-0.5">Last login</p>
             <p className="text-sm text-white/80">{formatDate(user?.last_login_at)}</p>
           </div>
+        </div>
+
+        {/* Appearance */}
+        <div className="px-5 py-4 border-b border-white/10">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-white/30 mb-4">
+            Appearance
+          </h3>
+          <ThemeModePicker />
         </div>
 
         {/* Change password */}

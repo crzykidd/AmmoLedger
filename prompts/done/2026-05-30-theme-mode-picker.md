@@ -1,10 +1,10 @@
 ---
 name: 2026-05-30-theme-mode-picker
-status: pending
+status: completed
 created: 2026-05-30
 model: sonnet
-completed:
-result:
+completed: 2026-05-30
+result: Picker placed in UserProfileDrawer (Appearance section); no-FOUC boot script added to index.html; dark mode pixel-identical, typecheck clean.
 ---
 
 # Task: Add a theme mode picker UI (Light / Dark / Follow system)
