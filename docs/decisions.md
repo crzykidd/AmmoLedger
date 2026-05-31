@@ -7,6 +7,56 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-05-31 — Split `backend/schemas.py` into a per-domain `schemas/` package
+
+### Why
+
+`backend/schemas.py` had grown to 1,417 LOC / 102 Pydantic classes in one file, so every
+backend task that touched any schema pulled the whole module into context. Split into
+`backend/schemas/` (a `_base` module + 8 per-domain modules + a re-exporting `__init__`)
+to cut the per-task token footprint (context-engine ROI audit). Pure restructuring — no
+field, validator, config, or behavioral change. Classes were copied verbatim; only file
+location changed.
+
+### Drop-in contract — `from schemas import X` must keep working
+
+`__init__.py` star-imports all 8 domain modules, each of which declares an explicit
+`__all__` of its public class names. The package `__all__` is the union. Every existing
+`from schemas import <Class>` resolves unchanged.
+
+### Re-exported the incidental stdlib/typing/pydantic leaks (deliberate)
+
+The old flat module leaked 11 non-class names into its namespace (`json`, `re`, `date`,
+`datetime`, `List`, `Optional`, `BaseModel`, `ConfigDict`, `field_validator`,
+`model_serializer`, plus `annotations` from the future-import). Nothing in the codebase
+imports them *from* `schemas`, but to keep `dir(schemas)` a strict superset of the old
+public surface we re-export them from `__init__` (listed in `__all__`, marked `# noqa`).
+Exact bit-for-bit `dir()` parity is impossible — importing the 8 submodules binds their
+names as package attributes — so the accepted contract is "every old public name still
+present" (verified: 0 missing; the only additions are the 8 submodule names).
+
+### `_validate_mfr_types` is re-exported but kept out of `__all__`
+
+`routers/lookups.py` does `from schemas import _validate_mfr_types` (a private helper).
+Star-import won't carry a `_`-prefixed name, so `__init__` imports it explicitly
+(`from .lookups import _validate_mfr_types  # noqa`) to preserve that one consumer,
+without adding it to the public `__all__`.
+
+### `_Date` alias stays in `_base`
+
+The `_Date = date` alias (and its comment) moves to `_base` and is imported by
+`schemas/range.py` for `RangeSessionUpdate.date` — it works around PEP-563 annotation
+shadowing when a field is literally named `date`. Other date-typed fields use plain
+`date`; only a field *named* `date` with a default needs the alias.
+
+### Verification
+
+Public-API parity (all old names present), `import main` smoke, `ruff 0.4.4` clean, and
+the backend pytest suite (221 passed; the lone failure is the pre-existing
+`test_zip_restore_rejects_path_traversal` stale-assertion, unrelated to this change).
+
+---
+
 ## 2026-05-30 — Mobile hamburger nav drawer (#52)
 
 ### Context over props for cross-subtree state
