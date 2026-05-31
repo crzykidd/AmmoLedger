@@ -7,6 +7,52 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-05-30 — Light mode: semantic token layer + component sweep (#51)
+
+### Token layer approach
+
+Used the shadcn-style HSL triplet convention — CSS custom properties as bare HSL values
+(e.g. `--background: 207 43% 9%`) so Tailwind's `/ <alpha-value>` opacity modifier composes
+with them. Properties defined on `:root` (light) and `.dark`, wired into `tailwind.config.js`
+`theme.extend.colors`. New utilities: `bg-background`, `text-foreground`, `bg-card`,
+`text-muted-foreground`, `border-border`, `bg-muted`, `text-primary`, etc.
+
+### Dark mode pinning
+
+The `.dark` token values were pinned to the exact current palette for pixel-parity:
+`--background: 207 43% 9%` (navy `#0D1821`), `--foreground: 0 0% 100%` (white),
+`--card: 207 28% 14%` (white/5 on navy), `--border: 207 20% 18%` (white/10 on navy),
+`--muted-foreground: 0 0% 60%` (white/60), `--primary: 45 60% 45%` (gold `#B8962E`).
+
+### Intentionally-white exceptions (do not convert)
+
+These `text-white` usages must stay white because they sit on permanently-dark surfaces:
+- `PhotoLightbox.tsx` — white controls on `bg-black/40` dark overlay behind photos
+- `UserProfileDrawer.tsx` avatar initials — white text inside `bg-gold` circle
+- `Sidebar.tsx` pending-datasets badge — `bg-amber-500 text-white`
+- Any `bg-red-*`, `bg-amber-*`, `bg-green-*`, or other solid colored button — white on color
+- `toaster.tsx` destructive toast — `bg-red-600 text-white`
+- `FirearmPhotoManager.tsx` drag handle — positioned absolutely over photo, `drop-shadow`
+
+### Sidebar / drawer / auth page approach
+
+- Sidebar: `bg-white dark:bg-navy` with token-based text/border. Light = white sidebar with
+  dark text; dark = navy sidebar pixel-identical to before. Conditional logos:
+  `logo-full-light.png` in light mode, `logo-full-dark.png` in dark mode.
+- UserProfileDrawer: `bg-card` (dark = slightly lighter navy; light = white) with token text.
+  Removed inline Input overrides that were dark-only; Input component defaults handle both modes.
+- Auth pages (Login/Setup/Reset/Register): `bg-background` replaces `bg-navy`; the token
+  resolves to navy in dark mode (identical visual) and near-white in light mode.
+  Conditional logo rendering throughout.
+
+### Remaining work (not in this PR)
+
+- `accentColor` (`amber` / `ranger-green` / `steel-blue` / `carbon-gray`) is persisted in
+  localStorage but nothing reads it. A later PR can wire it into `--primary`/`--accent` tokens
+  and add an accent picker UI.
+
+---
+
 ## 2026-05-30 — Theme mode picker: implementation choices
 
 - **Picker placed in `UserProfileDrawer`** (gear-icon surface in sidebar footer). `ProfilePage` at `/settings/profile` exists but has no persistent nav link — it is only reachable via the must-change-password redirect — so the drawer is the only surface users reliably reach. Confirms the planning recommendation in the preceding entry.

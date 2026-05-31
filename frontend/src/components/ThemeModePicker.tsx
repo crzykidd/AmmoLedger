@@ -16,7 +16,7 @@ export function ThemeModePicker() {
 
   return (
     <Select value={theme} onValueChange={(v) => setTheme(v as Theme)}>
-      <SelectTrigger className="bg-white/5 border-white/10 text-white h-9 focus:ring-offset-0">
+      <SelectTrigger className="h-9 focus:ring-offset-0">
         <span className="flex items-center gap-2">
           <CurrentIcon className="h-3.5 w-3.5 shrink-0" />
           <span>{current.label}</span>

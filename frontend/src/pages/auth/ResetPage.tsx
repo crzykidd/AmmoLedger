@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
 import logoFull from '@/assets/brand/logo-full-dark.png'
+import logoFullLight from '@/assets/brand/logo-full-light.png'
 
 const schema = z.object({
   email: z.string().optional(),
@@ -85,14 +86,15 @@ export default function ResetPage() {
   }
 
   return (
-    <div className="min-h-screen bg-navy flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
-          <img src={logoFull} alt="AmmoLedger" className="h-10 w-auto" />
+          <img src={logoFullLight} alt="AmmoLedger" className="h-10 w-auto block dark:hidden" />
+          <img src={logoFull} alt="AmmoLedger" className="h-10 w-auto hidden dark:block" />
         </div>
 
         {tokenLoading ? (
-          <div className="text-center text-white/60 py-12">Validating reset link…</div>
+          <div className="text-center text-muted-foreground py-12">Validating reset link…</div>
         ) : tokenError ? (
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-2xl text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
@@ -129,7 +131,7 @@ export default function ResetPage() {
             <form onSubmit={(e) => { void handleSubmit(onSubmit)(e) }} className="space-y-4">
               {tokenInfo?.source === 'config' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Email
                   </label>
                   <Input
@@ -142,7 +144,7 @@ export default function ResetPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   New Password
                 </label>
                 <Input {...register('new_password')} type="password" placeholder="••••••••••••" />
@@ -150,7 +152,7 @@ export default function ResetPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Confirm Password
                 </label>
                 <Input {...register('confirm_password')} type="password" placeholder="••••••••••••" />
