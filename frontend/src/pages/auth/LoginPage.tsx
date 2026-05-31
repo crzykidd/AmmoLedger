@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import type { ApiError } from '@/types'
 import logoFull from '@/assets/brand/logo-full-dark.png'
+import logoFullLight from '@/assets/brand/logo-full-light.png'
 
 export default function LoginPage() {
   const { user, isFirstRun, loading, login } = useAuth()
@@ -29,23 +30,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-navy flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
-          <img src={logoFull} alt="AmmoLedger" className="h-16 w-auto" />
+          <img src={logoFullLight} alt="AmmoLedger" className="h-16 w-auto block dark:hidden" />
+          <img src={logoFull} alt="AmmoLedger" className="h-16 w-auto hidden dark:block" />
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
-          <h2 className="text-white text-xl font-semibold mb-6">Sign in</h2>
+        <div className="bg-card border border-border rounded-2xl p-8">
+          <h2 className="text-foreground text-xl font-semibold mb-6">Sign in</h2>
 
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <div>
-              <label className="block text-sm text-white/70 mb-1.5">Email</label>
+              <label className="block text-sm text-muted-foreground mb-1.5">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold"
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                 placeholder="you@example.com"
                 autoComplete="email"
                 required
@@ -53,12 +55,12 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-white/70 mb-1.5">Password</label>
+              <label className="block text-sm text-muted-foreground mb-1.5">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold"
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
@@ -79,7 +81,7 @@ export default function LoginPage() {
           </form>
 
           {isFirstRun && (
-            <p className="mt-5 text-center text-white/50 text-sm">
+            <p className="mt-5 text-center text-muted-foreground text-sm">
               No account yet —{' '}
               <Link to="/setup" className="text-gold hover:text-gold-light underline-offset-2 hover:underline">
                 set up AmmoLedger

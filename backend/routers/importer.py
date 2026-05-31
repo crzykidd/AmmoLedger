@@ -27,7 +27,7 @@ from models import (
 from utils.config import get_setting, set_setting
 from utils.logging import get_logger
 from utils.pre_import_backup import trigger_pre_import_backup
-from utils.rbac import require_auth
+from utils.rbac import require_auth, require_role
 
 logger = get_logger(__name__)
 
@@ -465,7 +465,7 @@ def _analyze_legacy_ids(rows: list[dict[str, str]], db: Session) -> dict:
 @router.post("/validate")
 async def validate_import(
     file: UploadFile = File(...),
-    user=Depends(require_auth),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     try:
@@ -544,7 +544,7 @@ async def confirm_import(
     use_legacy_ids: bool = Form(False),
     is_shared: bool = Form(True),
     value_remaps: str = Form("{}"),
-    user=Depends(require_auth),
+    user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
     try:

@@ -192,6 +192,7 @@ This is the complete list of environment variables AmmoLedger recognizes. Any se
 | `AL_RESET_TOKEN` | `security.reset_token` | str | `""` | Emergency admin password reset token; clear after use. |
 | `AL_APP_NAME` | `app.name` | str | `AmmoLedger` | Application display name. |
 | `AL_BASE_URL` | `app.base_url` | str (URL) | `http://localhost:5173` | Public URL used in invite links and QR codes. |
+| `AL_TIMEZONE` | `app.timezone` | str (IANA) | `TZ` env, then `UTC` | Timezone used to interpret daily task/backup schedule times and to label times in the admin UI (e.g. `America/Chicago`). A `"03:00"` schedule means 3am in this zone. Invalid names fall back to UTC. |
 | `AL_BACKUP_ENABLED` | `backup.enabled` | bool | `true` | Enable nightly scheduled backups. |
 | `AL_BACKUP_SCHEDULE` | `backup.schedule` | str (HH:MM) | `03:00` | Nightly backup time (24-hour). |
 | `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | int (1–365) | `30` | Days to keep old backup files. |

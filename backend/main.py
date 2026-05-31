@@ -30,6 +30,7 @@ from routers.thresholds import router as thresholds_router
 from utils.config import (
     CONFIG_PATH,
     ensure_data_dirs,
+    get_app_timezone,
     get_setting,
     load_and_validate_config,
     set_setting,
@@ -397,6 +398,7 @@ def _build_version_response(db: Session) -> dict:
         "dev_latest_sha": dev_latest_sha,
         "dev_latest_message": dev_latest_message,
         "image_search_enabled": image_search_is_enabled(),
+        "timezone": get_app_timezone(_config),
     }
 
 

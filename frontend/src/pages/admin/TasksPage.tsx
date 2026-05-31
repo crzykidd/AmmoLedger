@@ -36,27 +36,23 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { getTasks, getTaskHistory, getTaskConstraints, runTask, updateTask } from '@/api/tasks'
+import { getSystemVersion } from '@/api/system'
 import type { TaskConstraints, TaskHistory, TaskRegistry } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatInterval(task: TaskRegistry): string {
+function formatInterval(task: TaskRegistry, timezone: string): string {
   if (task.interval_type === 'hours') {
     const h = parseInt(task.interval_value, 10)
     return `Every ${h} hour${h !== 1 ? 's' : ''}`
   }
   if (task.interval_type === 'daily') {
     const [hh, mm] = task.interval_value.split(':').map(Number)
-    // Convert UTC schedule time to local timezone for display
-    const utcDate = new Date()
-    utcDate.setUTCHours(hh, mm, 0, 0)
-    const localH = utcDate.getHours()
-    const localM = utcDate.getMinutes()
-    const ampm = localH < 12 ? 'AM' : 'PM'
-    const h12 = localH % 12 === 0 ? 12 : localH % 12
-    return `Daily at ${h12}:${String(localM).padStart(2, '0')} ${ampm}`
+    const ampm = hh < 12 ? 'AM' : 'PM'
+    const h12 = hh % 12 === 0 ? 12 : hh % 12
+    return `Daily at ${h12}:${String(mm).padStart(2, '0')} ${ampm} (${timezone})`
   }
   return task.interval_value
 }
@@ -111,7 +107,7 @@ function formatDateTime(isoStr: string | null): string {
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) {
     return (
-      <span className="flex items-center gap-1 text-white/30 text-xs">
+      <span className="flex items-center gap-1 text-muted-foreground/50 text-xs">
         <Circle className="w-3.5 h-3.5" />
         Never run
       </span>
@@ -163,10 +159,12 @@ function HistoryStatusIcon({ status }: { status: string }) {
 function IntervalEditor({
   task,
   constraints,
+  timezone,
   onClose,
 }: {
   task: TaskRegistry
   constraints: TaskConstraints | undefined
+  timezone: string
   onClose: () => void
 }) {
   const qc = useQueryClient()
@@ -221,7 +219,7 @@ function IntervalEditor({
                 'text-xs px-2 py-0.5 rounded border transition-colors',
                 editMode === mode
                   ? 'border-gold/60 text-gold bg-gold/10'
-                  : 'border-white/15 text-white/50 hover:border-white/30',
+                  : 'border-border text-muted-foreground hover:border-border/60',
               )}
               onClick={() => setEditMode(mode)}
             >
@@ -239,9 +237,9 @@ function IntervalEditor({
             max={maxHours}
             value={editHours}
             onChange={(e) => setEditHours(e.target.value)}
-            className="w-16 text-xs bg-white/5 border border-white/15 rounded px-2 py-1 text-white focus:outline-none focus:border-gold/50"
+            className="w-16 text-xs bg-background border border-border rounded px-2 py-1 text-foreground focus:outline-none focus:border-primary"
           />
-          <span className="text-white/40 text-xs">hrs ({minHours}–{maxHours})</span>
+          <span className="text-muted-foreground text-xs">hrs ({minHours}–{maxHours})</span>
         </div>
       ) : (
         <div className="flex items-center gap-1.5">
@@ -249,9 +247,9 @@ function IntervalEditor({
             type="time"
             value={editTime}
             onChange={(e) => setEditTime(e.target.value)}
-            className="text-xs bg-white/5 border border-white/15 rounded px-2 py-1 text-white focus:outline-none focus:border-gold/50"
+            className="text-xs bg-background border border-border rounded px-2 py-1 text-foreground focus:outline-none focus:border-primary"
           />
-          <span className="text-white/40 text-xs">UTC</span>
+          <span className="text-muted-foreground text-xs">{timezone}</span>
         </div>
       )}
 
@@ -259,7 +257,7 @@ function IntervalEditor({
         <Button
           size="sm"
           variant="outline"
-          className="h-6 text-xs border-white/15 hover:border-gold/50 hover:text-gold px-2"
+          className="h-6 text-xs px-2"
           onClick={() => intervalMutation.mutate()}
           disabled={intervalMutation.isPending}
         >
@@ -268,7 +266,7 @@ function IntervalEditor({
         <Button
           size="sm"
           variant="ghost"
-          className="h-6 text-xs text-white/40 hover:text-white/70 px-2"
+          className="h-6 text-xs px-2"
           onClick={onClose}
         >
           Cancel
@@ -285,12 +283,14 @@ function IntervalEditor({
 function TaskRow({
   task,
   constraints,
+  timezone,
   onRun,
   onToggle,
   isRunning,
 }: {
   task: TaskRegistry
   constraints: TaskConstraints | undefined
+  timezone: string
   onRun: (key: string) => void
   onToggle: (key: string, enabled: boolean) => void
   isRunning: boolean
@@ -298,11 +298,11 @@ function TaskRow({
   const [editingInterval, setEditingInterval] = useState(false)
 
   return (
-    <tr className="border-b border-white/5 hover:bg-white/3 transition-colors">
+    <tr className="border-b border-border/50 hover:bg-muted/30 transition-colors">
       <td className="py-3 px-4">
-        <p className="text-white text-sm font-medium">{task.name}</p>
+        <p className="text-foreground text-sm font-medium">{task.name}</p>
         {task.description && (
-          <p className="text-white/40 text-xs mt-0.5">{task.description}</p>
+          <p className="text-muted-foreground text-xs mt-0.5">{task.description}</p>
         )}
         {task.task_key === 'db_vacuum' && (
           <p className="text-amber-400 text-xs mt-1 flex items-start gap-1">
@@ -316,16 +316,17 @@ function TaskRow({
           <IntervalEditor
             task={task}
             constraints={constraints}
+            timezone={timezone}
             onClose={() => setEditingInterval(false)}
           />
         ) : (
           <div className="flex items-center gap-1.5 group">
-            <span className="text-white/60 text-sm whitespace-nowrap">
-              {formatInterval(task)}
+            <span className="text-muted-foreground text-sm whitespace-nowrap">
+              {formatInterval(task, timezone)}
             </span>
             <button
               type="button"
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-white/30 hover:text-white/60"
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/50 hover:text-muted-foreground"
               onClick={() => setEditingInterval(true)}
               title="Edit interval"
             >
@@ -334,16 +335,16 @@ function TaskRow({
           </div>
         )}
       </td>
-      <td className="py-3 px-4 text-white/60 text-sm whitespace-nowrap">
+      <td className="py-3 px-4 text-muted-foreground text-sm whitespace-nowrap">
         {task.last_run_at ? formatRelative(task.last_run_at) : 'Never'}
       </td>
-      <td className="py-3 px-4 text-white/60 text-sm whitespace-nowrap font-mono">
+      <td className="py-3 px-4 text-muted-foreground text-sm whitespace-nowrap font-mono">
         {formatDuration(task.last_duration_ms)}
       </td>
       <td className="py-3 px-4">
         <StatusBadge status={task.last_status} />
       </td>
-      <td className="py-3 px-4 text-white/60 text-sm whitespace-nowrap">
+      <td className="py-3 px-4 text-muted-foreground text-sm whitespace-nowrap">
         {task.next_run_at ? formatRelative(task.next_run_at, true) : '—'}
       </td>
       <td className="py-3 px-4">
@@ -351,7 +352,7 @@ function TaskRow({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 gap-1.5 text-xs border-white/15 hover:border-gold/50 hover:text-gold"
+            className="h-7 gap-1.5 text-xs"
             onClick={() => onRun(task.task_key)}
             disabled={isRunning || task.last_status === 'running'}
           >
@@ -405,22 +406,22 @@ function HistoryRow({ entry }: { entry: TaskHistory }) {
     <>
       <tr
         className={cn(
-          'border-b border-white/5 transition-colors',
-          hasDetail && 'cursor-pointer hover:bg-white/3',
+          'border-b border-border/50 transition-colors',
+          hasDetail && 'cursor-pointer hover:bg-muted/30',
         )}
         onClick={() => hasDetail && setExpanded((p) => !p)}
       >
         <td className="py-2.5 px-4">
           <HistoryStatusIcon status={entry.status} />
         </td>
-        <td className="py-2.5 px-4 text-white/80 text-sm">{entry.task_name}</td>
-        <td className="py-2.5 px-4 text-white/50 text-xs whitespace-nowrap">
+        <td className="py-2.5 px-4 text-foreground/80 text-sm">{entry.task_name}</td>
+        <td className="py-2.5 px-4 text-muted-foreground text-xs whitespace-nowrap">
           {formatDateTime(entry.started_at)}
         </td>
-        <td className="py-2.5 px-4 text-white/50 text-xs whitespace-nowrap">
+        <td className="py-2.5 px-4 text-muted-foreground text-xs whitespace-nowrap">
           {entry.ended_at ? formatDateTime(entry.ended_at) : '—'}
         </td>
-        <td className="py-2.5 px-4 text-white/50 text-xs font-mono whitespace-nowrap">
+        <td className="py-2.5 px-4 text-muted-foreground text-xs font-mono whitespace-nowrap">
           {formatDuration(entry.duration_ms)}
         </td>
         <td className="py-2.5 px-4">
@@ -429,23 +430,23 @@ function HistoryRow({ entry }: { entry: TaskHistory }) {
               'inline-block text-xs px-2 py-0.5 rounded-full',
               entry.triggered_by === 'manual'
                 ? 'bg-gold/20 text-gold'
-                : 'bg-white/10 text-white/50',
+                : 'bg-muted text-muted-foreground',
             )}
           >
             {entry.triggered_by}
           </span>
         </td>
-        <td className="py-2.5 px-4 text-white/40 text-xs max-w-[200px] truncate">
+        <td className="py-2.5 px-4 text-muted-foreground text-xs max-w-[200px] truncate">
           {entry.details ? renderDetailSummary(entry.details) : '—'}
         </td>
-        <td className="py-2.5 px-4 text-white/30">
+        <td className="py-2.5 px-4 text-muted-foreground/50">
           {hasDetail && (
             expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />
           )}
         </td>
       </tr>
       {expanded && (entry.error_message || entry.details) && (
-        <tr className="border-b border-white/5 bg-white/2">
+        <tr className="border-b border-border/50 bg-muted/10">
           <td colSpan={8} className="px-4 pb-3 pt-1">
             {entry.error_message && (
               <pre className="text-red-400 text-xs bg-red-500/10 rounded p-2 whitespace-pre-wrap break-all">
@@ -453,7 +454,7 @@ function HistoryRow({ entry }: { entry: TaskHistory }) {
               </pre>
             )}
             {entry.details && !entry.error_message && (
-              <pre className="text-white/50 text-xs bg-white/5 rounded p-2 whitespace-pre-wrap break-all">
+              <pre className="text-muted-foreground text-xs bg-muted/50 rounded p-2 whitespace-pre-wrap break-all">
                 {(() => {
                   try {
                     return JSON.stringify(JSON.parse(entry.details), null, 2)
@@ -497,6 +498,13 @@ export default function TasksPage() {
     queryFn: getTaskConstraints,
     staleTime: Infinity,
   })
+
+  const { data: systemVersion } = useQuery({
+    queryKey: ['system-version'],
+    queryFn: getSystemVersion,
+    staleTime: Infinity,
+  })
+  const timezone = systemVersion?.timezone ?? 'UTC'
 
   const runMutation = useMutation({
     mutationFn: (key: string) => runTask(key),
@@ -562,25 +570,25 @@ export default function TasksPage() {
 
         {/* Task Registry */}
         <section>
-          <h2 className="text-white font-semibold text-base mb-3 flex items-center gap-2">
+          <h2 className="text-foreground font-semibold text-base mb-3 flex items-center gap-2">
             <Clock className="w-4 h-4 text-gold" />
             Task Registry
           </h2>
-          <div className="bg-navy-light border border-white/10 rounded-xl overflow-hidden">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
             {tasksLoading ? (
-              <div className="flex items-center justify-center py-12 text-white/40">
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />
                 Loading…
               </div>
             ) : tasks.length === 0 ? (
-              <div className="py-12 text-center text-white/30 text-sm">
+              <div className="py-12 text-center text-muted-foreground/50 text-sm">
                 No tasks registered
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider">
+                    <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
                       <th className="py-3 px-4 font-medium">Task</th>
                       <th className="py-3 px-4 font-medium">Interval</th>
                       <th className="py-3 px-4 font-medium">Last Run</th>
@@ -596,6 +604,7 @@ export default function TasksPage() {
                         key={task.task_key}
                         task={task}
                         constraints={constraintsMap[task.task_key]}
+                        timezone={timezone}
                         onRun={handleRun}
                         onToggle={handleToggle}
                         isRunning={runningKeys.has(task.task_key)}
@@ -611,9 +620,9 @@ export default function TasksPage() {
         {/* Recent History */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-white font-semibold text-base">Recent History</h2>
+            <h2 className="text-foreground font-semibold text-base">Recent History</h2>
             <Select value={historyFilter} onValueChange={setHistoryFilter}>
-              <SelectTrigger className="w-44 h-8 text-xs border-white/15 bg-transparent text-white/70">
+              <SelectTrigger className="w-44 h-8 text-xs">
                 <SelectValue placeholder="All Tasks" />
               </SelectTrigger>
               <SelectContent>
@@ -626,21 +635,21 @@ export default function TasksPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="bg-navy-light border border-white/10 rounded-xl overflow-hidden">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
             {historyLoading ? (
-              <div className="flex items-center justify-center py-12 text-white/40">
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />
                 Loading…
               </div>
             ) : history.length === 0 ? (
-              <div className="py-12 text-center text-white/30 text-sm">
+              <div className="py-12 text-center text-muted-foreground/50 text-sm">
                 No history yet
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider">
+                    <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
                       <th className="py-3 px-4 font-medium w-10" />
                       <th className="py-3 px-4 font-medium">Task</th>
                       <th className="py-3 px-4 font-medium">Started</th>
@@ -685,7 +694,7 @@ export default function TasksPage() {
                     after enabling.
                   </li>
                 </ul>
-                <p className="text-white/50">
+                <p className="text-muted-foreground">
                   If your server is tight on disk space, leave this disabled and run VACUUM manually
                   when you can monitor it.
                 </p>

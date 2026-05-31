@@ -95,6 +95,12 @@
 | 3.52 | 2026-05-22 | Server-side JSON import — twin endpoints `POST /backup/import/preview/server` and `POST /backup/import/commit/server` accept `{ "filename" }` and route through the same `_import_preview_impl` / `_import_commit_impl` as the upload flow (#47). The Backup History table on the Backup page now exposes a per-row Restore icon: `.db` / `.zip` rows reuse the existing destructive-restore confirm dialog and call `POST /backup/restore/server`; `.json` rows load the standard preview panel via the new server-preview endpoint, and the existing "Full Replace" button commits via the server-commit endpoint. No upload required for any in-place restore. `import_preview` and `import_commit` were refactored to delegate to shared impls so the upload and server entry points share one code path. §11.1 updated. |
 | 3.53 | 2026-05-22 | v0.3.8 release: in-place restore/import from on-disk backups via per-row icon in Backup History (#47, #46); restore now rotates `firearm_photos/` and `products/` to `.old` snapshots with a Discard banner; self-healing logging from request handlers (fixes silent log loss under uvicorn `--reload`); durable same-filesystem atomic DB swap on restore (fixes `database disk image is malformed` on Docker Desktop / Windows); restore no longer runs `ANALYZE` and startup auto-repairs databases corrupted by pre-fix restores (dangling `sqlite_stat1` rootpage); live "passwords match" indicator on every password+confirm form (#35); structured `actor / source / outcome` logging on all restore + import paths. CHANGELOG `[Unreleased]` stamped as `[0.3.8]`. |
 | 3.54 | 2026-05-24 | v0.3.9 release: invitation and admin-generated password-reset links now honor `AL_BASE_URL` / `app.base_url` (#49). The auth router was reading a non-existent `APP_BASE_URL` env var, so the URLs returned to admins were always hard-coded to `http://localhost:5173` regardless of `config.yaml` or `AL_BASE_URL`. Bug fix only — no schema, API, or UI changes. CHANGELOG `[Unreleased]` stamped as `[0.3.9]`. |
+| 3.55 | 2026-05-29 | Security fix — the ammo CSV import endpoints (`POST /import/validate`, `POST /import/confirm`) now require the admin or member role instead of only `require_auth`, so Read-Only users are rejected with 403 (#12). Brings enforcement in line with the §5.2 Permission Matrix, which already documented Read-Only = ✗ for CSV import; no matrix or schema change. |
+| 3.57 | 2026-05-30 | Theme mode picker — `ThemeModePicker` component (Light / Dark / Follow system) wired to existing `ThemeContext`, surfaced as an "Appearance" section in `UserProfileDrawer`; no-FOUC inline boot script added to `index.html`. accentColor and light-mode styling deferred to #51. |
+| 3.58 | 2026-05-30 | Light mode legibility sweep (#51) — added semantic CSS design-token layer (HSL custom properties in `index.css` for `:root` light and `.dark` dark; wired into `tailwind.config.js`). Migrated all hard-coded dark-only utilities (`text-white`, `bg-navy`, `border-white/*`) to token-based classes (`text-foreground`, `text-muted-foreground`, `bg-card`, `border-border`, `bg-muted`). Sidebar, UserProfileDrawer, and auth pages (Login/Setup/Reset/Register) are now fully theme-adaptive with conditional logo assets. Dark mode values pinned to the existing palette for pixel-parity. `input.tsx` and `button.tsx` outline/ghost variants fixed. Intentionally-white exceptions documented in `docs/decisions.md`. `accentColor` (amber/ranger-green/steel-blue/carbon-gray) remains persisted but unused. |
+| 3.56 | 2026-05-29 | Configurable application timezone (#43). New `app.timezone` setting (env `AL_TIMEZONE`, default `TZ` → UTC) interpreted by the APScheduler `BackgroundScheduler(timezone=…)` so daily task/backup schedules ("HH:MM") fire in the configured zone instead of always UTC; `next_run_at` now stored as naive UTC via `_to_utc_naive()`. Timezone exposed on `/system/version` (`timezone` field); Scheduled Tasks list, interval editor, and Backup schedule field now show/accept daily times in the configured zone (labelled). §9.14 Scheduler Integration extended with a Timezone subsection; `get_app_timezone()` / IANA validation added to `utils/config.py`. No schema change. |
+| 3.59 | 2026-05-30 | Mobile hamburger nav drawer (#52) — below 768 px the sidebar no longer occupies viewport width. It is hidden off-screen and revealed by a hamburger (`Menu`) button in the top bar; the drawer slides in as a fixed overlay with a translucent backdrop. Tapping a nav link or the backdrop closes it. Desktop layout (≥ 768 px) is unchanged: sidebar is static, in-flow, collapsible. `MobileNavProvider` context shares open/close state between `TopBar` and `Sidebar` without touching any of the 18 page call sites. A `useMediaQuery` hook ensures the sidebar always renders full-width with labels inside the mobile drawer, regardless of the user's stored desktop-collapse preference. |
+| 3.60 | 2026-05-30 | Release v0.3.10 — bundles the mobile hamburger nav drawer (#52), full light-mode legibility and the Light/Dark/Follow-system mode picker (#51), configurable application timezone for scheduled jobs (#43), and the Read-Only CSV-import security fix (#12). No schema change. |
 
 ---
 
@@ -2182,6 +2188,28 @@ Returns `history_id` (int). The caller fetches the record from DB in its own ses
 - For each: creates an APScheduler job with interval or cron trigger from `interval_type`/`interval_value`
 - `scheduled_backup` uses the schedule configured in `config.yaml` if present, otherwise the registry interval
 - `reschedule(config)` clears all jobs and re-adds them (called after interval changes)
+
+#### Timezone (`app.timezone`)
+
+Daily (`cron`) schedules are wall-clock times and must be interpreted in a
+specific zone. The scheduler is constructed with `BackgroundScheduler(timezone=ZoneInfo(get_app_timezone(config)))`,
+so an `interval_value` of `"03:00"` means 3am in the configured timezone — not
+necessarily UTC. `get_app_timezone()` (in `utils/config.py`) resolves
+`app.timezone` (env `AL_TIMEZONE`) → the container `TZ` env var → `"UTC"`, and
+falls back to UTC if the value is not a resolvable IANA name (`validate_config`
+surfaces an invalid name as a config error separately). `next_run_at` is stored
+as **naive UTC** (`_to_utc_naive()` converts the aware run-time before storage)
+so it remains an absolute instant consistent with the app's other timestamps
+regardless of the configured zone.
+
+The configured timezone is surfaced to the frontend on the `/system/version`
+response (`timezone` field). The Scheduled Tasks list, the inline interval
+editor, and the Backup page schedule field all display and accept daily times
+in that zone, labelled with the zone name (e.g. "Daily at 3:00 AM
+(America/Chicago)"). Before this, daily schedules ran at the stored time in
+UTC, the list converted it to the browser's local zone for display, and the
+edit field expected the raw UTC value — so the shown time and the editable
+time disagreed.
 
 #### Tasks API (`/tasks`, admin only)
 

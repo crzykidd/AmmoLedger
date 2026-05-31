@@ -18,6 +18,24 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.10] — 2026-05-30
+
+### Fixed
+
+- **Mobile navigation is now a hamburger drawer.** On phones and narrow viewports (below 768 px) the sidebar collapses off-screen; a hamburger button in the top bar slides it in as an overlay. Tapping any nav link or the backdrop closes the drawer. Desktop layout (≥ 768 px) is unchanged, including the collapse-to-icon mode. Fixes #52
+
+- **Light mode is now fully legible.** The sidebar, forms, and every page honor your chosen appearance. Added a semantic CSS design-token layer (HSL custom properties for `:root` light and `.dark` dark) wired into Tailwind, then migrated all hard-coded dark-only utilities (`text-white`, `bg-navy`, `border-white/*`) to token-based classes. Dark mode is pixel-identical to before. Closes #51
+
+### Added
+
+- **Choose your appearance.** A Light / Dark / Follow system mode picker in the Profile drawer lets you switch themes on demand; the choice persists per browser.
+
+- **Configurable application timezone for scheduled jobs.** A new `app.timezone` setting (env `AL_TIMEZONE`, defaults to the container's `TZ` then `UTC`) controls how daily task and backup schedules are interpreted and how times are labelled in the admin UI. Previously a "Daily at 03:00" task ran at 03:00 **UTC** regardless of where you live, the Scheduled Tasks list showed the time converted to your browser's local zone, but the edit field still expected the value in UTC — so the displayed time and the time you had to type in didn't match. Now the schedule is interpreted in the configured timezone end-to-end: the Tasks list, the inline interval editor, and the Backup schedule field all show and accept the time in that one zone (labelled, e.g. "Daily at 3:00 AM (America/Chicago)"). Set `app.timezone` (or `AL_TIMEZONE` / the standard Docker `TZ` env var) to your local zone and "3am" finally means 3am where you are. Fixes #43
+
+### Security
+
+- **CSV import is now blocked for Read-Only users.** The `POST /import/validate` and `POST /import/confirm` endpoints were gated only by "must be logged in", which let a Read-Only account upload a CSV and create ammo boxes and lookup values — a privilege violation against the role permission matrix. Both endpoints now require the admin or member role and return `403 Forbidden` for Read-Only users. Admins and members import exactly as before. Fixes #12
+
 ## [0.3.9] — 2026-05-24
 
 ### Fixed

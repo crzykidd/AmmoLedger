@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from utils.logging import get_logger
@@ -7,6 +10,20 @@ from utils.task_runner import run_task
 logger = get_logger(__name__)
 
 _scheduler: BackgroundScheduler | None = None
+
+
+def _to_utc_naive(dt: datetime | None) -> datetime | None:
+    """Convert an (aware) APScheduler run-time to naive UTC for storage.
+
+    next_run_time is timezone-aware in the scheduler's timezone; we persist an
+    absolute instant as naive UTC so it stays consistent with the rest of the
+    app's naive-UTC timestamps regardless of the configured app timezone.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def _make_job(task_key: str, task_fn):
@@ -59,8 +76,11 @@ def start_scheduler(config: dict) -> None:
     from database import engine  # noqa: PLC0415
     from models import TaskRegistry  # noqa: PLC0415
     from sqlmodel import Session, select  # noqa: PLC0415
+    from utils.config import get_app_timezone  # noqa: PLC0415
 
-    _scheduler = BackgroundScheduler()
+    tz_name = get_app_timezone(config)
+    _scheduler = BackgroundScheduler(timezone=ZoneInfo(tz_name))
+    logger.info("Scheduler timezone: %s", tz_name)
     scheduled_count = 0
 
     with Session(engine) as db:
@@ -96,7 +116,7 @@ def start_scheduler(config: dict) -> None:
         for t in db.exec(select(TaskRegistry)).all():
             job = job_map.get(t.task_key)
             if job and job.next_run_time:
-                t.next_run_at = job.next_run_time.replace(tzinfo=None)
+                t.next_run_at = _to_utc_naive(job.next_run_time)
             elif not t.enabled:
                 t.next_run_at = None
             db.add(t)
@@ -126,7 +146,7 @@ def reschedule_task(task) -> None:
         _add_job(_scheduler, task.task_key, task_fn, task.interval_type, task.interval_value)
         job = _scheduler.get_job(task.task_key)
         if job and job.next_run_time:
-            next_run_at = job.next_run_time.replace(tzinfo=None)
+            next_run_at = _to_utc_naive(job.next_run_time)
             logger.info("Rescheduled %s, next run: %s", task.task_key, job.next_run_time)
     else:
         logger.info("Disabled task %s, cleared next_run_at", task.task_key)

@@ -13,6 +13,7 @@ import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStre
 import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
 import { cn } from '@/lib/utils'
 import logoFull from '@/assets/brand/logo-full-dark.png'
+import logoFullLight from '@/assets/brand/logo-full-light.png'
 
 const schema = z.object({
   first_name: z.string().min(1, 'Required'),
@@ -95,14 +96,15 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-navy flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
-          <img src={logoFull} alt="AmmoLedger" className="h-10 w-auto" />
+          <img src={logoFullLight} alt="AmmoLedger" className="h-10 w-auto block dark:hidden" />
+          <img src={logoFull} alt="AmmoLedger" className="h-10 w-auto hidden dark:block" />
         </div>
 
         {inviteLoading ? (
-          <div className="text-center text-white/60 py-12">Validating invitation…</div>
+          <div className="text-center text-muted-foreground py-12">Validating invitation…</div>
         ) : inviteError ? (
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-2xl text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />

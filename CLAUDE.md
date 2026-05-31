@@ -31,12 +31,140 @@
 - Full ENV reference: `docs/INSTALL.md` → Configuration Options → Environment Variable Reference
 - Config template with all options and comments: `backend/config.template.yaml`
 
+## Standards
+
+- This project adopts one or more crzynet standards. The in-repo source of truth
+  for which ones (and at which pinned versions) is `standards.md` at the repo root.
+- Read `standards.md` on session start whenever the work could touch anything the
+  standards govern (context search, releases, commits/PRs).
+
 ## Code Context
 
 - Always use vexp index when available for
   file lookups and understanding the codebase
 - Read relevant source files before making
   changes — don't assume structure
+
+<!--
+Source: standards/vexp-context-engine @ v2.0.0 (crzynet/homelab-configs).
+The section below is the standard's CLAUDE-snippet.md, pasted verbatim. The full
+standard (scope, the two pushes, the manifest-not-tracked shape, adoption + gate
++ verification procedure) lives at:
+https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/vexp-context-engine/README.md
+-->
+
+## Context search (operational rules)
+
+This project adopts the `vexp-context-engine` standard. The full why-and-how lives at the
+source above; the rules below are the per-session do/don'ts a coding agent must honor by
+default:
+
+- **Call `run_pipeline` FIRST for any code task** — bug fixes, features, refactors,
+  debugging, "how does X work", "where is Y". It runs context search + impact analysis +
+  memory recall in one call and returns ranked, compressed context.
+- **Do NOT `grep`, `glob`, or `cat` to explore the codebase.** vexp returns pre-indexed,
+  graph-ranked context that is more relevant and cheaper than manual searching. A
+  `PreToolUse` guard hook blocks `Grep`/`Glob` while the vexp daemon is healthy; if the
+  daemon is down it allows the fallback.
+- **Prefer `get_skeleton` over `Read` to inspect files** (minimal/standard/detailed —
+  70–90% fewer tokens). Use `Read` only when you need exact raw content to edit a specific
+  line.
+- **Don't chain vexp calls or fan out `Explore` agents to free-search.** One
+  `run_pipeline` replaces capsule + impact + memory; if a subagent needs context, run
+  `run_pipeline` first and pass the result into the agent's prompt.
+- **The vexp daemon runs as a standalone `systemd`-user service — NOT the VS Code
+  extension.** The supervisor is `vexp.service` (`ExecStart=vexp serve`), `enabled` + linger,
+  auto-restarting; it starts/adopts the per-repo daemon on demand. Managing it with
+  `systemctl --user … vexp.service` or `vexp daemon-cmd start|stop|status|logs` is the
+  expected control path, not forbidden. Do **not** run vexp from the VS Code extension
+  (deprecated here — older bundled core, contends for the socket/port).
+- **Start/manage the daemon in the host process namespace (un-sandboxed).** A daemon
+  spawned inside a sandboxed shell gets a throwaway PID namespace + socket the host-side
+  MCP can't reach, and dies when that shell exits. If `index_status` reports "Cannot
+  connect to daemon," run `vexp daemon-cmd start` un-sandboxed and wait for "Socket ready"
+  (first start loads the local LLM, so allow >12s).
+
+If you're unsure whether an action would violate one of the above, stop and ask before
+acting.
+
+<!--
+Source: standards/code-checkin-and-pr @ v1.1.0 (crzynet/homelab-configs).
+Pasted verbatim per the standard. Full why-and-how:
+https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/code-checkin-and-pr/README.md
+-->
+
+## Code check-in (operational rules)
+
+This project adopts the `code-checkin-and-pr` standard. The full why-and-how lives at
+the source above; the rules below are the per-session do/don'ts a coding agent must
+honor by default:
+
+- **Never push directly to `main`.** `main` is protected. All changes land via a pull
+  request from `dev` → `main`, and only when every required check is green.
+- **Day-to-day work happens on `dev`** (or a short-lived branch off `dev`). Push to
+  `dev` freely.
+- **Commit message prefixes are required** — Conventional-Commits style:
+  - `feat:` — new user-facing feature
+  - `fix:` — bug fix
+  - `chore:` — config, tooling, dependencies, maintenance
+  - `docs:` — documentation-only changes
+- **Do not add `Co-authored-by:` trailers** unless the user explicitly asks.
+- **Doc updates ship in the same commit as the code they describe** — never as a
+  follow-up commit.
+- **Never bypass hooks** (no `--no-verify`, `--no-gpg-sign`, etc.) unless the user
+  explicitly asks. If a hook fails, fix the underlying issue.
+- **Stable releases are tagged from `main` only.** Don't tag from `dev`.
+
+If you're unsure whether an action would violate one of the above, stop and ask before
+acting.
+
+<!--
+Source: standards/release-prep-and-cut @ v1.0.0 (crzynet/homelab-configs).
+Pasted verbatim per the standard. Full why-and-how:
+https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/release-prep-and-cut/README.md
+-->
+
+## Release process (operational rules)
+
+This project adopts the `release-prep-and-cut` standard. The full why-and-how
+lives at the source above; the rules below are the per-session do/don'ts a
+coding agent must honor by default:
+
+- **The version is stored BARE in the source-of-truth file** — no `v` prefix
+  anywhere in code. The `v` prefix is added in exactly one place: the git tag
+  and matching GitHub release name. Don't add it to README badges, CHANGELOG
+  headers, in-code image tags, or anywhere else.
+- **`CHANGELOG.md` is the single source of truth for release notes.** The PR
+  description (set by `/release-prep`) and the GitHub release body (set by
+  `/release-cut`) reuse the **same section verbatim**. Never author release
+  notes twice.
+- **One commit per release prep.** Version bump + changelog roll + every doc
+  sync ship in a single `chore(release): prepare v<version>` commit. No
+  `Co-authored-by:` trailers.
+- **Never re-tag.** If `v<version>` already exists as a local tag, a remote
+  tag, or a GitHub release, STOP. Never delete-and-recreate; never `--force`.
+  Pick the next version instead.
+- **`/release-cut` only after the PR has merged and CI is green.** The
+  publish-to-`main` workflow must have already pushed `:latest` images to the
+  registry before `/release-cut` runs. If you cannot confirm both — STOP and
+  tell the user to wait.
+- **The release tag is the only thing the cut command writes to `main`.** Both
+  the prep commit and any follow-up docs commit land on `dev` and reach `main`
+  only via PR. Never push directly to `main` as part of a release.
+
+If you're unsure whether an action would violate one of the above, stop and
+ask before acting.
+
+## Handoff prompts
+
+This project adopts the
+[`handoff-prompt-workflow`](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/handoff-prompt-workflow/README.md)
+standard (soft pointer — see `standards.md`). Scoped work that warrants a fresh session
+is written as a handoff prompt in `prompts/` (start from `prompts/TEMPLATE.md`); the
+live `prompts/` dir is the pending queue, and finished prompts `git mv` into
+`prompts/done/` or `prompts/failed/`. Non-obvious decisions go in `docs/decisions.md`
+(newest at top). Read the linked standard for the full plan → decide → execute →
+document flow; don't restate it here.
 
 ## Project Documentation
 
@@ -46,8 +174,8 @@
 
 ## Build Status
 
-Current release target: v0.3.9 (invite + admin password-reset URLs honor AL_BASE_URL / app.base_url instead of hard-coded localhost #49)
-Last shipped public release: v0.3.8 (2026-05-22)
+Current release target: v0.3.10 (mobile hamburger nav drawer #52; full light-mode legibility + Light/Dark/Follow-system mode picker #51; configurable app timezone for scheduled jobs #43; Read-Only CSV-import security fix #12)
+Last shipped public release: v0.3.9 (2026-05-25)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 

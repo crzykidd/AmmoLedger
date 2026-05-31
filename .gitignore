@@ -66,6 +66,11 @@ logs/
 !.claude/settings.json
 # 3. SHARE custom terminal skills / tools built for this project
 !.claude/skills/
+# 3b. SHARE slash-commands and hooks that ship with the project
+#     (release-prep/release-cut commands; vexp-context-engine guard hook —
+#      the standard requires .claude/hooks/vexp-guard.sh to travel via git)
+!.claude/commands/
+!.claude/hooks/
 # 4. IGNORE private local testing configs & overrides
 .claude/settings.local.json
 CLAUDE.local.md
@@ -76,3 +81,6 @@ CLAUDE.local.md
 .vexp/healthy
 .vexp/index.db-shm
 .vexp/index.db-wal
+AmmoLedger.code-workspace
+.github/copilot-instructions.md
+.github/copilot-instructions.md

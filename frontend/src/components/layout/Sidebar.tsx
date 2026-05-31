@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -28,7 +28,10 @@ import { getCommunityStatus } from '@/api/community'
 import { UserProfileDrawer } from '@/components/UserProfileDrawer'
 import { getSystemVersion } from '@/api/system'
 import logoFull from '@/assets/brand/logo-full-dark.png'
+import logoFullLight from '@/assets/brand/logo-full-light.png'
 import logoCircle from '@/assets/brand/logo-circle-dark.png'
+import { useMobileNav } from '@/components/layout/MobileNavContext'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 const STORAGE_KEY = 'sidebar_collapsed'
 const SECTION_STORAGE_KEY = 'sidebar_sections_collapsed'
@@ -110,6 +113,14 @@ export default function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const { open, closeNav } = useMobileNav()
+  const isDesktop = useMediaQuery('(min-width: 768px)')
+  const effectiveCollapsed = isDesktop && collapsed
+
+  // Close the mobile drawer on navigation
+  useEffect(() => {
+    closeNav()
+  }, [location.pathname, closeNav])
 
   const { data: versionData } = useQuery({
     queryKey: ['system-version'],
@@ -179,27 +190,49 @@ export default function Sidebar() {
     <>
       <UserProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
 
+      {/* Mobile backdrop — closes drawer on tap */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={closeNav}
+          aria-hidden
+        />
+      )}
+
       <aside
         className={cn(
-          'flex flex-col h-screen bg-navy border-r border-white/10 transition-all duration-200 ease-in-out shrink-0',
-          collapsed ? 'w-16' : 'w-60',
+          'flex flex-col h-screen bg-white dark:bg-navy border-r border-border transition-all duration-200 ease-in-out shrink-0',
+          // Mobile: fixed off-canvas drawer; Desktop: static in-flow column
+          'fixed inset-y-0 left-0 z-40 md:static md:z-auto md:translate-x-0',
+          // Mobile slide animation driven by drawer open state
+          open ? 'translate-x-0' : '-translate-x-full',
+          // Width: mobile always full-width drawer; desktop respects collapse preference
+          'w-60',
+          effectiveCollapsed && 'md:w-16',
         )}
       >
         {/* Logo */}
         <div
           className={cn(
-            'flex items-center justify-center border-b border-white/10',
-            collapsed ? 'py-3' : 'p-4',
+            'flex items-center justify-center border-b border-border',
+            effectiveCollapsed ? 'py-3' : 'p-4',
           )}
         >
-          {collapsed ? (
-            <img src={logoCircle} alt="AmmoLedger" className="w-10 h-10" />
+          {effectiveCollapsed ? (
+            <img src={logoCircle} alt="AmmoLedger" className="w-10 h-10 dark:opacity-100 invert dark:invert-0" />
           ) : (
-            <img
-              src={logoFull}
-              alt="AmmoLedger"
-              className="max-h-[120px] w-auto"
-            />
+            <>
+              <img
+                src={logoFullLight}
+                alt="AmmoLedger"
+                className="max-h-[120px] w-auto block dark:hidden"
+              />
+              <img
+                src={logoFull}
+                alt="AmmoLedger"
+                className="max-h-[120px] w-auto hidden dark:block"
+              />
+            </>
           )}
         </div>
 
@@ -215,18 +248,18 @@ export default function Sidebar() {
             const sectionHasActive = visibleItems.some((item) => isActive(item.href, location.pathname))
             const sectionCollapsible = isCollapsibleSection(section.label)
             const sectionCollapsed =
-              !collapsed
+              !effectiveCollapsed
               && sectionCollapsible
               && !sectionHasActive
               && collapsedSections.has(section.label!)
             return (
               <div key={si} className={si > 0 ? 'mt-4' : ''}>
-                {section.label && !collapsed && (
+                {section.label && !effectiveCollapsed && (
                   sectionCollapsible ? (
                     <button
                       type="button"
                       onClick={() => toggleSection(section.label!)}
-                      className="w-full flex items-center justify-between px-4 mb-1 text-xs font-semibold uppercase tracking-widest text-white/30 hover:text-white/50 transition-colors"
+                      className="w-full flex items-center justify-between px-4 mb-1 text-xs font-semibold uppercase tracking-widest text-foreground/30 hover:text-foreground/50 transition-colors"
                       aria-expanded={!sectionCollapsed}
                       aria-controls={`sidebar-section-${section.label}`}
                     >
@@ -238,7 +271,7 @@ export default function Sidebar() {
                       )}
                     </button>
                   ) : (
-                    <p className="px-4 mb-1 text-xs font-semibold uppercase tracking-widest text-white/30">
+                    <p className="px-4 mb-1 text-xs font-semibold uppercase tracking-widest text-foreground/30">
                       {section.label}
                     </p>
                   )
@@ -256,16 +289,16 @@ export default function Sidebar() {
                             'relative flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium transition-colors',
                             active
                               ? 'bg-gold/20 text-gold'
-                              : 'text-white/60 hover:text-white hover:bg-white/10',
-                            collapsed && 'justify-center',
-                            !collapsed && item.subItem && 'pl-8',
+                              : 'text-foreground/60 hover:text-foreground hover:bg-muted',
+                            effectiveCollapsed && 'justify-center',
+                            !effectiveCollapsed && item.subItem && 'pl-8',
                           )}
-                          title={collapsed ? item.label : undefined}
+                          title={effectiveCollapsed ? item.label : undefined}
                         >
                           <Icon className="w-5 h-5 shrink-0" />
-                          {!collapsed && <span>{item.label}</span>}
+                          {!effectiveCollapsed && <span>{item.label}</span>}
                           {item.href === '/admin/datasets' && pendingTotal > 0 && (
-                            collapsed
+                            effectiveCollapsed
                               ? <span className="absolute top-0.5 right-0.5 bg-amber-500 w-2 h-2 rounded-full" />
                               : <span className="bg-amber-500 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full leading-none">{pendingTotal}</span>
                           )}
@@ -279,16 +312,16 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* Collapse toggle */}
+        {/* Collapse toggle — desktop only */}
         <button
           onClick={toggle}
           className={cn(
-            'flex items-center gap-3 px-2 py-2 mx-2 rounded-lg text-xs text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors',
-            collapsed && 'justify-center',
+            'hidden md:flex items-center gap-3 px-2 py-2 mx-2 rounded-lg text-xs text-foreground/40 hover:text-foreground/70 hover:bg-muted transition-colors',
+            effectiveCollapsed && 'justify-center',
           )}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          {collapsed ? (
+          {effectiveCollapsed ? (
             <ChevronRight className="w-4 h-4" />
           ) : (
             <>
@@ -299,39 +332,39 @@ export default function Sidebar() {
         </button>
 
         {/* About + Help links */}
-        <div className="px-2 border-t border-white/10 py-1 space-y-0.5">
+        <div className="px-2 border-t border-border py-1 space-y-0.5">
           <Link
             to="/about"
             className={cn(
-              'flex items-center gap-3 px-2 py-2 rounded-lg text-xs text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors',
+              'flex items-center gap-3 px-2 py-2 rounded-lg text-xs text-foreground/40 hover:text-foreground/70 hover:bg-muted transition-colors',
               isActive('/about', location.pathname) && 'bg-gold/10 text-gold/70',
-              collapsed && 'justify-center',
+              effectiveCollapsed && 'justify-center',
             )}
-            title={collapsed ? 'About' : undefined}
+            title={effectiveCollapsed ? 'About' : undefined}
           >
             <Info className="w-4 h-4 shrink-0" />
-            {!collapsed && <span>About</span>}
+            {!effectiveCollapsed && <span>About</span>}
           </Link>
           <Link
             to="/help"
             className={cn(
-              'flex items-center gap-3 px-2 py-2 rounded-lg text-xs text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors',
+              'flex items-center gap-3 px-2 py-2 rounded-lg text-xs text-foreground/40 hover:text-foreground/70 hover:bg-muted transition-colors',
               isActive('/help', location.pathname) && 'bg-gold/10 text-gold/70',
-              collapsed && 'justify-center',
+              effectiveCollapsed && 'justify-center',
             )}
-            title={collapsed ? 'Help' : undefined}
+            title={effectiveCollapsed ? 'Help' : undefined}
           >
             <HelpCircle className="w-4 h-4 shrink-0" />
-            {!collapsed && <span>Help</span>}
+            {!effectiveCollapsed && <span>Help</span>}
           </Link>
         </div>
 
         {/* User + Logout */}
-        <div className="border-t border-white/10 p-3">
-          {!collapsed && user && (
+        <div className="border-t border-border p-3">
+          {!effectiveCollapsed && user && (
             <div className="flex items-center justify-between mb-2 px-1 py-1.5">
               <div className="min-w-0">
-                <p className="text-white text-sm font-medium truncate">
+                <p className="text-foreground text-sm font-medium truncate">
                   {user.first_name} {user.last_name}
                 </p>
                 <span
@@ -345,17 +378,17 @@ export default function Sidebar() {
               </div>
               <button
                 onClick={() => setProfileOpen(true)}
-                className="shrink-0 ml-2 p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+                className="shrink-0 ml-2 p-1.5 rounded-lg text-foreground/40 hover:text-foreground/70 hover:bg-muted transition-colors"
                 title="Profile settings"
               >
                 <Settings className="w-4 h-4" />
               </button>
             </div>
           )}
-          {collapsed && (
+          {effectiveCollapsed && (
             <button
               onClick={() => setProfileOpen(true)}
-              className="flex items-center justify-center w-full p-2 mb-1 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+              className="flex items-center justify-center w-full p-2 mb-1 rounded-lg text-foreground/40 hover:text-foreground/70 hover:bg-muted transition-colors"
               title="Profile settings"
             >
               <Settings className="w-4 h-4" />
@@ -364,28 +397,28 @@ export default function Sidebar() {
           <button
             onClick={() => void handleLogout()}
             className={cn(
-              'flex items-center gap-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg px-2 py-2 w-full transition-colors text-sm',
-              collapsed && 'justify-center',
+              'flex items-center gap-2 text-foreground/60 hover:text-foreground hover:bg-muted rounded-lg px-2 py-2 w-full transition-colors text-sm',
+              effectiveCollapsed && 'justify-center',
             )}
-            title={collapsed ? 'Sign out' : undefined}
+            title={effectiveCollapsed ? 'Sign out' : undefined}
           >
             <LogOut className="w-4 h-4 shrink-0" />
-            {!collapsed && <span>Sign out</span>}
+            {!effectiveCollapsed && <span>Sign out</span>}
           </button>
 
           {/* Version display — expanded only */}
-          {!collapsed && versionData && (
-            <div className="mt-2 px-2 text-center text-xs text-white/25">
+          {!effectiveCollapsed && versionData && (
+            <div className="mt-2 px-2 text-center text-xs text-foreground/25">
               {!isDev && releaseUrl ? (
                 // Release: whole label links to release page
-                <a href={releaseUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white/40 transition-colors">
+                <a href={releaseUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground/40 transition-colors">
                   {versionLabel}
                 </a>
               ) : isDev && shortSha && shortSha !== 'unknown' && shaLink ? (
                 // Dev: "dev · " plain, SHA linked
                 <span>
                   {'dev · '}
-                  <a href={shaLink} target="_blank" rel="noopener noreferrer" className="hover:text-white/40 transition-colors">
+                  <a href={shaLink} target="_blank" rel="noopener noreferrer" className="hover:text-foreground/40 transition-colors">
                     {shortSha}
                   </a>
                 </span>

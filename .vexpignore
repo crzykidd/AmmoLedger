@@ -1,0 +1,19 @@
+# .vexpignore — paths excluded from vexp's code index/ranking (gitignore syntax).
+# These files STAY in git; they're just kept out of run_pipeline's ranked context so
+# source code isn't crowded out by process/release prose.
+# Standard: vexp-context-engine @ v1.0.0 (crzynet/homelab-configs).
+#
+# vexp's built-in excludes already cover: node_modules, .git, dist, .next, target,
+# __pycache__, .vexp. The SecurityFilter already drops .env / credentials. Only add
+# things that ARE committed source-tree files but make poor ranked context.
+
+# Release-note prose — large, churny, never useful as live code context.
+CHANGELOG.md
+docs/CHANGELOG-*.x.md
+
+# Archived (squashed) migrations — reference only, not part of the active chain.
+backend/migrations/archive/
+
+# Other common candidates (uncomment if spec docs start crowding out code):
+# docs/**/*.md
+# (this project does not use the handoff-prompt workflow, so no prompts/done/)

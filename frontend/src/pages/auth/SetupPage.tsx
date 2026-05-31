@@ -6,6 +6,7 @@ import type { ApiError } from '@/types'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
 import logoFull from '@/assets/brand/logo-full-dark.png'
+import logoFullLight from '@/assets/brand/logo-full-light.png'
 
 interface FormState {
   first_name: string
@@ -66,19 +67,20 @@ export default function SetupPage() {
   }
 
   const fieldClass =
-    'w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold'
-  const labelClass = 'block text-sm text-white/70 mb-1.5'
+    'w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary'
+  const labelClass = 'block text-sm text-muted-foreground mb-1.5'
 
   return (
-    <div className="min-h-screen bg-navy flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
-          <img src={logoFull} alt="AmmoLedger" className="h-16 w-auto" />
+          <img src={logoFullLight} alt="AmmoLedger" className="h-16 w-auto block dark:hidden" />
+          <img src={logoFull} alt="AmmoLedger" className="h-16 w-auto hidden dark:block" />
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
-          <h2 className="text-white text-xl font-semibold mb-1">Set up AmmoLedger</h2>
-          <p className="text-white/50 text-sm mb-6">Create your admin account to get started.</p>
+        <div className="bg-card border border-border rounded-2xl p-8">
+          <h2 className="text-foreground text-xl font-semibold mb-1">Set up AmmoLedger</h2>
+          <p className="text-muted-foreground text-sm mb-6">Create your admin account to get started.</p>
 
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">

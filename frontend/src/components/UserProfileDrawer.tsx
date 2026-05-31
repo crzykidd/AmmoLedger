@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordStrengthMeter, allRulesPassed } from '@/components/PasswordStrengthMeter'
 import { PasswordMatchIndicator, passwordsMatch } from '@/components/PasswordMatchIndicator'
+import { ThemeModePicker } from '@/components/ThemeModePicker'
 import { useAuth } from '@/contexts/AuthContext'
 import { changeMyPassword } from '@/api/users'
 import { toast } from '@/hooks/use-toast'
@@ -108,7 +109,7 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      {/* Dark overlay */}
+      {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -116,30 +117,31 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
       />
 
       {/* Drawer panel */}
-      <div className="relative z-10 w-80 bg-navy border-r border-white/10 flex flex-col overflow-y-auto shadow-2xl">
+      <div className="relative z-10 w-80 bg-card border-r border-border flex flex-col overflow-y-auto shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <h2 className="text-sm font-semibold text-white uppercase tracking-wide">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">
             Profile
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Avatar + name */}
-        <div className="flex flex-col items-center px-5 py-6 border-b border-white/10">
+        <div className="flex flex-col items-center px-5 py-6 border-b border-border">
           <div className="h-16 w-16 rounded-full bg-gold flex items-center justify-center mb-3">
+            {/* White text on gold — intentionally always white */}
             <span className="text-xl font-bold text-white">{initials}</span>
           </div>
-          <p className="text-white font-semibold text-base">
+          <p className="text-foreground font-semibold text-base">
             {user?.first_name} {user?.last_name}
           </p>
           {user?.email && (
-            <p className="text-white/50 text-sm mt-0.5">{user.email}</p>
+            <p className="text-muted-foreground text-sm mt-0.5">{user.email}</p>
           )}
           <span
             className={cn(
@@ -152,27 +154,35 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
         </div>
 
         {/* Account info */}
-        <div className="px-5 py-4 border-b border-white/10 space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-white/30">
+        <div className="px-5 py-4 border-b border-border space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
             Account
           </h3>
           <div>
-            <p className="text-xs text-white/40 mb-0.5">Email</p>
-            <p className="text-sm text-white/80">{user?.email ?? '—'}</p>
+            <p className="text-xs text-muted-foreground mb-0.5">Email</p>
+            <p className="text-sm text-foreground/80">{user?.email ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-white/40 mb-0.5">Member since</p>
-            <p className="text-sm text-white/80">{formatDate(user?.created_at)}</p>
+            <p className="text-xs text-muted-foreground mb-0.5">Member since</p>
+            <p className="text-sm text-foreground/80">{formatDate(user?.created_at)}</p>
           </div>
           <div>
-            <p className="text-xs text-white/40 mb-0.5">Last login</p>
-            <p className="text-sm text-white/80">{formatDate(user?.last_login_at)}</p>
+            <p className="text-xs text-muted-foreground mb-0.5">Last login</p>
+            <p className="text-sm text-foreground/80">{formatDate(user?.last_login_at)}</p>
           </div>
+        </div>
+
+        {/* Appearance */}
+        <div className="px-5 py-4 border-b border-border">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-4">
+            Appearance
+          </h3>
+          <ThemeModePicker />
         </div>
 
         {/* Change password */}
         <div className="px-5 py-4 flex-1">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-white/30 mb-4">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-4">
             Change Password
           </h3>
           <form
@@ -180,14 +190,13 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
             className="space-y-3"
           >
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
                 Current Password
               </label>
               <Input
                 {...register('current_password')}
                 type="password"
                 placeholder="••••••••••••"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20"
               />
               {errors.current_password && (
                 <p className="text-xs text-red-400 mt-1">{errors.current_password.message}</p>
@@ -195,27 +204,25 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
                 New Password
               </label>
               <Input
                 {...register('new_password')}
                 type="password"
                 placeholder="••••••••••••"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20"
               />
               <PasswordStrengthMeter password={watchedPassword} />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
                 Confirm New Password
               </label>
               <Input
                 {...register('confirm_password')}
                 type="password"
                 placeholder="••••••••••••"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20"
               />
               <PasswordMatchIndicator password={watchedPassword} confirm={watchedConfirm} />
             </div>
@@ -238,12 +245,12 @@ export function UserProfileDrawer({ open, onClose }: UserProfileDrawerProps) {
         </div>
 
         {/* Footer close */}
-        <div className="px-5 py-4 border-t border-white/10">
+        <div className="px-5 py-4 border-t border-border">
           <Button
             variant="outline"
             size="sm"
             onClick={onClose}
-            className="w-full border-white/20 text-white/60 hover:text-white hover:border-white/40 bg-transparent"
+            className="w-full"
           >
             Close
           </Button>

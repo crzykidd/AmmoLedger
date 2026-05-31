@@ -6,29 +6,35 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN adduser --disabled-password --gecos "" appuser
-
-COPY --chown=appuser:appuser package*.json ./
+# Run as the base image's built-in `node` user (uid/gid 1000) rather than a
+# freshly-created account. In dev, docker-compose.dev.yml bind-mounts
+# ./frontend:/app, so /app's ownership is the HOST directory's — uid 1000 for
+# the typical developer (and the project-wide PUID/PGID default). A custom
+# `adduser` lands on uid 1001 (1000 is already taken by `node`), which then
+# cannot write Vite's `vite.config.ts.timestamp-*.mjs` temp file into the
+# bind-mounted /app — the dev server crash-loops with EACCES. Reusing `node`
+# keeps the container UID aligned with the mount owner. See docs/decisions.md.
+COPY --chown=node:node package*.json ./
 RUN npm install
 
-COPY --chown=appuser:appuser . .
+COPY --chown=node:node . .
 
-# Give appuser write access to the three paths Vite needs at runtime:
+# Give the node user write access to the three paths Vite needs at runtime:
 #   /app                    — vite.config.ts.timestamp-*.mjs temp files
 #   /app/node_modules       — creating the .vite cache directory
 #   /app/node_modules/.vite — dependency optimisation cache
 # Pre-creating .vite avoids a chown-R over node_modules on every cold start.
 RUN mkdir -p /app/node_modules/.vite \
-    && chown -R appuser:appuser /app/node_modules/.vite \
-    && chown appuser:appuser /app/node_modules \
-    && chown appuser:appuser /app
+    && chown -R node:node /app/node_modules/.vite \
+    && chown node:node /app/node_modules \
+    && chown node:node /app
 
 ARG GIT_SHA=unknown
 ARG GIT_BRANCH=main
 ENV GIT_SHA=$GIT_SHA \
     GIT_BRANCH=$GIT_BRANCH
 
-USER appuser
+USER node
 
 EXPOSE 5173
 
