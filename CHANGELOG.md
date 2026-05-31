@@ -18,6 +18,8 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.3.10] — 2026-05-30
+
 ### Fixed
 
 - **Mobile navigation is now a hamburger drawer.** On phones and narrow viewports (below 768 px) the sidebar collapses off-screen; a hamburger button in the top bar slides it in as an overlay. Tapping any nav link or the backdrop closes the drawer. Desktop layout (≥ 768 px) is unchanged, including the collapse-to-icon mode. Fixes #52

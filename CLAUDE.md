@@ -174,7 +174,7 @@ document flow; don't restate it here.
 
 ## Build Status
 
-Current release target: v0.3.9 (invite + admin password-reset URLs honor AL_BASE_URL / app.base_url instead of hard-coded localhost #49)
+Current release target: v0.3.10 (mobile hamburger nav drawer #52; full light-mode legibility + Light/Dark/Follow-system mode picker #51; configurable app timezone for scheduled jobs #43; Read-Only CSV-import security fix #12)
 Last shipped public release: v0.3.9 (2026-05-25)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
