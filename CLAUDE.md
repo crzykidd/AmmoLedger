@@ -23,6 +23,77 @@
   - `docker-compose.yml` — production (GHCR images, named volume)
   - `docker-compose.dev.yml` — development (build from source, volume mounts for live reload)
 
+## Where things live
+
+Backend (`backend/`, flat package — run with `backend/` on `sys.path`, imports are
+bare like `from models import X`, never `from backend.models`):
+- `main.py` — FastAPI app, startup/shutdown, router registration, `/system/*` endpoints
+- `models.py` — **the data-model source of truth.** All SQLModel table definitions
+  (~37 tables) and their FKs live here. To understand the schema, read this file — do
+  not maintain a separate schema doc (it would go stale against migrations).
+- `schemas/` — Pydantic API-contract schemas, split per domain (see convention below)
+- `routers/` — HTTP endpoints, one module per domain (ammo, firearms, backup, lookups,
+  range_sessions, products, importer, …). Visibility/`_check_write` helpers are
+  per-router by design (see Firearms Domain Conventions).
+- `utils/` — cross-cutting services (config, logging, rbac, scheduler, seeds,
+  version_check, community_sync, image_search)
+- `database.py` — engine, session, migrations runner, WAL pragma listener, stat-heal
+- `migrations/versions/` — active Alembic chain (starts at the v0.1.9 squash);
+  `migrations/archive/` is pre-squash reference only, NOT in the chain. Don't read
+  archive/ unless investigating pre-release history.
+
+Frontend (`frontend/src/`):
+- `pages/` — route-level screens (one per URL); `components/` — reusable pieces grouped
+  by domain (inventory, firearms, range, …); `lib/utils.ts` — the `cn()` helper imported
+  almost everywhere; `types/index.ts` — shared TS types; `contexts/` + `hooks/` — app
+  state (theme, mobile-nav)
+
+## schemas/ package convention (v0.3.10+)
+
+Pydantic schemas live per-domain under `backend/schemas/`, re-exported through
+`schemas/__init__.py`. Two rules for agents:
+- **Import from the submodule**, not a catch-all: `from schemas.ammo import AmmoBoxRead`.
+  (`from schemas import AmmoBoxRead` still resolves via the re-export shim, but the
+  submodule import is cheaper to read and states intent.)
+- **A new schema goes in its domain module** (`schemas/ammo.py`, `schemas/firearms.py`,
+  `schemas/lookups.py`, `schemas/products.py`, `schemas/range.py`, `schemas/users.py`,
+  `schemas/thresholds.py`, `schemas/system.py`). Shared base (`_OrmBase`, the `_Date`
+  alias, `_NAIVE_ISO_RE`) lives in `schemas/_base.py` — don't duplicate it. Do NOT
+  recreate a single mega `schemas.py`; that monolith was deliberately split.
+
+## Run / Test / Migrate / Lint
+
+All backend commands run from `backend/`.
+
+- **Backend tests:** startup events fire during `TestClient`, so a migrated file DB and
+  data-dir env vars are required (conftest overrides the route session but not the startup
+  engine). Full invocation from `backend/`:
+  ```
+  D="$TMPDIR/aldata" && mkdir -p "$D/backups" "$D/uploads" && rm -f "$D/app.db"
+  DATABASE_URL="sqlite:///$D/app.db" alembic upgrade head
+  CONFIG_PATH="$D/config.yaml" DEFAULTS_PATH="$PWD/defaults.yaml" \
+    BACKUP_PATH="$D/backups" UPLOADS_PATH="$D/uploads" \
+    DATABASE_URL="sqlite:///$D/app.db" python -m pytest
+  ```
+  (The `python -m` form puts `backend/` on the path so flat imports resolve; bare `pytest`
+  from the repo root fails on `from main import app`.)
+  Single file: set the same env vars, then `python -m pytest tests/test_firearms.py`.
+  **Note:** `test_firearm_photos.py::test_zip_restore_rejects_path_traversal` is a
+  pre-existing failure (stale assertion) — unrelated to most changes.
+- **Backend lint (matches CI):** `ruff check backend/` — pinned `ruff==0.4.4`, rule set
+  `E4/E7/E9/F` (see `backend/ruff.toml`).
+- **Migrate to head:** `cd backend && alembic upgrade head`. Check head/current:
+  `alembic heads && alembic current`. (CI does NOT run `alembic check` — SQLite +
+  SQLModel emits TEXT-vs-AutoString false positives; it verifies upgrade-to-head instead.)
+- **Frontend build / typecheck:** `cd frontend && npm run build` (runs `tsc -b && vite
+  build`); type-only check: `npm run typecheck` (`tsc --noEmit`). Dev server: `npm run dev`.
+- **Full dev stack:** `docker compose -f docker-compose.dev.yml up -d --build`.
+  Validate compose (matches CI): `docker compose config --quiet`.
+
+CI (`.github/workflows/ci.yml`) runs: backend lint, YAML validation, migrate-to-head,
+and `docker compose config`. **CI does not run the test suite or frontend build** — run
+those locally before opening a PR.
+
 ## Configuration
 
 - Settings live in `/data/config.yaml` (mounted from the `ammoledger_data` volume)
@@ -40,10 +111,9 @@
 
 ## Code Context
 
-- Always use vexp index when available for
-  file lookups and understanding the codebase
-- Read relevant source files before making
-  changes — don't assume structure
+- Read relevant source files before making changes — don't assume structure.
+- The codebase is ~170 files / ~49K LOC with a clean tree-shaped import topology;
+  ripgrep + Read traverses it cheaply. Start from the "Where things live" map above.
 
 <!--
 Source: standards/vexp-context-engine @ v2.0.0 (crzynet/homelab-configs).

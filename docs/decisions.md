@@ -7,6 +7,27 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-05-31 — CLAUDE.md orientation sections; test-invocation correction
+
+### `models.py` as the schema authority
+
+Pointed agents at `models.py` as the single source of truth for the data model (all ~37
+SQLModel tables and their FKs). A separate data-model doc was rejected: it would
+immediately drift against migrations and add maintenance overhead for zero gain — the file
+itself is readable and already authoritative.
+
+### Test command: startup events fire inside TestClient
+
+Documenting `cd backend && python -m pytest` as the test invocation (the conftest.py
+header says "no startup events") and sanity-running it surfaced a real discrepancy:
+`TestClient` as a context manager (`with TestClient(app) as c`) does fire FastAPI
+startup events. The startup hook writes to `/data/.write_test` and queries `app_settings`
+on the real `DATABASE_URL` engine — neither exists in a bare shell. The correct
+invocation requires a migrated file DB and data-dir env vars (see the auto-memory note
+and the updated `## Run / Test / Migrate / Lint` section). The conftest comment is
+aspirationally wrong; corrected in CLAUDE.md rather than in conftest to avoid silently
+misleading agents on CI behavior.
+
 ## 2026-05-31 — Split `backend/schemas.py` into a per-domain `schemas/` package
 
 ### Why
