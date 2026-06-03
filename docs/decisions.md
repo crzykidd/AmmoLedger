@@ -7,6 +7,27 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-01 — De-adopted the vexp-context-engine standard
+
+vexp is being sunset homelab-wide (the `vexp-context-engine` standard is now deprecated at
+v3.0.0 and rewritten as a removal guide). It wired the repo so an agent preferred its
+graph-RAG context engine over `grep`/`glob`/`cat`, behind a `PreToolUse` guard hook — but
+in practice the standing tax (Ansible-provisioned host install, a guard that fought the
+agent's normal tools, a per-host verification pass) outweighed the context-quality win.
+
+De-adoption (not migration — vexp rules were not replaced with anything): removed the
+`.claude/hooks/vexp-guard.sh` guard, the `mcp__vexp__*` allows and `PreToolUse` entry from
+`.claude/settings.json`, the "Context search (operational rules)" CLAUDE-snippet from
+`CLAUDE.md`, the vexp ignore block + `!.claude/hooks/` un-ignore from `.gitignore`, and the
+`.vexpignore` / `.vexp/` / `vexp.toml` index+config artifacts. `standards.md` row flipped to
+sunset. Code-context search reverts to ripgrep + Read (the "Code Context" / "Where things
+live" map in `CLAUDE.md` already covers this).
+
+Host teardown is deliberately **not** done from this app repo — the dev-host vexp install
+(`vexp-cli`, `~/.local/share/vexp`, the `vexp.service` user unit + CUDA drop-in) is removed
+by the `ansible` `devworkstation` role's opt-in `--tags vexp_teardown` task, kept out of the
+default play so a routine run never uninstalls vexp mid-session.
+
 ## 2026-05-31 — CLAUDE.md orientation sections; test-invocation correction
 
 ### `models.py` as the schema authority

@@ -1,6 +1,0 @@
-# vexp generated state — machine-local, never tracked.
-# Per the vexp-context-engine standard, each host owns its own index and
-# manifest.json is intentionally NOT tracked (no per-host pre-commit hook to
-# keep a shared manifest fresh). Ignore everything here except this file.
-*
-!.gitignore
