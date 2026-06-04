@@ -7,6 +7,22 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-03 — PRD §2 Version Roadmap uses a Shipped/Planned Status column
+
+The §2 table previously labelled every feature with fictional `v1.0` / `v2.0` / `v3.0`
+milestones that never mapped to a real release — the project actually shipped
+`v0.1.9 → v0.3.10`. During the v0.3.10 docs true-up the `Version` column was renamed to
+`Status` and rewritten as `Shipped (<version>)` / `Planned`: the core auth/ammo/backup
+set is `Shipped (v0.1.9)` (the first public release that bundled them), Split Box /
+Restock / Firearms Registry / Range Sessions / Cleaning Reminders are `Shipped (v0.3.0)`,
+and unbuilt items (Notifications, Label Printing, Target Photo Uploads, Session Sharing,
+Reporting, Cost Analytics, Accessories Module) are `Planned`. Chosen over preserving the
+old milestone labels because they read as release tags that never existed; "shipped vs
+planned" is the only distinction the roadmap can state faithfully. Cross-checked against
+the §10.1/§10.2/§10.3 "(v0.3.0 — shipped)" headings and §10.8 Deferred.
+
+---
+
 ## 2026-06-01 — De-adopted the vexp-context-engine standard
 
 vexp is being sunset homelab-wide (the `vexp-context-engine` standard is now deprecated at
