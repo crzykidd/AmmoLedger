@@ -7,6 +7,32 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-04 — Backup/restore compat: implementation non-obvious calls
+
+Implementing `docs/prd/backup-restore-compat.md` (prompt: `prompts/done/2026-06-04-backup-restore-compat.md`).
+
+- **`JSON_RESTORE_ADDITIVE_SINCE = "0001"` uses the revision *ID*, not the filename slug.**
+  Alembic stores `"0001"` in `alembic_version.version_num`; the `.py` filename slug
+  (`"0001_initial_schema"`) is not a valid revision ID and would cause
+  `script.get_revision()` to raise → false `not_ancestor` rejection. Constants and tests
+  must use the bare IDs (`"0001"`, `"0004"`), never the slugs.
+
+- **`_classify_schema_migration` ignores the live DB's `cur_migration` and reads the
+  Alembic script head directly** (`script.get_current_head()`). The parameter exists so
+  callers can log the DB state, not because the classifier uses it for comparison. This
+  is intentional — the compatibility decision is "does this export fit the scripts we
+  shipped?" not "does it fit whatever the running DB happens to be at?"
+
+- **`backup_format_version` validation lives in `_parse_import_json`**, not in the
+  classifier — it is a container-format check, not a schema check. An unknown format
+  is a 400 from parse, not a `rejected` verdict from classification.
+
+- **Zip `MANIFEST.json`** is written by `_backup_to_zip` and treated as informational on
+  restore. The `.db` inside the zip carries all schema info via `alembic_version`; the
+  manifest just gives clients an envelope-level format version without opening SQLite.
+
+---
+
 ## 2026-06-04 — Restore compatibility is keyed on schema head, not app version
 
 Issue #14 asked to "relax the strict `schema_migration` equality check." Investigating it

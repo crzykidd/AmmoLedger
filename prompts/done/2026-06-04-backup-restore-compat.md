@@ -1,10 +1,10 @@
 ---
 name: 2026-06-04-backup-restore-compat
-status: pending          # pending | completed | failed
+status: completed
 created: 2026-06-04
 model: opus              # design-sensitive backend + UX work; classify carefully
-completed:
-result:
+completed: 2026-06-04
+result: Implemented _classify_schema_migration + backup_format_version + older_compatible UX gate + 12 passing tests + docs
 ---
 
 # Task: Schema-versioned restores + backup format versioning (implements the #14 design)

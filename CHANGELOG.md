@@ -18,6 +18,12 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+### Added
+
+- **Older JSON backups can now be restored with an explicit confirmation.** Previously, restoring a JSON export made on an older version of AmmoLedger was rejected with a flat error. Now the Backup page shows exactly what data will be missing: which tables will be empty (firearms, range sessions, etc.) and which fields will use current defaults. If that looks acceptable, a single "I understand" click unlocks the restore. Clean same-version restores are unchanged. Closes #14
+
+- **Backup container format versioning.** JSON exports and zip archives now carry a `backup_format_version` field. If a backup made by a future build arrives at an older install that cannot understand the new format, the import is rejected with a clear "upgrade first" message instead of silently producing bad data.
+
 ### Changed
 
 - **De-adopted the `vexp-context-engine` standard (dev tooling; no user-facing change).** vexp is being sunset homelab-wide, so its repo wiring was removed: the `Grep`/`Glob` guard hook, the `mcp__vexp__*` permission allows, the "Context search" agent rules in `CLAUDE.md`, and the `.vexp/` index files. The host-side vexp install is removed separately via the `ansible` `devworkstation` role's opt-in `--tags vexp_teardown` task.

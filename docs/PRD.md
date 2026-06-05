@@ -102,6 +102,7 @@
 | 3.61 | 2026-05-30 | Mobile hamburger nav drawer (#52) — below 768 px the sidebar no longer occupies viewport width. It is hidden off-screen and revealed by a hamburger (`Menu`) button in the top bar; the drawer slides in as a fixed overlay with a translucent backdrop. Tapping a nav link or the backdrop closes it. Desktop layout (≥ 768 px) is unchanged: sidebar is static, in-flow, collapsible. `MobileNavProvider` context shares open/close state between `TopBar` and `Sidebar` without touching any of the 18 page call sites. A `useMediaQuery` hook ensures the sidebar always renders full-width with labels inside the mobile drawer, regardless of the user's stored desktop-collapse preference. |
 | 3.62 | 2026-05-30 | Release v0.3.10 — bundles the mobile hamburger nav drawer (#52), full light-mode legibility and the Light/Dark/Follow-system mode picker (#51), configurable application timezone for scheduled jobs (#43), and the Read-Only CSV-import security fix (#12). No schema change. |
 | 3.63 | 2026-06-03 | Docs true-up: §2 Version Roadmap reconciled to shipped/planned (firearms/range/cleaning shipped in v0.3.0; notifications/label printing marked planned); §15.1 ENV table gains AL_TIMEZONE; revision-history numbering de-duplicated; PRD header bumped. frontend/package.json version aligned to 0.3.10. No schema/code change. |
+| 3.64 | 2026-06-04 | Schema-versioned restore compatibility (implements `prd/backup-restore-compat.md`). `_classify_schema_migration()` replaces the binary schema-equality check: preview returns a `compatibility` verdict (`clean` / `older_compatible` / `rejected`); commit accepts `older_compatible` only with `confirm_older=true`; `older_compatible` response includes `tables_added_empty`, `columns_defaulted`, and a `summary`. `backup_format_version` added to JSON envelope and zip `MANIFEST.json`; a newer format than the running build understands is rejected. Frontend Backup page renders the verdict inline — amber warning with "I understand" gate for older schemas, red rejection with recommended action otherwise. §11.1 JSON envelope updated; §11.8 updated; §11.10 added; §17 index entry flipped from DRAFT. |
 
 ---
 
@@ -2544,8 +2545,10 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
 
 ```json
 {
-  "ammologger_version": "1.0.0",
-  "schema_migration": "0009",
+  "ammologger_version": "0.3.10",
+  "ammoledger_version": "0.3.10",
+  "backup_format_version": 1,
+  "schema_migration": "0004",
   "exported_at": "2026-04-25T03:00:00",
   "tables": {
     "users": ["..."],
@@ -2556,6 +2559,11 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
   }
 }
 ```
+
+Notes:
+- `ammologger_version` is the legacy misspelling; kept for read-compatibility with pre-v0.3.10 exports. New code reads `ammoledger_version` first, falling back to `ammologger_version`.
+- `backup_format_version` versions the *container shape* (envelope keys, table-set framing, zip layout) independently of the DB schema. Absent → treated as `1`. A build that sees a version higher than it knows rejects the import.
+- `schema_migration` is the Alembic revision ID (e.g. `"0001"`, `"0004"`) from `alembic_version.version_num`.
 
 ### 11.2 Scheduled Backup (automatic)
 
@@ -2657,11 +2665,11 @@ Returns a read-only analysis of what the import will do:
 - `user_conflicts` — accounts that exist in both the current DB and the export (will be replaced wholesale, including password hashes)
 - `app_settings_diff` — keys where the imported value differs from the current value (operational telemetry keys filtered out)
 - `ownership_summary` — per-user count of ammo boxes and products post-restore, flagged if the user does not currently exist
-- `current_migration` / `schema_migration` — current Alembic head vs. export's schema tag; mismatched schemas are rejected here with a 400 before any data is touched
+- `compatibility` — schema compatibility verdict (see §11.10)
 
 **Step 2 — Commit (`POST /backup/import/commit`)**
 
-Full replace only: all current data is deleted, then the export is loaded. A pre-import safety backup is created automatically before any deletes. Schema mismatch validation runs again on commit as a safety net.
+Full replace only: all current data is deleted, then the export is loaded. A pre-import safety backup is created automatically before any deletes. Schema classification runs again on commit as a safety net. Commits with `older_compatible` verdict require `confirm_older=true` in the request.
 
 Additive import mode was removed in v0.2.1. It was broken-by-design for cross-installation merges: colliding user rows were skipped while their child rows still inserted, ending up pointing at whoever held the conflicting ID on the target database. See GitHub issue #10. Cross-installation row-level merge is not planned for v0.3.0.
 
@@ -2717,6 +2725,33 @@ would grow without bound on installs that restore frequently, and disk
 usage on bind-mounted volumes is the most common storage complaint. One
 snapshot is enough to recover from a wrong-file restore; chronic
 multi-snapshot retention is what `BACKUP_PATH/.zip` files are for.
+
+### 11.10 Schema Compatibility Classification (v0.3.11+)
+
+Full design: see `docs/prd/backup-restore-compat.md`. Summary:
+
+**Compatibility key:** the Alembic revision ID in `schema_migration`, not the app version. This means every release between two schema changes (e.g. v0.3.0–v0.3.10, all at revision `0004`) can restore each other's JSON exports as a clean `clean` verdict.
+
+**Three-way classification (returned as `compatibility` in the preview response):**
+
+| Export schema vs current | Verdict | Behavior |
+|---|---|---|
+| Equal | `clean` | Normal restore; no additional confirmation needed |
+| Older, known ancestor, at or above `JSON_RESTORE_ADDITIVE_SINCE` | `older_compatible` | Allowed with disclosure; requires `confirm_older=true` on commit |
+| Newer / unknown / below the additive floor | `rejected` | Refused with reason and recommended action |
+
+**`older_compatible` disclosure fields:**
+- `tables_added_empty` — tables in `_EXPORT_TABLES` absent from the export (will be empty after restore)
+- `columns_defaulted` — per-table list of columns present in the current schema but absent from the export rows (will use the column default or NULL)
+- `summary` — human-readable summary string for the Backup page banner
+
+**`rejected` reason codes:** `missing_schema_tag` | `not_ancestor` | `newer_schema` | `below_floor` | `unsupported_format`
+
+**`backup_format_version`:** an integer field in the JSON envelope (and `MANIFEST.json` in the zip) that versions the *container format* independently of the DB schema. Absent → treated as `1`. A newer format than the running build understands is rejected immediately with reason `unsupported_format`.
+
+**Additive-since floor policy:** `JSON_RESTORE_ADDITIVE_SINCE = "0001"` in `routers/backup.py` names the oldest revision ID from which a JSON export is known additive-safe into the current head. If a migration adds a NOT NULL column without a server default to an *existing* table, the floor must be bumped to that migration's revision ID in the same commit. See `CLAUDE.md → Database Rules`.
+
+**Recommended cross-version path:** `.db` / `.zip` snapshots auto-migrate via Alembic and are preferred for cross-version restores. JSON restore discloses-and-defaults for `older_compatible` cases.
 
 ---
 
@@ -3130,7 +3165,7 @@ As AmmoLedger's feature surface has grown, individual feature areas are being pr
 - [`prd/tagging.md`](./prd/tagging.md) — Physical tokens (QR codes and NFC tags), label template designer, tag programming workflows, scan modes (Range Day, Intake, Cleanup, Audit), and forward-compatible architecture for networked scanners.
 - [`prd/legal-owners.md`](./prd/legal-owners.md) — Non-individual legal owners (gun trusts, LLCs, corporations) and their recurring filings (annual reports, franchise taxes, registered agent renewals). Prerequisite for NFA tax stamp tracking in the Licenses feature. **DRAFT — design committed, not yet scheduled.**
 - [`prd/licenses.md`](./prd/licenses.md) — Carry permits, NFA tax stamps, ownership licenses (UK FAC, Canadian PAL), hunting licenses, instructor credentials, state prerequisites. Includes reciprocity modeling, coverage view, renewal reminders, and per-user disclaimer acknowledgement. **DRAFT — design committed, not yet scheduled.**
-- [`prd/backup-restore-compat.md`](./prd/backup-restore-compat.md) — Schema-versioned restore classification (clean / older-compatible-with-disclosure / rejected), an independent `backup_format_version` for the container, the additive-since floor + policy, and the disclose-and-default preview UX. Supersedes issue #14's "relax the equality check" framing. **DRAFT — design committed, not yet scheduled.**
+- [`prd/backup-restore-compat.md`](./prd/backup-restore-compat.md) — Schema-versioned restore classification (clean / older-compatible-with-disclosure / rejected), an independent `backup_format_version` for the container, the additive-since floor + policy, and the disclose-and-default preview UX. Supersedes issue #14's "relax the equality check" framing. **Implemented in v0.3.11 — see §11.10.**
 
 ### Hardware reference
 
