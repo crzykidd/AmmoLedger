@@ -7,6 +7,35 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-04 — Restore compatibility is keyed on schema head, not app version
+
+Issue #14 asked to "relax the strict `schema_migration` equality check." Investigating it
+surfaced a better framing, committed as a design doc at `docs/prd/backup-restore-compat.md`
+(handoff: `prompts/2026-06-04-backup-restore-compat.md`). Key decisions:
+
+- **The restore compatibility key stays the Alembic migration head, not the app version.**
+  This already delivers "any vXXX–vYYY with the same schema just works" for free — migrations
+  stopped at `0004` (shipped v0.3.0), so all of v0.3.0–v0.3.10 sit at head `0004` and their
+  JSON exports are already interchangeable under the existing strict check. We do NOT add an
+  app-version compatibility band.
+- **Replace equal-or-reject with a classification:** `clean` (equal) / `older_compatible`
+  (older, ancestor-of-head, at/above a vetted additive-since floor → restore *with disclosure*
+  of which tables go empty and which columns default, behind an explicit confirm) / `rejected`
+  (below floor, not an ancestor, newer/descendant, or unknown). Reuses the existing
+  `_classify_db_revision` graph-walk.
+- **Additive-since floor is a static, vetted constant** (`JSON_RESTORE_ADDITIVE_SINCE`), not
+  dynamic detection — whether a past migration was additive is not reliably introspectable.
+  Policy: a new column on an *existing* table must be nullable or have a server default, or the
+  migration moves the floor up to itself.
+- **Add `backup_format_version`** to the container, decoupled from `schema_migration`, so the
+  file envelope/zip layout can evolve independently of the DB schema.
+- **The `.db`/`.zip` snapshot restore (which already auto-migrates a `behind` backup to head)
+  is the recommended path for crossing schema versions;** JSON restore discloses-and-defaults.
+- Rejected: closing #14 as won't-fix, and JSON cross-installation row-level merge (issue #10 —
+  no safe answer). #14 stays open, repointed at the design doc, closed when the work lands.
+
+---
+
 ## 2026-06-03 — PRD §2 Version Roadmap uses a Shipped/Planned Status column
 
 The §2 table previously labelled every feature with fictional `v1.0` / `v2.0` / `v3.0`

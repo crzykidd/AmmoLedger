@@ -3130,6 +3130,7 @@ As AmmoLedger's feature surface has grown, individual feature areas are being pr
 - [`prd/tagging.md`](./prd/tagging.md) — Physical tokens (QR codes and NFC tags), label template designer, tag programming workflows, scan modes (Range Day, Intake, Cleanup, Audit), and forward-compatible architecture for networked scanners.
 - [`prd/legal-owners.md`](./prd/legal-owners.md) — Non-individual legal owners (gun trusts, LLCs, corporations) and their recurring filings (annual reports, franchise taxes, registered agent renewals). Prerequisite for NFA tax stamp tracking in the Licenses feature. **DRAFT — design committed, not yet scheduled.**
 - [`prd/licenses.md`](./prd/licenses.md) — Carry permits, NFA tax stamps, ownership licenses (UK FAC, Canadian PAL), hunting licenses, instructor credentials, state prerequisites. Includes reciprocity modeling, coverage view, renewal reminders, and per-user disclaimer acknowledgement. **DRAFT — design committed, not yet scheduled.**
+- [`prd/backup-restore-compat.md`](./prd/backup-restore-compat.md) — Schema-versioned restore classification (clean / older-compatible-with-disclosure / rejected), an independent `backup_format_version` for the container, the additive-since floor + policy, and the disclose-and-default preview UX. Supersedes issue #14's "relax the equality check" framing. **DRAFT — design committed, not yet scheduled.**
 
 ### Hardware reference
 
