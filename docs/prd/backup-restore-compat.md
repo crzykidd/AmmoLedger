@@ -2,8 +2,9 @@
 
 # Backup / Restore Compatibility — Schema-Versioned Restores and Format Versioning
 
-**Status:** Implemented — shipped in v0.3.11. Supersedes the bare "relax the equality
-check" framing of issue #14. See `docs/PRD.md §11.10` for the specification as shipped.
+**Status:** Implemented on `dev` — not yet released (targeting v0.3.11). Supersedes the
+bare "relax the equality check" framing of issue #14. See `docs/PRD.md §11.10` for the
+specification.
 
 **Scope:** How AmmoLedger decides whether a backup can be restored into the current
 installation, and what it tells the admin when it can't fully. Covers the JSON
