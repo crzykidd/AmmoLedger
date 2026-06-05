@@ -24,6 +24,8 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **Backup container format versioning.** JSON exports and zip archives now carry a `backup_format_version` field. If a backup made by a future build arrives at an older install that cannot understand the new format, the import is rejected with a clear "upgrade first" message instead of silently producing bad data.
 
+- **CSV import auto-detects ammo vs. firearms format.** Upload a firearms CSV while the Import page is on the Ammo tab (or vice-versa) and AmmoLedger now recognizes the format from the file's columns, switches to the matching importer automatically, and keeps the file you picked — ready to validate. Previously the upload would just fail validation with no hint that you were on the wrong tab. Fixes #36
+
 ### Changed
 
 - **De-adopted the `vexp-context-engine` standard (dev tooling; no user-facing change).** vexp is being sunset homelab-wide, so its repo wiring was removed: the `Grep`/`Glob` guard hook, the `mcp__vexp__*` permission allows, the "Context search" agent rules in `CLAUDE.md`, and the `.vexp/` index files. The host-side vexp install is removed separately via the `ansible` `devworkstation` role's opt-in `--tags vexp_teardown` task.

@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { detectCsvDomain, type ImportDomain } from '@/lib/detect-csv-domain'
 import {
   confirmFirearmsImport,
   getFirearmsImportTemplateUrl,
@@ -96,13 +97,27 @@ function ExpandableList({ label, items }: { label: string; items: string[] }) {
 
 function UploadState({
   onValidated,
+  initialFile,
+  onDomainMismatch,
 }: {
   onValidated: (result: FirearmsImportValidationResult, file: File) => void
+  initialFile?: File | null
+  onDomainMismatch?: (detected: ImportDomain, file: File) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [file, setFile] = useState<File | null>(initialFile ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const handleFile = (f: File) => {
+    setFile(f)
+    setError(null)
+    // If the CSV looks like the ammo format, bubble up so the page can switch
+    // tabs and carry the file over instead of failing validation.
+    void detectCsvDomain(f).then((d) => {
+      if (d && d !== 'firearms') onDomainMismatch?.(d, f)
+    })
+  }
 
   const handleValidate = async () => {
     if (!file) return
@@ -148,7 +163,7 @@ function UploadState({
             type="file"
             accept=".csv"
             className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFile(f); setError(null) } }}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
           />
           <button
             type="button"
@@ -758,7 +773,13 @@ function Stat({ label, value, muted }: { label: string; value: number; muted?: b
 
 type FlowState = 'upload' | 'validation' | 'result'
 
-export default function FirearmsFlow() {
+export default function FirearmsFlow({
+  initialFile,
+  onDomainMismatch,
+}: {
+  initialFile?: File | null
+  onDomainMismatch?: (detected: ImportDomain, file: File) => void
+} = {}) {
   const [state, setState] = useState<FlowState>('upload')
   const [validationResult, setValidationResult] = useState<FirearmsImportValidationResult | null>(null)
   const [confirmResult, setConfirmResult] = useState<FirearmsImportConfirmResult | null>(null)
@@ -784,7 +805,13 @@ export default function FirearmsFlow() {
 
   return (
     <>
-      {state === 'upload' && <UploadState onValidated={handleValidated} />}
+      {state === 'upload' && (
+        <UploadState
+          onValidated={handleValidated}
+          initialFile={initialFile}
+          onDomainMismatch={onDomainMismatch}
+        />
+      )}
       {state === 'validation' && validationResult && pendingFile && (
         <ValidationState
           result={validationResult}

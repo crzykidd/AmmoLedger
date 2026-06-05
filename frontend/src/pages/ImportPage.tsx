@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileUp, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight, Download, RotateCcw, ArrowLeft, Info } from 'lucide-react'
+import { FileUp, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight, Download, RotateCcw, ArrowLeft, Info, X } from 'lucide-react'
 import { HelpTip } from '@/components/HelpTip'
 import AppShell from '@/components/layout/AppShell'
 import TopBar from '@/components/layout/TopBar'
@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { detectCsvDomain, type ImportDomain } from '@/lib/detect-csv-domain'
 import { confirmImport, getImportTemplateUrl, validateImport } from '@/api/import'
 import type { ImportConfirmResult, ImportValidationResult, LegacyIdMode, SimilarityMatch } from '@/types'
 
@@ -82,17 +83,26 @@ function ExpandableList({ label, items }: { label: string; items: string[] }) {
 
 function UploadState({
   onValidated,
+  initialFile,
+  onDomainMismatch,
 }: {
   onValidated: (result: ImportValidationResult, file: File) => void
+  initialFile?: File | null
+  onDomainMismatch?: (detected: ImportDomain, file: File) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [file, setFile] = useState<File | null>(initialFile ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleFile = (f: File) => {
     setFile(f)
     setError(null)
+    // If the CSV looks like the other domain's format, bubble up so the page
+    // can switch tabs and carry the file over instead of failing validation.
+    void detectCsvDomain(f).then((d) => {
+      if (d && d !== 'ammo') onDomainMismatch?.(d, f)
+    })
   }
 
   const handleValidate = async () => {
@@ -801,7 +811,13 @@ function Stat({ label, value, muted }: { label: string; value: number; muted?: b
 
 type PageState = 'upload' | 'validation' | 'result'
 
-function AmmoFlow() {
+function AmmoFlow({
+  initialFile,
+  onDomainMismatch,
+}: {
+  initialFile?: File | null
+  onDomainMismatch?: (detected: ImportDomain, file: File) => void
+}) {
   const [state, setState] = useState<PageState>('upload')
   const [validationResult, setValidationResult] = useState<ImportValidationResult | null>(null)
   const [confirmResult, setConfirmResult] = useState<ImportConfirmResult | null>(null)
@@ -827,7 +843,13 @@ function AmmoFlow() {
 
   return (
     <>
-      {state === 'upload' && <UploadState onValidated={handleValidated} />}
+      {state === 'upload' && (
+        <UploadState
+          onValidated={handleValidated}
+          initialFile={initialFile}
+          onDomainMismatch={onDomainMismatch}
+        />
+      )}
       {state === 'validation' && validationResult && pendingFile && (
         <ValidationState
           result={validationResult}
@@ -849,21 +871,41 @@ function AmmoFlow() {
 // inactive flow (cheap — validation tokens live for 15 minutes anyway).
 // ---------------------------------------------------------------------------
 
-type ImportDomain = 'ammo' | 'firearms'
-
 const DOMAIN_TITLES: Record<ImportDomain, string> = {
   ammo: 'Import Ammo Data',
   firearms: 'Import Firearms Data',
 }
 
+const DOMAIN_LABELS: Record<ImportDomain, string> = {
+  ammo: 'Ammo',
+  firearms: 'Firearms',
+}
+
 export default function ImportPage() {
   const [domain, setDomain] = useState<ImportDomain>('ammo')
+  // File handed over when a CSV uploaded on one tab is detected as the other
+  // domain's format — preserved in state so the user doesn't re-pick it.
+  const [handoffFile, setHandoffFile] = useState<File | null>(null)
+  const [autoSwitched, setAutoSwitched] = useState<ImportDomain | null>(null)
+
+  const handleDomainMismatch = (detected: ImportDomain, file: File) => {
+    setDomain(detected)
+    setHandoffFile(file)
+    setAutoSwitched(detected)
+  }
+
+  const selectDomain = (d: ImportDomain) => {
+    // A manual tab switch discards any pending handoff + notice.
+    setDomain(d)
+    setHandoffFile(null)
+    setAutoSwitched(null)
+  }
 
   return (
     <AppShell>
       <TopBar title={DOMAIN_TITLES[domain]} />
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-5">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto space-y-3">
           <div role="tablist" className="inline-flex rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-0.5">
             {(['ammo', 'firearms'] as const).map((d) => (
               <button
@@ -871,7 +913,7 @@ export default function ImportPage() {
                 type="button"
                 role="tab"
                 aria-selected={domain === d}
-                onClick={() => setDomain(d)}
+                onClick={() => selectDomain(d)}
                 className={cn(
                   'px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
                   domain === d
@@ -879,12 +921,33 @@ export default function ImportPage() {
                     : 'text-gray-600 dark:text-gray-300 hover:text-gold',
                 )}
               >
-                {d === 'ammo' ? 'Ammo' : 'Firearms'}
+                {DOMAIN_LABELS[d]}
               </button>
             ))}
           </div>
+
+          {autoSwitched && (
+            <div className="flex items-start gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 px-3 py-2">
+              <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+              <p className="flex-1 text-xs text-blue-800 dark:text-blue-300">
+                That looks like a <strong>{DOMAIN_LABELS[autoSwitched]}</strong> CSV — switched to the {DOMAIN_LABELS[autoSwitched]} importer and kept your file. Click Validate to continue, or pick another tab.
+              </p>
+              <button
+                type="button"
+                onClick={() => setAutoSwitched(null)}
+                className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 shrink-0"
+                aria-label="Dismiss"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
-        {domain === 'ammo' ? <AmmoFlow /> : <FirearmsFlow />}
+        {domain === 'ammo' ? (
+          <AmmoFlow initialFile={handoffFile} onDomainMismatch={handleDomainMismatch} />
+        ) : (
+          <FirearmsFlow initialFile={handoffFile} onDomainMismatch={handleDomainMismatch} />
+        )}
       </div>
     </AppShell>
   )

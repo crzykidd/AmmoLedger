@@ -103,6 +103,7 @@
 | 3.62 | 2026-05-30 | Release v0.3.10 — bundles the mobile hamburger nav drawer (#52), full light-mode legibility and the Light/Dark/Follow-system mode picker (#51), configurable application timezone for scheduled jobs (#43), and the Read-Only CSV-import security fix (#12). No schema change. |
 | 3.63 | 2026-06-03 | Docs true-up: §2 Version Roadmap reconciled to shipped/planned (firearms/range/cleaning shipped in v0.3.0; notifications/label printing marked planned); §15.1 ENV table gains AL_TIMEZONE; revision-history numbering de-duplicated; PRD header bumped. frontend/package.json version aligned to 0.3.10. No schema/code change. |
 | 3.64 | 2026-06-04 | Schema-versioned restore compatibility (implements `prd/backup-restore-compat.md`). `_classify_schema_migration()` replaces the binary schema-equality check: preview returns a `compatibility` verdict (`clean` / `older_compatible` / `rejected`); commit accepts `older_compatible` only with `confirm_older=true`; `older_compatible` response includes `tables_added_empty`, `columns_defaulted`, and a `summary`. `backup_format_version` added to JSON envelope and zip `MANIFEST.json`; a newer format than the running build understands is rejected. Frontend Backup page renders the verdict inline — amber warning with "I understand" gate for older schemas, red rejection with recommended action otherwise. §11.1 JSON envelope updated; §11.8 updated; §11.10 added; §17 index entry flipped from DRAFT. |
+| 3.65 | 2026-06-05 | CSV import auto-detects ammo vs. firearms format (#36). New `frontend/src/lib/detect-csv-domain.ts` sniffs the uploaded CSV's header row and scores domain-unique marker columns; on a mismatch with the active Import tab, `ImportPage` switches to the correct tab and hands the selected file across (preserved in React state, ready to validate) with a dismissible notice. Both `UploadState` components (ammo + firearms) detect on file-select and bubble `(detected, file)` up; manual tab switches discard the handoff. Frontend-only; no backend change. §9.8 updated. |
 
 ---
 
@@ -1767,6 +1768,8 @@ See [Section 11](#11-database-backup) for full specification. UI entry point is 
 #### Overview
 
 Import is a two-step process — validate first, then confirm. No database writes happen during validation. The flow gives the user full visibility into what will change before any data is committed.
+
+The Import page has Ammo and Firearms tabs. When a file is selected, the frontend sniffs its header row (`lib/detect-csv-domain.ts`) and, if the columns match the other domain's format, automatically switches to the correct tab and carries the chosen file over — so an ammo CSV dropped on the Firearms tab (or vice-versa) is routed to the right importer instead of failing validation. Detection scores domain-unique marker columns (ammo: `qty_original` / `qty_remaining` / `product_name`; firearms: `firearm_type` / `serial` / `action_type`); shared columns are ignored, and an ambiguous header leaves the user on their chosen tab.
 
 #### Step 1 — Validation (`POST /import/validate`)
 
