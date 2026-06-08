@@ -40,11 +40,17 @@ expected to be modified by "When done" below.
 2. `git mv` this file into `prompts/done/` (on success) or `prompts/failed/` (on
    failure). Create the subdir if it doesn't exist yet.
 3. Record any non-obvious decisions in the project's `docs/decisions.md`.
-4. Propose ONE commit covering the files this session modified (including the prompt
-   move). Present the file list and a one-line message summarising the changes; ask
-   `commit these as "<message>"? (y/n)`. On `y`, stage those specific paths and
-   commit on the current branch. Never `git add -A`. Never push. By default the
-   message is a plain one-liner and the branch is whatever the session is on. **Only
-   if** the project also adopts `code-checkin-and-pr` do its branch rules (`dev`,
-   never `main`) and commit-prefix conventions (`feat:` / `fix:` / `chore:` /
-   `docs:`, no `Co-authored-by:`) apply on top.
+4. Hand off ONE commit covering this prompt file, the files this session modified, and
+   the prompt move (the prompt is **not** pre-committed — it bundles in here). Present
+   the file list and a one-line message summarising the changes.
+   - **If you are a spawned agent:** do **not** commit. Prepare the working tree, then
+     report the file list + proposed message back to the orchestrating session, which
+     surfaces the `y/n` to the user.
+   - **If you are running directly (manual fallback):** ask the user
+     `commit these as "<message>"? (y/n)` yourself. On `y`, stage those specific paths
+     and commit on the current branch.
+   Either way: never `git add -A`, never push, never auto-commit. By default the message
+   is a plain one-liner and the branch is whatever the session is on. **Only if** the
+   project also adopts `code-checkin-and-pr` do its branch rules (`dev`, never `main`)
+   and commit-prefix conventions (`feat:` / `fix:` / `chore:` / `docs:`, no
+   `Co-authored-by:`) apply on top.

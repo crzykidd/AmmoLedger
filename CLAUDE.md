@@ -183,16 +183,52 @@ coding agent must honor by default:
 If you're unsure whether an action would violate one of the above, stop and
 ask before acting.
 
-## Handoff prompts
+<!--
+Source: standards/handoff-prompt-workflow @ v2.0.0 (crzynet/homelab-configs).
+Pasted verbatim per the standard. Full why-and-how:
+https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/handoff-prompt-workflow/README.md
+-->
 
-This project adopts the
-[`handoff-prompt-workflow`](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/handoff-prompt-workflow/README.md)
-standard (soft pointer — see `standards.md`). Scoped work that warrants a fresh session
-is written as a handoff prompt in `prompts/` (start from `prompts/TEMPLATE.md`); the
-live `prompts/` dir is the pending queue, and finished prompts `git mv` into
-`prompts/done/` or `prompts/failed/`. Non-obvious decisions go in `docs/decisions.md`
-(newest at top). Read the linked standard for the full plan → decide → execute →
-document flow; don't restate it here.
+## Handoff prompts (operational rules)
+
+This project adopts the `handoff-prompt-workflow` standard. The full why-and-how lives at
+the source above; the rules below are the per-session do/don'ts an agent must honor by
+default:
+
+- **Edit-size threshold — decide by how much you'll change:**
+  - A genuinely small change — roughly **one or two files and a few lines** (a typo, one
+    config value, a one-line fix) — do it **in-session**, no prompt.
+  - **Anything bigger requires a handoff prompt** — more than ~2 files, a multi-step
+    change, a new feature, or any edit large enough that a fresh context would run it
+    more cleanly. **When in doubt, write the prompt.**
+- **A handoff prompt is a file in `prompts/`** — one per task, from `prompts/TEMPLATE.md`,
+  with frontmatter (`name`, `status`, `created`, `model`, `completed`, `result`). Set
+  `model:` from the task type: **Opus** for research/planning, **Sonnet** for coding;
+  mixed defaults to Opus.
+- **Execute the prompt by spawning a subagent — don't hand the user a command.** Spawn an
+  agent on the prompt's `model:`, let it run the prompt end-to-end, and **report the
+  outcome back**. The agent gets a fresh context; you stay in the loop.
+  - **Manual fallback only on explicit request.** If the user says e.g. "use manual
+    prompts for this," give them
+    `claude --model <model> "Read prompts/<file>.md and execute it as your task."`
+    instead of spawning.
+- **Check the working tree before editing.** Run `git status --porcelain`, cross-reference
+  the files the plan touches; if any have uncommitted changes, list them and ask before
+  touching. Surface unrelated dirty files once; they don't block.
+- **The prompt self-updates and moves when done.** The executing agent sets its
+  frontmatter (`status`/`completed`/`result`) and `git mv`s the file into `prompts/done/`
+  (success) or `prompts/failed/` (failure).
+- **One commit at the end; the prompt bundles in.** The prompt file is **not** committed
+  up front — it lands in the single end commit alongside the work and the prompt move.
+  Propose ONE commit (files list + one-line message), ask `y/n`, stage only those specific
+  paths. **Never `git add -A`, never auto-commit, never push.** A spawned agent prepares
+  the tree and reports the proposed commit back; the orchestrating session surfaces the
+  `y/n`.
+- **Record non-obvious decisions** (approach changes, rejected alternatives, workarounds)
+  in `docs/decisions.md`, newest at top.
+
+If you're unsure whether an action would violate one of the above, stop and ask before
+acting.
 
 ## Project Documentation
 
