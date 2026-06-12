@@ -7,6 +7,39 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-12 — Session secret / cookie hardening: boot-time config read
+
+Prompt: `prompts/done/2026-06-12-fix-session-secret-and-cookie-hardening.md`
+
+- **`get_config()` is called at module load to read the session secret, not inside `on_startup`.**
+  `SessionMiddleware` must be attached to the ASGI app object at import time (before the startup
+  event fires), so we need the secret available before `on_startup` runs. `get_config()` does a
+  single file read + ENV override application without side effects (unlike `load_and_validate_config`
+  which writes files, runs migrations, etc.) — safe to call at module load. Storing the resolved
+  result in `_boot_config` avoids a second file read at startup.
+
+- **`_DEFAULT_SECRET` is imported from `config.py` rather than duplicating the string literal.**
+  The same constant is already used in `validate_config` to detect the placeholder. A single source
+  of truth means both checks stay in sync if the default ever changes.
+
+- **In development mode, the default/missing secret is a warning, not a fatal exit.**
+  Production (`app.env: production`) raises `SystemExit(1)` so a container can never boot silently
+  with a forgeable key. Development mode logs a loud warning and falls back to the placeholder so
+  developers can run the app with no config without being blocked. This mirrors the existing pattern
+  in `load_and_validate_config` for other config errors.
+
+- **`https_only` is inferred from `base_url` scheme, not a separate config knob.**
+  Adding yet another boolean to config was rejected as unnecessary complexity. If your public URL
+  starts with `https://`, your cookies should be HTTPS-only — deriving it is always correct and
+  requires no operator action.
+
+- **CORS: dev origin is included alongside the configured base_url in non-production mode.**
+  When `app.env != "production"` and a custom `base_url` is set, both the custom origin and
+  `http://localhost:5173` are allowed. This lets developers point a config at a staging URL without
+  breaking the local Vite dev server. In production, only the configured URL is allowed.
+
+---
+
 ## 2026-06-04 — Backup/restore compat: implementation non-obvious calls
 
 Implementing `docs/prd/backup-restore-compat.md` (prompt: `prompts/done/2026-06-04-backup-restore-compat.md`).

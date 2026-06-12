@@ -26,6 +26,14 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **CSV import auto-detects ammo vs. firearms format.** Upload a firearms CSV while the Import page is on the Ammo tab (or vice-versa) and AmmoLedger now recognizes the format from the file's columns, switches to the matching importer automatically, and keeps the file you picked — ready to validate. Previously the upload would just fail validation with no hint that you were on the wrong tab. Fixes #36
 
+### Security
+
+- **Session cookies are now signed with the configured secret.** Previously, `backend/main.py` read the signing key from a bare `SESSION_SECRET` environment variable that nothing in the documented deployment surface ever set — so production deployments silently signed session cookies with a public hardcoded placeholder and the validation in `config.py` that rejects the default was effectively moot. The signing key is now read from the loaded config (`AL_SESSION_SECRET` / `config.yaml → security.session_secret`), which is the variable all deployment docs and Docker Compose examples already tell operators to set. If the secret is absent or the default placeholder in a production-posture app (`app.env: production`), the backend now refuses to start with a clear error instead of booting with a forgeable key.
+
+- **Session cookie is now hardened.** `SessionMiddleware` is now configured with `https_only=True` when the configured `app.base_url` uses HTTPS, `max_age` derived from `app.session_timeout_hours` (previously the configured timeout was honored by server-side auth logic but ignored at the cookie layer), and an explicit `same_site="lax"`.
+
+- **CORS allowed origin is now driven by `app.base_url`.** Previously hardcoded to `http://localhost:5173` in every deployment. The configured public URL is now used as the CORS allowed origin; the localhost dev origin is retained as a fallback when no base URL is configured. `allow_credentials=True` is never paired with `allow_origins=["*"]`.
+
 ### Changed
 
 - **De-adopted the `vexp-context-engine` standard (dev tooling; no user-facing change).** vexp is being sunset homelab-wide, so its repo wiring was removed: the `Grep`/`Glob` guard hook, the `mcp__vexp__*` permission allows, the "Context search" agent rules in `CLAUDE.md`, and the `.vexp/` index files. The host-side vexp install is removed separately via the `ansible` `devworkstation` role's opt-in `--tags vexp_teardown` task.

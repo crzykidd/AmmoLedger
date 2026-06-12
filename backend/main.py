@@ -29,8 +29,10 @@ from routers.tasks import router as tasks_router
 from routers.thresholds import router as thresholds_router
 from utils.config import (
     CONFIG_PATH,
+    _DEFAULT_SECRET,
     ensure_data_dirs,
     get_app_timezone,
+    get_config,
     get_setting,
     load_and_validate_config,
     set_setting,
@@ -47,20 +49,73 @@ from version import __version__, get_build_info, get_display_version
 setup_logging()
 logger = get_logger(__name__)
 
-SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
 GITHUB_API_URL = "https://api.github.com/repos/crzykidd/AmmoLedger"
+
+# ---------------------------------------------------------------------------
+# Session secret — sourced from config (AL_SESSION_SECRET / config.yaml).
+# Must be resolved at module load time because SessionMiddleware is added to
+# the ASGI app before on_startup fires.
+# ---------------------------------------------------------------------------
+_boot_config = get_config()
+SESSION_SECRET = ((_boot_config.get("security") or {}).get("session_secret") or "").strip()
+
+_boot_env = str((_boot_config.get("app") or {}).get("env", "development"))
+if not SESSION_SECRET or SESSION_SECRET == _DEFAULT_SECRET:
+    _msg = (
+        "FATAL: session_secret is not set or is the default placeholder.\n"
+        "Set a strong random secret in config.yaml → security.session_secret\n"
+        "or via the AL_SESSION_SECRET environment variable.\n"
+        "Generate one with:  openssl rand -hex 32"
+    )
+    if _boot_env == "production":
+        print(_msg, flush=True)
+        raise SystemExit(1)
+    else:
+        # Development: fall back to the placeholder so developers can start
+        # without explicit config, but warn loudly.
+        print(f"WARNING: {_msg}", flush=True)
+        SESSION_SECRET = SESSION_SECRET or _DEFAULT_SECRET
+
+# ---------------------------------------------------------------------------
+# Cookie hardening — derive https_only and max_age from config.
+# ---------------------------------------------------------------------------
+_base_url = str((_boot_config.get("app") or {}).get("base_url", "") or "")
+_https_only = _base_url.startswith("https://")
+_session_timeout_hours = int(
+    ((_boot_config.get("app") or {}).get("session_timeout_hours") or 8)
+)
+_session_max_age = _session_timeout_hours * 3600  # seconds
+
+# ---------------------------------------------------------------------------
+# CORS — drive allowed origin from base_url; fall back to localhost dev origin.
+# ---------------------------------------------------------------------------
+_DEV_ORIGIN = "http://localhost:5173"
+_cors_origin = _base_url.rstrip("/") if _base_url and _base_url != _DEV_ORIGIN else _DEV_ORIGIN
+# Include dev origin alongside the configured base URL in dev mode so the
+# Vite dev server still works when a custom base_url is set.
+_cors_origins = (
+    [_cors_origin]
+    if _cors_origin == _DEV_ORIGIN or _boot_env == "production"
+    else list({_cors_origin, _DEV_ORIGIN})
+)
 
 app = FastAPI(title="AmmoLedger API", version=__version__)
 
 # CORSMiddleware added first → outermost → handles preflight before session processing
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    https_only=_https_only,
+    max_age=_session_max_age,
+    same_site="lax",
+)
 
 app.include_router(auth.router)
 app.include_router(users.router)
