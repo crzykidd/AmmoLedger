@@ -28,11 +28,19 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Security
 
+- **SSRF guard on product image preview.** The "Preview image from URL" endpoint fetches a user-supplied URL server-side. It now resolves the hostname before connecting and rejects loopback, RFC 1918 private, link-local (169.254.0.0/16, including cloud metadata endpoints), ULA, and other non-public IP ranges. The guard is also enforced on every redirect hop via httpx event hooks so a public URL that 302s into an internal address is caught before the follow happens.
+
+- **Read-only users can no longer modify or delete products.** The product `_check_write` guard previously blocked only non-owners but never explicitly rejected the `read_only` role, so a demoted user retained write/delete/image-upload access to their own products. The guard now rejects `read_only` requests with `403 Forbidden` before the ownership check, matching the behaviour of the ammo, firearms, and range-session domains.
+
 - **Session cookies are now signed with the configured secret.** Previously, `backend/main.py` read the signing key from a bare `SESSION_SECRET` environment variable that nothing in the documented deployment surface ever set — so production deployments silently signed session cookies with a public hardcoded placeholder and the validation in `config.py` that rejects the default was effectively moot. The signing key is now read from the loaded config (`AL_SESSION_SECRET` / `config.yaml → security.session_secret`), which is the variable all deployment docs and Docker Compose examples already tell operators to set. If the secret is absent or the default placeholder in a production-posture app (`app.env: production`), the backend now refuses to start with a clear error instead of booting with a forgeable key.
 
 - **Session cookie is now hardened.** `SessionMiddleware` is now configured with `https_only=True` when the configured `app.base_url` uses HTTPS, `max_age` derived from `app.session_timeout_hours` (previously the configured timeout was honored by server-side auth logic but ignored at the cookie layer), and an explicit `same_site="lax"`.
 
 - **CORS allowed origin is now driven by `app.base_url`.** Previously hardcoded to `http://localhost:5173` in every deployment. The configured public URL is now used as the CORS allowed origin; the localhost dev origin is retained as a fallback when no base URL is configured. `allow_credentials=True` is never paired with `allow_origins=["*"]`.
+
+### Fixed
+
+- **Upload size is now enforced before the file is fully read into memory.** Previously the CSV import and firearm photo upload endpoints read the entire upload into memory before validating its size, meaning a large enough request could exhaust backend memory before being rejected. All four upload entry points (ammo CSV validate/confirm, firearms CSV validate/confirm, firearm photo upload) now check the `Content-Length` header for an early fast-fail and stream-read in 64 KiB chunks, rejecting with `413` the moment the running total exceeds the limit (10 MB).
 
 ### Changed
 

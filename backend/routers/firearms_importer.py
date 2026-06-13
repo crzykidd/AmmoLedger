@@ -46,6 +46,7 @@ from routers.importer import (
     _parse_datetime,
     _parse_float,
     _parse_int,
+    _read_upload_capped,
     _validate_token,
 )
 from utils.logging import get_logger, log_safe
@@ -548,7 +549,7 @@ async def validate_firearms_import(
     user=Depends(require_auth),
     db: Session = Depends(get_session),
 ):
-    content = await file.read()
+    content = await _read_upload_capped(file)
     logger.info("Firearm import validate started: %s, %d bytes",
                 log_safe(file.filename or "unknown"), len(content))
 
@@ -631,7 +632,7 @@ async def confirm_firearms_import(
     user=Depends(require_role("admin", "member")),
     db: Session = Depends(get_session),
 ):
-    content = await file.read()
+    content = await _read_upload_capped(file)
     logger.info("Firearm import confirm started: %s, is_shared=%s",
                 log_safe(file.filename or "unknown"), is_shared)
 

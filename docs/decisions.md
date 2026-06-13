@@ -7,6 +7,40 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-12 — SSRF guard, upload caps, product read-only gate
+
+Prompt: `prompts/done/2026-06-12-fix-ssrf-upload-limits-product-rbac.md`
+
+- **SSRF guard placed in `backend/utils/ssrf_guard.py` as a reusable module.**
+  Only the user-supplied-URL path (`preview_product_image`) needs this guard; the
+  operator-controlled or hardcoded outbound callers (`image_search`, `community_sync`,
+  `version_check`) were left unchanged per the prompt's explicit scope boundary.
+
+- **Redirect re-validation uses httpx `event_hooks` on the response, not a manual
+  redirect loop.** `follow_redirects=True` is kept so httpx handles the mechanics;
+  the `_on_response` hook fires after each response before the follow, giving us the
+  `Location` to validate without reimplementing redirect following ourselves. The hook
+  raises `HTTPException(422)` which httpx propagates out of the `stream()` context.
+
+- **Upload cap set to 10 MB for all CSV and photo uploads.**
+  `firearm_photos.py` already defined `MAX_UPLOAD_BYTES = 10 MB` in its utility module;
+  the same value was chosen for CSV importers so all upload paths share one consistent
+  limit. The constant is defined in `importer.py` and reused via import in
+  `firearms_importer.py` and `firearm_photos.py` (router).
+
+- **`_read_upload_capped` lives in `importer.py` and is imported by the other routers.**
+  It's a shared upload-read helper; placing it in `importer.py` (where `MAX_UPLOAD_BYTES`
+  is already defined) avoids a new utility file for a narrow helper. `firearms_importer.py`
+  already imports several helpers from `importer.py`, so this adds naturally to that pattern.
+
+- **Product `_check_write` read-only check inserted before the owner check.**
+  The `read_only` guard fires first (consistent with how ammo and firearms domains order
+  their guards) so the ownership check is never evaluated for read-only users — a demoted
+  user sees a clear "Read-only users cannot modify products" message rather than an
+  ownership error.
+
+---
+
 ## 2026-06-12 — Session secret / cookie hardening: boot-time config read
 
 Prompt: `prompts/done/2026-06-12-fix-session-secret-and-cookie-hardening.md`
