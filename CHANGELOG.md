@@ -54,6 +54,10 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **Upload size is now enforced before the file is fully read into memory.** Previously the CSV import and firearm photo upload endpoints read the entire upload into memory before validating its size, meaning a large enough request could exhaust backend memory before being rejected. All four upload entry points (ammo CSV validate/confirm, firearms CSV validate/confirm, firearm photo upload) now check the `Content-Length` header for an early fast-fail and stream-read in 64 KiB chunks, rejecting with `413` the moment the running total exceeds the limit (10 MB).
 
+### Security
+
+- **Production frontend is now a static build served by nginx — the Vite dev server no longer runs in production.** Previously the production Docker image ran `npm run dev` (Vite dev server) with `allowedHosts: true`, which disables Vite's DNS-rebinding protection and is not appropriate for production. The frontend image is now a multi-stage build: `npm ci` + `vite build` produces an optimised static bundle, and nginx serves it with security headers (`X-Content-Type-Options: nosniff`, `Content-Security-Policy` with `frame-ancestors`, `Referrer-Policy`). The nginx `/api/` proxy replaces the Vite dev-proxy; the backend remains on a private network with no published ports (single-ingress topology unchanged). The dev server stage is preserved for `docker-compose.dev.yml`.
+
 ### Changed
 
 - **De-adopted the `vexp-context-engine` standard (dev tooling; no user-facing change).** vexp is being sunset homelab-wide, so its repo wiring was removed: the `Grep`/`Glob` guard hook, the `mcp__vexp__*` permission allows, the "Context search" agent rules in `CLAUDE.md`, and the `.vexp/` index files. The host-side vexp install is removed separately via the `ansible` `devworkstation` role's opt-in `--tags vexp_teardown` task.

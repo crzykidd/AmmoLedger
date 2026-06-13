@@ -7,6 +7,62 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-13 — nginx static build replaces Vite dev server in production; single-ingress preserved
+
+Prompt: `prompts/done/2026-06-12-harden-deployment-and-ci.md`
+
+- **Static build (nginx) chosen over dev server for production.** The Vite dev server
+  (`npm run dev`) ran in production with `allowedHosts: true`, disabling Vite's
+  DNS-rebinding protection and exposing a dev-only code path (HMR websocket, source maps,
+  unoptimised modules) to the network. The fix is a two-stage Dockerfile: a `builder` stage
+  that runs `npm ci` + `npm run build` to produce `dist/`, and a `prod` stage based on
+  `nginx:1.27-alpine` that serves the built bundle. The `dev` target stage preserves the
+  prior Vite dev-server behaviour for `docker-compose.dev.yml`.
+
+- **Single-ingress topology preserved (nginx proxies /api; backend stays unexposed).**
+  The Vite dev proxy forwarded `/api/*` → `http://backend:8000` (stripping the `/api`
+  prefix). The nginx `location /api/` block does the same with `proxy_pass
+  ${AL_BACKEND_URL}/`. `AL_BACKEND_URL` is expanded at container start via nginx's
+  built-in `envsubst` template support (`/etc/nginx/templates/*.template`). The backend
+  has no published ports in `docker-compose.yml`; this nginx is the sole ingress point.
+  An existing Traefik (or other proxy) router pointed at frontend:5173 requires no
+  reconfiguration.
+
+- **HSTS intentionally omitted from nginx.** TLS is terminated at the edge (Traefik).
+  Adding `Strict-Transport-Security` in nginx would produce duplicate or contradictory
+  headers if the edge also sets it, and would be wrong if the operator uses HTTP-only
+  internally. HSTS belongs at the Traefik layer where TLS context is known.
+
+- **CSP is permissive for img-src (allows https:).** The FindImageDialog component
+  renders `thumbnail_url` values returned by the Brave image-search API directly in
+  `<img src>`. These are arbitrary external HTTPS URLs; restricting them would break
+  the Find Image feature. `img-src 'self' data: blob: https:` is the minimum that
+  supports both local asset images and the image-search thumbnails. All other sources
+  (`script-src`, `connect-src`, `font-src`) are restricted to `'self'`.
+
+- **`unsafe-inline` in script-src and style-src.** The built `index.html` contains an
+  inline theme-detection script (sets `dark` class before first paint to prevent flash);
+  removing it would require a nonce-based CSP infrastructure not worth the complexity for
+  a self-hosted SPA. Tailwind injects inline styles at runtime. Both are `'self'`-origin
+  code (bundled by Vite), so the risk profile is low.
+
+- **nginx listens on 5173, port mapping stays 5173:5173.** Rather than the nginx-default
+  port 80, the production frontend serves on 5173 — the same port the previous Vite
+  dev-server image used — so the *container* port is unchanged, not just the host port.
+  This makes the dev-server→nginx swap fully drop-in for an upstream Traefik router
+  regardless of how it discovers the service (published host port, docker-provider
+  auto-detect, or an explicit `loadbalancer.server.port=5173` label). Chosen over port 80
+  specifically because the operator runs Traefik and required zero proxy reconfiguration.
+
+- **GitHub Actions pinned to commit SHAs for all jobs with `packages: write`.** Mutable
+  major-version tags (`@v5`, `@v6`) could be re-pointed to malicious code by a supply-
+  chain compromise. Jobs that hold `packages: write` can push to GHCR, making them the
+  highest-risk targets. All six third-party actions in `docker-publish.yml` (two jobs
+  with `packages: write`) and CI actions in `ci.yml` are now pinned. SHAs were resolved
+  via `git ls-remote` on 2026-06-13.
+
+---
+
 ## 2026-06-13 — firearm_photos excluded from JSON export (zip-only); import token consumed post-commit
 
 Prompt: `prompts/done/2026-06-12-fix-data-integrity-cleanstate-and-export.md`
