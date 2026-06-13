@@ -9,15 +9,20 @@
 # If AL_SESSION_SECRET is set, config.yaml is not required at all.
 #
 # Key ENV variables:
-#   AL_SESSION_SECRET     — security.session_secret  (required if no config.yaml)
-#   AL_RESET_TOKEN        — security.reset_token
-#   AL_APP_NAME           — app.name
-#   AL_BASE_URL           — app.base_url
-#   AL_TIMEZONE           — app.timezone
-#   AL_BACKUP_ENABLED     — backup.enabled
-#   AL_BACKUP_SCHEDULE    — backup.schedule
+#   AL_SESSION_SECRET        — security.session_secret  (required if no config.yaml)
+#   AL_RESET_TOKEN           — security.reset_token
+#   AL_APP_NAME              — app.name
+#   AL_BASE_URL              — app.base_url
+#   AL_TIMEZONE              — app.timezone
+#   AL_BACKUP_ENABLED        — backup.enabled
+#   AL_BACKUP_SCHEDULE       — backup.schedule
 #   AL_BACKUP_RETENTION_DAYS — backup.retention_days
-#   AL_BACKUP_PATH        — backup.path
+#   AL_BACKUP_PATH           — backup.path
+#   AL_BACKUP_INCLUDE_PHOTOS — backup.include_photos
+#   AL_IMAGE_SEARCH_ENABLED  — image_search.enabled
+#   AL_IMAGE_SEARCH_PROVIDER — image_search.provider
+#   AL_IMAGE_SEARCH_API_KEY  — image_search.api_key
+# See docs/INSTALL.md → Environment Variable Reference for the complete list.
 # ─────────────────────────────────────────────────────────────────────────────
 
 app:
@@ -119,8 +124,10 @@ backup:
   include_photos: true
 
 smtp:
-  # Set enabled to true to activate email features (v2.0 — scheduled reports).
-  # Leave host empty or enabled false to disable all email features.
+  # PLANNED — Phase 9 (Notifications). This block is validated on startup but no email
+  # is sent in the current release. Set enabled: false and leave these fields blank for now.
+  # When Phase 9 ships, set enabled: true and fill in the SMTP server details to activate
+  # email alert delivery.
   enabled: false
   host: ""
   port: 587
@@ -136,18 +143,25 @@ image_search:
   results_per_page: 10      # Number of thumbnails per page (max 100; default 10 — fits nicely in a 5×2 grid)
   safe_search: strict       # strict | moderate | off — passed through to Brave
 
+# PLANNED — Phase 9 (Notifications). The entire `notifications:` block below is accepted
+# and validated on startup, but no alerts are sent in the current release. Setting
+# discord.enabled: true or configuring smtp above will NOT produce any outbound messages
+# until Phase 9 ships. Leave these at their defaults for now.
 notifications:
   discord:
     # Set enabled to true and supply a webhook URL to post alerts to Discord.
+    # (No-op until Phase 9 — config is validated but not acted on.)
     enabled: false
     webhook_url: ""
     # Which notification types trigger Discord messages.
     notify_on: ["low_stock", "backup_failure", "update_available"]
   email:
     # Which notification types trigger email (requires smtp.enabled: true).
+    # (No-op until Phase 9 — config is validated but not acted on.)
     notify_on: ["backup_failure"]
   low_stock:
     # Alert when a caliber's total qty_remaining drops below this threshold.
+    # (Threshold values are stored; alerting is not yet active.)
     default_threshold: 50
     # Per-caliber overrides. Example:
     #   per_caliber_thresholds:

@@ -55,7 +55,7 @@ Adjust settings inside `data/config.yaml` (inside the `ammoledger_data` Docker v
 
 - `backup.enabled` and `backup.schedule` — nightly backup settings
 - `security.registration` — who can register (`invite_only` recommended)
-- `notifications.discord` — optional Discord webhook for alerts
+- `notifications.discord` — Discord webhook for alerts (**planned — not yet active; config is accepted but no alerts are sent in this release**)
 
 Restart the backend after config changes:
 
@@ -112,7 +112,7 @@ If your reverse proxy runs in a separate compose stack, uncomment the `proxy_net
 
 > **Alternative topology (not the default):** if you prefer to have your edge proxy route `/api/` directly to the backend, you would need to expose the backend on a host port and add the relevant routes to your proxy config. This is an operator choice — the default compose file does not do this.
 
-The backend needs outbound internet access for optional features (Find Image, GitHub version check, community lookup sync, Discord / SMTP notifications). See PRD §12.6 for the host allowlist. None of these are required for core ammo / firearm / range tracking — the app runs entirely offline if you want it to.
+The backend needs outbound internet access for optional features (Find Image, GitHub version check, community lookup sync). Discord / SMTP notifications are planned for a future release — config is accepted but no alerts are sent yet. See PRD §12.6 for the full outbound host allowlist. None of these are required for core ammo / firearm / range tracking — the app runs entirely offline if you want it to.
 
 ---
 
@@ -224,8 +224,8 @@ A handful of common settings are configurable via `config.yaml` only:
 | --- | --- | --- |
 | `app.session_timeout_hours` | `8` | Session lifetime (1–720 hours). |
 | `security.registration` | `invite_only` | Who can register: `invite_only`, `open`, or `disabled`. |
-| `smtp.*` | (disabled) | SMTP server settings for email notifications. |
-| `notifications.discord.*` | (disabled) | Discord webhook URL and toggle for alert notifications. |
+| `smtp.*` | (disabled) | SMTP server settings for email notifications (**planned — Phase 9; config is validated but no email is sent in this release**). |
+| `notifications.discord.*` | (disabled) | Discord webhook URL and toggle for alert notifications (**planned — Phase 9; config is validated but no alerts are sent in this release**). |
 
 ---
 
