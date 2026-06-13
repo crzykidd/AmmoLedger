@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { getMe, login as apiLogin, logout as apiLogout } from '@/api/auth'
+import { setOn401Handler } from '@/api/client'
 import type { LoginPayload } from '@/api/auth'
 import type { User } from '@/types'
 
@@ -37,6 +38,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    // Register a global 401 handler so any expired-session response clears
+    // auth state and redirects to /login. We use window.location.replace
+    // (hard redirect) because AuthProvider lives outside BrowserRouter and
+    // cannot call useNavigate; a hard redirect also flushes the stale React
+    // state, which is desirable after session expiry.
+    setOn401Handler(() => {
+      setUser(null)
+      setIsFirstRun(false)
+      // Avoid a redirect loop if we're already on a public page.
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.replace('/login')
+      }
+    })
+    return () => { setOn401Handler(null) }
+  }, [])
 
   useEffect(() => { void fetchMe() }, [])
 

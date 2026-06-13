@@ -275,9 +275,10 @@ export default function DashboardPage() {
   const [logRangeOpen, setLogRangeOpen] = useState(false)
   const [firearmFormOpen, setFirearmFormOpen] = useState(false)
   const [cleaningTarget, setCleaningTarget] = useState<FirearmRead | null>(null)
-  const [caliberView, setCaliberView] = useState<'mix' | 'threshold'>(
-    () => (localStorage.getItem('dashboard_caliber_view') as 'mix' | 'threshold') || 'mix',
-  )
+  const [caliberView, setCaliberView] = useState<'mix' | 'threshold'>(() => {
+    const v = localStorage.getItem('dashboard_caliber_view')
+    return v === 'mix' || v === 'threshold' ? v : 'mix'
+  })
   const [statsScope, setStatsScope] = useState<'current' | 'all'>(() => {
     const v = localStorage.getItem('dashboard_stats_scope')
     return v === 'all' ? 'all' : 'current'

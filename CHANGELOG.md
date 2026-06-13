@@ -44,6 +44,8 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Fixed
 
+- **Expired sessions now redirect to the login page instead of silently failing.** When a server session expires, the next API call returns 401. The frontend now detects this, clears stale auth state, and redirects to `/login` automatically — no more dead pages where buttons appear to work but requests silently fail. Auth-own endpoints (`/auth/me`, `/auth/login`, etc.) are exempt so the initial logged-out probe and login flow are unaffected.
+
 - **Firearm clean-state counters no longer drift after a range session is edited.** When a range session line was patched (e.g., changing `rounds_fired`), the reversal path correctly recomputed `rounds_since_clean` from the firearm log, but the re-apply path incremented it directly — making the counter wrong whenever a cleaning had been logged. Both paths now use the same `_recalculate_firearm_clean_state` source-of-truth recalc, so service-interval status (`ok` / `due_soon` / `overdue`) remains accurate across edits.
 
 - **Firearm condition values are no longer silently dropped from JSON backup/restore.** `firearm_conditions` was the only full-CRUD firearm-attribute lookup table missing from the JSON export. Importing a backup on a fresh install would leave firearms pointing at condition IDs that don't exist on the target, causing FK mismatches. The table is now exported alongside the other firearm attribute lookups.

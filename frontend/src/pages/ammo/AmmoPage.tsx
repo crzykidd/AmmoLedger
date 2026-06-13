@@ -199,17 +199,26 @@ export default function AmmoPage() {
   const [conditionFilter, setConditionFilter] = useState<string>('')
 
   // Group By — persisted to localStorage
-  const [groupBy, setGroupBy] = useState<GroupByField>(
-    () => (localStorage.getItem('ammo_group_by') as GroupByField) ?? 'none',
-  )
+  const VALID_GROUP_BY: GroupByField[] = [
+    'none', 'caliber', 'manufacturer', 'category', 'type', 'location', 'container', 'condition', 'split_parent',
+  ]
+  const VALID_SORT_KEYS: SortKey[] = ['id', 'caliber', 'manufacturer', 'qty_remaining', 'purchase_date', 'updated_at']
+  const VALID_SORT_DIRS: SortDir[] = ['asc', 'desc']
+
+  const [groupBy, setGroupBy] = useState<GroupByField>(() => {
+    const v = localStorage.getItem('ammo_group_by')
+    return (VALID_GROUP_BY as string[]).includes(v ?? '') ? (v as GroupByField) : 'none'
+  })
 
   // Sort By — persisted to localStorage
-  const [sortKey, setSortKey] = useState<SortKey>(
-    () => (localStorage.getItem('ammo_sort_key') as SortKey) ?? 'id',
-  )
-  const [sortDir, setSortDir] = useState<SortDir>(
-    () => (localStorage.getItem('ammo_sort_dir') as SortDir) ?? 'asc',
-  )
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    const v = localStorage.getItem('ammo_sort_key')
+    return (VALID_SORT_KEYS as string[]).includes(v ?? '') ? (v as SortKey) : 'id'
+  })
+  const [sortDir, setSortDir] = useState<SortDir>(() => {
+    const v = localStorage.getItem('ammo_sort_dir')
+    return (VALID_SORT_DIRS as string[]).includes(v ?? '') ? (v as SortDir) : 'asc'
+  })
 
   // Column filters — reset on page refresh
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(DEFAULT_COLUMN_FILTERS)

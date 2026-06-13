@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { updateAmmo } from '@/api/ammo'
 import { toast } from '@/hooks/use-toast'
+import { formatBackendError } from '@/lib/date'
 import type { AmmoBoxRead } from '@/types'
 
 interface Props {
@@ -45,8 +46,8 @@ export default function QuickArchivePopover({
       void qc.invalidateQueries({ queryKey: ['ammo-history', box.id] })
       onOpenChange(false)
     },
-    onError: () => {
-      setError('Failed to archive box')
+    onError: (e) => {
+      setError(formatBackendError(e, 'Failed to archive box'))
     },
   })
 

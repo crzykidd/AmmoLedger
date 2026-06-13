@@ -22,13 +22,22 @@ function resolveTheme(theme: Theme): 'light' | 'dark' {
   return theme
 }
 
+const VALID_THEMES: Theme[] = ['light', 'dark', 'system']
+const VALID_ACCENTS: AccentColor[] = ['amber', 'ranger-green', 'steel-blue', 'carbon-gray']
+
+function readTheme(): Theme {
+  const v = localStorage.getItem(STORAGE_THEME)
+  return (VALID_THEMES as string[]).includes(v ?? '') ? (v as Theme) : 'system'
+}
+
+function readAccent(): AccentColor {
+  const v = localStorage.getItem(STORAGE_ACCENT)
+  return (VALID_ACCENTS as string[]).includes(v ?? '') ? (v as AccentColor) : 'amber'
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(
-    () => (localStorage.getItem(STORAGE_THEME) as Theme | null) ?? 'system',
-  )
-  const [accentColor, setAccentState] = useState<AccentColor>(
-    () => (localStorage.getItem(STORAGE_ACCENT) as AccentColor | null) ?? 'amber',
-  )
+  const [theme, setThemeState] = useState<Theme>(readTheme)
+  const [accentColor, setAccentState] = useState<AccentColor>(readAccent)
 
   useEffect(() => {
     const resolved = resolveTheme(theme)

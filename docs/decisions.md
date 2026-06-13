@@ -7,6 +7,30 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-13 — Global 401 handler uses window.location.replace, not React Router navigate
+
+Prompt: `prompts/done/2026-06-12-frontend-robustness.md`
+
+- **Hard redirect chosen over React Router navigate for session-expiry 401.** `AuthProvider`
+  is mounted outside `BrowserRouter` in `App.tsx`, so `useNavigate` is not available in
+  `AuthContext`. Three alternatives were considered: (1) move `BrowserRouter` outside
+  `AuthProvider` (restructures the tree, touches App.tsx and potentially many consumers);
+  (2) thread a navigate ref from a child component back up to AuthContext via callback
+  (couples a route component to the auth provider); (3) use `window.location.replace('/login')`
+  directly. Option 3 was chosen: a hard redirect is appropriate for session expiry because
+  the in-memory React state is stale anyway, and a full reload produces a clean slate without
+  needing to carefully reset every stateful component. The performance cost (one extra page
+  load) only occurs on actual session expiry, not during normal operation.
+
+- **Auth endpoints exempted from 401 handler via prefix list.** `/auth/me`, `/auth/login`,
+  `/auth/setup`, `/auth/register`, and `/auth/reset` are legitimately called when the user
+  is not authenticated (initial probe, login submit, first-run, password-reset flows). Without
+  the exemption, every page load by an unauthenticated user would trigger a redirect loop
+  (`/me` → 401 → redirect to /login → /me again). The exempt list lives in `client.ts`
+  alongside the handler so they are maintained together.
+
+---
+
 ## 2026-06-13 — nginx static build replaces Vite dev server in production; single-ingress preserved
 
 Prompt: `prompts/done/2026-06-12-harden-deployment-and-ci.md`
