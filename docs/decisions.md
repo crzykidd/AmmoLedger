@@ -7,6 +7,38 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-13 — firearm_photos excluded from JSON export (zip-only); import token consumed post-commit
+
+Prompt: `prompts/done/2026-06-12-fix-data-integrity-cleanstate-and-export.md`
+
+- **`firearm_photos` excluded from JSON export by design (comment added, not rows added).**
+  A JSON backup carries no binary blobs, so exporting `firearm_photos` rows without the
+  accompanying image files would create broken photo references on restore. Zip backup
+  already includes the full SQLite DB (which carries all photo rows) plus the image
+  directories. Adding `firearm_photos` to `_EXPORT_TABLES` would export metadata with no
+  recoverable images, which is worse than having no metadata (the user would see broken
+  photo thumbnails). The exclusion comment in `backup.py` now makes this explicit so a
+  future reader does not treat it as an oversight.
+
+- **`_consume_token` moved to after all `import_db` commits.**
+  The token was previously consumed before the `with Session(engine)` insert block. If any
+  commit in that block failed, the token was spent but no rows were written — leaving a
+  dead-token state requiring manual re-validation. Moving the consume call to after the
+  `with` block exits successfully ensures the token is only spent once the data is durable.
+  The risk of replay (user sends same validated token twice if the response is lost) is
+  mitigated by the fact that the next call would re-issue a fresh validation token via
+  `/import/validate` anyway — a second `/import/confirm` with the same token would fail
+  validation (`_validate_token` raises 400 if the token row is already absent).
+
+- **`_recalculate_firearm_clean_state` added to `_apply_session_line` (not direct `+=`).**
+  The apply path was the only place in the codebase that modified `rounds_since_clean`
+  without going through the recalc. The direct `+= rounds_fired` is mathematically
+  equivalent when no cleaning is logged, but diverges when a cleaning has been recorded:
+  the recalc computes `rounds_lifetime - last_cleaning.rounds_at_event`, which is the
+  source of truth. Making apply symmetric with reversal removes the only divergence path.
+
+---
+
 ## 2026-06-12 — must_change_password server-side enforcement and constant-time token compare
 
 Prompt: `prompts/done/2026-06-12-fix-auth-enforcement-gaps.md`

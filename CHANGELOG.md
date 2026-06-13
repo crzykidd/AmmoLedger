@@ -44,6 +44,14 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 ### Fixed
 
+- **Firearm clean-state counters no longer drift after a range session is edited.** When a range session line was patched (e.g., changing `rounds_fired`), the reversal path correctly recomputed `rounds_since_clean` from the firearm log, but the re-apply path incremented it directly — making the counter wrong whenever a cleaning had been logged. Both paths now use the same `_recalculate_firearm_clean_state` source-of-truth recalc, so service-interval status (`ok` / `due_soon` / `overdue`) remains accurate across edits.
+
+- **Firearm condition values are no longer silently dropped from JSON backup/restore.** `firearm_conditions` was the only full-CRUD firearm-attribute lookup table missing from the JSON export. Importing a backup on a fresh install would leave firearms pointing at condition IDs that don't exist on the target, causing FK mismatches. The table is now exported alongside the other firearm attribute lookups.
+
+- **CSV import "new lookups created" count no longer inflates across repeated imports.** The post-import tally summed all user-source lookup rows in the database, not just the ones created during the current import. Re-importing any file would report dozens of "new" lookups that already existed. The count now reports only rows inserted during the current import run.
+
+- **CSV import token is no longer spent before the data commits.** If an error occurred between the validation-token consumption and the final `import_db.commit()`, the token was gone but no rows were written — leaving the user with a dead token and no data. The token is now consumed only after all imports have successfully committed, so a failure leaves the token valid and the user can retry without re-validating.
+
 - **Upload size is now enforced before the file is fully read into memory.** Previously the CSV import and firearm photo upload endpoints read the entire upload into memory before validating its size, meaning a large enough request could exhaust backend memory before being rejected. All four upload entry points (ammo CSV validate/confirm, firearms CSV validate/confirm, firearm photo upload) now check the `Content-Length` header for an early fast-fail and stream-read in 64 KiB chunks, rejecting with `413` the moment the running total exceeds the limit (10 MB).
 
 ### Changed

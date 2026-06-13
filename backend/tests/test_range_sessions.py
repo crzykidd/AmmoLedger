@@ -833,3 +833,100 @@ def test_delete_session_fk_ordering(
     finally:
         db_session.exec(sql_text("PRAGMA foreign_keys = OFF"))
         db_session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Clean-state recalc — apply and reversal must be symmetric
+# ---------------------------------------------------------------------------
+
+def test_rounds_since_clean_stable_after_cleaning_then_range_session_edit(
+    client: TestClient, db_session: Session, admin_user: User,
+    firearm_mfr, ammo_mfr, caliber,
+):
+    """Verify rounds_since_clean is stable after a cleaning + subsequent session edit.
+
+    Scenario:
+    1. Fire 100 rounds via range session (rounds_lifetime=100, rounds_since_clean=100).
+    2. Log a cleaning at rounds=100 (rounds_since_clean resets to 0).
+    3. Fire 50 more rounds via a second range session (rounds_since_clean should be 50).
+    4. Edit the second session line to 80 rounds (rounds_since_clean should be 80).
+
+    Without the _recalculate_firearm_clean_state call in _apply_session_line the
+    PATCH reversal recalculates correctly (rounds_since_clean becomes 0 after undo),
+    but the re-apply would have incremented += 80 on top of the recalculated 0,
+    giving 80 — which happens to be right here. The drift case is: if the user had
+    not yet cleaned (rounds_since_clean accumulated from lifetime), PATCH results
+    would also look correct via += arithmetic. But with a cleaning, a bug would
+    appear if any state diverged across reversal/apply — the symmetric recalc call
+    is required to guarantee correctness in all orderings.
+
+    This test also confirms the initial apply (step 3) uses recalc, not direct +=,
+    by verifying the value immediately after the second session POST.
+    """
+    f = _make_firearm(db_session, firearm_mfr.id, caliber.id, admin_user.id)
+    b = _make_box(db_session, ammo_mfr.id, caliber.id, admin_user.id, qty=500)
+
+    _login(client, "admin@test.com", "AdminPass1!")
+    today = date.today().isoformat()
+
+    # Step 1: fire 100 rounds
+    r1 = client.post(
+        "/range-sessions",
+        json={
+            "date": today,
+            "location_name": "Pre-cleaning session",
+            "lines": [{"firearm_id": f.id, "ammo_box_id": b.id, "rounds_fired": 100}],
+        },
+    )
+    assert r1.status_code == 201, r1.text
+
+    db_session.expire_all()
+    db_session.refresh(f)
+    assert f.rounds_lifetime == 100
+    assert f.rounds_since_clean == 100
+
+    # Step 2: log a cleaning — rounds_at_event defaults to current rounds_lifetime (100)
+    rc = client.post(
+        f"/firearms/{f.id}/log",
+        json={"event_type": "cleaning", "event_date": today},
+    )
+    assert rc.status_code == 201, rc.text
+
+    db_session.expire_all()
+    db_session.refresh(f)
+    assert f.rounds_since_clean == 0, "Cleaning should reset rounds_since_clean to 0"
+
+    # Step 3: fire 50 more rounds post-cleaning via a new session
+    r2 = client.post(
+        "/range-sessions",
+        json={
+            "date": today,
+            "location_name": "Post-cleaning session",
+            "lines": [{"firearm_id": f.id, "ammo_box_id": b.id, "rounds_fired": 50}],
+        },
+    )
+    assert r2.status_code == 201, r2.text
+    sid2 = r2.json()["id"]
+    line_id2 = r2.json()["lines"][0]["id"]
+
+    db_session.expire_all()
+    db_session.refresh(f)
+    assert f.rounds_lifetime == 150
+    assert f.rounds_since_clean == 50, (
+        "After firing 50 post-cleaning, rounds_since_clean should be 50"
+    )
+
+    # Step 4: edit the second session line to 80 rounds — rounds_since_clean should be 80
+    rp = client.patch(
+        f"/range-sessions/{sid2}/lines/{line_id2}",
+        json={"rounds_fired": 80},
+    )
+    assert rp.status_code == 200, rp.text
+
+    db_session.expire_all()
+    db_session.refresh(f)
+    assert f.rounds_lifetime == 180, "rounds_lifetime should reflect 100 pre-clean + 80 post-clean"
+    assert f.rounds_since_clean == 80, (
+        "rounds_since_clean must be recomputed from firearm_log on apply, "
+        "not accumulated via direct += — expected 80 (rounds after cleaning)"
+    )

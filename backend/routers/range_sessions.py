@@ -156,9 +156,13 @@ def _apply_session_line(
     if firearm_id is not None and rounds_fired > 0:
         firearm = _get_visible_firearm(firearm_id, user, db)
         firearm.rounds_lifetime += rounds_fired
-        firearm.rounds_since_clean += rounds_fired
         firearm.updated_at = datetime.utcnow()
         db.add(firearm)
+        # Recompute rounds_since_clean from firearm_log so apply and reversal
+        # use the same source-of-truth recalc. A cleaning logged after the
+        # session was originally created would otherwise leave rounds_since_clean
+        # drifted until the next firearm_log mutation.
+        _recalculate_firearm_clean_state(firearm, db)
 
     return expend_log
 

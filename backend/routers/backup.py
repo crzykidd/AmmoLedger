@@ -40,6 +40,10 @@ _DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/ammoledger.db")
 #   - task_history: operational telemetry, not user data. Re-populates naturally.
 #   - task_registry: re-seeded on app startup from TASK_DEFINITIONS. Restoring
 #     stale rows would conflict with the seed logic.
+#   - firearm_photos: photo metadata rows are zip-only by design. A JSON export
+#     carries no binary blobs, so restoring photo rows without the accompanying
+#     image files would surface broken photo references. Zip backup includes the
+#     full SQLite DB (and therefore photo rows) alongside the image directories.
 _EXPORT_TABLES = [
     # User accounts and lookups (parents)
     "users",
@@ -55,8 +59,11 @@ _EXPORT_TABLES = [
     # come before firearm_models / firearms (FK ordering). The four
     # frame_size / optic_cut / rail_type / finish tables are FK targets
     # of the firearms row added in v0.3.0; firearm_user_tags FKs users
-    # (already above).
+    # (already above). firearm_conditions is a full-CRUD user-editable
+    # lookup (firearms.firearm_condition_id FKs it) — include before
+    # firearm_models so it's a parent when firearms rows insert.
     "firearm_action_types",
+    "firearm_conditions",
     "firearm_frame_sizes",
     "firearm_optic_cuts",
     "firearm_rail_types",

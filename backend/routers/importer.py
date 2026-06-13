@@ -624,8 +624,6 @@ async def confirm_import(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=f"Pre-import backup failed: {exc}") from exc
 
-        _consume_token(db, validation_token)
-
         imported = 0
         archived_imported = 0
         skipped = 0
@@ -637,6 +635,15 @@ async def confirm_import(
 
         with Session(engine) as import_db:
             imported_boxes: list[AmmoBox] = []
+
+            # Snapshot pre-existing user-source lookup counts so the
+            # post-import delta reports only rows actually inserted here,
+            # not totals accumulated from previous imports.
+            _LOOKUP_MODELS = [Caliber, Manufacturer, AmmoType, AmmoCondition, Category, Dealer]
+            lookup_counts_before = sum(
+                import_db.exec(select(func.count()).select_from(Model).where(Model.source == "user")).one()
+                for Model in _LOOKUP_MODELS
+            )
 
             for i, row in enumerate(rows, start=2):
                 errs, row_warns = _validate_row(row, i)
@@ -832,12 +839,21 @@ async def confirm_import(
             import_db.execute(text("PRAGMA optimize"))
             import_db.commit()
 
-            # Count newly created lookup entries
-            lookup_values_created = sum(
-                len(import_db.exec(select(Model).where(Model.source == "user")).all())
-                for Model in [Caliber, Manufacturer, AmmoType, AmmoCondition, Category, Dealer]
+            # Count only lookup entries created during this import (delta
+            # from the pre-import snapshot) so pre-existing user-source rows
+            # don't inflate the "new lookups created" number.
+            lookup_counts_after = sum(
+                import_db.exec(select(func.count()).select_from(Model).where(Model.source == "user")).one()
+                for Model in _LOOKUP_MODELS
             )
+            lookup_values_created = max(0, lookup_counts_after - lookup_counts_before)
             logger.debug("Created %d new lookup values", lookup_values_created)
+
+        # Consume the validation token only after all inserts have committed.
+        # Consuming it early (before the import_db writes) would spend the token
+        # on a failed import, leaving the user in a confusing dead-token state
+        # where a pre-import backup exists but no rows were written.
+        _consume_token(db, validation_token)
 
         logger.info("Import complete: %d imported, %d skipped", imported, skipped)
 
