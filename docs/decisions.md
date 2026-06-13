@@ -7,6 +7,31 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-06-12 — must_change_password server-side enforcement and constant-time token compare
+
+Prompt: `prompts/done/2026-06-12-fix-auth-enforcement-gaps.md`
+
+- **Enforcement added to `require_auth` (not a new dependency).** Adding a separate
+  `require_auth_password_changed` dependency that callers opt into would leave gaps —
+  any route using the base `require_auth` would silently bypass the gate. Enforcing in
+  `require_auth` itself ensures every protected route inherits the check automatically,
+  including those wrapped by `require_role`.
+
+- **Whitelist is path-based, checked against `request.url.path`.** The three allowed
+  paths (`/users/me/change-password`, `/auth/me`, `/auth/logout`) are the minimal set
+  needed to complete the password-change flow without locking the user out. The
+  `/auth/me` entry is required because `AuthContext.fetchMe()` polls it after the
+  password change to refresh `must_change_password` back to `false`; without it the
+  frontend would be unable to confirm success.
+
+- **`secrets.compare_digest` guard uses `or ""` to coerce None to empty string.**
+  `compare_digest` requires two non-None strings; the `or ""` coercion replaces the
+  old `""` default so a null/missing key in `config.yaml` never reaches the digest
+  call. The outer `if config_token:` guard short-circuits before `compare_digest` runs
+  in that case anyway, providing defense in depth.
+
+---
+
 ## 2026-06-12 — SSRF guard, upload caps, product read-only gate
 
 Prompt: `prompts/done/2026-06-12-fix-ssrf-upload-limits-product-rbac.md`

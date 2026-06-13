@@ -38,6 +38,10 @@ and create a fresh empty `## [Unreleased]` block above it.
 
 - **CORS allowed origin is now driven by `app.base_url`.** Previously hardcoded to `http://localhost:5173` in every deployment. The configured public URL is now used as the CORS allowed origin; the localhost dev origin is retained as a fallback when no base URL is configured. `allow_credentials=True` is never paired with `allow_origins=["*"]`.
 
+- **`must_change_password` is now enforced server-side.** When an admin force-resets a user's password, the flag is now checked on every authenticated request. Endpoints outside the minimal whitelist (`POST /users/me/change-password`, `GET /auth/me`, `POST /auth/logout`) return `403 MUST_CHANGE_PASSWORD` until the user sets a new password. Previously the flag was only a UI hint; a user with a temporary admin-known password could call the full API without ever changing it.
+
+- **Config reset token compared in constant time.** The emergency admin-recovery token from `config.yaml` was previously compared with a plain `==` operator, which is timing-observable. Both comparison sites in `POST /auth/reset` (validation and commit) now use `secrets.compare_digest`.
+
 ### Fixed
 
 - **Upload size is now enforced before the file is fully read into memory.** Previously the CSV import and firearm photo upload endpoints read the entire upload into memory before validating its size, meaning a large enough request could exhaust backend memory before being rejected. All four upload entry points (ammo CSV validate/confirm, firearms CSV validate/confirm, firearm photo upload) now check the `Content-Length` header for an early fast-fail and stream-read in 64 KiB chunks, rejecting with `413` the moment the running total exceeds the limit (10 MB).
