@@ -238,8 +238,8 @@ acting.
 
 ## Build Status
 
-Current release target: v0.3.10 (mobile hamburger nav drawer #52; full light-mode legibility + Light/Dark/Follow-system mode picker #51; configurable app timezone for scheduled jobs #43; Read-Only CSV-import security fix #12)
-Last shipped public release: v0.3.10 (2026-05-30)
+Current release target: v0.4.0 (security hardening batch — session-secret wiring + fail-closed boot + cookie/CORS hardening; SSRF guard on image preview; upload size caps; read-only product gate; server-side must_change_password; constant-time reset-token; production nginx static frontend + CI SHA pinning; firearm clean-state recompute on range apply; firearm_conditions in JSON export; bundles older-JSON-restore #14 + CSV format auto-detect #36)
+Last shipped public release: v0.3.10 (2026-05-30) — /release-cut sets last-shipped to v0.4.0 after the PR merges
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 

@@ -1,7 +1,7 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 3.63  
-**Date:** 2026-06-03  
+**Version:** 3.66  
+**Date:** 2026-06-13  
 **Status:** Living Document
 
 ---
@@ -104,6 +104,7 @@
 | 3.63 | 2026-06-03 | Docs true-up: §2 Version Roadmap reconciled to shipped/planned (firearms/range/cleaning shipped in v0.3.0; notifications/label printing marked planned); §15.1 ENV table gains AL_TIMEZONE; revision-history numbering de-duplicated; PRD header bumped. frontend/package.json version aligned to 0.3.10. No schema/code change. |
 | 3.64 | 2026-06-04 | Schema-versioned restore compatibility (implements `prd/backup-restore-compat.md`). `_classify_schema_migration()` replaces the binary schema-equality check: preview returns a `compatibility` verdict (`clean` / `older_compatible` / `rejected`); commit accepts `older_compatible` only with `confirm_older=true`; `older_compatible` response includes `tables_added_empty`, `columns_defaulted`, and a `summary`. `backup_format_version` added to JSON envelope and zip `MANIFEST.json`; a newer format than the running build understands is rejected. Frontend Backup page renders the verdict inline — amber warning with "I understand" gate for older schemas, red rejection with recommended action otherwise. §11.1 JSON envelope updated; §11.8 updated; §11.10 added; §17 index entry flipped from DRAFT. |
 | 3.65 | 2026-06-05 | CSV import auto-detects ammo vs. firearms format (#36). New `frontend/src/lib/detect-csv-domain.ts` sniffs the uploaded CSV's header row and scores domain-unique marker columns; on a mismatch with the active Import tab, `ImportPage` switches to the correct tab and hands the selected file across (preserved in React state, ready to validate) with a dismissible notice. Both `UploadState` components (ammo + firearms) detect on file-select and bubble `(detected, file)` up; manual tab switches discard the handoff. Frontend-only; no backend change. §9.8 updated. |
+| 3.66 | 2026-06-13 | Release v0.4.0 — security hardening batch. Session cookies now signed with the configured `AL_SESSION_SECRET`/`security.session_secret` (previously a public hardcoded fallback was used because the middleware read an undocumented `SESSION_SECRET` var); fail-closed on a missing/default secret in production; cookie hardened (`https_only`/`max_age`/`same_site`); CORS origin driven by `app.base_url`. SSRF guard on the product image-preview fetch; upload size caps before in-memory read; `read_only` blocked from product writes; `must_change_password` enforced server-side; constant-time reset-token compare. Production frontend now a static `vite build` served by nginx (on the same `5173` port) instead of the Vite dev server; CI actions pinned to commit SHAs. Firearm clean-state recompute on range-session apply; `firearm_conditions` added to JSON backup export. Bundles the already-unreleased older-JSON-restore confirmation and `backup_format_version` (#14) and CSV format auto-detect (#36). **Upgrade invalidates existing sessions (one-time re-login).** No schema change. |
 
 ---
 
