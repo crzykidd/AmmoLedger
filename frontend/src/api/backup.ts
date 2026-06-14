@@ -27,6 +27,17 @@ export interface OwnershipSummaryEntry {
   is_new_user: boolean
 }
 
+export type CompatibilityVerdictType = 'clean' | 'older_compatible' | 'rejected'
+
+export interface CompatibilityVerdict {
+  verdict: CompatibilityVerdictType
+  reason?: string
+  recommended_action?: string
+  tables_added_empty?: string[]
+  columns_defaulted?: Record<string, string[]>
+  summary?: string
+}
+
 export interface ImportPreview {
   valid: boolean
   version: string
@@ -38,6 +49,7 @@ export interface ImportPreview {
   user_conflicts: UserConflict[]
   app_settings_diff: AppSettingsDiffEntry[]
   ownership_summary: OwnershipSummaryEntry[]
+  compatibility: CompatibilityVerdict
 }
 
 export interface ImageSnapshotEntry {
@@ -129,9 +141,10 @@ export const previewImport = (file: File) => {
   return postFormData<ImportPreview>('/backup/import/preview', fd)
 }
 
-export const commitImport = (file: File) => {
+export const commitImport = (file: File, confirmOlder = false) => {
   const fd = new FormData()
   fd.append('file', file)
+  fd.append('confirm_older', confirmOlder ? 'true' : 'false')
   return postFormData<ImportResult>('/backup/import/commit', fd)
 }
 
@@ -144,5 +157,5 @@ export const restoreFromServer = (filename: string) =>
 export const previewImportFromServer = (filename: string) =>
   api.post<ImportPreview>('/backup/import/preview/server', { filename })
 
-export const commitImportFromServer = (filename: string) =>
-  api.post<ImportResult>('/backup/import/commit/server', { filename })
+export const commitImportFromServer = (filename: string, confirmOlder = false) =>
+  api.post<ImportResult>('/backup/import/commit/server', { filename, confirm_older: confirmOlder })

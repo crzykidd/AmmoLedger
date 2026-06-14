@@ -3,7 +3,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { format } from 'date-fns'
-import { parseLocalDate } from '@/lib/date'
+import { parseLocalDate, formatBackendError } from '@/lib/date'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon } from 'lucide-react'
 import { expendAmmo } from '@/api/ammo'
@@ -117,8 +117,8 @@ export default function ExpendDialog({ open, onOpenChange, box, calibers }: Prop
       toast({ title: `Logged ${used} round${used !== 1 ? 's' : ''} used` })
       onOpenChange(false)
     },
-    onError: () => {
-      toast({ title: 'Failed to log use', variant: 'destructive' })
+    onError: (e) => {
+      toast({ title: formatBackendError(e, 'Failed to log use'), variant: 'destructive' })
     },
   })
 

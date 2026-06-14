@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { bulkUpdateAmmo } from '@/api/ammo'
 import { listProducts } from '@/api/products'
 import { toast } from '@/hooks/use-toast'
+import { formatBackendError } from '@/lib/date'
 import type {
   AmmoBoxRead,
   User,
@@ -153,8 +154,8 @@ export default function BulkEditPanel({
       onSaved()
       onOpenChange(false)
     },
-    onError: () => {
-      toast({ title: 'Bulk update failed', variant: 'destructive' })
+    onError: (e) => {
+      toast({ title: formatBackendError(e, 'Bulk update failed'), variant: 'destructive' })
     },
   })
 

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { updateAmmo } from '@/api/ammo'
 import { toast } from '@/hooks/use-toast'
+import { formatBackendError } from '@/lib/date'
 import QuickExpendPopover from '@/components/QuickExpendPopover'
 import QuickArchivePopover from '@/components/inventory/QuickArchivePopover'
 import type { AmmoBoxRead, User, LookupItem, ContainerItem } from '@/types'
@@ -59,8 +60,8 @@ export default function InventoryCardList({
       void qc.invalidateQueries({ queryKey: ['ammo'] })
       toast({ title: 'Box restored from archive' })
     },
-    onError: () => {
-      toast({ title: 'Failed to restore box', variant: 'destructive' })
+    onError: (e) => {
+      toast({ title: formatBackendError(e, 'Failed to restore box'), variant: 'destructive' })
     },
   })
 

@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional
@@ -433,8 +434,8 @@ def validate_reset_token(token: str, db: Session = Depends(get_session)):
         )
 
     config = load_config()
-    config_token = (config.get("security") or {}).get("reset_token", "")
-    if config_token and token == config_token:
+    config_token = (config.get("security") or {}).get("reset_token") or ""
+    if config_token and secrets.compare_digest(token, config_token):
         return ResetTokenInfo(source="config")
 
     logger.warning("Invalid reset token attempted")
@@ -459,8 +460,8 @@ def reset_password(body: PasswordResetRequest, db: Session = Depends(get_session
             raise _api_error(status.HTTP_404_NOT_FOUND, "USER_NOT_FOUND", "User not found")
     else:
         config = load_config()
-        config_token = (config.get("security") or {}).get("reset_token", "")
-        if not config_token or body.token != config_token:
+        config_token = (config.get("security") or {}).get("reset_token") or ""
+        if not config_token or not secrets.compare_digest(body.token, config_token):
             raise _api_error(status.HTTP_404_NOT_FOUND, "TOKEN_INVALID", "Reset link is invalid or has expired")
 
         if not body.email:

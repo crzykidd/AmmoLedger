@@ -72,15 +72,31 @@ const formSchema = z.object({
   manufacturer_id: z.string().min(1, 'Manufacturer is required'),
   qty_original: z.number().int().min(1, 'Must be at least 1'),
   product_name: z.string().optional(),
-  qty_remaining: z.string().optional(),
+  qty_remaining: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || v.trim() === '' || (Number.isInteger(parseFloat(v)) && parseFloat(v) >= 0),
+      { message: 'Must be a non-negative whole number' },
+    ),
   is_shared: z.boolean(),
-  gr_oz: z.string().optional(),
+  gr_oz: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.trim() === '' || parseFloat(v) >= 0, {
+      message: 'Must be non-negative',
+    }),
   weight_unit: z.string().optional(),
   type_id: z.string().optional(),
   ammo_condition_id: z.string().optional(),
   category_id: z.string().optional(),
   purchase_date: z.string().optional(),
-  cost_per_round: z.string().optional(),
+  cost_per_round: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.trim() === '' || parseFloat(v) >= 0, {
+      message: 'Must be non-negative',
+    }),
   dealer_id: z.string().optional(),
   location_id: z.string().optional(),
   container_id: z.string().optional(),

@@ -1,4 +1,80 @@
-FROM node:20.19.1-slim
+# ────────────────────────────────────────────────────────────────────────────
+# Stage 1 — build
+#   Produces the static dist/ directory from the committed source and lockfile.
+#   Uses `npm ci` (not `npm install`) so the build is fully reproducible
+#   against the committed frontend/package-lock.json.
+# ────────────────────────────────────────────────────────────────────────────
+FROM node:20.19.1-slim AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+ARG GIT_SHA=unknown
+ARG GIT_BRANCH=main
+ENV GIT_SHA=$GIT_SHA \
+    GIT_BRANCH=$GIT_BRANCH
+
+RUN npm run build
+
+# ────────────────────────────────────────────────────────────────────────────
+# Stage 2 — production
+#   Serves the built dist/ with nginx on port 5173.
+#
+#   nginx listens on 5173 (not 80) so the container port is unchanged from the
+#   previous Vite dev-server image — an upstream Traefik router (whether it
+#   targets the published host port or the container port via a label) needs
+#   no reconfiguration.  This is a fully drop-in swap.
+#
+#   The backend is reachable only over the internal Docker bridge network
+#   (ammoledger_net) — it has no published ports.  nginx proxies /api →
+#   ${AL_BACKEND_URL} (default: http://backend:8000), preserving the
+#   single-ingress topology that an upstream Traefik router expects.
+#
+#   TLS is terminated at the edge (Traefik / Caddy / etc.); nginx speaks
+#   plain HTTP.  HSTS is intentionally omitted — set it at the edge.
+# ────────────────────────────────────────────────────────────────────────────
+FROM nginx:1.27-alpine AS prod
+
+# curl needed for HEALTHCHECK
+RUN apk add --no-cache curl
+
+# Copy built assets from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# nginx.conf uses ${AL_BACKEND_URL}; envsubst expands it at container start.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# AL_BACKEND_URL is the container-internal URL for the backend service.
+# Override in docker-compose.yml if the backend runs on a different name/port.
+ENV AL_BACKEND_URL=http://backend:8000
+
+EXPOSE 5173
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:5173/ || exit 1
+
+# nginx docker image ships with envsubst support via /docker-entrypoint.d/;
+# templates in /etc/nginx/templates/*.template are expanded to /etc/nginx/conf.d/
+# automatically on container start before nginx runs.
+CMD ["nginx", "-g", "daemon off;"]
+
+# ────────────────────────────────────────────────────────────────────────────
+# Stage 3 — dev  (used by docker-compose.dev.yml via `target: dev`)
+#   Keeps the Vite dev server for local development with hot-module reload.
+#
+#   Why the node user instead of a fresh adduser:
+#     docker-compose.dev.yml bind-mounts ./frontend:/app.  The host directory
+#     is typically owned by uid 1000 (the developer).  A fresh `adduser` lands
+#     on uid 1001 (1000 is taken by the built-in `node` account) and then
+#     cannot write Vite's vite.config.ts.timestamp-*.mjs temp file into the
+#     bind-mounted /app — the dev server crash-loops with EACCES.  Reusing
+#     `node` keeps the container UID aligned with the mount owner.
+# ────────────────────────────────────────────────────────────────────────────
+FROM node:20.19.1-slim AS dev
 
 WORKDIR /app
 
@@ -6,24 +82,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Run as the base image's built-in `node` user (uid/gid 1000) rather than a
-# freshly-created account. In dev, docker-compose.dev.yml bind-mounts
-# ./frontend:/app, so /app's ownership is the HOST directory's — uid 1000 for
-# the typical developer (and the project-wide PUID/PGID default). A custom
-# `adduser` lands on uid 1001 (1000 is already taken by `node`), which then
-# cannot write Vite's `vite.config.ts.timestamp-*.mjs` temp file into the
-# bind-mounted /app — the dev server crash-loops with EACCES. Reusing `node`
-# keeps the container UID aligned with the mount owner. See docs/decisions.md.
 COPY --chown=node:node package*.json ./
 RUN npm install
 
 COPY --chown=node:node . .
 
-# Give the node user write access to the three paths Vite needs at runtime:
-#   /app                    — vite.config.ts.timestamp-*.mjs temp files
-#   /app/node_modules       — creating the .vite cache directory
-#   /app/node_modules/.vite — dependency optimisation cache
-# Pre-creating .vite avoids a chown-R over node_modules on every cold start.
+# Give the node user write access to the paths Vite needs at runtime.
 RUN mkdir -p /app/node_modules/.vite \
     && chown -R node:node /app/node_modules/.vite \
     && chown node:node /app/node_modules \

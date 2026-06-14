@@ -10,7 +10,9 @@ from sqlmodel import Session, select
 from database import get_session
 from models import FirearmPhoto, User
 from schemas import FirearmPhotoRead, FirearmPhotoReorderRequest
+from routers.importer import _read_upload_capped
 from utils.firearm_photos import (
+    MAX_UPLOAD_BYTES,
     delete_photo_files,
     process_and_save_upload,
     read_photo_bytes,
@@ -91,7 +93,7 @@ async def upload_photo(
             ),
         )
 
-    raw = await file.read()
+    raw = await _read_upload_capped(file, max_bytes=MAX_UPLOAD_BYTES)
     try:
         meta = process_and_save_upload(firearm_id, raw, file.content_type or "")
     except ValueError as exc:

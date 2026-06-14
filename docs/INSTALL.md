@@ -55,7 +55,7 @@ Adjust settings inside `data/config.yaml` (inside the `ammoledger_data` Docker v
 
 - `backup.enabled` and `backup.schedule` — nightly backup settings
 - `security.registration` — who can register (`invite_only` recommended)
-- `notifications.discord` — optional Discord webhook for alerts
+- `notifications.discord` — Discord webhook for alerts (**planned — not yet active; config is accepted but no alerts are sent in this release**)
 
 Restart the backend after config changes:
 
@@ -72,7 +72,9 @@ docker compose restart backend
 | Web UI   | <http://localhost:5173>                      |
 | API docs | <http://localhost:5173/api/docs>             |
 
-For reverse proxy / external access, point your proxy at port **5173**. See [Network topology](#network-topology) below for the recommended setup.
+The frontend container listens on port **5173** (nginx serves the static build on the same
+port the previous Vite image used); `docker-compose.yml` maps host port `5173 → 5173`.
+For reverse proxy / external access, point your proxy at port **5173** (or remap to a port of your choice). See [Network topology](#network-topology) below for the recommended setup.
 
 ---
 
@@ -102,11 +104,15 @@ Alembic migrations run automatically on startup. Your data in the `ammoledger_da
 
 ## Network topology
 
-By default the production compose file puts both services on a private bridge network (`ammoledger_net`) and publishes the frontend on host port `5173`. The backend has no published ports — it is only reachable from the frontend over the internal network.
+By default the production compose file puts both services on a private bridge network (`ammoledger_net`) and publishes the frontend on host port `5173` (the container also listens on `5173`). The backend has no published ports — it is only reachable from the frontend over the internal network.
 
-For LAN or internet access, put a reverse proxy in front of the frontend (Nginx Proxy Manager, Traefik, Caddy, Cloudflare Tunnel). If your reverse proxy runs in a separate compose stack, uncomment the `proxy_net` lines in `docker-compose.yml` so your proxy can reach the AmmoLedger frontend by container name. See PRD §12.5 for the full pattern.
+The production frontend image is a static build served by **nginx**. nginx proxies `/api/` requests to the backend over the private bridge network (`http://backend:8000` by default), exactly as the dev-server Vite proxy did. This is the single-ingress topology: your reverse proxy (Traefik, Nginx Proxy Manager, Caddy, Cloudflare Tunnel) only needs to point at the frontend — no additional backend routes are required.
 
-The backend needs outbound internet access for optional features (Find Image, GitHub version check, community lookup sync, Discord / SMTP notifications). See PRD §12.6 for the host allowlist. None of these are required for core ammo / firearm / range tracking — the app runs entirely offline if you want it to.
+If your reverse proxy runs in a separate compose stack, uncomment the `proxy_net` lines in `docker-compose.yml` so your proxy can reach the AmmoLedger frontend by container name. See PRD §12.5 for the full pattern.
+
+> **Alternative topology (not the default):** if you prefer to have your edge proxy route `/api/` directly to the backend, you would need to expose the backend on a host port and add the relevant routes to your proxy config. This is an operator choice — the default compose file does not do this.
+
+The backend needs outbound internet access for optional features (Find Image, GitHub version check, community lookup sync). Discord / SMTP notifications are planned for a future release — config is accepted but no alerts are sent yet. See PRD §12.6 for the full outbound host allowlist. None of these are required for core ammo / firearm / range tracking — the app runs entirely offline if you want it to.
 
 ---
 
@@ -208,7 +214,7 @@ The frontend container also reads one variable that is not a `config.yaml` setti
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `AL_BACKEND_URL` | `http://backend:8000` | Container-internal URL the frontend proxy uses to reach the backend. Change only if your backend runs on a different service name or port. |
+| `AL_BACKEND_URL` | `http://backend:8000` | Container-internal URL the nginx reverse-proxy uses to forward `/api/` requests to the backend. Change only if your backend runs on a different service name or port. |
 
 ### config.yaml-only settings (no env override)
 
@@ -218,8 +224,8 @@ A handful of common settings are configurable via `config.yaml` only:
 | --- | --- | --- |
 | `app.session_timeout_hours` | `8` | Session lifetime (1–720 hours). |
 | `security.registration` | `invite_only` | Who can register: `invite_only`, `open`, or `disabled`. |
-| `smtp.*` | (disabled) | SMTP server settings for email notifications. |
-| `notifications.discord.*` | (disabled) | Discord webhook URL and toggle for alert notifications. |
+| `smtp.*` | (disabled) | SMTP server settings for email notifications (**planned — Phase 9; config is validated but no email is sent in this release**). |
+| `notifications.discord.*` | (disabled) | Discord webhook URL and toggle for alert notifications (**planned — Phase 9; config is validated but no alerts are sent in this release**). |
 
 ---
 

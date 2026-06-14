@@ -23,6 +23,77 @@
   - `docker-compose.yml` — production (GHCR images, named volume)
   - `docker-compose.dev.yml` — development (build from source, volume mounts for live reload)
 
+## Where things live
+
+Backend (`backend/`, flat package — run with `backend/` on `sys.path`, imports are
+bare like `from models import X`, never `from backend.models`):
+- `main.py` — FastAPI app, startup/shutdown, router registration, `/system/*` endpoints
+- `models.py` — **the data-model source of truth.** All SQLModel table definitions
+  (~37 tables) and their FKs live here. To understand the schema, read this file — do
+  not maintain a separate schema doc (it would go stale against migrations).
+- `schemas/` — Pydantic API-contract schemas, split per domain (see convention below)
+- `routers/` — HTTP endpoints, one module per domain (ammo, firearms, backup, lookups,
+  range_sessions, products, importer, …). Visibility/`_check_write` helpers are
+  per-router by design (see Firearms Domain Conventions).
+- `utils/` — cross-cutting services (config, logging, rbac, scheduler, seeds,
+  version_check, community_sync, image_search)
+- `database.py` — engine, session, migrations runner, WAL pragma listener, stat-heal
+- `migrations/versions/` — active Alembic chain (starts at the v0.1.9 squash);
+  `migrations/archive/` is pre-squash reference only, NOT in the chain. Don't read
+  archive/ unless investigating pre-release history.
+
+Frontend (`frontend/src/`):
+- `pages/` — route-level screens (one per URL); `components/` — reusable pieces grouped
+  by domain (inventory, firearms, range, …); `lib/utils.ts` — the `cn()` helper imported
+  almost everywhere; `types/index.ts` — shared TS types; `contexts/` + `hooks/` — app
+  state (theme, mobile-nav)
+
+## schemas/ package convention (v0.3.10+)
+
+Pydantic schemas live per-domain under `backend/schemas/`, re-exported through
+`schemas/__init__.py`. Two rules for agents:
+- **Import from the submodule**, not a catch-all: `from schemas.ammo import AmmoBoxRead`.
+  (`from schemas import AmmoBoxRead` still resolves via the re-export shim, but the
+  submodule import is cheaper to read and states intent.)
+- **A new schema goes in its domain module** (`schemas/ammo.py`, `schemas/firearms.py`,
+  `schemas/lookups.py`, `schemas/products.py`, `schemas/range.py`, `schemas/users.py`,
+  `schemas/thresholds.py`, `schemas/system.py`). Shared base (`_OrmBase`, the `_Date`
+  alias, `_NAIVE_ISO_RE`) lives in `schemas/_base.py` — don't duplicate it. Do NOT
+  recreate a single mega `schemas.py`; that monolith was deliberately split.
+
+## Run / Test / Migrate / Lint
+
+All backend commands run from `backend/`.
+
+- **Backend tests:** startup events fire during `TestClient`, so a migrated file DB and
+  data-dir env vars are required (conftest overrides the route session but not the startup
+  engine). Full invocation from `backend/`:
+  ```
+  D="$TMPDIR/aldata" && mkdir -p "$D/backups" "$D/uploads" && rm -f "$D/app.db"
+  DATABASE_URL="sqlite:///$D/app.db" alembic upgrade head
+  CONFIG_PATH="$D/config.yaml" DEFAULTS_PATH="$PWD/defaults.yaml" \
+    BACKUP_PATH="$D/backups" UPLOADS_PATH="$D/uploads" \
+    DATABASE_URL="sqlite:///$D/app.db" python -m pytest
+  ```
+  (The `python -m` form puts `backend/` on the path so flat imports resolve; bare `pytest`
+  from the repo root fails on `from main import app`.)
+  Single file: set the same env vars, then `python -m pytest tests/test_firearms.py`.
+  **Note:** `test_firearm_photos.py::test_zip_restore_rejects_path_traversal` is a
+  pre-existing failure (stale assertion) — unrelated to most changes.
+- **Backend lint (matches CI):** `ruff check backend/` — pinned `ruff==0.4.4`, rule set
+  `E4/E7/E9/F` (see `backend/ruff.toml`).
+- **Migrate to head:** `cd backend && alembic upgrade head`. Check head/current:
+  `alembic heads && alembic current`. (CI does NOT run `alembic check` — SQLite +
+  SQLModel emits TEXT-vs-AutoString false positives; it verifies upgrade-to-head instead.)
+- **Frontend build / typecheck:** `cd frontend && npm run build` (runs `tsc -b && vite
+  build`); type-only check: `npm run typecheck` (`tsc --noEmit`). Dev server: `npm run dev`.
+- **Full dev stack:** `docker compose -f docker-compose.dev.yml up -d --build`.
+  Validate compose (matches CI): `docker compose config --quiet`.
+
+CI (`.github/workflows/ci.yml`) runs: backend lint, YAML validation, migrate-to-head,
+and `docker compose config`. **CI does not run the test suite or frontend build** — run
+those locally before opening a PR.
+
 ## Configuration
 
 - Settings live in `/data/config.yaml` (mounted from the `ammoledger_data` volume)
@@ -36,56 +107,13 @@
 - This project adopts one or more crzynet standards. The in-repo source of truth
   for which ones (and at which pinned versions) is `standards.md` at the repo root.
 - Read `standards.md` on session start whenever the work could touch anything the
-  standards govern (context search, releases, commits/PRs).
+  standards govern (releases, commits/PRs).
 
 ## Code Context
 
-- Always use vexp index when available for
-  file lookups and understanding the codebase
-- Read relevant source files before making
-  changes — don't assume structure
-
-<!--
-Source: standards/vexp-context-engine @ v2.0.0 (crzynet/homelab-configs).
-The section below is the standard's CLAUDE-snippet.md, pasted verbatim. The full
-standard (scope, the two pushes, the manifest-not-tracked shape, adoption + gate
-+ verification procedure) lives at:
-https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/vexp-context-engine/README.md
--->
-
-## Context search (operational rules)
-
-This project adopts the `vexp-context-engine` standard. The full why-and-how lives at the
-source above; the rules below are the per-session do/don'ts a coding agent must honor by
-default:
-
-- **Call `run_pipeline` FIRST for any code task** — bug fixes, features, refactors,
-  debugging, "how does X work", "where is Y". It runs context search + impact analysis +
-  memory recall in one call and returns ranked, compressed context.
-- **Do NOT `grep`, `glob`, or `cat` to explore the codebase.** vexp returns pre-indexed,
-  graph-ranked context that is more relevant and cheaper than manual searching. A
-  `PreToolUse` guard hook blocks `Grep`/`Glob` while the vexp daemon is healthy; if the
-  daemon is down it allows the fallback.
-- **Prefer `get_skeleton` over `Read` to inspect files** (minimal/standard/detailed —
-  70–90% fewer tokens). Use `Read` only when you need exact raw content to edit a specific
-  line.
-- **Don't chain vexp calls or fan out `Explore` agents to free-search.** One
-  `run_pipeline` replaces capsule + impact + memory; if a subagent needs context, run
-  `run_pipeline` first and pass the result into the agent's prompt.
-- **The vexp daemon runs as a standalone `systemd`-user service — NOT the VS Code
-  extension.** The supervisor is `vexp.service` (`ExecStart=vexp serve`), `enabled` + linger,
-  auto-restarting; it starts/adopts the per-repo daemon on demand. Managing it with
-  `systemctl --user … vexp.service` or `vexp daemon-cmd start|stop|status|logs` is the
-  expected control path, not forbidden. Do **not** run vexp from the VS Code extension
-  (deprecated here — older bundled core, contends for the socket/port).
-- **Start/manage the daemon in the host process namespace (un-sandboxed).** A daemon
-  spawned inside a sandboxed shell gets a throwaway PID namespace + socket the host-side
-  MCP can't reach, and dies when that shell exits. If `index_status` reports "Cannot
-  connect to daemon," run `vexp daemon-cmd start` un-sandboxed and wait for "Socket ready"
-  (first start loads the local LLM, so allow >12s).
-
-If you're unsure whether an action would violate one of the above, stop and ask before
-acting.
+- Read relevant source files before making changes — don't assume structure.
+- The codebase is ~170 files / ~49K LOC with a clean tree-shaped import topology;
+  ripgrep + Read traverses it cheaply. Start from the "Where things live" map above.
 
 <!--
 Source: standards/code-checkin-and-pr @ v1.1.0 (crzynet/homelab-configs).
@@ -155,16 +183,52 @@ coding agent must honor by default:
 If you're unsure whether an action would violate one of the above, stop and
 ask before acting.
 
-## Handoff prompts
+<!--
+Source: standards/handoff-prompt-workflow @ v2.0.0 (crzynet/homelab-configs).
+Pasted verbatim per the standard. Full why-and-how:
+https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/handoff-prompt-workflow/README.md
+-->
 
-This project adopts the
-[`handoff-prompt-workflow`](https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/handoff-prompt-workflow/README.md)
-standard (soft pointer — see `standards.md`). Scoped work that warrants a fresh session
-is written as a handoff prompt in `prompts/` (start from `prompts/TEMPLATE.md`); the
-live `prompts/` dir is the pending queue, and finished prompts `git mv` into
-`prompts/done/` or `prompts/failed/`. Non-obvious decisions go in `docs/decisions.md`
-(newest at top). Read the linked standard for the full plan → decide → execute →
-document flow; don't restate it here.
+## Handoff prompts (operational rules)
+
+This project adopts the `handoff-prompt-workflow` standard. The full why-and-how lives at
+the source above; the rules below are the per-session do/don'ts an agent must honor by
+default:
+
+- **Edit-size threshold — decide by how much you'll change:**
+  - A genuinely small change — roughly **one or two files and a few lines** (a typo, one
+    config value, a one-line fix) — do it **in-session**, no prompt.
+  - **Anything bigger requires a handoff prompt** — more than ~2 files, a multi-step
+    change, a new feature, or any edit large enough that a fresh context would run it
+    more cleanly. **When in doubt, write the prompt.**
+- **A handoff prompt is a file in `prompts/`** — one per task, from `prompts/TEMPLATE.md`,
+  with frontmatter (`name`, `status`, `created`, `model`, `completed`, `result`). Set
+  `model:` from the task type: **Opus** for research/planning, **Sonnet** for coding;
+  mixed defaults to Opus.
+- **Execute the prompt by spawning a subagent — don't hand the user a command.** Spawn an
+  agent on the prompt's `model:`, let it run the prompt end-to-end, and **report the
+  outcome back**. The agent gets a fresh context; you stay in the loop.
+  - **Manual fallback only on explicit request.** If the user says e.g. "use manual
+    prompts for this," give them
+    `claude --model <model> "Read prompts/<file>.md and execute it as your task."`
+    instead of spawning.
+- **Check the working tree before editing.** Run `git status --porcelain`, cross-reference
+  the files the plan touches; if any have uncommitted changes, list them and ask before
+  touching. Surface unrelated dirty files once; they don't block.
+- **The prompt self-updates and moves when done.** The executing agent sets its
+  frontmatter (`status`/`completed`/`result`) and `git mv`s the file into `prompts/done/`
+  (success) or `prompts/failed/` (failure).
+- **One commit at the end; the prompt bundles in.** The prompt file is **not** committed
+  up front — it lands in the single end commit alongside the work and the prompt move.
+  Propose ONE commit (files list + one-line message), ask `y/n`, stage only those specific
+  paths. **Never `git add -A`, never auto-commit, never push.** A spawned agent prepares
+  the tree and reports the proposed commit back; the orchestrating session surfaces the
+  `y/n`.
+- **Record non-obvious decisions** (approach changes, rejected alternatives, workarounds)
+  in `docs/decisions.md`, newest at top.
+
+If you're unsure whether an action would violate one of the above, stop and ask before
+acting.
 
 ## Project Documentation
 
@@ -174,8 +238,8 @@ document flow; don't restate it here.
 
 ## Build Status
 
-Current release target: v0.3.10 (mobile hamburger nav drawer #52; full light-mode legibility + Light/Dark/Follow-system mode picker #51; configurable app timezone for scheduled jobs #43; Read-Only CSV-import security fix #12)
-Last shipped public release: v0.3.9 (2026-05-25)
+Current release target: v0.4.0 (security hardening batch — session-secret wiring + fail-closed boot + cookie/CORS hardening; SSRF guard on image preview; upload size caps; read-only product gate; server-side must_change_password; constant-time reset-token; production nginx static frontend + CI SHA pinning; firearm clean-state recompute on range apply; firearm_conditions in JSON export; bundles older-JSON-restore #14 + CSV format auto-detect #36)
+Last shipped public release: v0.3.10 (2026-05-30) — /release-cut sets last-shipped to v0.4.0 after the PR merges
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 
@@ -293,7 +357,8 @@ Last shipped public release: v0.3.9 (2026-05-25)
 - **Squash policy.** Do not squash migrations again after v0.1.9. Once public users exist, every migration that ships becomes part of someone's upgrade path. The v0.1.9 squash was a one-time pre-release cleanup.
 - **JSON export coverage.** `_EXPORT_TABLES` in `routers/backup.py` is the source of truth for which tables are included in JSON export and import. When adding a new table, decide explicitly whether it belongs in the export (user data → yes; operational telemetry, short-lived tokens, or seed-managed config → no) and add a comment in the list. Forgetting is a silent data-loss bug on restore.
 - **Additive JSON import has been removed (v0.2.1).** Full replace is the only restore mode. The additive path was broken-by-design for cross-installation merge: colliding user rows were skipped while their child rows still inserted, pointing at whoever held the ID on the target. Closes issue #10. A proper row-level merge (Tier C from #10) is not planned for v0.3.0 — do not re-introduce additive mode or any guidance that implies users can manually rewrite IDs to work around it.
-- **JSON import schema validation** — both `/backup/import/preview` and `/backup/import/commit` reject exports whose `schema_migration` does not exactly match the current Alembic head. A TODO comment at the validation site marks where future relaxation should land once migration `0002+` ships.
+- **JSON import schema classification** — `_classify_schema_migration()` in `routers/backup.py` replaces the old equality check. Outcomes: `clean` (exact match), `older_compatible` (known ancestor at or above `JSON_RESTORE_ADDITIVE_SINCE`), or `rejected` (newer, unknown, or below floor). Preview always returns the verdict; commit accepts `older_compatible` only with `confirm_older=True`. See `docs/prd/backup-restore-compat.md` for the full design.
+- **New migrations that add a column to an existing table must make it nullable or give it a server default** — or bump `JSON_RESTORE_ADDITIVE_SINCE` (in `routers/backup.py`) to the new migration ID in the same commit. If a NOT NULL column without a default is added to an existing table, older exports can no longer be inserted and must be rejected. The floor is the oldest revision ID (e.g. `"0001"`) from which a JSON export is known additive-safe into the current head. See `docs/prd/backup-restore-compat.md §5.2`.
 - **Every restore path rotates image directories to `<name>.old` snapshots before placing new contents (v0.3.8+).** Source of truth: `_IMAGE_DIR_NAMES = ("firearm_photos", "products")` in `backend/routers/backup.py` and the `_image_dir_specs() / _rotate_image_dir_to_old() / _place_or_empty() / _capture_image_snapshot_status()` helpers next to it. Zip restore moves the extracted directories into place after the durable DB swap; `.db` restore and JSON full-import create empty directories (those formats carry no image data, so leaving prior contents live would surface stray photos belonging to the previous install whenever a restored row references a matching filename). Each restore deletes the previous `.old` first — the system keeps exactly one snapshot generation, not a chain. Snapshots persist on disk until discarded via `POST /backup/restore-snapshots/discard` (the Backup page surfaces a banner for any non-empty `.old` directory via `GET /backup/restore-snapshots`). When adding a new image directory under `UPLOADS_PATH` that participates in backup/restore: append the directory name to `_IMAGE_DIR_NAMES` and the bundling + rotation flow picks it up. Do NOT add ad-hoc per-directory blanking logic to the restore impls — extending the tuple is the contract. Documented in `docs/PRD.md` §11.9.
 - **Restore / import endpoints log in a uniform `actor / source / outcome` shape.** Every restore and import path (`_restore_sqlite_impl`, `_restore_zip_impl`, `import_commit`) emits start, completion, and failure log lines that carry the triggering admin's username (`actor=`), the source filename (`source=`, sanitized via `log_safe`), and either a substantive outcome on success (`restored database and N firearm photo(s)` / `imported N record(s) across M table(s)`) or `stage=<stage> | error=<exc>` on failure. The impls own all start/complete/failure logging — endpoints just pass `actor` and `source`. New restore/import entry points must follow the same shape so an aborted restore is never silent.
 

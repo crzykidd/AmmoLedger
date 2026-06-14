@@ -36,6 +36,7 @@ from utils.config import UPLOADS_PATH
 from utils.image_search import ImageSearchNotConfigured, get_provider
 from utils.logging import get_logger
 from utils.rbac import require_auth, require_role
+from utils.ssrf_guard import assert_public_url, ssrf_guard_event_hooks
 
 logger = get_logger(__name__)
 
@@ -151,6 +152,8 @@ def _visibility_filter(stmt, user: User):
 def _check_write(product: Product, user: User) -> None:
     if user.role == "admin":
         return
+    if user.role == "read_only":
+        raise HTTPException(status_code=403, detail="Read-only users cannot modify products")
     if product.owner_id != user.id:
         raise HTTPException(status_code=403, detail="You do not have permission to modify this product")
 
@@ -691,12 +694,17 @@ async def preview_product_image(
         raise HTTPException(status_code=404, detail="Product not found")
     _check_write(product, user)
 
-    if not (body.source_url.startswith("http://") or body.source_url.startswith("https://")):
-        raise HTTPException(status_code=422, detail="source_url must be http(s)")
+    # Validate scheme and resolve hostname against non-public IP ranges before
+    # making any outbound connection. Re-validates on every redirect via hooks.
+    assert_public_url(body.source_url)
 
     MAX_FETCH_BYTES = 10 * 1024 * 1024
     try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=15.0,
+            follow_redirects=True,
+            event_hooks=ssrf_guard_event_hooks(),
+        ) as client:
             async with client.stream("GET", body.source_url) as resp:
                 resp.raise_for_status()
                 content_type = resp.headers.get("content-type", "").lower()

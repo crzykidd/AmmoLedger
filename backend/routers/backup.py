@@ -11,7 +11,7 @@ from typing import Any
 
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -40,6 +40,10 @@ _DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/ammoledger.db")
 #   - task_history: operational telemetry, not user data. Re-populates naturally.
 #   - task_registry: re-seeded on app startup from TASK_DEFINITIONS. Restoring
 #     stale rows would conflict with the seed logic.
+#   - firearm_photos: photo metadata rows are zip-only by design. A JSON export
+#     carries no binary blobs, so restoring photo rows without the accompanying
+#     image files would surface broken photo references. Zip backup includes the
+#     full SQLite DB (and therefore photo rows) alongside the image directories.
 _EXPORT_TABLES = [
     # User accounts and lookups (parents)
     "users",
@@ -55,8 +59,11 @@ _EXPORT_TABLES = [
     # come before firearm_models / firearms (FK ordering). The four
     # frame_size / optic_cut / rail_type / finish tables are FK targets
     # of the firearms row added in v0.3.0; firearm_user_tags FKs users
-    # (already above).
+    # (already above). firearm_conditions is a full-CRUD user-editable
+    # lookup (firearms.firearm_condition_id FKs it) — include before
+    # firearm_models so it's a parent when firearms rows insert.
     "firearm_action_types",
+    "firearm_conditions",
     "firearm_frame_sizes",
     "firearm_optic_cuts",
     "firearm_rail_types",
@@ -92,6 +99,22 @@ _EXPORT_TABLES = [
 ]
 
 _COMPATIBLE_MAJOR = __version__.split(".")[0]
+
+# Container format version — bumped only when the JSON envelope shape or zip
+# layout changes, never for DB schema changes (schema_migration handles those).
+# Exports without this field are treated as format 1. See §5.3 of
+# docs/prd/backup-restore-compat.md.
+BACKUP_FORMAT_VERSION = 1
+
+# Oldest Alembic revision ID (from alembic_version.version_num — NOT the
+# filename slug) from which a JSON export is known additive-safe into the
+# current head. Migrations 0002–0004 are additive (new nullable columns, new
+# tables); no existing column on ammo_box or other pre-0002 tables was changed
+# to NOT NULL. If a future migration adds a NOT NULL column without a server
+# default to an existing table, bump this constant to that migration's revision
+# ID in the same commit. See docs/prd/backup-restore-compat.md §5.2 and
+# CLAUDE.md → Database Rules.
+JSON_RESTORE_ADDITIVE_SINCE = "0001"
 
 # Operational telemetry keys that change on every backup/import and would
 # dominate the app_settings diff with noise. Hidden from the preview UI.
@@ -340,6 +363,11 @@ def _backup_to_zip(db_path: Path, dest: Path) -> None:
 
     try:
         with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
+            manifest = json.dumps({
+                "backup_format_version": BACKUP_FORMAT_VERSION,
+                "ammoledger_version": __version__,
+            })
+            zf.writestr("MANIFEST.json", manifest)
             zf.write(str(temp_db), "ammoledger.db")
             for dir_name in _IMAGE_DIR_NAMES:
                 src_dir = uploads_root / dir_name
@@ -375,18 +403,35 @@ def _parse_import_json(contents: bytes) -> dict:
     if not isinstance(data, dict):
         raise HTTPException(status_code=400, detail="JSON root must be an object")
 
-    if "ammologger_version" not in data:
+    # Accept the correctly-spelled alias introduced in BACKUP_FORMAT_VERSION 1;
+    # fall back to the legacy misspelling that all existing exports carry.
+    app_ver = data.get("ammoledger_version") or data.get("ammologger_version")
+    if not app_ver:
         raise HTTPException(
             status_code=400,
             detail="Missing 'ammologger_version' — this may not be an AmmoLedger export",
         )
 
-    file_major = str(data["ammologger_version"]).split(".")[0]
+    # Reject a backup whose container format is newer than this build understands.
+    fmt_ver = data.get("backup_format_version", 1)
+    if isinstance(fmt_ver, int) and fmt_ver > BACKUP_FORMAT_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    f"This backup was made by a newer version of AmmoLedger "
+                    f"(format {fmt_ver}). Upgrade your installation first."
+                ),
+                "reason": "unsupported_format",
+            },
+        )
+
+    file_major = str(app_ver).split(".")[0]
     if file_major != _COMPATIBLE_MAJOR:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Version mismatch: export is v{data['ammologger_version']}, "
+                f"Version mismatch: export is v{app_ver}, "
                 f"app is v{__version__}. Major version must match."
             ),
         )
@@ -406,48 +451,81 @@ def _current_migration(con: sqlite3.Connection) -> str:
         return "unknown"
 
 
-def _validate_schema_migration(export_migration: str | None, current: str) -> None:
-    """Reject the import if the export's schema doesn't exactly match current.
+def _classify_schema_migration(export_migration: str | None, current_db_rev: str) -> dict:  # noqa: ARG001
+    """Classify the export's schema revision against the current Alembic head.
 
-    # TODO(schema-evolution): Strict equality is correct for v0.2.1 because there
-    # is only one schema version in the wild. Once migration 0002+ ships, revisit
-    # whether older exports can be replayed safely. Cases to consider:
-    #   - Export migration < current: forward-compatible if all newer migrations
-    #     are additive (new nullable columns, new tables). Could be allowed by
-    #     populating defaults for new fields.
-    #   - Export migration > current: must always reject. The app cannot know how
-    #     to translate forward.
-    # Tracked in #14.
+    Returns a verdict dict. Possible outcomes (per docs/prd/backup-restore-compat.md §5.1):
+      {"verdict": "clean"} — exact match; normal happy-path restore.
+      {"verdict": "older_compatible"} — older ancestor at/above JSON_RESTORE_ADDITIVE_SINCE;
+          caller adds tables_added_empty / columns_defaulted / summary before returning.
+      {"verdict": "rejected", "reason": <str>, "recommended_action": <str>}
+          reason is one of: missing_schema_tag | not_ancestor | newer_schema | below_floor
+
+    Uses the same walk_revisions graph walk as _classify_db_revision.
+    # TODO: See docs/prd/backup-restore-compat.md for full design; supersedes #14.
     """
     if not export_migration or export_migration == "unknown":
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": (
-                    "This export does not record a schema version and cannot be "
-                    "restored. Re-export from a current version of AmmoLedger."
-                ),
-                "technical": (
-                    f"Export 'schema_migration' field is missing or unknown; "
-                    f"current database is at {current}."
-                ),
-            },
-        )
-    if export_migration != current:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": (
-                    "This export was created with a different version of "
-                    "AmmoLedger and cannot be restored. Export from a matching "
-                    "version, or upgrade the source installation first."
-                ),
-                "technical": (
-                    f"Schema mismatch: export was taken at migration "
-                    f"{export_migration}, current database is at {current}."
-                ),
-            },
-        )
+        return {
+            "verdict": "rejected",
+            "reason": "missing_schema_tag",
+            "recommended_action": "Re-export from a current version of AmmoLedger.",
+        }
+
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg = AlembicConfig(os.path.join(backend_dir, "alembic.ini"))
+    cfg.set_main_option("script_location", os.path.join(backend_dir, "migrations"))
+    from alembic.script import ScriptDirectory  # noqa: PLC0415
+    script = ScriptDirectory.from_config(cfg)
+    head = script.get_current_head()
+
+    if export_migration == head:
+        return {"verdict": "clean"}
+
+    # Ordered newest-first list of all revisions reachable from head.
+    all_revs = [r.revision for r in script.walk_revisions(base="base", head=head)]
+
+    # Is this revision even known in our migration scripts?
+    try:
+        script.get_revision(export_migration)
+    except Exception:
+        return {
+            "verdict": "rejected",
+            "reason": "not_ancestor",
+            "recommended_action": (
+                "This export was made with an unrecognized schema version. "
+                "Restore the matching .db or .zip snapshot instead — it auto-upgrades."
+            ),
+        }
+
+    if export_migration not in all_revs:
+        # Known revision but not an ancestor of head → it is newer than head.
+        return {
+            "verdict": "rejected",
+            "reason": "newer_schema",
+            "recommended_action": (
+                "This export was made with a newer version of AmmoLedger. "
+                "Upgrade your installation first, then restore."
+            ),
+        }
+
+    # Export is an older ancestor. Check the additive-since floor.
+    try:
+        floor_idx = all_revs.index(JSON_RESTORE_ADDITIVE_SINCE)
+    except ValueError:
+        floor_idx = len(all_revs) - 1  # floor not found → treat as oldest allowed
+
+    em_idx = all_revs.index(export_migration)
+    if em_idx > floor_idx:
+        return {
+            "verdict": "rejected",
+            "reason": "below_floor",
+            "recommended_action": (
+                "This export predates the supported restore window. "
+                "Restore the matching .db or .zip snapshot instead — it auto-upgrades the schema safely."
+            ),
+        }
+
+    return {"verdict": "older_compatible"}
 
 
 # ---------------------------------------------------------------------------
@@ -631,7 +709,9 @@ def export_backup(_: Any = Depends(require_role("admin"))):
         con.close()
 
     payload = {
-        "ammologger_version": __version__,
+        "ammologger_version": __version__,  # legacy misspelling — kept for read-compat
+        "ammoledger_version": __version__,  # correctly-spelled alias (v0.3.10+)
+        "backup_format_version": BACKUP_FORMAT_VERSION,
         "schema_migration": migration,
         "exported_at": datetime.now().isoformat(),
         "tables": tables,
@@ -1356,6 +1436,7 @@ async def restore_backup(
 
 class RestoreFromServerRequest(BaseModel):
     filename: str
+    confirm_older: bool = False
 
 
 @router.post("/restore/server")
@@ -1436,10 +1517,36 @@ async def _import_preview_impl(contents: bytes) -> dict:
     con.row_factory = sqlite3.Row
     try:
         cur_migration = _current_migration(con)
-        _validate_schema_migration(data.get("schema_migration"), cur_migration)
+        verdict = _classify_schema_migration(data.get("schema_migration"), cur_migration)
 
         tables = data["tables"]
         record_counts = {t: len(v) for t, v in tables.items() if isinstance(v, list)}
+
+        # Enrich older_compatible verdict with per-table disclosure fields.
+        if verdict["verdict"] == "older_compatible":
+            tables_added_empty = [t for t in _EXPORT_TABLES if not tables.get(t)]
+            columns_defaulted: dict[str, list[str]] = {}
+            for t in _EXPORT_TABLES:
+                rows = tables.get(t, [])
+                if rows and isinstance(rows[0], dict):
+                    export_cols = set(rows[0].keys())
+                    try:
+                        db_cols = {
+                            row[1]
+                            for row in con.execute(f"PRAGMA table_info({t})").fetchall()  # noqa: S608
+                        }
+                        missing = sorted(db_cols - export_cols)
+                        if missing:
+                            columns_defaulted[t] = missing
+                    except Exception:
+                        pass
+            total_defaulted = sum(len(v) for v in columns_defaulted.values())
+            verdict["tables_added_empty"] = tables_added_empty
+            verdict["columns_defaulted"] = columns_defaulted
+            verdict["summary"] = (
+                f"Export schema is older — {len(tables_added_empty)} table(s) will be "
+                f"empty and {total_defaulted} column(s) will use current defaults."
+            )
 
         warnings: list[str] = []
         for t in _EXPORT_TABLES:
@@ -1538,7 +1645,7 @@ async def _import_preview_impl(contents: bytes) -> dict:
 
     return {
         "valid": True,
-        "version": data.get("ammologger_version"),
+        "version": data.get("ammoledger_version") or data.get("ammologger_version"),
         "schema_migration": data.get("schema_migration"),
         "current_migration": cur_migration,
         "exported_at": data.get("exported_at"),
@@ -1547,6 +1654,7 @@ async def _import_preview_impl(contents: bytes) -> dict:
         "user_conflicts": user_conflicts,
         "app_settings_diff": app_settings_diff,
         "ownership_summary": ownership_rows,
+        "compatibility": verdict,
     }
 
 
@@ -1585,7 +1693,11 @@ async def import_preview_from_server(
 # ---------------------------------------------------------------------------
 
 async def _import_commit_impl(
-    contents: bytes, *, actor: str = "unknown", source: str = "upload"
+    contents: bytes,
+    *,
+    actor: str = "unknown",
+    source: str = "upload",
+    confirm_older: bool = False,
 ) -> dict:
     """Full-replace JSON import. Shared by upload and server-side entry points."""
     # Fetch inside the handler so get_logger() repairs the uvicorn-disabled
@@ -1600,13 +1712,37 @@ async def _import_commit_impl(
 
     db_path = _db_path()
 
-    # Validate schema before doing anything destructive
+    # Classify schema before doing anything destructive.
     pre_con = sqlite3.connect(str(db_path))
     try:
         cur_migration = _current_migration(pre_con)
-        _validate_schema_migration(data.get("schema_migration"), cur_migration)
+        verdict = _classify_schema_migration(data.get("schema_migration"), cur_migration)
     finally:
         pre_con.close()
+
+    if verdict["verdict"] == "rejected":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": verdict["recommended_action"],
+                "technical": (
+                    f"Schema verdict: {verdict['reason']} "
+                    f"(export={data.get('schema_migration')}, current={cur_migration})"
+                ),
+            },
+        )
+    if verdict["verdict"] == "older_compatible" and not confirm_older:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": (
+                    "This export uses an older schema. Preview the import first to see "
+                    "which tables will be empty and which fields will use defaults, "
+                    "then confirm to proceed."
+                ),
+                "verdict": "older_compatible",
+            },
+        )
 
     # Auto pre-import backup — import is blocked if this fails
     from utils.pre_import_backup import trigger_pre_import_backup  # noqa: PLC0415
@@ -1752,6 +1888,7 @@ async def _import_commit_impl(
 @router.post("/import/commit")
 async def import_commit(
     file: UploadFile = File(...),
+    confirm_older: bool = Form(False),
     current_user: User = Depends(require_role("admin")),
 ):
     contents = await file.read()
@@ -1759,6 +1896,7 @@ async def import_commit(
         contents,
         actor=current_user.username,
         source=file.filename or "upload",
+        confirm_older=confirm_older,
     )
 
 
@@ -1786,6 +1924,7 @@ async def import_commit_from_server(
         contents,
         actor=current_user.username,
         source=path.name,
+        confirm_older=body.confirm_older,
     )
     result["restored_from"] = path.name
     return result

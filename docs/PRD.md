@@ -1,8 +1,8 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 3.40 — Working Draft  
-**Date:** April 2026  
-**Status:** In Review
+**Version:** 3.66  
+**Date:** 2026-06-13  
+**Status:** Living Document
 
 ---
 
@@ -79,28 +79,32 @@
 | 3.38 | 2026-05-17 | v0.3.0 release: firearms registry, range sessions, firearm maintenance log, photos, CSV import/export, LookupCombobox inline create, backup zip integration, At Range session attribution. CHANGELOG `[Unreleased]` stamped as `[0.3.0]`. |
 | 3.39 | 2026-05-18 | Established sub-document structure under `docs/prd/`. Added `prd/tagging.md` covering physical tokens, label templates, NFC binding, scan modes, and the networked-scanner architecture. Added `hardware/` folder for build references and ESPHome configurations. Added rows to §3 Ownership Model and §5.2 Permission Matrix for the new entities. Added §17 Index of Feature Documents. |
 | 3.40 | 2026-05-18 | Added `prd/legal-owners.md` and `prd/licenses.md` as DRAFT sub-documents covering the planned Licenses feature area (carry permits, NFA stamps, reciprocity, coverage view) and its prerequisite Legal Owners entity layer (trusts, LLCs, recurring filings). Added rows to §3.3 Ownership Model and §5.2 Permission Matrix for the new entities. Added entries to §17 Index of Feature Documents. No schema, backend, or frontend changes — design committed to docs only; implementation phases not yet scheduled. |
-| 3.40 | 2026-05-18 | Products "Find Image" feature — search-based product photo selection via Brave Image Search API; preview-then-commit flow with optional square crop; new `image_search` config block with ENV overrides (`AL_IMAGE_SEARCH_ENABLED`, `AL_IMAGE_SEARCH_PROVIDER`, `AL_IMAGE_SEARCH_API_KEY`); new endpoints `GET /products/{id}/image/search`, `POST /products/{id}/image/preview`, `GET /products/{id}/image/preview/{token}`, `POST /products/{id}/image/from-search`. §6.14, §9.13, §15.1 updated. |
-| 3.41 | 2026-05-18 | Network segmentation and outbound hosts — §12.5 added (private ammoledger_net bridge, optional external proxy_net attachment for reverse-proxy stacks, locking-down outbound caveat); §12.6 added (full table of outbound hosts the backend may reach per optional feature). Production docker-compose.yml refactored to match: backend has no published ports and lives on ammoledger_net only; frontend bound to 127.0.0.1:5173 (matching §12.4); commented opt-in proxy_net attachment. |
-| 3.42 | 2026-05-18 | v0.3.4 release: Products Find Image Online (Brave Search API integration with optional square crop), production compose network hardening (private ammoledger_net bridge, no backend published ports, opt-in proxy_net external attachment, outbound host documentation §12.6). CHANGELOG [Unreleased] stamped as [0.3.4]. |
-| 3.43 | 2026-05-19 | PUID/PGID runtime file ownership — §15.2 added (File Ownership: PUID/PGID env vars, default 1000:1000, backward compatible). Dockerfile.backend installs gosu and delegates to a new entrypoint script that remaps appuser UID/GID at container start, chowns /data only when ownership differs, then drops privileges via gosu. docker-compose.yml and docker-compose.dev.yml pass PUID/PGID with ${PUID:-1000}/${PGID:-1000}; dev compose user: directive removed. Former §15.2/§15.3 renumbered to §15.3/§15.4. |
-| 3.44 | 2026-05-19 | v0.3.5 release: CodeQL path-traversal fix in product image preview endpoints (tokens resolved via directory listing, not path construction); backend honors PUID/PGID for /data ownership instead of baked-in UID 1000 (§15.2). CHANGELOG [Unreleased] stamped [0.3.5]; duplicate CodeQL entry removed from [0.3.4]. |
-| 3.45 | 2026-05-20 | Sidebar navigation reorganized — "Settings" section removed. Import and Thresholds moved into the Admin section. Admin section is now visible to all roles; admin-only items (Thresholds, Users, Backup, Datasets, Tasks) hidden from non-admins; Import hidden from read-only. Products visually nested under Ammo in the main nav. Profile nav item removed; profile drawer now opened via a gear icon in the sidebar footer next to the username. §9.2.6 Import navigation note updated; §9.13 Products sidebar placement updated. |
-| 3.46 | 2026-05-20 | Products page UX fixes (issue #30) — Add Box opens `AddBoxFromProductSheet` on-page (no navigation); usage count links to filtered inventory; "Show Empty" replaced by "Has Empty" + "Has Archived" toggles; `ProductRead` gains `empty_count` and `archived_count`. §9.13 Add Box Integration section rewritten. |
-| 3.47 | 2026-05-21 | v0.3.6 release: sidebar reorganized (Settings folded into Admin; Products nested under Ammo; profile drawer via footer gear), Products page UX fixes (#30 — on-page Add Box drawer, FK-scoped usage link, Has Empty / Has Archived filters), inventory "All Fields" search now matches every column (#29), and Vite HMR fixed on Windows Docker via filesystem polling. CHANGELOG `[Unreleased]` stamped as `[0.3.6]`. |
-| 3.48 | 2026-05-22 | Datasets page now reports both ammo and firearm usage per lookup entry (#20). Backend lookup admin endpoints add a `firearm_usage_count` field alongside `usage_count`, derived from new `_FIREARM_COUNT_SQL` / `_FIREARM_SINGLE_COUNT_SQL` maps covering calibers, manufacturers, dealers, and the seven firearm-specific lookups (action types, models, compliance tags, frame sizes, optic cuts, rail types, finishes, conditions). Hide/Delete guards now check both counts; firearm-specific lookup deletes gain the same usage guard. Frontend `LookupsPage` renders two side-by-side chips per row (blue "N boxes", purple "N firearms") with deep-links — caliber/manufacturer chips route to `/firearms?caliber_id=` / `?manufacturer_id=` (FirearmsListPage now hydrates filters from URL params on mount); other firearm-only lookups navigate to the firearms list unfiltered. New page-level filter toolbar (Hide unused, Hide hidden, Source: All/Community/User-added) persisted to localStorage under `datasets_filters`. |
-| 3.48 | 2026-05-21 | Structured startup banner on both services (#33) — backend `on_startup` and a new `startupBanner` Vite plugin in `frontend/vite.config.ts` each emit a single identifier line on container start (version, channel `dev`/`release`, branch, short SHA, Python/Node runtime). §7.4 updated with example output and channel-derivation rule. Lets operators confirm the running image from `docker compose logs` without cross-referencing tags. |
-| 3.49 | 2026-05-21 | v0.3.7 release: Datasets page reports both ammo and firearm usage per lookup entry with deep-link chips and a persistent filter toolbar (#20); structured startup banner on backend and frontend identifies the running build from `docker compose logs` (#33); README and Installation Guide overhauled for public beta; production compose publishes frontend on `5173:5173` and trims redundant backend env block; `.gitattributes` pins LF line endings so Windows checkouts no longer break `backend/docker-entrypoint.sh`. CHANGELOG `[Unreleased]` stamped as `[0.3.7]`. |
-| 3.50 | 2026-05-22 | Server-side restore endpoint — `POST /backup/restore/server` lets an admin restore from a backup file already on disk (selected from `GET /backup/list`) without re-uploading it through the browser. Filename is sanitized and confined to the backup directory by the same helpers used for download and delete; `.json` exports are rejected. Reuses the same `.db` / `.zip` restore impls as `/backup/restore` — one restore pipeline, two entry points. §11.1 updated. |
-| 3.51 | 2026-05-22 | Product images now travel with zip backups and restores (#46), and every restore path now rotates `firearm_photos/` and `products/` to `.old` snapshots before placing new contents (§11.9). `.db` restores and JSON full-imports blank both image directories because those formats carry no image data — leaving prior contents live would surface stray photos belonging to the previous install. New admin endpoints: `GET /backup/restore-snapshots` and `POST /backup/restore-snapshots/discard`. Backup page shows a persistent banner naming any snapshot directory still on disk; restore response payloads include an `image_snapshots` field. §11.1 / §11.8 / §11.9 updated. |
-| 3.52 | 2026-05-22 | Server-side JSON import — twin endpoints `POST /backup/import/preview/server` and `POST /backup/import/commit/server` accept `{ "filename" }` and route through the same `_import_preview_impl` / `_import_commit_impl` as the upload flow (#47). The Backup History table on the Backup page now exposes a per-row Restore icon: `.db` / `.zip` rows reuse the existing destructive-restore confirm dialog and call `POST /backup/restore/server`; `.json` rows load the standard preview panel via the new server-preview endpoint, and the existing "Full Replace" button commits via the server-commit endpoint. No upload required for any in-place restore. `import_preview` and `import_commit` were refactored to delegate to shared impls so the upload and server entry points share one code path. §11.1 updated. |
-| 3.53 | 2026-05-22 | v0.3.8 release: in-place restore/import from on-disk backups via per-row icon in Backup History (#47, #46); restore now rotates `firearm_photos/` and `products/` to `.old` snapshots with a Discard banner; self-healing logging from request handlers (fixes silent log loss under uvicorn `--reload`); durable same-filesystem atomic DB swap on restore (fixes `database disk image is malformed` on Docker Desktop / Windows); restore no longer runs `ANALYZE` and startup auto-repairs databases corrupted by pre-fix restores (dangling `sqlite_stat1` rootpage); live "passwords match" indicator on every password+confirm form (#35); structured `actor / source / outcome` logging on all restore + import paths. CHANGELOG `[Unreleased]` stamped as `[0.3.8]`. |
-| 3.54 | 2026-05-24 | v0.3.9 release: invitation and admin-generated password-reset links now honor `AL_BASE_URL` / `app.base_url` (#49). The auth router was reading a non-existent `APP_BASE_URL` env var, so the URLs returned to admins were always hard-coded to `http://localhost:5173` regardless of `config.yaml` or `AL_BASE_URL`. Bug fix only — no schema, API, or UI changes. CHANGELOG `[Unreleased]` stamped as `[0.3.9]`. |
-| 3.55 | 2026-05-29 | Security fix — the ammo CSV import endpoints (`POST /import/validate`, `POST /import/confirm`) now require the admin or member role instead of only `require_auth`, so Read-Only users are rejected with 403 (#12). Brings enforcement in line with the §5.2 Permission Matrix, which already documented Read-Only = ✗ for CSV import; no matrix or schema change. |
-| 3.57 | 2026-05-30 | Theme mode picker — `ThemeModePicker` component (Light / Dark / Follow system) wired to existing `ThemeContext`, surfaced as an "Appearance" section in `UserProfileDrawer`; no-FOUC inline boot script added to `index.html`. accentColor and light-mode styling deferred to #51. |
-| 3.58 | 2026-05-30 | Light mode legibility sweep (#51) — added semantic CSS design-token layer (HSL custom properties in `index.css` for `:root` light and `.dark` dark; wired into `tailwind.config.js`). Migrated all hard-coded dark-only utilities (`text-white`, `bg-navy`, `border-white/*`) to token-based classes (`text-foreground`, `text-muted-foreground`, `bg-card`, `border-border`, `bg-muted`). Sidebar, UserProfileDrawer, and auth pages (Login/Setup/Reset/Register) are now fully theme-adaptive with conditional logo assets. Dark mode values pinned to the existing palette for pixel-parity. `input.tsx` and `button.tsx` outline/ghost variants fixed. Intentionally-white exceptions documented in `docs/decisions.md`. `accentColor` (amber/ranger-green/steel-blue/carbon-gray) remains persisted but unused. |
-| 3.56 | 2026-05-29 | Configurable application timezone (#43). New `app.timezone` setting (env `AL_TIMEZONE`, default `TZ` → UTC) interpreted by the APScheduler `BackgroundScheduler(timezone=…)` so daily task/backup schedules ("HH:MM") fire in the configured zone instead of always UTC; `next_run_at` now stored as naive UTC via `_to_utc_naive()`. Timezone exposed on `/system/version` (`timezone` field); Scheduled Tasks list, interval editor, and Backup schedule field now show/accept daily times in the configured zone (labelled). §9.14 Scheduler Integration extended with a Timezone subsection; `get_app_timezone()` / IANA validation added to `utils/config.py`. No schema change. |
-| 3.59 | 2026-05-30 | Mobile hamburger nav drawer (#52) — below 768 px the sidebar no longer occupies viewport width. It is hidden off-screen and revealed by a hamburger (`Menu`) button in the top bar; the drawer slides in as a fixed overlay with a translucent backdrop. Tapping a nav link or the backdrop closes it. Desktop layout (≥ 768 px) is unchanged: sidebar is static, in-flow, collapsible. `MobileNavProvider` context shares open/close state between `TopBar` and `Sidebar` without touching any of the 18 page call sites. A `useMediaQuery` hook ensures the sidebar always renders full-width with labels inside the mobile drawer, regardless of the user's stored desktop-collapse preference. |
-| 3.60 | 2026-05-30 | Release v0.3.10 — bundles the mobile hamburger nav drawer (#52), full light-mode legibility and the Light/Dark/Follow-system mode picker (#51), configurable application timezone for scheduled jobs (#43), and the Read-Only CSV-import security fix (#12). No schema change. |
+| 3.41 | 2026-05-18 | Products "Find Image" feature — search-based product photo selection via Brave Image Search API; preview-then-commit flow with optional square crop; new `image_search` config block with ENV overrides (`AL_IMAGE_SEARCH_ENABLED`, `AL_IMAGE_SEARCH_PROVIDER`, `AL_IMAGE_SEARCH_API_KEY`); new endpoints `GET /products/{id}/image/search`, `POST /products/{id}/image/preview`, `GET /products/{id}/image/preview/{token}`, `POST /products/{id}/image/from-search`. §6.14, §9.13, §15.1 updated. |
+| 3.42 | 2026-05-18 | Network segmentation and outbound hosts — §12.5 added (private ammoledger_net bridge, optional external proxy_net attachment for reverse-proxy stacks, locking-down outbound caveat); §12.6 added (full table of outbound hosts the backend may reach per optional feature). Production docker-compose.yml refactored to match: backend has no published ports and lives on ammoledger_net only; frontend bound to 127.0.0.1:5173 (matching §12.4); commented opt-in proxy_net attachment. |
+| 3.43 | 2026-05-18 | v0.3.4 release: Products Find Image Online (Brave Search API integration with optional square crop), production compose network hardening (private ammoledger_net bridge, no backend published ports, opt-in proxy_net external attachment, outbound host documentation §12.6). CHANGELOG [Unreleased] stamped as [0.3.4]. |
+| 3.44 | 2026-05-19 | PUID/PGID runtime file ownership — §15.2 added (File Ownership: PUID/PGID env vars, default 1000:1000, backward compatible). Dockerfile.backend installs gosu and delegates to a new entrypoint script that remaps appuser UID/GID at container start, chowns /data only when ownership differs, then drops privileges via gosu. docker-compose.yml and docker-compose.dev.yml pass PUID/PGID with ${PUID:-1000}/${PGID:-1000}; dev compose user: directive removed. Former §15.2/§15.3 renumbered to §15.3/§15.4. |
+| 3.45 | 2026-05-19 | v0.3.5 release: CodeQL path-traversal fix in product image preview endpoints (tokens resolved via directory listing, not path construction); backend honors PUID/PGID for /data ownership instead of baked-in UID 1000 (§15.2). CHANGELOG [Unreleased] stamped [0.3.5]; duplicate CodeQL entry removed from [0.3.4]. |
+| 3.46 | 2026-05-20 | Sidebar navigation reorganized — "Settings" section removed. Import and Thresholds moved into the Admin section. Admin section is now visible to all roles; admin-only items (Thresholds, Users, Backup, Datasets, Tasks) hidden from non-admins; Import hidden from read-only. Products visually nested under Ammo in the main nav. Profile nav item removed; profile drawer now opened via a gear icon in the sidebar footer next to the username. §9.2.6 Import navigation note updated; §9.13 Products sidebar placement updated. |
+| 3.47 | 2026-05-20 | Products page UX fixes (issue #30) — Add Box opens `AddBoxFromProductSheet` on-page (no navigation); usage count links to filtered inventory; "Show Empty" replaced by "Has Empty" + "Has Archived" toggles; `ProductRead` gains `empty_count` and `archived_count`. §9.13 Add Box Integration section rewritten. |
+| 3.48 | 2026-05-21 | v0.3.6 release: sidebar reorganized (Settings folded into Admin; Products nested under Ammo; profile drawer via footer gear), Products page UX fixes (#30 — on-page Add Box drawer, FK-scoped usage link, Has Empty / Has Archived filters), inventory "All Fields" search now matches every column (#29), and Vite HMR fixed on Windows Docker via filesystem polling. CHANGELOG `[Unreleased]` stamped as `[0.3.6]`. |
+| 3.49 | 2026-05-22 | Datasets page now reports both ammo and firearm usage per lookup entry (#20). Backend lookup admin endpoints add a `firearm_usage_count` field alongside `usage_count`, derived from new `_FIREARM_COUNT_SQL` / `_FIREARM_SINGLE_COUNT_SQL` maps covering calibers, manufacturers, dealers, and the seven firearm-specific lookups (action types, models, compliance tags, frame sizes, optic cuts, rail types, finishes, conditions). Hide/Delete guards now check both counts; firearm-specific lookup deletes gain the same usage guard. Frontend `LookupsPage` renders two side-by-side chips per row (blue "N boxes", purple "N firearms") with deep-links — caliber/manufacturer chips route to `/firearms?caliber_id=` / `?manufacturer_id=` (FirearmsListPage now hydrates filters from URL params on mount); other firearm-only lookups navigate to the firearms list unfiltered. New page-level filter toolbar (Hide unused, Hide hidden, Source: All/Community/User-added) persisted to localStorage under `datasets_filters`. |
+| 3.50 | 2026-05-21 | Structured startup banner on both services (#33) — backend `on_startup` and a new `startupBanner` Vite plugin in `frontend/vite.config.ts` each emit a single identifier line on container start (version, channel `dev`/`release`, branch, short SHA, Python/Node runtime). §7.4 updated with example output and channel-derivation rule. Lets operators confirm the running image from `docker compose logs` without cross-referencing tags. |
+| 3.51 | 2026-05-21 | v0.3.7 release: Datasets page reports both ammo and firearm usage per lookup entry with deep-link chips and a persistent filter toolbar (#20); structured startup banner on backend and frontend identifies the running build from `docker compose logs` (#33); README and Installation Guide overhauled for public beta; production compose publishes frontend on `5173:5173` and trims redundant backend env block; `.gitattributes` pins LF line endings so Windows checkouts no longer break `backend/docker-entrypoint.sh`. CHANGELOG `[Unreleased]` stamped as `[0.3.7]`. |
+| 3.52 | 2026-05-22 | Server-side restore endpoint — `POST /backup/restore/server` lets an admin restore from a backup file already on disk (selected from `GET /backup/list`) without re-uploading it through the browser. Filename is sanitized and confined to the backup directory by the same helpers used for download and delete; `.json` exports are rejected. Reuses the same `.db` / `.zip` restore impls as `/backup/restore` — one restore pipeline, two entry points. §11.1 updated. |
+| 3.53 | 2026-05-22 | Product images now travel with zip backups and restores (#46), and every restore path now rotates `firearm_photos/` and `products/` to `.old` snapshots before placing new contents (§11.9). `.db` restores and JSON full-imports blank both image directories because those formats carry no image data — leaving prior contents live would surface stray photos belonging to the previous install. New admin endpoints: `GET /backup/restore-snapshots` and `POST /backup/restore-snapshots/discard`. Backup page shows a persistent banner naming any snapshot directory still on disk; restore response payloads include an `image_snapshots` field. §11.1 / §11.8 / §11.9 updated. |
+| 3.54 | 2026-05-22 | Server-side JSON import — twin endpoints `POST /backup/import/preview/server` and `POST /backup/import/commit/server` accept `{ "filename" }` and route through the same `_import_preview_impl` / `_import_commit_impl` as the upload flow (#47). The Backup History table on the Backup page now exposes a per-row Restore icon: `.db` / `.zip` rows reuse the existing destructive-restore confirm dialog and call `POST /backup/restore/server`; `.json` rows load the standard preview panel via the new server-preview endpoint, and the existing "Full Replace" button commits via the server-commit endpoint. No upload required for any in-place restore. `import_preview` and `import_commit` were refactored to delegate to shared impls so the upload and server entry points share one code path. §11.1 updated. |
+| 3.55 | 2026-05-22 | v0.3.8 release: in-place restore/import from on-disk backups via per-row icon in Backup History (#47, #46); restore now rotates `firearm_photos/` and `products/` to `.old` snapshots with a Discard banner; self-healing logging from request handlers (fixes silent log loss under uvicorn `--reload`); durable same-filesystem atomic DB swap on restore (fixes `database disk image is malformed` on Docker Desktop / Windows); restore no longer runs `ANALYZE` and startup auto-repairs databases corrupted by pre-fix restores (dangling `sqlite_stat1` rootpage); live "passwords match" indicator on every password+confirm form (#35); structured `actor / source / outcome` logging on all restore + import paths. CHANGELOG `[Unreleased]` stamped as `[0.3.8]`. |
+| 3.56 | 2026-05-24 | v0.3.9 release: invitation and admin-generated password-reset links now honor `AL_BASE_URL` / `app.base_url` (#49). The auth router was reading a non-existent `APP_BASE_URL` env var, so the URLs returned to admins were always hard-coded to `http://localhost:5173` regardless of `config.yaml` or `AL_BASE_URL`. Bug fix only — no schema, API, or UI changes. CHANGELOG `[Unreleased]` stamped as `[0.3.9]`. |
+| 3.57 | 2026-05-29 | Security fix — the ammo CSV import endpoints (`POST /import/validate`, `POST /import/confirm`) now require the admin or member role instead of only `require_auth`, so Read-Only users are rejected with 403 (#12). Brings enforcement in line with the §5.2 Permission Matrix, which already documented Read-Only = ✗ for CSV import; no matrix or schema change. |
+| 3.58 | 2026-05-30 | Theme mode picker — `ThemeModePicker` component (Light / Dark / Follow system) wired to existing `ThemeContext`, surfaced as an "Appearance" section in `UserProfileDrawer`; no-FOUC inline boot script added to `index.html`. accentColor and light-mode styling deferred to #51. |
+| 3.59 | 2026-05-30 | Light mode legibility sweep (#51) — added semantic CSS design-token layer (HSL custom properties in `index.css` for `:root` light and `.dark` dark; wired into `tailwind.config.js`). Migrated all hard-coded dark-only utilities (`text-white`, `bg-navy`, `border-white/*`) to token-based classes (`text-foreground`, `text-muted-foreground`, `bg-card`, `border-border`, `bg-muted`). Sidebar, UserProfileDrawer, and auth pages (Login/Setup/Reset/Register) are now fully theme-adaptive with conditional logo assets. Dark mode values pinned to the existing palette for pixel-parity. `input.tsx` and `button.tsx` outline/ghost variants fixed. Intentionally-white exceptions documented in `docs/decisions.md`. `accentColor` (amber/ranger-green/steel-blue/carbon-gray) remains persisted but unused. |
+| 3.60 | 2026-05-29 | Configurable application timezone (#43). New `app.timezone` setting (env `AL_TIMEZONE`, default `TZ` → UTC) interpreted by the APScheduler `BackgroundScheduler(timezone=…)` so daily task/backup schedules ("HH:MM") fire in the configured zone instead of always UTC; `next_run_at` now stored as naive UTC via `_to_utc_naive()`. Timezone exposed on `/system/version` (`timezone` field); Scheduled Tasks list, interval editor, and Backup schedule field now show/accept daily times in the configured zone (labelled). §9.14 Scheduler Integration extended with a Timezone subsection; `get_app_timezone()` / IANA validation added to `utils/config.py`. No schema change. |
+| 3.61 | 2026-05-30 | Mobile hamburger nav drawer (#52) — below 768 px the sidebar no longer occupies viewport width. It is hidden off-screen and revealed by a hamburger (`Menu`) button in the top bar; the drawer slides in as a fixed overlay with a translucent backdrop. Tapping a nav link or the backdrop closes it. Desktop layout (≥ 768 px) is unchanged: sidebar is static, in-flow, collapsible. `MobileNavProvider` context shares open/close state between `TopBar` and `Sidebar` without touching any of the 18 page call sites. A `useMediaQuery` hook ensures the sidebar always renders full-width with labels inside the mobile drawer, regardless of the user's stored desktop-collapse preference. |
+| 3.62 | 2026-05-30 | Release v0.3.10 — bundles the mobile hamburger nav drawer (#52), full light-mode legibility and the Light/Dark/Follow-system mode picker (#51), configurable application timezone for scheduled jobs (#43), and the Read-Only CSV-import security fix (#12). No schema change. |
+| 3.63 | 2026-06-03 | Docs true-up: §2 Version Roadmap reconciled to shipped/planned (firearms/range/cleaning shipped in v0.3.0; notifications/label printing marked planned); §15.1 ENV table gains AL_TIMEZONE; revision-history numbering de-duplicated; PRD header bumped. frontend/package.json version aligned to 0.3.10. No schema/code change. |
+| 3.64 | 2026-06-04 | Schema-versioned restore compatibility (implements `prd/backup-restore-compat.md`). `_classify_schema_migration()` replaces the binary schema-equality check: preview returns a `compatibility` verdict (`clean` / `older_compatible` / `rejected`); commit accepts `older_compatible` only with `confirm_older=true`; `older_compatible` response includes `tables_added_empty`, `columns_defaulted`, and a `summary`. `backup_format_version` added to JSON envelope and zip `MANIFEST.json`; a newer format than the running build understands is rejected. Frontend Backup page renders the verdict inline — amber warning with "I understand" gate for older schemas, red rejection with recommended action otherwise. §11.1 JSON envelope updated; §11.8 updated; §11.10 added; §17 index entry flipped from DRAFT. |
+| 3.65 | 2026-06-05 | CSV import auto-detects ammo vs. firearms format (#36). New `frontend/src/lib/detect-csv-domain.ts` sniffs the uploaded CSV's header row and scores domain-unique marker columns; on a mismatch with the active Import tab, `ImportPage` switches to the correct tab and hands the selected file across (preserved in React state, ready to validate) with a dismissible notice. Both `UploadState` components (ammo + firearms) detect on file-select and bubble `(detected, file)` up; manual tab switches discard the handoff. Frontend-only; no backend change. §9.8 updated. |
+| 3.66 | 2026-06-13 | Release v0.4.0 — security hardening batch. Session cookies now signed with the configured `AL_SESSION_SECRET`/`security.session_secret` (previously a public hardcoded fallback was used because the middleware read an undocumented `SESSION_SECRET` var); fail-closed on a missing/default secret in production; cookie hardened (`https_only`/`max_age`/`same_site`); CORS origin driven by `app.base_url`. SSRF guard on the product image-preview fetch; upload size caps before in-memory read; `read_only` blocked from product writes; `must_change_password` enforced server-side; constant-time reset-token compare. Production frontend now a static `vite build` served by nginx (on the same `5173` port) instead of the Vite dev server; CI actions pinned to commit SHAs. Firearm clean-state recompute on range-session apply; `firearm_conditions` added to JSON backup export. Bundles the already-unreleased older-JSON-restore confirmation and `backup_format_version` (#14) and CSV format auto-detect (#36). **Upgrade invalidates existing sessions (one-time re-login).** No schema change. |
 
 ---
 
@@ -153,35 +157,35 @@ AmmoLedger is a self-hosted web application for tracking personal ammunition inv
 
 ## 2. Version Roadmap
 
-| Feature | Description | Version |
-|---------|-------------|---------|
-| Authentication & First Run | Login, first-run setup, config-based password reset | v1.0 |
-| Multi-User Accounts | User management UI; RBAC roles enforced from day one | v1.0 |
-| RBAC — Admin / Member / Read-Only | Role-based permission enforcement on all API routes | v1.0 |
-| Shared Ownership Model | is_shared flag on ammo boxes; attributed expenditure logging | v1.0 |
-| Ammo | Full CRUD for ammo boxes with all tracked fields | v1.0 |
-| Ammo Condition field | Track production origin (Factory New, Remanufactured, Surplus, etc.) | v1.0 |
-| Storage — Containers & Locations | Containers and locations; optional assignment to boxes | v1.0 |
-| Round Expenditure | Quick-log rounds used; deducts from box quantity | v1.0 |
-| Usage History | Timestamped log of all expenditures with user attribution | v1.0 |
-| Search & Filter | Filter by caliber, container, location; live summary stats | v1.0 |
-| CSV Import | Import from standardized AmmoLedger CSV template | v1.0 |
-| YAML Seed Data | Lookup tables seeded from YAML; auto-synced on startup | v1.0 |
-| Overview Dashboard | Stats: total rounds, caliber breakdown, value, low stock alerts | v1.0 |
-| DB Backup — Manual & Nightly | Admin-triggered or scheduled backup; configurable retention; re-importable JSON | v1.0 |
-| Alembic Migrations | Versioned schema migrations; automatic on startup | v1.0 |
-| Split Box | Split a box into multiple smaller boxes — equal or custom child sizes, full or partial split, dated note auto-appended to parent, strict-mode odd-size warning, post-split labeling view | v0.3.0 |
-| Restock / Add Same | Quickly restock an existing product without re-entering all fields | v0.3.0 |
-| Notifications | Low-stock alerts and system events via Discord webhook or email | v1.0 |
-| Label Printing | Print QR-code labels for boxes; Avery sheet sizes; mobile expend via QR scan | v1.0 |
-| Firearms Registry | Track owned guns with shared/private ownership model | v2.0 |
-| Range Sessions | Log sessions: gun, ammo, rounds fired, date, location | v2.0 |
-| Target Photo Uploads | Attach target photos to range sessions | v2.0 |
-| Session Sharing | Share range sessions with other users on the instance | v2.0 |
-| Cleaning Reminders | Service intervals per firearm; dashboard alerts | v2.0 |
-| Reporting | Inventory, spend, usage, and low-stock reports; PDF and CSV export | v2.0 |
-| Cost Analytics | Price-per-round over time, spend by dealer, averages by caliber | v2.0 |
-| Accessories Module | Track accessories; attach to firearms; shared/private ownership | v3.0 |
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Authentication & First Run | Login, first-run setup, config-based password reset | Shipped (v0.1.9) |
+| Multi-User Accounts | User management UI; RBAC roles enforced from day one | Shipped (v0.1.9) |
+| RBAC — Admin / Member / Read-Only | Role-based permission enforcement on all API routes | Shipped (v0.1.9) |
+| Shared Ownership Model | is_shared flag on ammo boxes; attributed expenditure logging | Shipped (v0.1.9) |
+| Ammo | Full CRUD for ammo boxes with all tracked fields | Shipped (v0.1.9) |
+| Ammo Condition field | Track production origin (Factory New, Remanufactured, Surplus, etc.) | Shipped (v0.1.9) |
+| Storage — Containers & Locations | Containers and locations; optional assignment to boxes | Shipped (v0.1.9) |
+| Round Expenditure | Quick-log rounds used; deducts from box quantity | Shipped (v0.1.9) |
+| Usage History | Timestamped log of all expenditures with user attribution | Shipped (v0.1.9) |
+| Search & Filter | Filter by caliber, container, location; live summary stats | Shipped (v0.1.9) |
+| CSV Import | Import from standardized AmmoLedger CSV template | Shipped (v0.1.9) |
+| YAML Seed Data | Lookup tables seeded from YAML; auto-synced on startup | Shipped (v0.1.9) |
+| Overview Dashboard | Stats: total rounds, caliber breakdown, value, low stock alerts | Shipped (v0.1.9) |
+| DB Backup — Manual & Nightly | Admin-triggered or scheduled backup; configurable retention; re-importable JSON | Shipped (v0.1.9) |
+| Alembic Migrations | Versioned schema migrations; automatic on startup | Shipped (v0.1.9) |
+| Split Box | Split a box into multiple smaller boxes — equal or custom child sizes, full or partial split, dated note auto-appended to parent, strict-mode odd-size warning, post-split labeling view | Shipped (v0.3.0) |
+| Restock / Add Same | Quickly restock an existing product without re-entering all fields | Shipped (v0.3.0) |
+| Notifications | Low-stock alerts and system events via Discord webhook or email | Planned |
+| Label Printing | Print QR-code labels for boxes; Avery sheet sizes; mobile expend via QR scan | Planned |
+| Firearms Registry | Track owned guns with shared/private ownership model | Shipped (v0.3.0) |
+| Range Sessions | Log sessions: gun, ammo, rounds fired, date, location | Shipped (v0.3.0) |
+| Target Photo Uploads | Attach target photos to range sessions | Planned |
+| Session Sharing | Share range sessions with other users on the instance | Planned |
+| Cleaning Reminders | Service intervals per firearm; dashboard alerts | Shipped (v0.3.0) |
+| Reporting | Inventory, spend, usage, and low-stock reports; PDF and CSV export | Planned |
+| Cost Analytics | Price-per-round over time, spend by dealer, averages by caliber | Planned |
+| Accessories Module | Track accessories; attach to firearms; shared/private ownership | Planned |
 
 ---
 
@@ -1766,6 +1770,8 @@ See [Section 11](#11-database-backup) for full specification. UI entry point is 
 
 Import is a two-step process — validate first, then confirm. No database writes happen during validation. The flow gives the user full visibility into what will change before any data is committed.
 
+The Import page has Ammo and Firearms tabs. When a file is selected, the frontend sniffs its header row (`lib/detect-csv-domain.ts`) and, if the columns match the other domain's format, automatically switches to the correct tab and carries the chosen file over — so an ammo CSV dropped on the Firearms tab (or vice-versa) is routed to the right importer instead of failing validation. Detection scores domain-unique marker columns (ammo: `qty_original` / `qty_remaining` / `product_name`; firearms: `firearm_type` / `serial` / `action_type`); shared columns are ignored, and an ambiguous header leaves the user on their chosen tab.
+
 #### Step 1 — Validation (`POST /import/validate`)
 
 Accepts a CSV file upload and runs full validation with **no database writes**. Returns a structured validation report:
@@ -2543,8 +2549,10 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
 
 ```json
 {
-  "ammologger_version": "1.0.0",
-  "schema_migration": "0009",
+  "ammologger_version": "0.3.10",
+  "ammoledger_version": "0.3.10",
+  "backup_format_version": 1,
+  "schema_migration": "0004",
   "exported_at": "2026-04-25T03:00:00",
   "tables": {
     "users": ["..."],
@@ -2555,6 +2563,11 @@ The following items were deliberately scoped out of the v0.3.0 firearms + range 
   }
 }
 ```
+
+Notes:
+- `ammologger_version` is the legacy misspelling; kept for read-compatibility with pre-v0.3.10 exports. New code reads `ammoledger_version` first, falling back to `ammologger_version`.
+- `backup_format_version` versions the *container shape* (envelope keys, table-set framing, zip layout) independently of the DB schema. Absent → treated as `1`. A build that sees a version higher than it knows rejects the import.
+- `schema_migration` is the Alembic revision ID (e.g. `"0001"`, `"0004"`) from `alembic_version.version_num`.
 
 ### 11.2 Scheduled Backup (automatic)
 
@@ -2656,11 +2669,11 @@ Returns a read-only analysis of what the import will do:
 - `user_conflicts` — accounts that exist in both the current DB and the export (will be replaced wholesale, including password hashes)
 - `app_settings_diff` — keys where the imported value differs from the current value (operational telemetry keys filtered out)
 - `ownership_summary` — per-user count of ammo boxes and products post-restore, flagged if the user does not currently exist
-- `current_migration` / `schema_migration` — current Alembic head vs. export's schema tag; mismatched schemas are rejected here with a 400 before any data is touched
+- `compatibility` — schema compatibility verdict (see §11.10)
 
 **Step 2 — Commit (`POST /backup/import/commit`)**
 
-Full replace only: all current data is deleted, then the export is loaded. A pre-import safety backup is created automatically before any deletes. Schema mismatch validation runs again on commit as a safety net.
+Full replace only: all current data is deleted, then the export is loaded. A pre-import safety backup is created automatically before any deletes. Schema classification runs again on commit as a safety net. Commits with `older_compatible` verdict require `confirm_older=true` in the request.
 
 Additive import mode was removed in v0.2.1. It was broken-by-design for cross-installation merges: colliding user rows were skipped while their child rows still inserted, ending up pointing at whoever held the conflicting ID on the target database. See GitHub issue #10. Cross-installation row-level merge is not planned for v0.3.0.
 
@@ -2716,6 +2729,33 @@ would grow without bound on installs that restore frequently, and disk
 usage on bind-mounted volumes is the most common storage complaint. One
 snapshot is enough to recover from a wrong-file restore; chronic
 multi-snapshot retention is what `BACKUP_PATH/.zip` files are for.
+
+### 11.10 Schema Compatibility Classification (unreleased; targeting v0.3.11)
+
+Full design: see `docs/prd/backup-restore-compat.md`. Summary:
+
+**Compatibility key:** the Alembic revision ID in `schema_migration`, not the app version. This means every release between two schema changes (e.g. v0.3.0–v0.3.10, all at revision `0004`) can restore each other's JSON exports as a clean `clean` verdict.
+
+**Three-way classification (returned as `compatibility` in the preview response):**
+
+| Export schema vs current | Verdict | Behavior |
+|---|---|---|
+| Equal | `clean` | Normal restore; no additional confirmation needed |
+| Older, known ancestor, at or above `JSON_RESTORE_ADDITIVE_SINCE` | `older_compatible` | Allowed with disclosure; requires `confirm_older=true` on commit |
+| Newer / unknown / below the additive floor | `rejected` | Refused with reason and recommended action |
+
+**`older_compatible` disclosure fields:**
+- `tables_added_empty` — tables in `_EXPORT_TABLES` absent from the export (will be empty after restore)
+- `columns_defaulted` — per-table list of columns present in the current schema but absent from the export rows (will use the column default or NULL)
+- `summary` — human-readable summary string for the Backup page banner
+
+**`rejected` reason codes:** `missing_schema_tag` | `not_ancestor` | `newer_schema` | `below_floor` | `unsupported_format`
+
+**`backup_format_version`:** an integer field in the JSON envelope (and `MANIFEST.json` in the zip) that versions the *container format* independently of the DB schema. Absent → treated as `1`. A newer format than the running build understands is rejected immediately with reason `unsupported_format`.
+
+**Additive-since floor policy:** `JSON_RESTORE_ADDITIVE_SINCE = "0001"` in `routers/backup.py` names the oldest revision ID from which a JSON export is known additive-safe into the current head. If a migration adds a NOT NULL column without a server default to an *existing* table, the floor must be bumped to that migration's revision ID in the same commit. See `CLAUDE.md → Database Rules`.
+
+**Recommended cross-version path:** `.db` / `.zip` snapshots auto-migrate via Alembic and are preferred for cross-version restores. JSON restore discloses-and-defaults for `older_compatible` cases.
 
 ---
 
@@ -2918,6 +2958,7 @@ If `AL_SESSION_SECRET` is set, `config.yaml` is **not required**. The app loads 
 | `AL_RESET_TOKEN` | `security.reset_token` | string | Emergency admin password reset token |
 | `AL_APP_NAME` | `app.name` | string | Application display name |
 | `AL_BASE_URL` | `app.base_url` | string | Public URL for links and QR codes |
+| `AL_TIMEZONE` | `app.timezone` | string | IANA timezone for interpreting daily task/backup schedule times and labelling times in the admin UI; falls back to the container `TZ`, then `UTC`. |
 | `AL_BACKUP_ENABLED` | `backup.enabled` | boolean | Enable nightly scheduled backups |
 | `AL_BACKUP_SCHEDULE` | `backup.schedule` | string | Backup time in HH:MM format |
 | `AL_BACKUP_RETENTION_DAYS` | `backup.retention_days` | integer | Days to keep old backup files |
@@ -3128,6 +3169,7 @@ As AmmoLedger's feature surface has grown, individual feature areas are being pr
 - [`prd/tagging.md`](./prd/tagging.md) — Physical tokens (QR codes and NFC tags), label template designer, tag programming workflows, scan modes (Range Day, Intake, Cleanup, Audit), and forward-compatible architecture for networked scanners.
 - [`prd/legal-owners.md`](./prd/legal-owners.md) — Non-individual legal owners (gun trusts, LLCs, corporations) and their recurring filings (annual reports, franchise taxes, registered agent renewals). Prerequisite for NFA tax stamp tracking in the Licenses feature. **DRAFT — design committed, not yet scheduled.**
 - [`prd/licenses.md`](./prd/licenses.md) — Carry permits, NFA tax stamps, ownership licenses (UK FAC, Canadian PAL), hunting licenses, instructor credentials, state prerequisites. Includes reciprocity modeling, coverage view, renewal reminders, and per-user disclaimer acknowledgement. **DRAFT — design committed, not yet scheduled.**
+- [`prd/backup-restore-compat.md`](./prd/backup-restore-compat.md) — Schema-versioned restore classification (clean / older-compatible-with-disclosure / rejected), an independent `backup_format_version` for the container, the additive-since floor + policy, and the disclose-and-default preview UX. Supersedes issue #14's "relax the equality check" framing. **Implemented on `dev`, pending release — see §11.10.**
 
 ### Hardware reference
 

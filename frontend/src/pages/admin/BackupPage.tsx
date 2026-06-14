@@ -166,6 +166,7 @@ export default function BackupPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [importConfirmOpen, setImportConfirmOpen] = useState(false)
   const [settingsDiffOpen, setSettingsDiffOpen] = useState(false)
+  const [confirmOlderAccepted, setConfirmOlderAccepted] = useState(false)
 
   // Schedule config form
   const [schedEnabled, setSchedEnabled] = useState(true)
@@ -275,6 +276,7 @@ export default function BackupPage() {
     onSuccess: (preview) => {
       setImportPreviewData(preview)
       setImportResult(null)
+      setConfirmOlderAccepted(false)
     },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   })
@@ -282,12 +284,13 @@ export default function BackupPage() {
   const commitMutation = useMutation({
     mutationFn: (source: ImportSource) =>
       source.kind === 'upload'
-        ? commitImport(source.file)
-        : commitImportFromServer(source.filename),
+        ? commitImport(source.file, confirmOlderAccepted)
+        : commitImportFromServer(source.filename, confirmOlderAccepted),
     onSuccess: async (result) => {
       setImportPreviewData(null)
       setImportFile(null)
       setImportSource(null)
+      setConfirmOlderAccepted(false)
       if (importInputRef.current) importInputRef.current.value = ''
       if (result.force_logout) {
         toast({ title: result.logout_reason ?? 'Import complete. Logging out…' })
@@ -735,6 +738,53 @@ export default function BackupPage() {
                     <span>Schema: <code className="text-gray-900 dark:text-white font-medium font-mono text-xs">{importPreviewData.current_migration}</code>{' → '}<code className="text-gray-900 dark:text-white font-medium font-mono text-xs">{importPreviewData.schema_migration}</code></span>
                   </div>
 
+                  {/* Compatibility verdict banner */}
+                  {importPreviewData.compatibility?.verdict === 'rejected' && (
+                    <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 p-3 space-y-1">
+                      <p className="text-sm font-medium text-red-800 dark:text-red-300 flex items-center gap-1.5">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        Cannot restore this export
+                      </p>
+                      <p className="text-xs text-red-700 dark:text-red-400">
+                        {importPreviewData.compatibility.recommended_action}
+                      </p>
+                      <p className="text-xs text-red-500 dark:text-red-500 font-mono">
+                        reason: {importPreviewData.compatibility.reason}
+                      </p>
+                    </div>
+                  )}
+
+                  {importPreviewData.compatibility?.verdict === 'older_compatible' && (
+                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        Older schema — data will be missing
+                      </p>
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        {importPreviewData.compatibility.summary}
+                      </p>
+                      {importPreviewData.compatibility.tables_added_empty && importPreviewData.compatibility.tables_added_empty.length > 0 && (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          <span className="font-medium">Tables that will be empty:</span>{' '}
+                          {importPreviewData.compatibility.tables_added_empty.join(', ')}
+                        </p>
+                      )}
+                      {!confirmOlderAccepted ? (
+                        <button
+                          type="button"
+                          className="text-xs text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:no-underline"
+                          onClick={() => setConfirmOlderAccepted(true)}
+                        >
+                          I understand — restore with empty tables and column defaults
+                        </button>
+                      ) : (
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                          ✓ Confirmed — will restore with missing data defaulted
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100 dark:border-gray-800">
@@ -872,15 +922,26 @@ export default function BackupPage() {
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setImportConfirmOpen(true)}
-                    >
-                      Full Replace
-                    </Button>
-                  </div>
+                  {importPreviewData.compatibility?.verdict !== 'rejected' && (
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={
+                          importPreviewData.compatibility?.verdict === 'older_compatible' &&
+                          !confirmOlderAccepted
+                        }
+                        onClick={() => setImportConfirmOpen(true)}
+                      >
+                        Full Replace
+                      </Button>
+                      {importPreviewData.compatibility?.verdict === 'older_compatible' && !confirmOlderAccepted && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 self-center">
+                          Confirm the schema warning above to enable
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1029,6 +1090,12 @@ export default function BackupPage() {
                   <li>All ammo boxes, expenditures, and lookups</li>
                   <li>All threshold and notification configuration</li>
                 </ul>
+                {importPreviewData?.compatibility?.verdict === 'older_compatible' && (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    <strong>Older schema:</strong>{' '}
+                    {importPreviewData.compatibility.summary}
+                  </p>
+                )}
                 <p>
                   After import you will be logged out and must sign in with credentials from the imported file.
                 </p>
