@@ -7,6 +7,30 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-07-02 — De-adopted the repo-sandbox-permissions standard
+
+The AmmoLedger working copy now lives on a dedicated dev host with a lowered risk
+profile, so OS-level command confinement is no longer worth its friction. De-adopting
+`repo-sandbox-permissions` (was pinned v1.0.0, local-only scope, adopted 2026-05-29).
+
+Back-out was minimal because the standard is config-driven and was wired local-only:
+- The `sandbox` block was removed from `.claude/settings.local.json`. That file is
+  gitignored and untracked, so the removal is not a committed change — the remaining
+  `permissions.allow` `Read(...)` entries there are unrelated manual allows, not the
+  standard's `Read(**)/Edit(**)/Write(**)` globs.
+- `.claude/settings.json` (the committed, team-shared file) never carried the sandbox
+  block, so nothing to strip there.
+- The standard ships no `CLAUDE-snippet.md`, so there was no operational-rules block in
+  `CLAUDE.md` to remove (confirmed: no sandbox references in `CLAUDE.md`).
+- The `.gitignore` entry for `.claude/settings.local.json` is left in place — keeping a
+  personal local-settings file untracked is general hygiene, independent of this standard.
+- `standards.md` row flipped to de-adopted; the 2026-05-29 adoption entry below is kept
+  as history.
+
+With the sandbox off, bash commands fall back to the normal permission prompts — the
+confinement guarantee is gone, which is the accepted trade for a trusted dedicated host.
+Host runtime deps (`bwrap` + `socat`) teardown is out of scope for this app repo.
+
 ## 2026-06-13 — Global 401 handler uses window.location.replace, not React Router navigate
 
 Prompt: `prompts/done/2026-06-12-frontend-robustness.md`
