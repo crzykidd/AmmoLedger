@@ -107,19 +107,33 @@ In `CHANGELOG.md`:
 4. If the `[Unreleased]` section is empty (no entries to ship), STOP and report
    — there is nothing to release.
 
-## Step 3 — Per-minor archive trigger (NEW MINOR ONLY)
+## Step 3 — Per-minor archive trigger (NEW MINOR / MAJOR ONLY)
 
-Only if Step 0 determined this is the **first release of a new minor**
-(e.g. cutting `0.4.0` while the active file holds `0.3.x`):
+Only if Step 0 determined this is the **first release of a new minor** (e.g.
+cutting `0.4.0` while the active file holds `0.3.x`) — a major bump counts too.
+Archive **every closed minor series still living in the active file**, not just
+the immediately-prior one, so a deferred backlog clears in one pass.
 
-1. Move the entire previous minor series (all `0.3.x` blocks, in this example)
-   out of `CHANGELOG.md` into a new `docs/CHANGELOG-<prev-minor>.x.md`
-   (e.g. `docs/CHANGELOG-0.3.x.md`), newest-first within that file, matching the
-   format of the existing `docs/CHANGELOG-0.2.x.md` archive.
-2. Prepend a link to the new archive in the "Archived releases" index at the
-   bottom of `CHANGELOG.md`.
-3. Confirm the active `CHANGELOG.md` now holds only `[Unreleased]` plus the new
-   current minor series (just the `$ARGUMENTS` block at this point).
+Archiving is **summarize-on-archive**, not move-and-link. For each closed minor
+series still in the active `CHANGELOG.md`:
+
+1. Move its **full detail** into `docs/CHANGELOG-<minor>.x.md` (e.g.
+   `docs/CHANGELOG-0.4.x.md`), newest-first within that file, matching the format
+   of the existing `docs/CHANGELOG-0.3.x.md` archive. Create the file if it does
+   not exist.
+2. **Leave a condensed summary in place** of each archived version's full section
+   in the active file: a `## [<version>] — <date> (summary)` heading followed by
+   **one bullet per major feature or fix**. Use judgment to **drop trivial
+   entries** (typo/copy fixes, minor internal cleanups) and keep user-visible
+   features and significant fixes. End each version's summary with a deep link to
+   its full section in the archive file, e.g.
+   `[full notes](docs/CHANGELOG-0.4.x.md#040--2026-06-13)`.
+3. Prepend a link to the archive file in the "Archived releases" index at the
+   bottom of `CHANGELOG.md` (one entry per minor series).
+
+Net result: the active `CHANGELOG.md` holds `[Unreleased]` + the **new current**
+minor series in **full detail** + **older** minors as **summary blocks** (major-item
+bullets + archive deep links).
 
 For a **patch release** (e.g. `0.3.6`), do NOT archive anything — skip this step
 entirely.

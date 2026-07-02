@@ -313,7 +313,7 @@ Last shipped public release: v0.4.0 (2026-06-13)
   2. Create a new tag in `v1.0.0` format
   3. Publish the release
   4. GitHub Actions builds and pushes `:latest`, `:1.0.0`, and `:1` to GHCR
-- **Archive trigger (new minor only):** when cutting the first release of a new minor (e.g. `0.4.0`), before tagging: move the entire previous minor series out of `CHANGELOG.md` into a new `docs/CHANGELOG-<prev-minor>.x.md`, prepend a link in the "Archived releases" index, and confirm the active file is back to `[Unreleased]` + the new current minor. Patch releases within a minor (`0.3.6`, etc.) do **not** trigger archiving.
+- **Archive trigger (new minor/major only) — summarize-on-archive:** when cutting the first release of a new minor (e.g. `0.4.0`), before tagging, archive **every** closed minor series still in `CHANGELOG.md` (not just the immediately-prior one). For each: move its full detail into `docs/CHANGELOG-<minor>.x.md` **and leave a condensed `## [<version>] — <date> (summary)` block** in the active file (one bullet per major feature/fix, trivial entries dropped, ending in a `[full notes](...)` deep link to the archived section); prepend a link in the "Archived releases" index. The active file ends up as `[Unreleased]` + the new current minor in full + older minors as summary blocks. Patch releases within a minor (`0.3.6`, etc.) do **not** trigger archiving.
 
 ## URL Structure (Production Target)
 
@@ -340,9 +340,10 @@ Last shipped public release: v0.4.0 (2026-06-13)
 - On release: move [Unreleased] to new version section with today's date
 - GitHub release body = that version's CHANGELOG section (single source of truth)
 - In-app About page fetches release notes from GitHub Releases API
-- **Rolling per-minor archive:** the active `CHANGELOG.md` holds only `[Unreleased]` plus the current minor series (e.g. all `0.3.x` while shipping any 0.3.x release).
-- Each older minor series lives in `docs/CHANGELOG-<MAJOR>.<MINOR>.x.md` (one file per minor), newest-first within the file.
+- **Rolling per-minor archive (summarize-on-archive):** the active `CHANGELOG.md` holds `[Unreleased]` + the **current** minor series in **full detail** + **older** minor series as **condensed summary blocks** (a `## [<version>] — <date> (summary)` heading, one bullet per major feature/fix, ending in a `[full notes](...)` deep link to the archived section).
+- Each older minor series' **full detail** lives in `docs/CHANGELOG-<MAJOR>.<MINOR>.x.md` (one file per minor), newest-first within the file; the active file keeps only its summary.
 - The root file ends with an "Archived releases" index linking each archive; when a new archive is created, prepend a line to the index.
+- Archiving fires only on a **new minor/major** bump and clears **every** closed minor still in the active file in one pass; patch bumps never archive.
 
 ## Database Rules
 

@@ -7,6 +7,27 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-07-02 — Upgraded release-prep-and-cut to v1.1.0 (summarize-on-archive)
+
+Prompt: `prompts/done/2026-07-02-upgrade-release-prep-standard.md`
+
+Bumped the `release-prep-and-cut` pin 1.0.0 → 1.1.0. The only behavioural delta is the
+changelog archive rule: **summarize-on-archive** replaces move-and-link. When a new
+minor/major fires the archive trigger, the active `CHANGELOG.md` keeps a condensed
+`## [<version>] — <date> (summary)` block (one bullet per major feature/fix + a
+`[full notes](...)` deep link) in place of each archived minor, and every closed minor
+still in the active file is archived in one pass. Re-implemented in
+`.claude/commands/release-prep.md` (Step 3) and the two `CLAUDE.md` changelog
+descriptions. The per-session operational-rules snippet is unchanged between the two
+versions, so `CLAUDE.md`'s "Release process (operational rules)" block was left untouched.
+
+- **Did not retrofit the already-archived minors.** 0.3.x / 0.2.x / 0.1.x were moved out
+  wholesale under the old move-and-link rule and currently have no summary block in the
+  active file. Rewriting shipped changelog history is churn with little value, so they are
+  left as index links only. The new rule applies going forward — the next minor bump
+  (0.5.0) will summarize 0.4.x. If a complete active-file history is ever wanted, the
+  retrofit can be done as a separate docs pass.
+
 ## 2026-07-02 — De-adopted the repo-sandbox-permissions standard
 
 The AmmoLedger working copy now lives on a dedicated dev host with a lowered risk
