@@ -91,9 +91,12 @@ All backend commands run from `backend/`.
   Validate compose (matches CI): `docker compose config --quiet`.
 
 CI (`.github/workflows/ci.yml`) runs: backend lint, YAML validation, migrate-to-head,
-`docker compose config`, and the **backend test suite** (`test-backend` job). A separate
-`.github/workflows/codeql.yml` runs **CodeQL SAST** (Python + JS/TS; the gate is that the
-scan completes — findings surface in Security → Code scanning, they don't fail the check).
+`docker compose config`, and the **backend test suite** (`test-backend` job). **SAST /
+code scanning** is handled by **GitHub CodeQL _default setup_** (enabled in the repo's
+Security settings, not a committed workflow) — it scans Python + JS/TS on PR and weekly;
+findings surface in Security → Code scanning for triage and don't fail merges. Do NOT add
+an advanced `codeql.yml` workflow: advanced and default setup are mutually exclusive and
+the advanced run's SARIF upload is rejected while default setup is on.
 **CI does not run the frontend build** as a standalone job — the PR image-build in
 `docker-publish.yml` compiles the frontend, so run `npm run build` locally for faster
 feedback before opening a PR.

@@ -31,15 +31,21 @@ top of the prior five: a **test suite** and **static analysis / code scanning (S
   `"escape"` so the suite runs green as a required check. NB: backend deps are not installed
   in the authoring sandbox, so the suite could not be run here — the `test-backend` CI job is
   the verification.
-- **SAST → CodeQL** (`.github/workflows/codeql.yml`), analyzing `python` +
-  `javascript-typescript` on push/PR/weekly. The gate is that the scan completes; findings
-  surface in Security → Code scanning for triage and do not fail the check, matching the
-  standard. CodeQL is free on public GitHub repos. The action is pinned to the release commit
-  SHA `c35d1b16…` (`codeql-bundle-v2.25.6`), matching the repo's SHA-pinning convention.
-- **Branch protection is a manual follow-up.** The new `test-backend` and CodeQL analyze
-  jobs must be added to `main`'s required status checks in branch protection — this needs
-  repo admin and can only be done after the jobs have run at least once on a PR (GitHub only
-  lets you require checks it has seen). Until then the workflows run but don't gate merges.
+- **SAST → GitHub CodeQL default setup (already enabled).** Initially I added an advanced
+  `.github/workflows/codeql.yml`, but the first `dev` push revealed the repo already has
+  **CodeQL default setup** configured (repo Security settings, since 2026-05-18, scanning
+  Python + JS/TS on PR + weekly). Advanced and default setup are mutually exclusive — the
+  advanced run's SARIF upload is rejected with *"CodeQL analyses from advanced configurations
+  cannot be processed when the default setup is enabled"* (and the `codeql-action/init` input
+  is `languages`, not the `language` I used). So the SAST requirement was **already satisfied**
+  by default setup; the advanced workflow was redundant and failing. Removed
+  `codeql.yml` and documented that SAST is provided by default setup. Net: no committed
+  CodeQL workflow — one less thing to maintain.
+- **Branch protection is a manual follow-up.** The new `test-backend` job must be added to
+  `main`'s required status checks in branch protection — this needs repo admin and can only
+  be done after it has run at least once on a PR (GitHub only lets you require checks it has
+  seen). CodeQL default-setup results gate separately via the code-scanning settings, not as
+  a normal status check. Until then CI runs but doesn't gate merges.
 
 The per-session operational-rules snippet is unchanged 1.1.0→1.2.0, so `CLAUDE.md`'s "Code
 check-in (operational rules)" block was left untouched.
