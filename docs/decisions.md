@@ -7,6 +7,43 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-07-02 — Upgraded code-checkin-and-pr to v1.2.0 (CI test suite + CodeQL SAST)
+
+Prompt: `prompts/done/2026-07-02-upgrade-code-checkin-standard.md`
+
+Bumped the `code-checkin-and-pr` pin 1.1.0 → 1.2.0, which adds two required PR checks on
+top of the prior five: a **test suite** and **static analysis / code scanning (SAST)**.
+
+- **Backend test suite → `test-backend` job in `ci.yml`.** The startup events fire during
+  `TestClient`, and conftest only overrides the route session (not the startup engine), so
+  the job replicates the CLAUDE.md local invocation: migrated file DB + `CONFIG_PATH` /
+  `DEFAULTS_PATH` / `BACKUP_PATH` / `UPLOADS_PATH` / `DATABASE_URL` env vars, then
+  `alembic upgrade head`, then `python -m pytest`. pytest is already in
+  `backend/requirements.txt`, so no new dependency file.
+- **Frontend exempt.** The frontend has no test suite (no vitest, no test files), and the
+  standard exempts a repo with no suite until it adds one. The PR image-build in
+  `docker-publish.yml` already proves the frontend compiles, so no standalone frontend CI
+  job was added. (An optional `tsc --noEmit` typecheck job could be added later if wanted.)
+- **Fixed one stale test rather than deselecting it.** `test_zip_restore_rejects_path_traversal`
+  asserted the rejection detail contained `"unsafe"`, but `_sanitize_zip_entry_name` rejects
+  `..` entries with `"Parent-directory escape in zip: ..."` (HTTP 400, before extraction).
+  The security behaviour is correct; only the assertion was stale. Changed it to check for
+  `"escape"` so the suite runs green as a required check. NB: backend deps are not installed
+  in the authoring sandbox, so the suite could not be run here — the `test-backend` CI job is
+  the verification.
+- **SAST → CodeQL** (`.github/workflows/codeql.yml`), analyzing `python` +
+  `javascript-typescript` on push/PR/weekly. The gate is that the scan completes; findings
+  surface in Security → Code scanning for triage and do not fail the check, matching the
+  standard. CodeQL is free on public GitHub repos. The action is pinned to the release commit
+  SHA `c35d1b16…` (`codeql-bundle-v2.25.6`), matching the repo's SHA-pinning convention.
+- **Branch protection is a manual follow-up.** The new `test-backend` and CodeQL analyze
+  jobs must be added to `main`'s required status checks in branch protection — this needs
+  repo admin and can only be done after the jobs have run at least once on a PR (GitHub only
+  lets you require checks it has seen). Until then the workflows run but don't gate merges.
+
+The per-session operational-rules snippet is unchanged 1.1.0→1.2.0, so `CLAUDE.md`'s "Code
+check-in (operational rules)" block was left untouched.
+
 ## 2026-07-02 — Upgraded release-prep-and-cut to v1.1.0 (summarize-on-archive)
 
 Prompt: `prompts/done/2026-07-02-upgrade-release-prep-standard.md`

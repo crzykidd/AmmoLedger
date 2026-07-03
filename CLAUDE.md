@@ -78,8 +78,8 @@ All backend commands run from `backend/`.
   (The `python -m` form puts `backend/` on the path so flat imports resolve; bare `pytest`
   from the repo root fails on `from main import app`.)
   Single file: set the same env vars, then `python -m pytest tests/test_firearms.py`.
-  **Note:** `test_firearm_photos.py::test_zip_restore_rejects_path_traversal` is a
-  pre-existing failure (stale assertion) — unrelated to most changes.
+  The full suite is expected to pass — CI now runs it as a required check
+  (`test-backend` job in `ci.yml`), so a red suite blocks the PR.
 - **Backend lint (matches CI):** `ruff check backend/` — pinned `ruff==0.4.4`, rule set
   `E4/E7/E9/F` (see `backend/ruff.toml`).
 - **Migrate to head:** `cd backend && alembic upgrade head`. Check head/current:
@@ -91,8 +91,12 @@ All backend commands run from `backend/`.
   Validate compose (matches CI): `docker compose config --quiet`.
 
 CI (`.github/workflows/ci.yml`) runs: backend lint, YAML validation, migrate-to-head,
-and `docker compose config`. **CI does not run the test suite or frontend build** — run
-those locally before opening a PR.
+`docker compose config`, and the **backend test suite** (`test-backend` job). A separate
+`.github/workflows/codeql.yml` runs **CodeQL SAST** (Python + JS/TS; the gate is that the
+scan completes — findings surface in Security → Code scanning, they don't fail the check).
+**CI does not run the frontend build** as a standalone job — the PR image-build in
+`docker-publish.yml` compiles the frontend, so run `npm run build` locally for faster
+feedback before opening a PR.
 
 ## Configuration
 
@@ -116,7 +120,7 @@ those locally before opening a PR.
   ripgrep + Read traverses it cheaply. Start from the "Where things live" map above.
 
 <!--
-Source: standards/code-checkin-and-pr @ v1.1.0 (crzynet/homelab-configs).
+Source: standards/code-checkin-and-pr @ v1.2.0 (crzynet/homelab-configs).
 Pasted verbatim per the standard. Full why-and-how:
 https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/code-checkin-and-pr/README.md
 -->
@@ -147,7 +151,7 @@ If you're unsure whether an action would violate one of the above, stop and ask 
 acting.
 
 <!--
-Source: standards/release-prep-and-cut @ v1.0.0 (crzynet/homelab-configs).
+Source: standards/release-prep-and-cut @ v1.1.0 (crzynet/homelab-configs).
 Pasted verbatim per the standard. Full why-and-how:
 https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/release-prep-and-cut/README.md
 -->

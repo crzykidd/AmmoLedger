@@ -489,7 +489,9 @@ def test_zip_restore_rejects_path_traversal(tmp_path):
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(_restore_zip_impl(bad_zip.read_bytes()))
     assert exc_info.value.status_code == 400
-    assert "unsafe" in str(exc_info.value.detail).lower()
+    # `_sanitize_zip_entry_name` rejects `..` parts before extraction with a
+    # "Parent-directory escape in zip: ..." message.
+    assert "escape" in str(exc_info.value.detail).lower()
 
 
 # ---------------------------------------------------------------------------
