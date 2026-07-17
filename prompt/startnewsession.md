@@ -1,16 +1,32 @@
 # Start-New-Session Briefing — AmmoLedger
 
-_Last updated: 2026-07-03. This is a context handoff for a fresh Claude Code session.
+_Last updated: 2026-07-17. This is a context handoff for a fresh Claude Code session.
 It is **not** a `prompts/` handoff-workflow task (no pending/done lifecycle) — read it,
 act on what's still open, then delete or refresh it._
 
+## Reboot readiness (verified 2026-07-17)
+
+**Safe to reboot this host — nothing will be lost.** Confirmed at last update:
+
+- Working tree **clean**, branch `dev`, everything committed.
+- `dev` is fully pushed: local `dev` == `origin/dev` @ `1fe9d20` (no unpushed commits).
+- **No AmmoLedger containers were running** (`docker compose ls` showed only unrelated
+  `filament-bridge`) — so no live app/DB state to preserve for this project.
+- Persistent Claude memory lives outside the repo at
+  `~/.claude/projects/-home-manderse-projects-AmmoLedger/memory/` — untouched by a reboot.
+
+After reboot, to resume: `cd ~/projects/AmmoLedger`, `git status` (should be clean on `dev`),
+then read this file. To bring the dev stack back up:
+`docker compose -f docker-compose.dev.yml up -d --build` (serves on `crzydev.home.arpa:5174`
+per commit `6e3a27d`). Nothing auto-starts.
+
 ## Where things stand
 
-Branch **`dev`** is **5 commits ahead of `main`** and pushed to `origin/dev` (@ `2524523`).
+Branch **`dev`** is **6 commits ahead of `main`** and pushed to `origin/dev` (@ `1fe9d20`).
 All CI is green. A `dev → main` PR is **deliberately held** by the user — do **not** open it
 or push to `main` without an explicit go-ahead.
 
-The 5 unmerged `dev` commits (oldest → newest):
+The 6 unmerged `dev` commits (oldest → newest):
 
 1. `3a5eb65` `chore:` de-adopt **repo-sandbox-permissions** standard — this is now a
    dedicated dev host with a lowered risk profile; sandbox confinement removed. Doc-only
@@ -27,10 +43,11 @@ The 5 unmerged `dev` commits (oldest → newest):
    (`test_zip_restore_rejects_path_traversal` — expected `"unsafe"`, real msg is
    `"Parent-directory escape in zip: …"`), synced CLAUDE.md/standards.md + snippet provenance.
 5. `2524523` `fix:` drop the redundant CodeQL advanced workflow — see "Gotchas" below.
+6. `1fe9d20` `docs:` add this `prompt/startnewsession.md` briefing.
 
 ## Still open (needs the user / repo admin)
 
-- **`dev → main` PR is HELD.** Ask before opening it. When opened it bundles all 5 commits above.
+- **`dev → main` PR is HELD.** Ask before opening it. When opened it bundles all 6 commits above.
 - **Branch protection (manual, repo admin).** Add the new **`test-backend`** job to `main`'s
   required status checks (Settings → Branches) now that it has run on `dev`. GitHub only lets
   you require a check it has already seen. CodeQL default-setup results gate via code-scanning
