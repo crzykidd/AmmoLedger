@@ -4,7 +4,7 @@
 #   Uses `npm ci` (not `npm install`) so the build is fully reproducible
 #   against the committed frontend/package-lock.json.
 # ────────────────────────────────────────────────────────────────────────────
-FROM node:20.19.1-slim AS builder
+FROM node:24.22.3-trixie-slim AS builder
 
 WORKDIR /app
 
@@ -21,49 +21,7 @@ ENV GIT_SHA=$GIT_SHA \
 RUN npm run build
 
 # ────────────────────────────────────────────────────────────────────────────
-# Stage 2 — production
-#   Serves the built dist/ with nginx on port 5173.
-#
-#   nginx listens on 5173 (not 80) so the container port is unchanged from the
-#   previous Vite dev-server image — an upstream Traefik router (whether it
-#   targets the published host port or the container port via a label) needs
-#   no reconfiguration.  This is a fully drop-in swap.
-#
-#   The backend is reachable only over the internal Docker bridge network
-#   (ammoledger_net) — it has no published ports.  nginx proxies /api →
-#   ${AL_BACKEND_URL} (default: http://backend:8000), preserving the
-#   single-ingress topology that an upstream Traefik router expects.
-#
-#   TLS is terminated at the edge (Traefik / Caddy / etc.); nginx speaks
-#   plain HTTP.  HSTS is intentionally omitted — set it at the edge.
-# ────────────────────────────────────────────────────────────────────────────
-FROM nginx:1.27-alpine AS prod
-
-# curl needed for HEALTHCHECK
-RUN apk add --no-cache curl
-
-# Copy built assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# nginx.conf uses ${AL_BACKEND_URL}; envsubst expands it at container start.
-COPY nginx.conf /etc/nginx/templates/default.conf.template
-
-# AL_BACKEND_URL is the container-internal URL for the backend service.
-# Override in docker-compose.yml if the backend runs on a different name/port.
-ENV AL_BACKEND_URL=http://backend:8000
-
-EXPOSE 5173
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:5173/ || exit 1
-
-# nginx docker image ships with envsubst support via /docker-entrypoint.d/;
-# templates in /etc/nginx/templates/*.template are expanded to /etc/nginx/conf.d/
-# automatically on container start before nginx runs.
-CMD ["nginx", "-g", "daemon off;"]
-
-# ────────────────────────────────────────────────────────────────────────────
-# Stage 3 — dev  (used by docker-compose.dev.yml via `target: dev`)
+# Stage 2 — dev  (used by docker-compose.dev.yml via `target: dev`)
 #   Keeps the Vite dev server for local development with hot-module reload.
 #
 #   Why the node user instead of a fresh adduser:
@@ -74,7 +32,7 @@ CMD ["nginx", "-g", "daemon off;"]
 #     bind-mounted /app — the dev server crash-loops with EACCES.  Reusing
 #     `node` keeps the container UID aligned with the mount owner.
 # ────────────────────────────────────────────────────────────────────────────
-FROM node:20.19.1-slim AS dev
+FROM node:24.22.3-trixie-slim AS dev
 
 WORKDIR /app
 
@@ -106,3 +64,47 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:5173 || exit 1
 
 CMD ["npm", "run", "dev", "--", "--host"]
+
+# ────────────────────────────────────────────────────────────────────────────
+# Stage 3 — production  (MUST stay the LAST stage)
+#   A buildx invocation with no `target:` builds the final stage, so keeping
+#   prod last means a missing target can never ship the Vite dev server.
+#   Serves the built dist/ with nginx on port 5173.
+#
+#   nginx listens on 5173 (not 80) so the container port is unchanged from the
+#   previous Vite dev-server image — an upstream Traefik router (whether it
+#   targets the published host port or the container port via a label) needs
+#   no reconfiguration.  This is a fully drop-in swap.
+#
+#   The backend is reachable only over the internal Docker bridge network
+#   (ammoledger_net) — it has no published ports.  nginx proxies /api →
+#   ${AL_BACKEND_URL} (default: http://backend:8000), preserving the
+#   single-ingress topology that an upstream Traefik router expects.
+#
+#   TLS is terminated at the edge (Traefik / Caddy / etc.); nginx speaks
+#   plain HTTP.  HSTS is intentionally omitted — set it at the edge.
+# ────────────────────────────────────────────────────────────────────────────
+FROM nginx:1.30.8-alpine AS prod
+
+# curl needed for HEALTHCHECK
+RUN apk add --no-cache curl
+
+# Copy built assets from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# nginx.conf uses ${AL_BACKEND_URL}; envsubst expands it at container start.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# AL_BACKEND_URL is the container-internal URL for the backend service.
+# Override in docker-compose.yml if the backend runs on a different name/port.
+ENV AL_BACKEND_URL=http://backend:8000
+
+EXPOSE 5173
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:5173/ || exit 1
+
+# nginx docker image ships with envsubst support via /docker-entrypoint.d/;
+# templates in /etc/nginx/templates/*.template are expanded to /etc/nginx/conf.d/
+# automatically on container start before nginx runs.
+CMD ["nginx", "-g", "daemon off;"]

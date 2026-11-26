@@ -106,6 +106,7 @@
 | 3.65 | 2026-06-05 | CSV import auto-detects ammo vs. firearms format (#36). New `frontend/src/lib/detect-csv-domain.ts` sniffs the uploaded CSV's header row and scores domain-unique marker columns; on a mismatch with the active Import tab, `ImportPage` switches to the correct tab and hands the selected file across (preserved in React state, ready to validate) with a dismissible notice. Both `UploadState` components (ammo + firearms) detect on file-select and bubble `(detected, file)` up; manual tab switches discard the handoff. Frontend-only; no backend change. §9.8 updated. |
 | 3.66 | 2026-06-13 | Release v0.4.0 — security hardening batch. Session cookies now signed with the configured `AL_SESSION_SECRET`/`security.session_secret` (previously a public hardcoded fallback was used because the middleware read an undocumented `SESSION_SECRET` var); fail-closed on a missing/default secret in production; cookie hardened (`https_only`/`max_age`/`same_site`); CORS origin driven by `app.base_url`. SSRF guard on the product image-preview fetch; upload size caps before in-memory read; `read_only` blocked from product writes; `must_change_password` enforced server-side; constant-time reset-token compare. Production frontend now a static `vite build` served by nginx (on the same `5173` port) instead of the Vite dev server; CI actions pinned to commit SHAs. Firearm clean-state recompute on range-session apply; `firearm_conditions` added to JSON backup export. Bundles the already-unreleased older-JSON-restore confirmation and `backup_format_version` (#14) and CSV format auto-detect (#36). **Upgrade invalidates existing sessions (one-time re-login).** No schema change. |
 | 3.67 | 2026-11-26 | Backend security patch — Python deps upgraded (FastAPI 0.165 / Starlette 1.x, Pillow 13, python-multipart 0.0.34, etc.); startup/shutdown moved from `@app.on_event` to a FastAPI `lifespan`; backend base image moved from `python:3.12.9-slim-bookworm` to `python:3.12.16-slim-trixie` (Debian 13). §1 log sample and §tech-stack table updated. |
+| 3.68 | 2026-11-26 | Frontend security patch — npm deps upgraded (axios 1.21, Vite 6.4, PostCSS, zod, React Router; `npm audit` clean); frontend base images moved to `node:24.22.3-trixie-slim` and `nginx:1.30.8-alpine`. Fixed pipeline bug: `docker-publish.yml` had no `target:` so v0.4.0 published the Vite dev stage; CI now builds `target: prod` and `Dockerfile.frontend` ends with `prod` as the final stage. Tech-stack table and log sample updated. |
 
 ---
 
@@ -1055,7 +1056,7 @@ Before the sequence runs, both backend and frontend emit a structured startup ba
 
 ```text
 ✓ AmmoLedger backend starting | version=v0.3.6-dev (abc1234) | channel=dev | branch=dev | sha=abc1234 | python=3.12.16
-✓ AmmoLedger frontend starting | version=v0.3.6 | channel=dev | branch=dev | sha=abc1234 | node=v20.19.1
+✓ AmmoLedger frontend starting | version=v0.3.6 | channel=dev | branch=dev | sha=abc1234 | node=v24.22.3
 ```
 
 Channel is `release` when `GIT_BRANCH` is `main` or a version tag, and `dev` otherwise. The frontend banner is emitted by a small Vite plugin (`startupBanner`) in `frontend/vite.config.ts`; the backend banner is logged from `on_startup` in `backend/main.py` using `version.get_build_info()`.
@@ -2874,7 +2875,7 @@ A future release may surface "blocked outbound" as an explicit error in the UI r
 | Database | SQLite + SQLModel | Zero-config; single file; easy backup |
 | Migrations | Alembic | Versioned schema changes; automatic on startup |
 | Auth | Session + Bcrypt | Secure password hashing; server-side sessions |
-| Container | Docker Compose | Single command startup on any OS; base images pinned to `python:3.12.16-slim-trixie` and `node:20.19.1-slim`; production frontend served by `nginx:1.27-alpine` (planned multi-stage build) |
+| Container | Docker Compose | Single command startup on any OS; base images pinned to `python:3.12.16-slim-trixie` and `node:24.22.3-trixie-slim`; production frontend served by `nginx:1.30.8-alpine` (multi-stage build; `prod` is the final stage and CI builds `target: prod`) |
 | Config | YAML | Human-editable seed data and app settings |
 | Backup | JSON export/import | Re-importable; version-tagged; survives schema migrations |
 | External Access | Tailscale or Cloudflare | SSL + secondary auth without managing certificates |

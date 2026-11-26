@@ -7,6 +7,27 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-11-26 — Frontend security patch: real prod stage published, Node 24 trixie, Vite 6
+
+Prompt: `prompts/done/2026-11-26-security-frontend-deps-and-images.md`
+
+- **Root cause of v0.4.0 shipping the dev server.** The `build-frontend` step in
+  `docker-publish.yml` had no `target:`, and buildx builds the *last* stage, which was `dev`.
+  Fixed two ways: `target: prod` in the workflow, and `Dockerfile.frontend` now ends with `prod`
+  (stage order builder -> dev -> prod, with a comment saying prod must stay last) so a missing
+  target can never ship dev again. `docker-compose.dev.yml` uses `target: dev` explicitly, so the
+  reorder does not affect it. `GIT_SHA`/`GIT_BRANCH` are consumed in `builder` (only used for the
+  build-time banner in `vite.config.ts`; the About page gets version info from the backend), so
+  nothing depends on runtime env that only the dev server had.
+- **`node:24.22.3-trixie-slim`, not `node:24-slim`.** The unversioned 24-slim tag is still Debian
+  bookworm and keeps the unfixable zlib critical; the trixie variant scans clean. Node 20 is EOL.
+  `node` user is still uid 1000 and `apt-get install curl` works on trixie.
+- **Vite 6, not 7/8.** No 5.x release fixes the Vite advisories, so a major bump was required;
+  6.4.x is the smallest jump that is fully patched and works with `@vitejs/plugin-react` 4.7 and
+  the existing `vite.config.ts` unchanged (`allowedHosts: true` keeps the dev host accepted).
+  Vite 6 pulls esbuild 0.25.x, outside the vulnerable range, so no override was needed.
+- **`nginx:1.30.8-alpine`** replaces 1.27 (3 criticals); 0 critical/high now.
+
 ## 2026-11-26 — Backend security patch: FastAPI/Starlette 1.x, lifespan, Debian trixie
 
 Prompt: `prompts/done/2026-11-26-security-backend-deps-and-image.md`
