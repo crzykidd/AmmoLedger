@@ -1,7 +1,7 @@
 # AmmoLedger — Product Requirements Document
 
-**Version:** 3.66  
-**Date:** 2026-06-13  
+**Version:** 3.69  
+**Date:** 2026-11-26  
 **Status:** Living Document
 
 ---
@@ -107,6 +107,7 @@
 | 3.66 | 2026-06-13 | Release v0.4.0 — security hardening batch. Session cookies now signed with the configured `AL_SESSION_SECRET`/`security.session_secret` (previously a public hardcoded fallback was used because the middleware read an undocumented `SESSION_SECRET` var); fail-closed on a missing/default secret in production; cookie hardened (`https_only`/`max_age`/`same_site`); CORS origin driven by `app.base_url`. SSRF guard on the product image-preview fetch; upload size caps before in-memory read; `read_only` blocked from product writes; `must_change_password` enforced server-side; constant-time reset-token compare. Production frontend now a static `vite build` served by nginx (on the same `5173` port) instead of the Vite dev server; CI actions pinned to commit SHAs. Firearm clean-state recompute on range-session apply; `firearm_conditions` added to JSON backup export. Bundles the already-unreleased older-JSON-restore confirmation and `backup_format_version` (#14) and CSV format auto-detect (#36). **Upgrade invalidates existing sessions (one-time re-login).** No schema change. |
 | 3.67 | 2026-11-26 | Backend security patch — Python deps upgraded (FastAPI 0.165 / Starlette 1.x, Pillow 13, python-multipart 0.0.34, etc.); startup/shutdown moved from `@app.on_event` to a FastAPI `lifespan`; backend base image moved from `python:3.12.9-slim-bookworm` to `python:3.12.16-slim-trixie` (Debian 13). §1 log sample and §tech-stack table updated. |
 | 3.68 | 2026-11-26 | Frontend security patch — npm deps upgraded (axios 1.21, Vite 6.4, PostCSS, zod, React Router; `npm audit` clean); frontend base images moved to `node:24.22.3-trixie-slim` and `nginx:1.30.8-alpine`. Fixed pipeline bug: `docker-publish.yml` had no `target:` so v0.4.0 published the Vite dev stage; CI now builds `target: prod` and `Dockerfile.frontend` ends with `prod` as the final stage. Tech-stack table and log sample updated. |
+| 3.69 | 2026-11-26 | Release v0.5.0 — security patch release. Bundles the backend (3.67) and frontend (3.68) security patches: Pillow 13 (5 critical fixes), FastAPI 0.165 / Starlette 1.x with `lifespan` startup, frontend npm deps (`npm audit` clean), Debian 13 / Node 24 / nginx 1.30 base images with OS security updates applied at build time, and the publish-target fix so the production frontend image is actually the nginx build. Both images scan 0 critical. No schema change. |
 
 ---
 

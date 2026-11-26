@@ -7,6 +7,20 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-11-26 — v0.5.0 skips the new-minor CHANGELOG archive (user decision)
+
+- **Deviation from `release-prep-and-cut` 1.1.0.** That standard says the first release of a
+  new minor archives every closed minor series still in `CHANGELOG.md`. For v0.5.0 that would
+  move the 0.4.x detail into `docs/CHANGELOG-0.4.x.md` and leave a summary block behind. The
+  user chose not to archive this release, so `[0.4.0]` stays in full in the active file.
+- **Why.** Archiving earned its keep during heavy development, when the changelog was huge.
+  0.4.x is a single ~50-line release, so splitting it out adds indirection without making the
+  file meaningfully shorter.
+- **Follow-up.** The user plans to change the standard so the archive trigger is a
+  user-defined option rather than mandatory. Until then, treat this as a one-off exception,
+  not drift to be "fixed" by a later release. The next new-minor prep should ask whether to
+  archive (or follow the updated standard).
+
 ## 2026-11-26 — Frontend security patch: real prod stage published, Node 24 trixie, Vite 6
 
 Prompt: `prompts/done/2026-11-26-security-frontend-deps-and-images.md`

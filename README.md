@@ -6,7 +6,7 @@
 <div align="center">
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.0-gold)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-gold)](CHANGELOG.md)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://github.com/crzykidd/AmmoLedger/pkgs/container/ammoledger-backend)
 [![PRD](https://img.shields.io/badge/docs-PRD-navy)](docs/PRD.md)
 
@@ -19,7 +19,7 @@ AmmoLedger is a self-hosted web app for tracking your ammunition inventory, fire
 > **Latest release:** see the [Changelog](./CHANGELOG.md) for what's new in the current and past releases.
 
 > [!IMPORTANT]
-> **The next release is primarily a security patch — upgrade recommended.** It brings no new features. Instead it clears every known critical vulnerability in both container images and every fixable high-severity one:
+> **v0.5.0 is primarily a security patch release — upgrade recommended.** It brings no new features. Instead it clears every known critical vulnerability in both container images and every fixable high-severity one:
 >
 > - **Image handling:** Pillow, used for firearm and product photos, is upgraded to close five critical image-decoding flaws.
 > - **Backend and frontend dependencies:** the web framework (FastAPI/Starlette), multipart parsing, axios, Vite and React Router are updated to their patched versions.
@@ -180,8 +180,8 @@ docker pull ghcr.io/crzykidd/ammoledger-backend:latest
 docker pull ghcr.io/crzykidd/ammoledger-frontend:latest
 
 # Specific version
-docker pull ghcr.io/crzykidd/ammoledger-backend:0.4.0
-docker pull ghcr.io/crzykidd/ammoledger-frontend:0.4.0
+docker pull ghcr.io/crzykidd/ammoledger-backend:0.5.0
+docker pull ghcr.io/crzykidd/ammoledger-frontend:0.5.0
 
 # Latest development build (may be unstable)
 docker pull ghcr.io/crzykidd/ammoledger-backend:dev

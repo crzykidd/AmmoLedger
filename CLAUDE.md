@@ -245,7 +245,7 @@ acting.
 
 ## Build Status
 
-Current release target: v0.4.0 (security hardening batch — session-secret wiring + fail-closed boot + cookie/CORS hardening; SSRF guard on image preview; upload size caps; read-only product gate; server-side must_change_password; constant-time reset-token; production nginx static frontend + CI SHA pinning; firearm clean-state recompute on range apply; firearm_conditions in JSON export; bundles older-JSON-restore #14 + CSV format auto-detect #36)
+Current release target: v0.5.0 (security patch release — Pillow 13 + FastAPI 0.165/Starlette 1.x with lifespan startup; frontend npm deps clean; Debian 13 / Node 24 / nginx 1.30 base images with build-time OS upgrades; publish `target: prod` fix so the production frontend is the nginx build; both images 0 critical)
 Last shipped public release: v0.4.0 (2026-06-13)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.

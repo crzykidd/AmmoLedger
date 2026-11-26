@@ -18,6 +18,10 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.5.0] — 2026-11-26
+
+> **Security patch release.** No new features — this release clears every known critical vulnerability and every fixable high-severity one in both container images. Upgrade by pulling the new images and restarting; port, environment variables and data are unchanged, and no database migration is needed.
+
 ### Fixed
 
 - **The published frontend image now serves the production nginx build.** v0.4.0 images were mistakenly running the development server (Vite) instead of the production nginx build. Port (5173), `AL_BACKEND_URL` and the health check are unchanged, so no action is needed beyond pulling the new image.
