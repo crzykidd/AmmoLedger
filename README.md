@@ -203,7 +203,7 @@ Planned features and enhancements are tracked as [GitHub issues](https://github.
 
 | Layer | Technology |
 | ----- | ---------- |
-| Backend | Python + FastAPI (`python:3.12.9-slim-bookworm`) |
+| Backend | Python + FastAPI (`python:3.12.16-slim-trixie`) |
 | Frontend | React + Tailwind CSS (`node:20.19.1-slim` dev / `nginx:1.27-alpine` production) |
 | Database | SQLite + SQLModel + Alembic migrations |
 | Container | Docker + Docker Compose |

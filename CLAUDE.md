@@ -65,7 +65,7 @@ Pydantic schemas live per-domain under `backend/schemas/`, re-exported through
 
 All backend commands run from `backend/`.
 
-- **Backend tests:** startup events fire during `TestClient`, so a migrated file DB and
+- **Backend tests:** the lifespan startup runs during `TestClient`, so a migrated file DB and
   data-dir env vars are required (conftest overrides the route session but not the startup
   engine). Full invocation from `backend/`:
   ```

@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import traceback
+from contextlib import asynccontextmanager
 from typing import Optional
 
 import httpx
@@ -54,7 +55,7 @@ GITHUB_API_URL = "https://api.github.com/repos/crzykidd/AmmoLedger"
 # ---------------------------------------------------------------------------
 # Session secret — sourced from config (AL_SESSION_SECRET / config.yaml).
 # Must be resolved at module load time because SessionMiddleware is added to
-# the ASGI app before on_startup fires.
+# the ASGI app before the lifespan startup runs.
 # ---------------------------------------------------------------------------
 _boot_config = get_config()
 SESSION_SECRET = ((_boot_config.get("security") or {}).get("session_secret") or "").strip()
@@ -99,7 +100,19 @@ _cors_origins = (
     else list({_cors_origin, _DEV_ORIGIN})
 )
 
-app = FastAPI(title="AmmoLedger API", version=__version__)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Starlette 1.x removed @app.on_event; startup/shutdown live here. The
+    # handlers (defined below) run in the same order as before: startup, then
+    # shutdown after the server stops accepting requests.
+    on_startup()
+    try:
+        yield
+    finally:
+        on_shutdown()
+
+
+app = FastAPI(title="AmmoLedger API", version=__version__, lifespan=lifespan)
 
 # CORSMiddleware added first → outermost → handles preflight before session processing
 app.add_middleware(
@@ -304,7 +317,6 @@ def _record_version() -> None:
         db.commit()
 
 
-@app.on_event("startup")
 def on_startup():
     # Re-attach our stdout handler after uvicorn's logging dictConfig runs
     # (uvicorn's takeover orphans the handler installed at import time).
@@ -405,7 +417,6 @@ def on_startup():
     print(f"✓ AmmoLedger {get_display_version()} ready", flush=True)
 
 
-@app.on_event("shutdown")
 def on_shutdown():
     stop_scheduler()
 

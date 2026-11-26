@@ -7,6 +7,33 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-11-26 — Backend security patch: FastAPI/Starlette 1.x, lifespan, Debian trixie
+
+Prompt: `prompts/done/2026-11-26-security-backend-deps-and-image.md`
+
+- **FastAPI 0.111 -> 0.165 (Starlette 0.37 -> 1.x).** Starlette < 1.3.1 carries high CVEs and
+  FastAPI 0.111 pins `starlette<0.38`, so the framework had to jump. Starlette 1.x removed
+  `@app.on_event`; `main.py` now uses a `lifespan` async context manager that calls the
+  existing `on_startup()` / `on_shutdown()` functions in the same order. The session-secret
+  comment about middleware being added before startup still holds (middleware is built at
+  import time).
+- **bcrypt held at 4.3.0 (not 5.0.0).** bcrypt 5 raises `ValueError` for passwords over 72
+  bytes where 4.x silently truncated; we have no password length cap, so a long password
+  would turn into a 500 on login/set-password. 4.3.0 has no known advisories. Revisit
+  together with a max-length validator.
+- **Base image `python:3.12.9-slim-bookworm` -> `python:3.12.16-slim-trixie`.** Debian 12 has
+  no fix for the zlib (CVE-2023-45853) and sqlite (CVE-2025-7458) criticals; trixie scans
+  clean of criticals.
+- **sqlmodel held at 0.0.44 (not 0.0.50).** From 0.0.45 sqlmodel maps `datetime` fields to a
+  timezone-aware `UTCDateTime` column type that raises on naive values; the whole schema uses
+  naive `datetime.utcnow` values, so 0.0.45+ breaks every insert (188 test errors). 0.0.44 is
+  the newest release without it (and requires SQLAlchemy <2.1). Moving up needs a deliberate
+  naive-vs-aware datetime migration across models and routers.
+- `email_validator`/`dnspython` are no longer hard dependencies of FastAPI and we do not use
+  `EmailStr`, so they drop out of the image.
+
+---
+
 ## 2026-07-02 — Upgraded code-checkin-and-pr to v1.2.0 (CI test suite + CodeQL SAST)
 
 Prompt: `prompts/done/2026-07-02-upgrade-code-checkin-standard.md`
