@@ -65,7 +65,7 @@ Pydantic schemas live per-domain under `backend/schemas/`, re-exported through
 
 All backend commands run from `backend/`.
 
-- **Backend tests:** startup events fire during `TestClient`, so a migrated file DB and
+- **Backend tests:** the lifespan startup runs during `TestClient`, so a migrated file DB and
   data-dir env vars are required (conftest overrides the route session but not the startup
   engine). Full invocation from `backend/`:
   ```
@@ -78,8 +78,8 @@ All backend commands run from `backend/`.
   (The `python -m` form puts `backend/` on the path so flat imports resolve; bare `pytest`
   from the repo root fails on `from main import app`.)
   Single file: set the same env vars, then `python -m pytest tests/test_firearms.py`.
-  **Note:** `test_firearm_photos.py::test_zip_restore_rejects_path_traversal` is a
-  pre-existing failure (stale assertion) — unrelated to most changes.
+  The full suite is expected to pass — CI now runs it as a required check
+  (`test-backend` job in `ci.yml`), so a red suite blocks the PR.
 - **Backend lint (matches CI):** `ruff check backend/` — pinned `ruff==0.4.4`, rule set
   `E4/E7/E9/F` (see `backend/ruff.toml`).
 - **Migrate to head:** `cd backend && alembic upgrade head`. Check head/current:
@@ -91,8 +91,15 @@ All backend commands run from `backend/`.
   Validate compose (matches CI): `docker compose config --quiet`.
 
 CI (`.github/workflows/ci.yml`) runs: backend lint, YAML validation, migrate-to-head,
-and `docker compose config`. **CI does not run the test suite or frontend build** — run
-those locally before opening a PR.
+`docker compose config`, and the **backend test suite** (`test-backend` job). **SAST /
+code scanning** is handled by **GitHub CodeQL _default setup_** (enabled in the repo's
+Security settings, not a committed workflow) — it scans Python + JS/TS on PR and weekly;
+findings surface in Security → Code scanning for triage and don't fail merges. Do NOT add
+an advanced `codeql.yml` workflow: advanced and default setup are mutually exclusive and
+the advanced run's SARIF upload is rejected while default setup is on.
+**CI does not run the frontend build** as a standalone job — the PR image-build in
+`docker-publish.yml` compiles the frontend, so run `npm run build` locally for faster
+feedback before opening a PR.
 
 ## Configuration
 
@@ -116,7 +123,7 @@ those locally before opening a PR.
   ripgrep + Read traverses it cheaply. Start from the "Where things live" map above.
 
 <!--
-Source: standards/code-checkin-and-pr @ v1.1.0 (crzynet/homelab-configs).
+Source: standards/code-checkin-and-pr @ v1.2.0 (crzynet/homelab-configs).
 Pasted verbatim per the standard. Full why-and-how:
 https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/code-checkin-and-pr/README.md
 -->
@@ -147,7 +154,7 @@ If you're unsure whether an action would violate one of the above, stop and ask 
 acting.
 
 <!--
-Source: standards/release-prep-and-cut @ v1.0.0 (crzynet/homelab-configs).
+Source: standards/release-prep-and-cut @ v1.1.0 (crzynet/homelab-configs).
 Pasted verbatim per the standard. Full why-and-how:
 https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/release-prep-and-cut/README.md
 -->
@@ -238,8 +245,8 @@ acting.
 
 ## Build Status
 
-Current release target: v0.4.0 (security hardening batch — session-secret wiring + fail-closed boot + cookie/CORS hardening; SSRF guard on image preview; upload size caps; read-only product gate; server-side must_change_password; constant-time reset-token; production nginx static frontend + CI SHA pinning; firearm clean-state recompute on range apply; firearm_conditions in JSON export; bundles older-JSON-restore #14 + CSV format auto-detect #36)
-Last shipped public release: v0.3.10 (2026-05-30) — /release-cut sets last-shipped to v0.4.0 after the PR merges
+Current release target: v0.5.0 (security patch release — Pillow 13 + FastAPI 0.165/Starlette 1.x with lifespan startup; frontend npm deps clean; Debian 13 / Node 24 / nginx 1.30 base images with build-time OS upgrades; publish `target: prod` fix so the production frontend is the nginx build; both images 0 critical)
+Last shipped public release: v0.4.0 (2026-06-13)
 
 > **Migration history starts at v0.1.9.** Migrations 0001–0022 were squashed into a single `0001_initial_schema.py` before the first public release. The originals are archived in `backend/migrations/archive/` for reference only — they are not part of the active migration chain. New migrations from v0.1.9 forward build incrementally on top of the squashed schema.
 
@@ -313,7 +320,7 @@ Last shipped public release: v0.3.10 (2026-05-30) — /release-cut sets last-shi
   2. Create a new tag in `v1.0.0` format
   3. Publish the release
   4. GitHub Actions builds and pushes `:latest`, `:1.0.0`, and `:1` to GHCR
-- **Archive trigger (new minor only):** when cutting the first release of a new minor (e.g. `0.4.0`), before tagging: move the entire previous minor series out of `CHANGELOG.md` into a new `docs/CHANGELOG-<prev-minor>.x.md`, prepend a link in the "Archived releases" index, and confirm the active file is back to `[Unreleased]` + the new current minor. Patch releases within a minor (`0.3.6`, etc.) do **not** trigger archiving.
+- **Archive trigger (new minor/major only) — summarize-on-archive:** when cutting the first release of a new minor (e.g. `0.4.0`), before tagging, archive **every** closed minor series still in `CHANGELOG.md` (not just the immediately-prior one). For each: move its full detail into `docs/CHANGELOG-<minor>.x.md` **and leave a condensed `## [<version>] — <date> (summary)` block** in the active file (one bullet per major feature/fix, trivial entries dropped, ending in a `[full notes](...)` deep link to the archived section); prepend a link in the "Archived releases" index. The active file ends up as `[Unreleased]` + the new current minor in full + older minors as summary blocks. Patch releases within a minor (`0.3.6`, etc.) do **not** trigger archiving.
 
 ## URL Structure (Production Target)
 
@@ -340,9 +347,10 @@ Last shipped public release: v0.3.10 (2026-05-30) — /release-cut sets last-shi
 - On release: move [Unreleased] to new version section with today's date
 - GitHub release body = that version's CHANGELOG section (single source of truth)
 - In-app About page fetches release notes from GitHub Releases API
-- **Rolling per-minor archive:** the active `CHANGELOG.md` holds only `[Unreleased]` plus the current minor series (e.g. all `0.3.x` while shipping any 0.3.x release).
-- Each older minor series lives in `docs/CHANGELOG-<MAJOR>.<MINOR>.x.md` (one file per minor), newest-first within the file.
+- **Rolling per-minor archive (summarize-on-archive):** the active `CHANGELOG.md` holds `[Unreleased]` + the **current** minor series in **full detail** + **older** minor series as **condensed summary blocks** (a `## [<version>] — <date> (summary)` heading, one bullet per major feature/fix, ending in a `[full notes](...)` deep link to the archived section).
+- Each older minor series' **full detail** lives in `docs/CHANGELOG-<MAJOR>.<MINOR>.x.md` (one file per minor), newest-first within the file; the active file keeps only its summary.
 - The root file ends with an "Archived releases" index linking each archive; when a new archive is created, prepend a line to the index.
+- Archiving fires only on a **new minor/major** bump and clears **every** closed minor still in the active file in one pass; patch bumps never archive.
 
 ## Database Rules
 

@@ -6,7 +6,7 @@
 <div align="center">
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.0-gold)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-gold)](CHANGELOG.md)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://github.com/crzykidd/AmmoLedger/pkgs/container/ammoledger-backend)
 [![PRD](https://img.shields.io/badge/docs-PRD-navy)](docs/PRD.md)
 
@@ -17,6 +17,16 @@
 AmmoLedger is a self-hosted web app for tracking your ammunition inventory, firearms, and range sessions. Run it on your own hardware with Docker — your data never leaves your machine. Keep accurate round counts on and off the range.
 
 > **Latest release:** see the [Changelog](./CHANGELOG.md) for what's new in the current and past releases.
+
+> [!IMPORTANT]
+> **v0.5.0 is primarily a security patch release — upgrade recommended.** It brings no new features. Instead it clears every known critical vulnerability in both container images and every fixable high-severity one:
+>
+> - **Image handling:** Pillow, used for firearm and product photos, is upgraded to close five critical image-decoding flaws.
+> - **Backend and frontend dependencies:** the web framework (FastAPI/Starlette), multipart parsing, axios, Vite and React Router are updated to their patched versions.
+> - **Base images:** the backend moves to Debian 13, and the frontend builds on Node 24 and is served by nginx 1.30. Each build now also installs pending OS security updates.
+> - **Production frontend fix:** v0.4.0 images mistakenly ran the development web server instead of the production nginx build. They now serve the production build.
+>
+> **Upgrading:** pull the new images and restart. The port (5173), environment variables and your data are unchanged, and no database migration is needed. Full details are in the [Changelog](./CHANGELOG.md).
 
 ## Why AmmoLedger
 
@@ -170,8 +180,8 @@ docker pull ghcr.io/crzykidd/ammoledger-backend:latest
 docker pull ghcr.io/crzykidd/ammoledger-frontend:latest
 
 # Specific version
-docker pull ghcr.io/crzykidd/ammoledger-backend:0.4.0
-docker pull ghcr.io/crzykidd/ammoledger-frontend:0.4.0
+docker pull ghcr.io/crzykidd/ammoledger-backend:0.5.0
+docker pull ghcr.io/crzykidd/ammoledger-frontend:0.5.0
 
 # Latest development build (may be unstable)
 docker pull ghcr.io/crzykidd/ammoledger-backend:dev
@@ -203,8 +213,8 @@ Planned features and enhancements are tracked as [GitHub issues](https://github.
 
 | Layer | Technology |
 | ----- | ---------- |
-| Backend | Python + FastAPI (`python:3.12.9-slim-bookworm`) |
-| Frontend | React + Tailwind CSS (`node:20.19.1-slim` dev / `nginx:1.27-alpine` production) |
+| Backend | Python + FastAPI (`python:3.12.16-slim-trixie`) |
+| Frontend | React + Tailwind CSS (`node:24.22.3-trixie-slim` dev/build / `nginx:1.30.8-alpine` production) |
 | Database | SQLite + SQLModel + Alembic migrations |
 | Container | Docker + Docker Compose |
 

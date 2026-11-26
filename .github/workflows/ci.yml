@@ -84,3 +84,31 @@ jobs:
 
       - name: Validate docker compose config
         run: docker compose config --quiet
+
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      # Startup events fire during TestClient, so a migrated file DB and data-dir
+      # env vars are required (conftest overrides the route session but not the
+      # startup engine). Mirrors the local invocation in CLAUDE.md → Run / Test.
+      - name: Run backend test suite
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/backend/_ci_data/app.db
+          CONFIG_PATH: ${{ github.workspace }}/backend/_ci_data/config.yaml
+          DEFAULTS_PATH: ${{ github.workspace }}/backend/defaults.yaml
+          BACKUP_PATH: ${{ github.workspace }}/backend/_ci_data/backups
+          UPLOADS_PATH: ${{ github.workspace }}/backend/_ci_data/uploads
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/backend/_ci_data/backups" "$GITHUB_WORKSPACE/backend/_ci_data/uploads"
+          alembic upgrade head
+          python -m pytest

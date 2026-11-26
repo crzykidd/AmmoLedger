@@ -7,6 +7,156 @@ standard (see `standards.md`).
 
 ---
 
+## 2026-11-26 — v0.5.0 skips the new-minor CHANGELOG archive (user decision)
+
+- **Deviation from `release-prep-and-cut` 1.1.0.** That standard says the first release of a
+  new minor archives every closed minor series still in `CHANGELOG.md`. For v0.5.0 that would
+  move the 0.4.x detail into `docs/CHANGELOG-0.4.x.md` and leave a summary block behind. The
+  user chose not to archive this release, so `[0.4.0]` stays in full in the active file.
+- **Why.** Archiving earned its keep during heavy development, when the changelog was huge.
+  0.4.x is a single ~50-line release, so splitting it out adds indirection without making the
+  file meaningfully shorter.
+- **Follow-up.** The user plans to change the standard so the archive trigger is a
+  user-defined option rather than mandatory. Until then, treat this as a one-off exception,
+  not drift to be "fixed" by a later release. The next new-minor prep should ask whether to
+  archive (or follow the updated standard).
+
+## 2026-11-26 — Frontend security patch: real prod stage published, Node 24 trixie, Vite 6
+
+Prompt: `prompts/done/2026-11-26-security-frontend-deps-and-images.md`
+
+- **Root cause of v0.4.0 shipping the dev server.** The `build-frontend` step in
+  `docker-publish.yml` had no `target:`, and buildx builds the *last* stage, which was `dev`.
+  Fixed two ways: `target: prod` in the workflow, and `Dockerfile.frontend` now ends with `prod`
+  (stage order builder -> dev -> prod, with a comment saying prod must stay last) so a missing
+  target can never ship dev again. `docker-compose.dev.yml` uses `target: dev` explicitly, so the
+  reorder does not affect it. `GIT_SHA`/`GIT_BRANCH` are consumed in `builder` (only used for the
+  build-time banner in `vite.config.ts`; the About page gets version info from the backend), so
+  nothing depends on runtime env that only the dev server had.
+- **`node:24.22.3-trixie-slim`, not `node:24-slim`.** The unversioned 24-slim tag is still Debian
+  bookworm and keeps the unfixable zlib critical; the trixie variant scans clean. Node 20 is EOL.
+  `node` user is still uid 1000 and `apt-get install curl` works on trixie.
+- **Vite 6, not 7/8.** No 5.x release fixes the Vite advisories, so a major bump was required;
+  6.4.x is the smallest jump that is fully patched and works with `@vitejs/plugin-react` 4.7 and
+  the existing `vite.config.ts` unchanged (`allowedHosts: true` keeps the dev host accepted).
+  Vite 6 pulls esbuild 0.25.x, outside the vulnerable range, so no override was needed.
+- **`nginx:1.30.8-alpine`** replaces 1.27 (3 criticals); 0 critical/high now.
+
+## 2026-11-26 — Backend security patch: FastAPI/Starlette 1.x, lifespan, Debian trixie
+
+Prompt: `prompts/done/2026-11-26-security-backend-deps-and-image.md`
+
+- **FastAPI 0.111 -> 0.165 (Starlette 0.37 -> 1.x).** Starlette < 1.3.1 carries high CVEs and
+  FastAPI 0.111 pins `starlette<0.38`, so the framework had to jump. Starlette 1.x removed
+  `@app.on_event`; `main.py` now uses a `lifespan` async context manager that calls the
+  existing `on_startup()` / `on_shutdown()` functions in the same order. The session-secret
+  comment about middleware being added before startup still holds (middleware is built at
+  import time).
+- **bcrypt held at 4.3.0 (not 5.0.0).** bcrypt 5 raises `ValueError` for passwords over 72
+  bytes where 4.x silently truncated; we have no password length cap, so a long password
+  would turn into a 500 on login/set-password. 4.3.0 has no known advisories. Revisit
+  together with a max-length validator.
+- **Base image `python:3.12.9-slim-bookworm` -> `python:3.12.16-slim-trixie`.** Debian 12 has
+  no fix for the zlib (CVE-2023-45853) and sqlite (CVE-2025-7458) criticals; trixie scans
+  clean of criticals.
+- **sqlmodel held at 0.0.44 (not 0.0.50).** From 0.0.45 sqlmodel maps `datetime` fields to a
+  timezone-aware `UTCDateTime` column type that raises on naive values; the whole schema uses
+  naive `datetime.utcnow` values, so 0.0.45+ breaks every insert (188 test errors). 0.0.44 is
+  the newest release without it (and requires SQLAlchemy <2.1). Moving up needs a deliberate
+  naive-vs-aware datetime migration across models and routers.
+- `email_validator`/`dnspython` are no longer hard dependencies of FastAPI and we do not use
+  `EmailStr`, so they drop out of the image.
+
+---
+
+## 2026-07-02 — Upgraded code-checkin-and-pr to v1.2.0 (CI test suite + CodeQL SAST)
+
+Prompt: `prompts/done/2026-07-02-upgrade-code-checkin-standard.md`
+
+Bumped the `code-checkin-and-pr` pin 1.1.0 → 1.2.0, which adds two required PR checks on
+top of the prior five: a **test suite** and **static analysis / code scanning (SAST)**.
+
+- **Backend test suite → `test-backend` job in `ci.yml`.** The startup events fire during
+  `TestClient`, and conftest only overrides the route session (not the startup engine), so
+  the job replicates the CLAUDE.md local invocation: migrated file DB + `CONFIG_PATH` /
+  `DEFAULTS_PATH` / `BACKUP_PATH` / `UPLOADS_PATH` / `DATABASE_URL` env vars, then
+  `alembic upgrade head`, then `python -m pytest`. pytest is already in
+  `backend/requirements.txt`, so no new dependency file.
+- **Frontend exempt.** The frontend has no test suite (no vitest, no test files), and the
+  standard exempts a repo with no suite until it adds one. The PR image-build in
+  `docker-publish.yml` already proves the frontend compiles, so no standalone frontend CI
+  job was added. (An optional `tsc --noEmit` typecheck job could be added later if wanted.)
+- **Fixed one stale test rather than deselecting it.** `test_zip_restore_rejects_path_traversal`
+  asserted the rejection detail contained `"unsafe"`, but `_sanitize_zip_entry_name` rejects
+  `..` entries with `"Parent-directory escape in zip: ..."` (HTTP 400, before extraction).
+  The security behaviour is correct; only the assertion was stale. Changed it to check for
+  `"escape"` so the suite runs green as a required check. NB: backend deps are not installed
+  in the authoring sandbox, so the suite could not be run here — the `test-backend` CI job is
+  the verification.
+- **SAST → GitHub CodeQL default setup (already enabled).** Initially I added an advanced
+  `.github/workflows/codeql.yml`, but the first `dev` push revealed the repo already has
+  **CodeQL default setup** configured (repo Security settings, since 2026-05-18, scanning
+  Python + JS/TS on PR + weekly). Advanced and default setup are mutually exclusive — the
+  advanced run's SARIF upload is rejected with *"CodeQL analyses from advanced configurations
+  cannot be processed when the default setup is enabled"* (and the `codeql-action/init` input
+  is `languages`, not the `language` I used). So the SAST requirement was **already satisfied**
+  by default setup; the advanced workflow was redundant and failing. Removed
+  `codeql.yml` and documented that SAST is provided by default setup. Net: no committed
+  CodeQL workflow — one less thing to maintain.
+- **Branch protection is a manual follow-up.** The new `test-backend` job must be added to
+  `main`'s required status checks in branch protection — this needs repo admin and can only
+  be done after it has run at least once on a PR (GitHub only lets you require checks it has
+  seen). CodeQL default-setup results gate separately via the code-scanning settings, not as
+  a normal status check. Until then CI runs but doesn't gate merges.
+
+The per-session operational-rules snippet is unchanged 1.1.0→1.2.0, so `CLAUDE.md`'s "Code
+check-in (operational rules)" block was left untouched.
+
+## 2026-07-02 — Upgraded release-prep-and-cut to v1.1.0 (summarize-on-archive)
+
+Prompt: `prompts/done/2026-07-02-upgrade-release-prep-standard.md`
+
+Bumped the `release-prep-and-cut` pin 1.0.0 → 1.1.0. The only behavioural delta is the
+changelog archive rule: **summarize-on-archive** replaces move-and-link. When a new
+minor/major fires the archive trigger, the active `CHANGELOG.md` keeps a condensed
+`## [<version>] — <date> (summary)` block (one bullet per major feature/fix + a
+`[full notes](...)` deep link) in place of each archived minor, and every closed minor
+still in the active file is archived in one pass. Re-implemented in
+`.claude/commands/release-prep.md` (Step 3) and the two `CLAUDE.md` changelog
+descriptions. The per-session operational-rules snippet is unchanged between the two
+versions, so `CLAUDE.md`'s "Release process (operational rules)" block was left untouched.
+
+- **Did not retrofit the already-archived minors.** 0.3.x / 0.2.x / 0.1.x were moved out
+  wholesale under the old move-and-link rule and currently have no summary block in the
+  active file. Rewriting shipped changelog history is churn with little value, so they are
+  left as index links only. The new rule applies going forward — the next minor bump
+  (0.5.0) will summarize 0.4.x. If a complete active-file history is ever wanted, the
+  retrofit can be done as a separate docs pass.
+
+## 2026-07-02 — De-adopted the repo-sandbox-permissions standard
+
+The AmmoLedger working copy now lives on a dedicated dev host with a lowered risk
+profile, so OS-level command confinement is no longer worth its friction. De-adopting
+`repo-sandbox-permissions` (was pinned v1.0.0, local-only scope, adopted 2026-05-29).
+
+Back-out was minimal because the standard is config-driven and was wired local-only:
+- The `sandbox` block was removed from `.claude/settings.local.json`. That file is
+  gitignored and untracked, so the removal is not a committed change — the remaining
+  `permissions.allow` `Read(...)` entries there are unrelated manual allows, not the
+  standard's `Read(**)/Edit(**)/Write(**)` globs.
+- `.claude/settings.json` (the committed, team-shared file) never carried the sandbox
+  block, so nothing to strip there.
+- The standard ships no `CLAUDE-snippet.md`, so there was no operational-rules block in
+  `CLAUDE.md` to remove (confirmed: no sandbox references in `CLAUDE.md`).
+- The `.gitignore` entry for `.claude/settings.local.json` is left in place — keeping a
+  personal local-settings file untracked is general hygiene, independent of this standard.
+- `standards.md` row flipped to de-adopted; the 2026-05-29 adoption entry below is kept
+  as history.
+
+With the sandbox off, bash commands fall back to the normal permission prompts — the
+confinement guarantee is gone, which is the accepted trade for a trusted dedicated host.
+Host runtime deps (`bwrap` + `socat`) teardown is out of scope for this app repo.
+
 ## 2026-06-13 — Global 401 handler uses window.location.replace, not React Router navigate
 
 Prompt: `prompts/done/2026-06-12-frontend-robustness.md`

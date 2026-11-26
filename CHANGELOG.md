@@ -18,6 +18,22 @@ next versioned release, change this header to `## [X.Y.Z] — YYYY-MM-DD`
 and create a fresh empty `## [Unreleased]` block above it.
 -->
 
+## [0.5.0] — 2026-11-26
+
+> **Security patch release.** No new features — this release clears every known critical vulnerability and every fixable high-severity one in both container images. Upgrade by pulling the new images and restarting; port, environment variables and data are unchanged, and no database migration is needed.
+
+### Fixed
+
+- **The published frontend image now serves the production nginx build.** v0.4.0 images were mistakenly running the development server (Vite) instead of the production nginx build. Port (5173), `AL_BACKEND_URL` and the health check are unchanged, so no action is needed beyond pulling the new image.
+
+### Security
+
+- **Frontend dependency updates.** Upgraded axios (1.15 to 1.21), Vite (5 to 6), PostCSS, zod and React Router, clearing all known advisories (`npm audit` now reports zero).
+- **Frontend container base images updated.** Build stages moved from the end-of-life Node 20 to Node 24 on Debian 13, and the production web server from nginx 1.27 to 1.30 (Alpine 3.24), removing all known critical and high OS-level vulnerabilities. Shipping the production image also removes the development toolchain (npm and its bundled packages) that the previous image carried.
+- **Image-decoding fixes.** Upgraded Pillow (used for firearm and product photos) from 11.0.0 to 13.0.0, closing five critical and dozens of high/medium vulnerabilities in image decoding (heap overflows, Ghostscript argument injection).
+- **Framework and dependency updates.** Upgraded FastAPI/Starlette (0.111 / 0.37 to 0.165 / 1.x), python-multipart, uvicorn, SQLModel, Alembic, httpx and other backend dependencies, clearing known high-severity advisories in the web framework and multipart parser.
+- **Backend container base image moved to Debian 13 (trixie).** Picks up OpenSSL, zlib, SQLite and other OS-level security fixes that Debian 12 never received. Image builds now also apply pending OS security updates on top of the base images (Debian for the backend, Alpine for the frontend).
+
 ## [0.4.0] — 2026-06-13
 
 ### Added

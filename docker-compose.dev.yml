@@ -19,7 +19,7 @@ services:
       - APP_ENV=development
       - LOG_LEVEL=DEBUG
       - PYTHONUNBUFFERED=1
-      - AL_BASE_URL=http://localhost:5173
+      - AL_BASE_URL=http://crzydev.home.arpa:5174
       # Dev installs pull community YAMLs from the dev branch on GitHub instead
       # of main, so newly-added lookups / manufacturers / firearm_models become
       # visible to a `:dev` install before they ship to main. Override with
@@ -44,7 +44,7 @@ services:
       dockerfile: ../Dockerfile.frontend
       target: dev          # use the Vite dev-server stage, not the nginx prod stage
     ports:
-      - "127.0.0.1:5173:5173"
+      - "5174:5173"
     volumes:
       - ./frontend:/app         # live reload your React code
       - /app/node_modules       # keep node_modules inside container
