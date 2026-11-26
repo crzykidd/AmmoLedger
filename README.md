@@ -18,6 +18,16 @@ AmmoLedger is a self-hosted web app for tracking your ammunition inventory, fire
 
 > **Latest release:** see the [Changelog](./CHANGELOG.md) for what's new in the current and past releases.
 
+> [!IMPORTANT]
+> **The next release is primarily a security patch — upgrade recommended.** It brings no new features. Instead it clears every known critical vulnerability in both container images and every fixable high-severity one:
+>
+> - **Image handling:** Pillow, used for firearm and product photos, is upgraded to close five critical image-decoding flaws.
+> - **Backend and frontend dependencies:** the web framework (FastAPI/Starlette), multipart parsing, axios, Vite and React Router are updated to their patched versions.
+> - **Base images:** the backend moves to Debian 13, and the frontend builds on Node 24 and is served by nginx 1.30. Each build now also installs pending OS security updates.
+> - **Production frontend fix:** v0.4.0 images mistakenly ran the development web server instead of the production nginx build. They now serve the production build.
+>
+> **Upgrading:** pull the new images and restart. The port (5173), environment variables and your data are unchanged, and no database migration is needed. Full details are in the [Changelog](./CHANGELOG.md).
+
 ## Why AmmoLedger
 
 Ammo and firearms are a touchy subject, and where your records live matters. You can hand your inventory to someone else's cloud, or you can own it. That's the whole point of self-hosting: **you decide.** Run AmmoLedger entirely inside your own network, or reach it from anywhere by putting it behind something you control — Cloudflare Tunnel, Tailscale, a VPN, your call. Either way the data is yours and stays where you put it.
