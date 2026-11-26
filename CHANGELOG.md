@@ -28,7 +28,7 @@ and create a fresh empty `## [Unreleased]` block above it.
 - **Frontend container base images updated.** Build stages moved from the end-of-life Node 20 to Node 24 on Debian 13, and the production web server from nginx 1.27 to 1.30 (Alpine 3.24), removing all known critical and high OS-level vulnerabilities. Shipping the production image also removes the development toolchain (npm and its bundled packages) that the previous image carried.
 - **Image-decoding fixes.** Upgraded Pillow (used for firearm and product photos) from 11.0.0 to 13.0.0, closing five critical and dozens of high/medium vulnerabilities in image decoding (heap overflows, Ghostscript argument injection).
 - **Framework and dependency updates.** Upgraded FastAPI/Starlette (0.111 / 0.37 to 0.165 / 1.x), python-multipart, uvicorn, SQLModel, Alembic, httpx and other backend dependencies, clearing known high-severity advisories in the web framework and multipart parser.
-- **Backend container base image moved to Debian 13 (trixie).** Picks up OpenSSL, zlib, SQLite and other OS-level security fixes that Debian 12 never received.
+- **Backend container base image moved to Debian 13 (trixie).** Picks up OpenSSL, zlib, SQLite and other OS-level security fixes that Debian 12 never received. Image builds now also apply pending Debian security updates on top of the base image.
 
 ## [0.4.0] — 2026-06-13
 

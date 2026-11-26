@@ -2,8 +2,11 @@ FROM python:3.12.16-slim-trixie
 
 WORKDIR /app
 
-# curl for HEALTHCHECK; gosu for dropping privileges from the entrypoint
-RUN apt-get update && apt-get install -y --no-install-recommends curl gosu \
+# curl for HEALTHCHECK; gosu for dropping privileges from the entrypoint.
+# apt-get upgrade picks up Debian security fixes published after the base
+# image was built, so every rebuild ships the latest patched OS packages.
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends curl gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Create the runtime group and user with a default UID/GID of 1000. The
